@@ -1,0 +1,226 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3469 - in trunk/rpms: . suphp
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3469%20-%20in%20trunk/rpms%3A%20.%20suphp&In-Reply-To=%3C20050811222354.7D475318041%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002269.html">
+   <LINK REL="Next"  HREF="002271.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3469 - in trunk/rpms: . suphp</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3469%20-%20in%20trunk/rpms%3A%20.%20suphp&In-Reply-To=%3C20050811222354.7D475318041%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3469 - in trunk/rpms: . suphp">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug 12 00:23:54 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002269.html">[svn] r3468 - in trunk/rpms: . asciidoc git mrxvt scapy
+</A></li>
+        <LI>Next message: <A HREF="002271.html">[svn] r3470 - in trunk/rpms: . apachetop bchunk git htop lftp	mathomatic mod_suphp multitail ntop ocaml perl-ldap php-adodb	smbldap-tools snackamp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2270">[ date ]</a>
+              <a href="thread.html#2270">[ thread ]</a>
+              <a href="subject.html#2270">[ subject ]</a>
+              <a href="author.html#2270">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-08-12 00:23:52 +0200 (Fri, 12 Aug 2005)
+New Revision: 3469
+
+Added:
+   trunk/rpms/suphp/
+   trunk/rpms/suphp/suphp.spec
+Log:
+Another high quality package sees the light :P
+
+Added: trunk/rpms/suphp/suphp.spec
+===================================================================
+--- trunk/rpms/suphp/suphp.spec	2005-08-11 04:46:02 UTC (rev 3468)
++++ trunk/rpms/suphp/suphp.spec	2005-08-11 22:23:52 UTC (rev 3469)
+@@ -0,0 +1,146 @@
++# $Id$
++# Authority: dag
++
++Summary: Enables running PHP scripts under different user IDs
++Name: suphp
++Version: 0.6.0
++Release: 1
++License: GPL
++Group: System Environment/Daemons
++URL: <A HREF="http://www.suphp.org/">http://www.suphp.org/</A>
++
++Source: <A HREF="http://projects.marsching.org/suphp/download/suphp-%{version">http://projects.marsching.org/suphp/download/suphp-%{version</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: httpd-devel &gt;= 2.0
++Requires: httpd &gt;= 2.0, php
++
++%description 
++The suPHP Apache module together with suPHP itself provides an easy way to
++run PHP scripts with different users on the same server. It provides security,
++because the PHP scripts are not run with the rights of the webserver's user.
++In addition to that you probably won't have to use PHP's &quot;safe mode&quot;, which
++applies many restrictions on the scripts.
++
++%package -n mod_suphp
++Summary: Apache module that enables running PHP scripts under different users
++License: Apache License
++Group: System Environment/Daemons
++Requires: suphp
++
++%description -n mod_suphp
++This is the mod_suphp Apache module which is needed to actually use suPHP.
++
++%prep
++%setup
++
++%{__cat} &lt;&lt;EOF &gt;suphp.conf
++[global]
++logfile=%{_localstatedir}/log/httpd/suphp_log
++loglevel=info
++webserver_user=apache
++docroot=/
++env_path=/bin:/usr/bin
++umask=0077
++min_uid=500
++min_gid=500
++
++; Security options
++allow_file_group_writeable=false
++allow_file_others_writeable=false
++allow_directory_group_writeable=false
++allow_directory_others_writeable=false
++
++;Check wheter script is within DOCUMENT_ROOT
++check_vhost_docroot=true
++
++;Send minor error messages to browser
++errors_to_browser=false
++
++[handlers]
++;Handler for php-scripts
++x-httpd-php=php:%{_bindir}/php
++
++;Handler for CGI-scripts
++x-suphp-cgi=execute:!self
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;mod_suphp.conf
++# This is the Apache server configuration file providing suPHP support.
++# It contains the configuration directives to instruct the server how to
++# serve php pages while switching to the user context before rendering.
++
++LoadModule suphp_module modules/mod_suphp.so
++
++# To use suPHP to parse PHP-Files
++AddHandler x-httpd-php .php
++AddHandler x-httpd-php .php .php4 .php3 .phtml
++
++# This option tells mod_suphp if a PHP-script requested on this server (or
++# VirtualHost) should be run with the PHP-interpreter or returned to the
++# browser &quot;as it is&quot;.
++suPHP_Engine off
++
++# This option tells mod_suphp which path to pass on to the PHP-interpreter
++# (by setting the PHPRC environment variable).
++# Do *NOT* refer to a file but to the directory the file resides in.
++#
++# E.g.: If you want to use &quot;/path/to/server/config/php.ini&quot;, use &quot;suPHP_Config
++# /path/to/server/config&quot;.
++#
++# If you don't use this option, PHP will use its compiled in default path.
++# suPHP_ConfigPath /etc
++
++# If you compiled suphp with setid-mode &quot;force&quot; or &quot;paranoid&quot;, you can
++# specify the user- and groupname to run PHP-scripts with.
++# Example: suPHP_UserGroup foouser bargroup
++# suPHP_UserGroup apache apache
++
++# This option tells mod_suphp to handle requests with the type &lt;mime-type&gt;.
++# Please note this only works, if an action for the handler is specified
++# in the suPHP configuration file.
++# suPHP_AddHandler x-httpd-php
++
++# This option tells mod_suphp to NOT handle requests with the type &lt;mime-type&gt;.
++# suPHP_RemoveHandler &lt;mime-type&gt;
++EOF
++
++%build
++export CPPFLAGS=&quot;-I/usr/include/apr-0&quot;
++%configure \
++	--with-apache-user=&quot;apache&quot; \
++	--with-apxs=&quot;%{_sbindir}/apxs&quot; \
++	--disable-checkpath \
++	--with-logfile=&quot;%{_localstatedir}/log/httpd/suphp_log&quot; \
++	--with-min-uid=&quot;500&quot; \
++	--with-min-gid=&quot;500&quot; \
++	--with-php=&quot;%{_bindir}/php&quot; \
++	--with-setid-mode=&quot;owner&quot;
++#	--with-setid-mode=&quot;paranoid&quot;
++%{__make} %{?_smp_mflags}
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++
++%{__install} -Dp -m0644 suphp.conf %{buildroot}%{_sysconfdir}/suphp.conf
++%{__install} -Dp -m0644 mod_suphp.conf %{buildroot}%{_sysconfdir}/httpd/conf.d/mod_suphp.conf
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS ChangeLog COPYING NEWS README doc/CONFIG doc/INSTALL doc/LICENSE doc/suphp.conf-example
++%config(noreplace) %{_sysconfdir}/suphp.conf
++%{_sbindir}/suphp
++
++%files -n mod_suphp
++%defattr(-, root, root, 0755)
++%doc doc/apache/CONFIG doc/apache/INSTALL doc/apache/README
++%config(noreplace) %{_sysconfdir}/httpd/conf.d/mod_suphp.conf
++%{_libdir}/httpd/modules/mod_suphp.so
++
++%changelog
++* Thu Aug 11 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.0-1
++- Initial package. (using DAR)
+
+
+Property changes on: trunk/rpms/suphp/suphp.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002269.html">[svn] r3468 - in trunk/rpms: . asciidoc git mrxvt scapy
+</A></li>
+	<LI>Next message: <A HREF="002271.html">[svn] r3470 - in trunk/rpms: . apachetop bchunk git htop lftp	mathomatic mod_suphp multitail ntop ocaml perl-ldap php-adodb	smbldap-tools snackamp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2270">[ date ]</a>
+              <a href="thread.html#2270">[ thread ]</a>
+              <a href="subject.html#2270">[ subject ]</a>
+              <a href="author.html#2270">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

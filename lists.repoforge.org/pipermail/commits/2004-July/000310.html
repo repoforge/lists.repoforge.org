@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1501 - in trunk/rpms: avidemux2 videolan-client
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1501%20-%20in%20trunk/rpms%3A%20avidemux2%20videolan-client&In-Reply-To=%3C20040707173553.13A1D1FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000309.html">
+   <LINK REL="Next"  HREF="000311.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1501 - in trunk/rpms: avidemux2 videolan-client</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1501%20-%20in%20trunk/rpms%3A%20avidemux2%20videolan-client&In-Reply-To=%3C20040707173553.13A1D1FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1501 - in trunk/rpms: avidemux2 videolan-client">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Jul  7 19:35:53 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000309.html">[SVN] r1500 - in trunk/rpms: gxine totem xine-lib
+</A></li>
+        <LI>Next message: <A HREF="000311.html">[SVN] r1502 - in trunk/rpms: antinat celestia etherape gnomba	libmpeg3 libquicktime lzo speex windowmaker xmms-status-plugin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#310">[ date ]</a>
+              <a href="thread.html#310">[ thread ]</a>
+              <a href="subject.html#310">[ subject ]</a>
+              <a href="author.html#310">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-07-07 19:35:51 +0200 (Wed, 07 Jul 2004)
+New Revision: 1501
+
+Modified:
+   trunk/rpms/avidemux2/avidemux2.spec
+   trunk/rpms/videolan-client/videolan-client.spec
+Log:
+Changes to reflect common practices
+
+Modified: trunk/rpms/avidemux2/avidemux2.spec
+===================================================================
+--- trunk/rpms/avidemux2/avidemux2.spec	2004-07-07 17:33:18 UTC (rev 1500)
++++ trunk/rpms/avidemux2/avidemux2.spec	2004-07-07 17:35:51 UTC (rev 1501)
+@@ -2,8 +2,11 @@
+ # Authority: dag
+ # Upstream: &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">fixounet at free.fr</A>&gt;
+ 
+-%define dfi %(which desktop-file-install &amp;&gt;/dev/null; echo $?)
++%{?dist: %{expand: %%define %dist 1}}
+ 
++%{?rh7:%define _without_freedesktop 1}
++%{?el2:%define _without_freedesktop 1}
++
+ %define real_name avidemux
+ 
+ Summary: Graphical video editing tool
+@@ -22,6 +25,7 @@
+ 
+ BuildRequires: gcc &gt;= 3.0, glib-devel, gtk2-devel &gt;= 2.0.0
+ BuildRequires: nasm &gt;= 0.98.32
++%{!?_without_freedesktop:BuildRequires: desktop-file-utils}
+ 
+ %description
+ Avidemux is a graphical tool to edit AVI. It allows you to multiplex and
+@@ -47,8 +51,11 @@
+ 
+ %build
+ %{__make} -f Makefile.dist
++%{__perl} -pi.orig -e 's|/usr/X11R6/lib|\$x_libraries|g' configure
++%{__perl} -pi.orig -e 's|/usr/X11R6/lib|%{_prefix}/X11R6/%{_lib}|g' Makefile.in */Makefile.in */*/Makefile.in
++
+ %configure \
+-	--disable-dependency-tracking \
++	--x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot; \
+ 	--disable-warnings
+ %{__make} %{?_smp_mflags}
+ 
+@@ -59,11 +66,15 @@
+ 	kde_locale=&quot;%{buildroot}%{_datadir}/locale&quot;
+ #%find_lang %{real_name}
+ 
+-%{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
+-desktop-file-install --vendor gnome                \
+-	--add-category X-Red-Hat-Base              \
+-	--dir %{buildroot}%{_datadir}/applications \
+-	avidemux2.desktop
++%if %{?_without_freedesktop:1}0
++	%{__install} -D -m0755 avidemux2.desktop %{buildroot}%{_datadir}/gnome/apps/Multimedia/avidemux2.desktop
++%else
++	%{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
++	desktop-file-install --vendor gnome                \
++		--add-category X-Red-Hat-Base              \
++		--dir %{buildroot}%{_datadir}/applications \
++		avidemux2.desktop
++%endif
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+@@ -73,7 +84,8 @@
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS ChangeLog COPYING History README TODO
+ %{_bindir}/*
+-%{_datadir}/applications/*.desktop
++%{!?_without_freedesktop:%{_datadir}/applications/gnome-avidemux2.desktop}
++%{?_without_freedesktop:%{_datadir}/gnome/apps/Multimedia/avidemux2.desktop}
+ 
+ %changelog
+ * Tue May 11 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.0.24-1
+
+Modified: trunk/rpms/videolan-client/videolan-client.spec
+===================================================================
+--- trunk/rpms/videolan-client/videolan-client.spec	2004-07-07 17:33:18 UTC (rev 1500)
++++ trunk/rpms/videolan-client/videolan-client.spec	2004-07-07 17:35:51 UTC (rev 1501)
+@@ -2,8 +2,34 @@
+ # Authority: matthias
+ # Upstream: &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">vlc-devel at videolan.org</A>&gt;
+ 
++%{?fc1:%define _without_alsa 1}
++%{?fc1:%define _without_theora 1}
++
++%{?el3:%define _without_alsa 1}
++%{?el3:%define _without_fribidi 1}
++%{?el3:%define _without_theora 1}
++
++%{?rh9:%define _without_alsa 1}
++%{?rh9:%define _without_fribidi 1}
++%{?rh9:%define _without_theora 1}
++
++%{?rh8:%define _without_alsa 1}
++%{?rh8:%define _without_fribidi 1}
++%{?rh8:%define _without_theora 1}
++
++%{?rh7:%define _without_alsa 1}
++%{?rh7:%define _without_freedesktop 1}
++%{?rh7:%define _without_fribidi 1}
++%{?rh7:%define _without_theora 1}
++
++%{?el2:%define _without_alsa 1}
++%{?el2:%define _without_freedesktop 1}
++%{?el2:%define _without_fribidi 1}
++%{?el2:%define _without_theora 1}
++
+ %define desktop_vendor freshrpms
+-%define ffmpeg_date    20040520
++%define ffmpeg_date 20040520
++%define real_name vlc
+ 
+ Summary: The VideoLAN client, also a very good standalone video player
+ Name: videolan-client
+@@ -12,11 +38,14 @@
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://www.videolan.org/">http://www.videolan.org/</A>
++
+ Source0: <A HREF="http://download.videolan.org/pub/videolan/vlc/%{version">http://download.videolan.org/pub/videolan/vlc/%{version</A>}/vlc-%{version}.tar.bz2
+ Source1: <A HREF="http://download.videolan.org/pub/videolan/vlc/%{version">http://download.videolan.org/pub/videolan/vlc/%{version</A>}/contrib/ffmpeg-%{ffmpeg_date}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-BuildRequires: gcc-c++, XFree86-devel, libpng-devel, desktop-file-utils
+-BuildRequires: fribidi-devel
++
++BuildRequires: gcc-c++, XFree86-devel, libpng-devel
++%{!?_without_fribidi:BuildRequires: fribidi-devel}
++%{!?_without_freedesktop:BuildRequires: desktop-file-utils}
+ %{!?_without_dvd:BuildRequires: libdvdcss-devel}
+ %{!?_without_dvdread:BuildRequires: libdvdread-devel}
+ %{!?_without_dvdplay:BuildRequires: libdvdplay-devel}
+@@ -80,7 +109,7 @@
+ 
+ 
+ %prep
+-%setup -n vlc-%{version} -a 1
++%setup -n %{real_name}-%{version} -a 1
+ 
+ 
+ %build
+@@ -95,7 +124,7 @@
+         --enable-pp
+ #       --enable-mp3lame \
+ #       --enable-faac
+-    make
++    %{__make} %{?_smp_mflags}
+ popd
+ 
+ %configure \
+@@ -178,7 +207,7 @@
+ %{__cp} -a %{buildroot}%{_datadir}/vlc/vlc48x48.png \
+     %{buildroot}%{_datadir}/pixmaps/vlc.png
+ 
+-%{__cat} &gt; %{name}.desktop &lt;&lt; EOF
++%{__cat} &lt;&lt;EOF &gt;%{name}.desktop
+ [Desktop Entry]
+ Name=VideoLAN Client
+ Comment=Play DVDs, other various video formats and network streamed videos
+@@ -189,14 +218,21 @@
+ Encoding=UTF-8
+ EOF
+ 
++%if %{!?_without_freedesktop:1}0
++# Convert the menu entry
+ %{__mkdir_p} %{buildroot}%{_datadir}/applications
+ desktop-file-install --vendor %{desktop_vendor} \
+   --dir %{buildroot}%{_datadir}/applications    \
+   --add-category Application                    \
+   --add-category AudioVideo                     \
+   %{name}.desktop
++%else
++%{__install} -D -m644 misc/desktops/%{name}.desktop \
++    %{buildroot}/etc/X11/applnk/Multimedia/%{name}.desktop
++%endif
+ 
+ 
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000309.html">[SVN] r1500 - in trunk/rpms: gxine totem xine-lib
+</A></li>
+	<LI>Next message: <A HREF="000311.html">[SVN] r1502 - in trunk/rpms: antinat celestia etherape gnomba	libmpeg3 libquicktime lzo speex windowmaker xmms-status-plugin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#310">[ date ]</a>
+              <a href="thread.html#310">[ thread ]</a>
+              <a href="subject.html#310">[ subject ]</a>
+              <a href="author.html#310">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

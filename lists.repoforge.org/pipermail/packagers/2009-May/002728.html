@@ -1,0 +1,320 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] Zim (desktop wiki)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Zim%20%28desktop%20wiki%29&In-Reply-To=%3C1242078307.17040.15.camel%40grandmother.littlebald.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002727.html">
+   <LINK REL="Next"  HREF="002729.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] Zim (desktop wiki)</H1>
+    <B>Support</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Zim%20%28desktop%20wiki%29&In-Reply-To=%3C1242078307.17040.15.camel%40grandmother.littlebald.com%3E"
+       TITLE="[packagers] Zim (desktop wiki)">support at littlebald.com
+       </A><BR>
+    <I>Mon May 11 23:45:07 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002727.html">[packagers] RE: 64bit wine packages
+</A></li>
+        <LI>Next message: <A HREF="002729.html">[packagers] php-sqlite missing on RedHat 5 / CentOS 5
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2728">[ date ]</a>
+              <a href="thread.html#2728">[ thread ]</a>
+              <a href="subject.html#2728">[ subject ]</a>
+              <a href="author.html#2728">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Zim is a replacement for Tomboy notes.  Seems to load faster, run
+faster, and use less ram than Tomboy does.  Also, it stores files in
+plain text and works well with svn or bzr.
+
+I've tinkered a bit with Chris Weyl's spec file, mostly to see how
+things work.  I'd appreciate any suggestions about better ways to do
+this.
+
+Chris' spec requires &quot;scrot&quot;, and I ran out of patience trying to get
+that working.  I've split the one plugin that requires it out into a
+subpackage, Zim-plugins-screenshot.  Optionally, you can split out all
+of the plugins by uncommenting three lines in the spec.
+
+Second, his spec runs the postinstall by running a perl script built
+into Zim.  If I'm not mistaken, this could lead to files not getting
+listed or failing verification in rpm.  I've moved it into a 
+%postinstall (and patched the perlscript to avoid duplication).  This
+may or may not be right.
+
+Please let me know what you think.
+-David
+-------------- next part --------------
+# $Id: $
+# Authority: david
+
+%define desktop_vendor rpmforge
+%define         icon %{_datadir}/pixmaps/zim.png
+
+Summary:        Desktop wiki &amp; notekeeper
+Name: Zim
+Version: 0.28
+Release: 3
+License: GPL+ or Artistic
+Group: Applications/Editors
+URL: <A HREF="http://zim-wiki.org/">http://zim-wiki.org/</A> 
+
+Source: <A HREF="http://www.zim-wiki.org/downloads/Zim-%{version">http://www.zim-wiki.org/downloads/Zim-%{version</A>}.tar.gz
+Patch0:         Zim-no-win32-in-manifest.patch
+Patch1:         Zim-rpm-does-postinstall.patch
+
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+BuildArch:      noarch
+
+# non-perl
+BuildRequires:  sed, desktop-file-utils
+
+# core
+BuildRequires:  perl(Test::More)
+BuildRequires:  perl(Test::Simple)
+# cpan
+BuildRequires:  perl(Module::Build)
+BuildRequires:  perl(File::BaseDir)
+BuildRequires:  perl(File::DesktopEntry)
+BuildRequires:  perl(File::MimeInfo) &gt;= 0.12
+BuildRequires:  perl(Gtk2) &gt;= 1.040
+BuildRequires:  perl(Gtk2::TrayIcon)
+BuildRequires:  perl(Gtk2::Spell)
+# test
+BuildRequires:  perl(Test::Pod)
+BuildRequires:  perl(Test::Pod::Coverage)
+# non-perl req for tests
+BuildRequires:  bzr, gettext, man
+
+Requires:       perl(:MODULE_COMPAT_%(eval &quot;`%{__perl} -V:version`&quot;; echo $version))
+Requires:       perl(Gtk2::TrayIcon)
+Requires:       shared-mime-info
+
+%description
+Zim is a WYSIWYG text editor written in Gtk2-Perl which aims to bring the
+concept of a wiki to your desktop. Every page is saved as a text file with
+wiki markup. Pages can contain links to other pages, and are saved
+automatically. Creating a new page is as easy as linking to a non-existing
+page. Pages are ordered in a hierarchical structure that gives it the look
+and feel of an outliner. This tool is intended to keep track of TODO lists
+or to serve as a personal scratch book. 
+
+%package plugins
+Summary: The default plugins for the Zim desktop wiki except screenshot
+Group: Applications/Editors
+Requires: Zim
+
+%description plugins
+Zim desktop wiki plugins for calendars, to-do lists, diagrams,
+equations, outputting HTML, sorting a selection, spellcheck, marking a
+page read-only, version control with bazaar or subversion, a tray icon,
+and screenshots.
+This package installs all of the plugins that are part of the standard
+install except the screenshot plugin, which requires packages which are
+not available in Centos-base or rpmforge.
+
+%package plugins-screenshot
+Summary: Screenshot plugin for the Zim desktop wiki
+Group: Applications/Editors
+Requires: Zim
+Requires: scrot
+
+%description plugins-screenshot
+Zim is a WYSIWYG text editor written in Gtk2-Perl which aims to bring the
+concept of a wiki to your desktop.
+This plugin uses &quot;scrot (SCReen shOT)&quot; to capture screenshots. 
+
+%prep
+%setup -q
+
+find . -type f -exec chmod -c -x {} +
+#sed -i 's/\r//' share/zim/plugins/Subversion.pl
+
+# We're not running on Win32.  Really :)
+rm -f ./lib/Zim/OS/Win32.pm
+rmdir ./lib/Zim/OS
+%patch0 -p0 -b MANIFEST
+%patch1 -p0 -b Build.PL
+
+
+%build
+%{__perl} Build.PL installdirs=vendor
+./Build
+
+
+%install
+rm -rf %{buildroot}
+
+./Build install destdir=%{buildroot} create_packlist=0
+find %{buildroot} -depth -type d -exec rmdir {} 2&gt;/dev/null ';'
+
+%{_fixperms} %{buildroot}/*
+
+desktop-file-install --vendor=&quot;fedora&quot; --delete-original    \
+    --dir=%{buildroot}%{_datadir}/applications              \
+     %{buildroot}%{_datadir}/applications/zim.desktop
+
+
+%check
+# _still_ borked *sigh*
+%{?!_with_display_tests: rm t/[78][01]*.t }
+./Build test
+
+%clean
+rm -rf %{buildroot}
+
+%post
+update-desktop-database
+update-mime-database %{_datadir}/mime
+xdg-icon-resource install --context apps --size 64 %{icon}
+xdg-icon-resource install --context mimetypes --size 64 %{icon} application-x-zim-notebook
+
+%files
+%defattr(-,root,root,-)
+%doc Changes contrib/ 
+%{perl_vendorlib}/*
+%doc %{_mandir}/man[13]/*.[13]*
+%{_bindir}/*
+%{_datadir}/zim/dates.list
+%{_datadir}/zim/default.conf
+%{_datadir}/zim/default.style
+%doc %{_datadir}/zim/doc
+%{_datadir}/zim/entities.list
+%{_datadir}/zim/globe_banner_small.png
+%{_datadir}/zim/lingua
+%{_datadir}/zim/reader.conf
+%{_datadir}/zim/templates
+%{_datadir}/zim/urls.list
+%{_datadir}/zim/zim.svg
+%doc %{_datadir}/zim/doc
+%{_datadir}/pixmaps/*
+%{_datadir}/applications/*
+%{_datadir}/mime/packages/zim.xml
+# Uncomment the next 3 lines if you want the standard plugins in a separate package
+#%files plugins
+#%defattr(-,root,root,-)
+#%doc Changes contrib/ 
+%{_datadir}/zim/plugins/Calendar.pl
+%{_datadir}/zim/plugins/DiagramEditor.pl
+%{_datadir}/zim/plugins/EquationEditor.pl
+%{_datadir}/zim/plugins/PrintToBrowser.pl
+%{_datadir}/zim/plugins/SortSelection.pl
+%{_datadir}/zim/plugins/Spell.pl
+%{_datadir}/zim/plugins/TODOList.pl
+%{_datadir}/zim/plugins/ToggleReadOnly.pl
+%{_datadir}/zim/plugins/TrayIcon.pl
+%{_datadir}/zim/plugins/VersionControl/Subversion.pl
+%{_datadir}/zim/plugins/VersionControl/Bazaar.pl
+%{_datadir}/zim/plugins/VersionControl
+%{_datadir}/zim/plugins/VersionControl.pl
+
+%files plugins-screenshot
+%defattr(-,root,root,-)
+%{_datadir}/zim/plugins/InsertScreenshot.pl
+
+
+%changelog
+* Fri May 08 2009 David Johnston &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">packager at littlebald.com</A>&gt; 0.28-3
+- Merged all of the Zim-plugins-* packages except for one into main package.
+  Zim-plugins-screenshot requires scrot, which we don't have yet, so
+  it is now in its own package which builds but won't install on
+  a standard CentOS system.
+
+* Thu May 07 2009 David Johnston &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">packager at littlebald.com</A>&gt; 0.28-2
+- Split plugins into individual packages
+
+* Tue May 05 2009 David Johnston &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">packager at littlebald.com</A>&gt; 0.28
+- update to 0.28
+- remove requires on scrot, for the InsertScreenshot plugin, if it isn't
+  available then screenshots won't work but the rest of it will.
+
+* Fri Nov 21 2008 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.27-1
+- update to 0.27
+
+* Thu Sep 25 2008 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.26-1
+- update to 0.26
+
+* Tue Aug 05 2008 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.25-2
+- drop tests entirely for the moment.
+
+* Sun Aug 03 2008 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.25-1
+- update to 0.25
+- note we nuke t/71_gui_daemon.t -- it fails under perl 5.10; per
+  upstream it's '...not a problem during normal usage of the program.'
+
+* Thu Mar 06 2008 Tom &quot;spot&quot; Callaway &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">tcallawa at redhat.com</A>&gt; - 0.23-2
+Rebuild for new perl
+
+* Thu Nov 22 2007 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.23-1
+- update to 0.23
+
+* Wed Oct 03 2007 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.21-1
+- update to 0.21
+- add contrib/, TRepository.PL to doc
+- update license tag: GPL -&gt; GPL+
+- add a requires on scrot, for the InsertScreenshot plugin
+
+* Wed May 30 2007 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.19-2
+- add a require on Gtk2::TrayIcon; not picked up automatically
+- some BR refactoring given perl splittage
+
+* Thu Mar 22 2007 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.19-1
+- and hot on the heels of 0.18 is 0.19! :)
+
+* Sat Mar 17 2007 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.18-1
+- update to 0.18
+- fix homepage/download links
+- drop dep on shared-mime-info as bz#215972 has been resolved
+
+* Tue Nov 21 2006 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.17-3
+- bump
+
+* Thu Nov 16 2006 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.17-2
+- add requires on shared-mime-info
+
+* Wed Nov 15 2006 Chris Weyl &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cweyl at alumni.drew.edu</A>&gt; 0.17-1
+- initial packaging.
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: Zim-no-win32-in-manifest.patch
+Type: text/x-patch
+Size: 504 bytes
+Desc: not available
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/packagers/attachments/20090511/e55b4afd/attachment-0002.bin">http://lists.repoforge.org/pipermail/packagers/attachments/20090511/e55b4afd/attachment-0002.bin</A>&gt;
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: Zim-rpm-does-postinstall.patch
+Type: text/x-patch
+Size: 1429 bytes
+Desc: not available
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/packagers/attachments/20090511/e55b4afd/attachment-0003.bin">http://lists.repoforge.org/pipermail/packagers/attachments/20090511/e55b4afd/attachment-0003.bin</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002727.html">[packagers] RE: 64bit wine packages
+</A></li>
+	<LI>Next message: <A HREF="002729.html">[packagers] php-sqlite missing on RedHat 5 / CentOS 5
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2728">[ date ]</a>
+              <a href="thread.html#2728">[ thread ]</a>
+              <a href="subject.html#2728">[ subject ]</a>
+              <a href="author.html#2728">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

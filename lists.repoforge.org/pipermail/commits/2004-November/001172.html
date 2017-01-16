@@ -1,0 +1,231 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2366 - trunk/rpms/clamav
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2366%20-%20trunk/rpms/clamav&In-Reply-To=%3C20041101172128.F1D0D17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001171.html">
+   <LINK REL="Next"  HREF="001173.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2366 - trunk/rpms/clamav</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2366%20-%20trunk/rpms/clamav&In-Reply-To=%3C20041101172128.F1D0D17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2366 - trunk/rpms/clamav">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Nov  1 18:21:28 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001171.html">[SVN] r2365 - in trunk/rpms: distcc dnsmasq doodle jpegpixi	keepalived lftp liferea mixxx subversion ucarp webmin yam
+</A></li>
+        <LI>Next message: <A HREF="001173.html">[SVN] r2367 - in trunk/rpms: botan krusader
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1172">[ date ]</a>
+              <a href="thread.html#1172">[ thread ]</a>
+              <a href="subject.html#1172">[ subject ]</a>
+              <a href="author.html#1172">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-01 18:21:27 +0100 (Mon, 01 Nov 2004)
+New Revision: 2366
+
+Modified:
+   trunk/rpms/clamav/clamav.spec
+Log:
+Updated to new release.
+
+Modified: trunk/rpms/clamav/clamav.spec
+===================================================================
+--- trunk/rpms/clamav/clamav.spec	2004-11-01 04:34:07 UTC (rev 2365)
++++ trunk/rpms/clamav/clamav.spec	2004-11-01 17:21:27 UTC (rev 2366)
+@@ -1,10 +1,14 @@
+ # $Id$
+-# Authority: rudolf
++# Authority: dag
+ # Upstream: &lt;clamav-devel$lists,sf,net&gt;
+ 
++### FIXME: Sysv script does not have condrestart option
++
++%{?el2:%define _without_milter 1}
++
+ Summary: Anti-virus software
+ Name: clamav
+-Version: 0.75.1
++Version: 0.80
+ Release: 1
+ License: GPL
+ Group: Applications/System
+@@ -16,21 +20,25 @@
+ Source0: <A HREF="http://dl.sf.net/clamav/clamav-%{version">http://dl.sf.net/clamav/clamav-%{version</A>}.tar.gz
+ Source1: clamav.init
+ Source2: clamav-milter.init
+-Patch0: clamav-0.67-config.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: bzip2-devel, zlib-devel, gmp-devel
+-BuildRequires: sendmail-devel &gt;= 8.12
++%{!?_without_milter:BuildRequires: sendmail-devel &gt;= 8.12}
+ Requires: clamav-db = %{version}-%{release}
+ Obsoletes: libclamav &lt;= %{version}-%{release}
+ Obsoletes: clamav-lib &lt;= %{version}-%{release}
+ Provides: libclamav
+ 
+ %description 
+-Clam Antivirus is a powerful anti-virus scanner for Unix. It
+-supports AMaViS, compressed files, uses the virus database from
+-OpenAntivirus.org, and includes a program for auto-updating.
++Clam AntiVirus is a GPL anti-virus toolkit for UNIX. The main purpose of
++this software is the integration with mail servers (attachment scanning).
++The package provides a flexible and scalable multi-threaded daemon, a
++command line scanner, and a tool for automatic updating via Internet.
+ 
++The programs are based on a shared library distributed with the Clam
++AntiVirus package, which you can use with your own software. Most
++importantly, the virus database is kept up to date
++
+ %package -n clamd
+ Summary: The Clam AntiVirus Daemon
+ Group: System Environment/Daemons
+@@ -73,8 +81,9 @@
+ 
+ %prep
+ %setup
+-%patch0
+ 
++%{__perl} -pi.orig -e 's|/usr/lib |%{_libdir} |g;' libtool
++
+ %{__perl} -pi.orig -e '
+ 		s|\@DBDIR\@|\$(localstatedir)/clamav|g;
+ 		s|\@DBINST\@|\$(localstatedir)/clamav|g;
+@@ -103,14 +112,14 @@
+ 		s|^#(AllowSupplementaryGroups)|$1|;
+ 		s|^#(ScanMail)|$1|;
+ 		s|^#(ArchiveBlockEncrypted)|$1|;
+-	' etc/clamav.conf
++	' etc/clamd.conf
+ 
+ %{__perl} -pi.orig -e '
+ 		s|^#(DatabaseDirectory) .+$|$1 %{_localstatedir}/clamav|;
+ 		s|^#(UpdateLogFile) .+$|$1 %{_localstatedir}/log/clamav/freshclam.log|;
+ 		s|^#(DatabaseOwner) .+$|$1 clamav|;
+ 		s|^(Checks) .+$|$1 24|;
+-		s|^#(NotifyClamd) .+$|$1 %{_sysconfdir}/clamav.conf|;
++		s|^#(NotifyClamd) .+$|$1 %{_sysconfdir}/clamd.conf|;
+ 	' etc/freshclam.conf
+ 
+ %{__cat} &lt;&lt;EOF &gt;clamav.logrotate
+@@ -144,7 +153,7 @@
+     --datadir=&quot;%{_localstatedir}/clamav&quot; \
+     --log=&quot;$LOG_FILE&quot; \
+     --log-verbose \
+-    --daemon-notify=&quot;%{_sysconfdir}/clamav.conf&quot;
++    --daemon-notify=&quot;%{_sysconfdir}/clamd.conf&quot;
+ EOF
+ 
+ %{__cat} &lt;&lt;EOF &gt;clamav-milter.sysconfig
+@@ -178,12 +187,15 @@
+ %makeinstall
+ 
+ %{__install} -D -m0755 %{SOURCE1} %{buildroot}%{_initrddir}/clamd
+-%{__install} -D -m0755 %{SOURCE2} %{buildroot}%{_initrddir}/clamav-milter
+-%{__install} -D -m0644 clamav-milter.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/clamav-milter
+ %{__install} -D -m0755 freshclam.cron %{buildroot}%{_sysconfdir}/cron.daily/freshclam
+ %{__install} -D -m0644 freshclam.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/freshclam
+ %{__install} -D -m0644 clamav.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/clamav
+ 
++%if %{!?_without_milter:1}0
++%{__install} -D -m0755 %{SOURCE2} %{buildroot}%{_initrddir}/clamav-milter
++%{__install} -D -m0644 clamav-milter.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/clamav-milter
++%endif
++
+ %{__install} -d -m0755 %{buildroot}%{_localstatedir}/log/clamav/
+ touch %{buildroot}/var/log/clamav/freshclam.log
+ touch %{buildroot}/var/log/clamav/clamav.log
+@@ -251,10 +263,7 @@
+ %files
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS BUGS ChangeLog COPYING FAQ INSTALL NEWS README TODO test/
+-%doc docs/DMS/Debian_Mail_server.html docs/clamdoc.*
+-%doc docs/html/ docs/clamd_supervised/
+-%doc docs/French/ docs/Japanese/ docs/Polish/ docs/Portugese/
+-%doc docs/Spanish/ docs/Turkish/ etc/freshclam.conf
++%doc docs/clamdoc.* docs/html/ etc/freshclam.conf
+ %doc %{_mandir}/man1/sigtool.1*
+ %doc %{_mandir}/man1/clamscan.1*
+ %doc %{_mandir}/man1/freshclam.1*
+@@ -267,11 +276,11 @@
+ 
+ %files -n clamd
+ %defattr(-, root, root, 0755)
+-%doc contrib/clamdwatch/ etc/clamav.conf
++%doc contrib/clamdwatch/ etc/clamd.conf
+ %doc %{_mandir}/man1/clamdscan.1*
+-%doc %{_mandir}/man5/clamav.conf.5*
++%doc %{_mandir}/man5/clamd.conf.5*
+ %doc %{_mandir}/man8/clamd.8*
+-%config(noreplace) %{_sysconfdir}/clamav.conf
++%config(noreplace) %{_sysconfdir}/clamd.conf
+ %config(noreplace) %{_sysconfdir}/logrotate.d/clamav
+ %config %{_initrddir}/clamd
+ %{_sbindir}/clamd
+@@ -282,6 +291,7 @@
+ %{_localstatedir}/clamav/
+ %{_localstatedir}/log/clamav/clamav.log
+ 
++%if %{!?_without_milter:1}0
+ %files milter
+ %defattr(-, root, root, 0755)
+ %doc clamav-milter/INSTALL
+@@ -289,6 +299,7 @@
+ %config(noreplace) %{_sysconfdir}/sysconfig/clamav-milter
+ %config %{_initrddir}/clamav-milter
+ %{_sbindir}/clamav-milter
++%endif
+ 
+ %files db
+ %defattr(-, root, root, 0755)
+@@ -309,6 +320,14 @@
+ %{_libdir}/pkgconfig/libclamav.pc
+ 
+ %changelog
++* Mon Nov 01 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.80-1
++- Updated package description. (Arvin Troels)
++- Incorporated fixes from Jima. (Jima)
++- Config clamav.conf renamed to clamd.conf.
++- Removed obsolete patch.
++- Added macros for building without milter.
++- Updated to release 0.80.
++
+ * Fri Jul 30 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.75.1-1
+ - Added obsoletes for fedora.us.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001171.html">[SVN] r2365 - in trunk/rpms: distcc dnsmasq doodle jpegpixi	keepalived lftp liferea mixxx subversion ucarp webmin yam
+</A></li>
+	<LI>Next message: <A HREF="001173.html">[SVN] r2367 - in trunk/rpms: botan krusader
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1172">[ date ]</a>
+              <a href="thread.html#1172">[ thread ]</a>
+              <a href="subject.html#1172">[ subject ]</a>
+              <a href="author.html#1172">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

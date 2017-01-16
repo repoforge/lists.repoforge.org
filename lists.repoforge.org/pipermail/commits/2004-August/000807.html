@@ -1,0 +1,499 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2001 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2001%20-%20trunk/tools/yam&In-Reply-To=%3C20040815101032.BF82317F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000806.html">
+   <LINK REL="Next"  HREF="000808.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2001 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2001%20-%20trunk/tools/yam&In-Reply-To=%3C20040815101032.BF82317F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2001 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Aug 15 12:10:32 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000806.html">[SVN] r2000 - in trunk/rpms: liferea linneighborhood lircrc_config	loudmouth lyx mdbtools meanwhile meld metacam ming mlview	monit moonlight mozilla-bonobo mtools multires	netspeed_applet netwatch nget ntfsprogs nttlscan nxtvepg op	openquicktime partimage perl-BerkeleyDB
+</A></li>
+        <LI>Next message: <A HREF="000808.html">[SVN] r2002 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#807">[ date ]</a>
+              <a href="thread.html#807">[ thread ]</a>
+              <a href="subject.html#807">[ subject ]</a>
+              <a href="author.html#807">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-15 12:10:30 +0200 (Sun, 15 Aug 2004)
+New Revision: 2001
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.conf
+Log:
+More improvements
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-15 08:49:00 UTC (rev 2000)
++++ trunk/tools/yam/ChangeLog	2004-08-15 10:10:30 UTC (rev 2001)
+@@ -3,6 +3,10 @@
+ - Rewrote most of the code to allow for smoother dist/arch configuration
+ - Fixed rsync exclude problem (Bert de Bruijn)
+ - Added more rsync options, to limit bandwidth and keep old packages
++- Option -d is much more useful now
++- <A HREF="file:///">file:///</A> support added
++- Better handling of commands
++- Verbosity output improved (-v or -vv)
+ 
+ * 0.4
+ - Added noarch by default to all dists
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-15 08:49:00 UTC (rev 2000)
++++ trunk/tools/yam/TODO	2004-08-15 10:10:30 UTC (rev 2001)
+@@ -19,7 +19,6 @@
+ 
+ ### Back-end support
+ + Add RHN (<A HREF="rhn://">rhn://</A>) support
+-+ Add local (<A HREF="file://">file://</A>) support
+ 
+ ### Internal python
+ + Improve the copy/symlink/rename functions, using exceptions
+@@ -29,5 +28,4 @@
+ + Create small curses tool to manage systems / MAC-addresses / kickstart files
+ 
+ ### Bugs
+-+ Make -d and -a work
+ + None ?
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-15 08:49:00 UTC (rev 2000)
++++ trunk/tools/yam/yam	2004-08-15 10:10:30 UTC (rev 2001)
+@@ -11,7 +11,6 @@
+ 
+ class options:
+ 	def __init__(self, args):
+-		self.arch = 'i386'
+ 		self.configfile = '/etc/yam.conf'
+ 		self.debug = None
+ #		self.debug = 'true'
+@@ -20,20 +19,18 @@
+ 		self.quiet = False
+ 		self.repos = None
+ 		self.update = False
+-		self.verbose = False
++		self.verbose = 0
+ 		self.extra = False
+ 		self.umount = False
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'a:c:d:ghqr:uvx',
+-				['arch=', 'config=', 'dist=', 'generate=', 'help', 'quiet', 'repos=', 'umount', 'update', 'verbose', 'extras'])
++			opts, args = getopt.getopt (args, 'c:d:ghqr:uvx',
++				['config=', 'dist=', 'generate=', 'help', 'quiet', 'repos=', 'umount', 'update', 'verbose', 'extras'])
+ 		except getopt.error, exc:
+ 			die(5, 'error: %s' % str(exc))
+ 
+ 		for opt, arg in opts:
+-			if opt in ('-a', '--arch'):
+-				self.arch = arg.split(',')
+-			elif opt in ('-c', '--config'):
++			if opt in ('-c', '--config'):
+ 				self.configfile = arg
+ 			elif opt in ('-d', '--dist'):
+ 				self.dist = arg.split(',')
+@@ -50,26 +47,26 @@
+ 			elif opt in ('-u', '--update'):
+ 				self.update = True
+ 			elif opt in ('-v', '--verbose'):
+-				self.verbose = True
++				self.verbose = self.verbose + 1
+ 			elif opt in ('-x', '--extras'):
+ 				self.extra = True
+ 			elif opt in ('--umount'):
+ 				self.umount = True
+ 
+ 	def usage(self):
+-		print 'usage: yam [-g] [-q] [-u] [-v] [-x] [-c config] [-d dist1,dist2] [-a arch1,arch2]'
++		print 'usage: yam [-g] [-q] [-u] [-v[v]] [-x] [-c config] [-d dist1,dist2-arch]'
+ 
+ 	def help(self):
+ 		print '''Set up a distribution server from ISO files
+ 
+ Yam options:
+-  -a, --arch=arch       specify architectures
+   -c, --config=file     specify alternative configfile
+-  -d, --dist=dist       specify distributions
++  -d, --dist=dist       specify distributions and/or architecture
+   -g, --generate        generate repositories
+   -q, --quiet           minimal output
+   -u, --update          fetch updates (if possible)
+-  -v, --verbose         be more verbose
++  -v, --verbose         increase verbosity
++  -vv					increase verbosity more
+   -x, --extras          fetch extras (if possible)
+       --unmount         unmount distributions
+ '''
+@@ -99,17 +96,19 @@
+ 		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/yam')
+ 		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/yam')
+ 
+-		self.apt = not self.getoption('main', 'apt', 'yes') in ('no', 'off', 'false')
+-		self.createrepo = not self.getoption('main', 'createrepo', 'yes') in ('no', 'off', 'false')
+-		self.yum = not self.getoption('main', 'yum', 'yes') in ('no', 'off', 'false')
++		self.repo = {}
++		self.repo['apt'] = not self.getoption('main', 'apt', 'yes') in ('no', 'off', 'false')
++		self.repo['createrepo'] = not self.getoption('main', 'createrepo', 'yes') in ('no', 'off', 'false')
++		self.repo['yum'] = not self.getoption('main', 'yum', 'yes') in ('no', 'off', 'false')
+ 
+-		self.createrepocmd = self.getoption('main', 'createrepocmd', '/usr/bin/createrepo')
+-		self.genbasedircmd = self.getoption('main', 'genbasedircmd', '/usr/bin/genbasedir')
+-		self.lftpcmd = self.getoption('main', 'lftpcmd', '/usr/bin/lftp')
+-		self.mountcmd = self.getoption('main', 'mountcmd', '/bin/mount')
+-		self.rsynccmd = self.getoption('main', 'rsynccmd', '/usr/bin/rsync')
+-		self.umountcmd = self.getoption('main', 'umountcmd', '/bin/umount')
+-		self.yumarchcmd = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
++		self.cmd = {}
++		self.cmd['createrepo'] = self.getoption('main', 'createrepocmd', '/usr/bin/createrepo')
++		self.cmd['genbasedir'] = self.getoption('main', 'genbasedircmd', '/usr/bin/genbasedir')
++		self.cmd['lftp'] = self.getoption('main', 'lftpcmd', '/usr/bin/lftp')
++		self.cmd['mount'] = self.getoption('main', 'mountcmd', '/bin/mount')
++		self.cmd['rsync'] = self.getoption('main', 'rsynccmd', '/usr/bin/rsync')
++		self.cmd['umount'] = self.getoption('main', 'umountcmd', '/bin/umount')
++		self.cmd['yumarch'] = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
+ 
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bwlimit', None)
+ 		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in ('no', 'off', 'false')
+@@ -123,7 +122,7 @@
+ 			if section in ['main', 'repos']:
+ 				continue
+ 			else:
+-				archs = self.getoption(section, 'arch', op.arch).split()
++				archs = self.getoption(section, 'arch', 'i386').split()
+ 				for arch in archs:
+ 					self.dists.append(distclass(section, arch))
+ 					self.dists[-1].arch = arch;
+@@ -143,9 +142,9 @@
+ 		except ConfigParser.NoSectionError, e:
+ 			print 'Failed to find section: %s' % section
+ 		except ConfigParser.NoOptionError, e:
+-			debug('Failed to find option %s in section %s' % (option, section))
++			info(3, 'Failed to find option %s in section %s' % (option, section))
+ 			pass
+-		debug('Setting config %s in section %s to %s' % (option, section, var))
++		info(3, 'Setting config %s in section %s to %s' % (option, section, var))
+ 		return var
+ 
+ 	def getrepos(self):
+@@ -206,8 +205,8 @@
+ 			mount = distdir + '/disc' + str(discnr)
+ 			if not os.path.exists(iso):
+ 				die(3, 'File %s does not exist.' % iso)
+-			if not os.path.isfile(cf.mountcmd):
+-				die(4, 'mount command not %s' % cf.mountcmd)
++			if not os.path.isfile(cf.cmd['mount']):
++				die(4, 'mount command not %s' % cf.cmd['mount'])
+ 			if is_mounted(iso):
+ 				mount2 = mountpoint(iso)
+ 				if mount2 != mount:
+@@ -215,15 +214,15 @@
+ 						print '%s - %s' % (mount, os.tempnam(os.path.dirname(mount)))
+ 						os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
+ 					if not os.path.islink(mount):
+-						info('%s: Symlink ISO to %s' % (self.name, mount))
++						info(2, '%s: Symlink ISO to %s' % (self.name, mount))
+ 						os.symlink(mount2, mount)
+ 			else:
+ 				if os.path.exists(mount) and not os.path.isdir(mount):
+ 					os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
+ 				mkdir(mount)
+ 				if not os.path.ismount(mount):
+-					info('%s: Mount ISO %s to %s' % (self.name, iso, mount))
+-					os.system('%s -o loop %s %s' % (cf.mountcmd, iso, mount))
++					info(1, '%s: Mount ISO %s to %s' % (self.name, iso, mount))
++					os.system('%s -o loop %s %s' % (cf.cmd['mount'], iso, mount))
+ 		return discs
+ 	
+ 	def umount(self):
+@@ -236,45 +235,45 @@
+ 			except AttributeError, e:
+ 				discnr = discnr + 1
+ 			mount = distdir + '/disc' + str(discnr)
+-			if not os.path.isfile(cf.umountcmd):
+-				die(4, 'umount command not %s' % cf.umountcmd)
++			if not os.path.isfile(cf.cmd['umount']):
++				die(4, 'umount command not %s' % cf.cmd['umount'])
+ 			if os.path.ismount(mount):
+-				info('%s: Unmount ISO %s' % (self.name, mount))
+-				os.system('%s %s' % (cf.umountcmd, mount))
++				info(1, '%s: Unmount ISO %s' % (self.name, mount))
++				os.system('%s %s' % (cf.cmd['umount'], mount))
+ 
+ 	def aptrepo(self):
+ 		&quot;Create an Apt repository for a specific dist&quot;
+ 		distdir = cf.wwwdir + '/' + self.name
+-		if not os.path.isfile(cf.genbasedircmd):
+-			info('genbasedir command not found as %s' % cf.genbasedircmd)	
++		if not os.path.isfile(cf.cmd['genbasedir']):
++			info(1, 'genbasedir command not found as %s' % cf.cmd['genbasedir'])	
+ 		repos = ''
+ 		for repo in self.repos.keys():
+ 				repos = repos + repo + ' '
+ 		if repos:
+-			info('%s: Create Apt repository for %s' % (self.name, repos))
+-			os.system('%s --flat --bloat --bz2only %s %s' % (cf.genbasedircmd, distdir, repos))
++			info(1, '%s: Create Apt repository for %s' % (self.name, repos))
++			os.system('%s --flat --bloat --bz2only %s %s' % (cf.cmd['genbasedir'], distdir, repos))
+ 
+ 	def yumrepo(self):
+ 		&quot;Create an old-style Yum repository for a specific dist&quot;
+ 		distdir = cf.wwwdir + '/' + self.name
+-		if not os.path.isfile(cf.yumarchcmd):
+-			info('yum-arch command not found as %s' % cf.yumarchcmd)
+-		os.system('%s -q -l %s' % (cf.yumarchcmd, distdir + '/RPMS'))
++		if not os.path.isfile(cf.cmd['yumarch']):
++			info(1, 'yum-arch command not found as %s' % cf.cmd['yumarch'])
++		os.system('%s -q -l %s' % (cf.cmd['yumarch'], distdir + '/RPMS'))
+ 		for repo in self.repos.keys():
+ 			if os.path.exists(distdir + '/RPMS.' + repo):
+-				info('%s: Create old-style Yum repository for %s' % (self.name, repo))
+-				os.system('%s -q -l %s' % (cf.yumarchcmd, distdir + '/RPMS.' + repo))
++				info(1, '%s: Create old-style Yum repository for %s' % (self.name, repo))
++				os.system('%s -q -l %s' % (cf.cmd['yumarch'], distdir + '/RPMS.' + repo))
+ 
+ 	def createrepo(self):
+ 		&quot;Create a new-style Yum repository for a specific dist&quot;
+ 		distdir = cf.wwwdir + '/' + self.name
+-		if not os.path.isfile(cf.createrepocmd):
+-			info('createrepo command not found as %s' % cf.createrepocmd)
+-#		os.system('%s %s' % (cf.createrepocmd, distdir + '/RPMS'))
++		if not os.path.isfile(cf.cmd['createrepo']):
++			info(1, 'createrepo command not found as %s' % cf.cmd['createrepo'])
++#		os.system('%s %s' % (cf.cmd['createrepo'], distdir + '/RPMS'))
+ 		for repo in self.repos.keys():
+ 			if os.path.exists(distdir + '/RPMS.' + repo):
+-				info('%s: Create new-style Yum repository for %s' % (self.name, repo))
+-				os.system('%s %s' % (cf.createrepocmd, distdir + '/RPMS.' + repo))
++				info(1, '%s: Create new-style Yum repository for %s' % (self.name, repo))
++				os.system('%s %s' % (cf.cmd['createrepo'], distdir + '/RPMS.' + repo))
+ 
+ 	def htmlrepo(self):
+ 		&quot;Put html information in repository&quot;
+@@ -282,16 +281,11 @@
+ 		symlink(cf.htmldir + '/HEADER.repo.shtml', distdir + '/HEADER.shtml')
+ 		symlink(cf.htmldir + '/README.index.shtml', distdir + '/README.shtml')
+ 
+-def info(str):
++def info(level, str):
+ 	&quot;Output info message&quot;
+-	if op.verbose and not op.quiet:
++	if level &lt;= op.verbose and not op.quiet:
+ 		print str
+ 
+-def debug(str):
+-	&quot;Output debugging message&quot;
+-	if op.debug:
+-		print 'DEBUG:', str
+-
+ def die(ret, str):
+ 	&quot;Print error and exit with errorcode&quot;
+ 	print str
+@@ -371,27 +365,26 @@
+ 
+ def mirror(url, path):
+ 	&quot;Check URL and pass on to mirror-functions.&quot;
+-	info('Fetch packages from %s' % url)
++	info(1, 'Fetch packages from %s' % url)
+ 	if string.find(url, '<A HREF="rsync://">rsync://</A>') == 0:
+-		rsyncmirror(url, path)
++		mirrorrsync(url, path)
+ 	elif (string.find(url, '<A HREF="ftp://">ftp://</A>') == 0 or
+ 		string.find(url, '<A HREF="http://">http://</A>') == 0 or
+ 		string.find(url, '<A HREF="sftp://">sftp://</A>') == 0 or
+ 		string.find(url, '<A HREF="fish://">fish://</A>') == 0):
+-		lftpmirror(url, path)
++		mirrorlftp(url, path)
+ 	elif string.find(url, '<A HREF="file://">file://</A>') == 0:
+-		print('<A HREF="file://">file://</A> method not implemented yet')
+-#		filemirror(url, path)
++		mirrorfile(url, path)
+ 	elif string.find(url, '<A HREF="rhn://">rhn://</A>') == 0:
+ 		print('<A HREF="rhn://">rhn://</A> method not implemented yet')
+-#		rhnmirror(url, path)
++#		mirrorrhn(url, path)
+ 	else:
+ 		print('Method not found for %s' % url)
+ 
+-def rsyncmirror(url, path):
++def mirrorrsync(url, path):
+ 	&quot;Mirror everything from an <A HREF="rsync://">rsync://</A> URL&quot;
+-	if not os.path.isfile(cf.rsynccmd):
+-		die(4, 'rsync command not found as %s' % cf.rsynccmd)
++	if not os.path.isfile(cf.cmd['rsync']):
++		die(4, 'rsync command not found as %s' % cf.cmd['rsync'])
+ 	mkdir(path)
+ 	opts = ''
+ 
+@@ -406,20 +399,21 @@
+ 	opts = ' --timeout=30' + opts
+ 
+ 	print opts
+-	os.system('%s -aHL %s %s %s' % (cf.rsynccmd, opts, url, path))
++	os.system('%s -aHL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+ 
+-def lftpmirror(url, path):
++def mirrorlftp(url, path):
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+-	if not os.path.isfile(cf.lftpcmd):
+-		die(4, 'lftp command not found as %s' % cf.lftpcmd)
++	if not os.path.isfile(cf.cmd['lftp']):
++		die(4, 'lftp command not found as %s' % cf.cmd['lftp'])
+ 	mkdir(path)
+ 	opts = ''
+ 	if op.quiet: opts=&quot;--verbose=0&quot;
+-	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror %s -a -I *.rpm -X *.src.rpm %s %s\'' % (cf.lftpcmd, opts, url, path))
++	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror %s -a -I *.rpm -X *.src.rpm %s %s\'' % (cf.cmd['lftp'], opts, url, path))
+ 
+-def filemirror(url, path):
+-	&quot;Mirror everything from a <A HREF="file://">file://</A> URL&quot;
+-	print('<A HREF="file://">file://</A> method not implemented yet')
++def mirrorfile(url, path):
++	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
++	dir=url.replace('<A HREF="file://">file://</A>','')
++	symlink(dir, path)
+ 
+ def rpmlink ((dist, repo), dirpath, filelist):
+ 	&quot;Symlink all RPM packages that match a given arch&quot;
+@@ -452,21 +446,28 @@
+ 	symlink(cf.htmldir + '/HEADER.index.shtml', cf.wwwdir + '/HEADER.shtml')
+ 	symlink(cf.htmldir + '/README.index.shtml', cf.wwwdir + '/README.shtml')
+ 
++	### Check availability of commands
++	for cmd in cf.cmd.keys():
++		if not os.path.isfile(cf.cmd[cmd]):
++			if cmd in ['createrepo', 'genbasedir', 'yum-arch']:
++				info(1, '%s command not found as %s, disabling %s' % (cmd, cf.cmd[cmd], cmd))
++				cf.repo[cmd] = 'no'
++			else:
++				info(1, '%s command not found as %s, support disabled' % (cmd, cf.cmd[cmd]))
++				cf.cmd[cmd] = ''
++		
++
+ 	for dist in cf.dists:
+-#		if not cf.dists != []:
+-#			info('Ignoring distribution %s, is not defined' % dist.name)
+-#			continue
++		if op.dist:
++			if dist.dist not in op.dist and dist.name not in op.dist:
++				info(2, '%s: Ignored, not requested' % dist.name)
++				continue
+ 
+-#		if op.dist or op.arch:
+-#			if dist.dist not in op.dist and dist.arch not in op.arch:
+-#				debug('%s: Ignored, not requested' % dist.name)
+-#				continue
+-
+ 		distdir = cf.wwwdir + '/' + dist.name
+ 
+ 		### Mount ISOs
+ 		if not dist.isos():
+-			debug('%s: Distribution has no ISOs' % dist.name)
++			info(2, '%s: Distribution has no ISOs' % dist.name)
+ 		else:
+ 			if op.umount:
+ 				dist.umount()
+@@ -502,13 +503,13 @@
+ 			if repo in ['os', 'core']:
+ 				if dist.isos():
+ 					for disc in discs:
+-						info('%s: Symlink %s packages from %s' % (dist.name, repo, disc))
++						info(2, '%s: Symlink %s packages from %s' % (dist.name, repo, disc))
+ 						os.path.walk(distdir + '/' + disc + '/', rpmlink, (dist, repo))
+ 				else:
+-					info('%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
++					info(2, '%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
+ 					os.path.walk(srcdir, rpmlink, (dist, repo))
+ 			else:
+-				info('%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
++				info(2, '%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
+ 				os.path.walk(srcdir, rpmlink, (dist, repo))
+ 
+ 		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
+@@ -518,17 +519,17 @@
+ 		srcdir = cf.srcdir + '/' + dist.name + '/local'
+ 		if os.path.exists(srcdir):
+ 			cleanup(distdir + '/RPMS.local')
+-			info('%s: Symlink local packages from %s' % (dist.name, srcdir))
++			info(2, '%s: Symlink local packages from %s' % (dist.name, srcdir))
+ 			os.path.walk(srcdir, rpmlink, (dist, 'local'))
+ 
+ 		srcdir = cf.srcdir + '/all/local/'
+ 		if os.path.exists(distdir + '/RPMS.local'):
+-			info('%s: Symlink local packages from %s' % (dist.name, srcdir))
++			info(2, '%s: Symlink local packages from %s' % (dist.name, srcdir))
+ 			os.path.walk(srcdir, rpmlink, (dist, 'local'))
+ 
+ 		for repo in cf.repos:
+ 			srcdir = cf.srcdir + '/all/' + repo
+-			info('%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
++			info(2, '%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
+ 			os.path.walk(srcdir, rpmtaglink, (dist.name, repo))
+ 
+ 		### Create apt/yum repository
+@@ -542,7 +543,7 @@
+ 		### Create pxe boot
+ 		if cf.tftpdir:
+ 			tftpdir = cf.tftpdir + '/' + dist.name
+-			info('%s: Symlink pxe boot files to %s ' % (dist.name, tftpdir))
++			info(1, '%s: Symlink pxe boot files to %s ' % (dist.name, tftpdir))
+ 			mkdir(tftpdir + '/pxelinux.cfg/')
+ 			for file in glob.glob(distdir + '/disc?/images/pxeboot/vmlinuz'):
+ 				copy(file, tftpdir)
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-08-15 08:49:00 UTC (rev 2000)
++++ trunk/tools/yam/yam.conf	2004-08-15 10:10:30 UTC (rev 2001)
+@@ -96,4 +96,4 @@
+ #release=8
+ #
+ #iso=SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
+-#updates=<A HREF="ftp://dag_wieers@be.ibm.com@ftp3.be.ibm.com/suse/maintweb/$arch/update/SuSE-SLES/$release/">ftp://dag_wieers@be.ibm.com@ftp3.be.ibm.com/suse/maintweb/$arch/update/SuSE-SLES/$release/</A>
++#maintweb=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000806.html">[SVN] r2000 - in trunk/rpms: liferea linneighborhood lircrc_config	loudmouth lyx mdbtools meanwhile meld metacam ming mlview	monit moonlight mozilla-bonobo mtools multires	netspeed_applet netwatch nget ntfsprogs nttlscan nxtvepg op	openquicktime partimage perl-BerkeleyDB
+</A></li>
+	<LI>Next message: <A HREF="000808.html">[SVN] r2002 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#807">[ date ]</a>
+              <a href="thread.html#807">[ thread ]</a>
+              <a href="subject.html#807">[ subject ]</a>
+              <a href="author.html#807">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

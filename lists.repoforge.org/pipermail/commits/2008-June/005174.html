@@ -1,0 +1,292 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6375 - trunk/rpms/pound
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6375%20-%20trunk/rpms/pound&In-Reply-To=%3C200806221440.m5MEeV5M029652%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005173.html">
+   <LINK REL="Next"  HREF="005175.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6375 - trunk/rpms/pound</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6375%20-%20trunk/rpms/pound&In-Reply-To=%3C200806221440.m5MEeV5M029652%40surya.karan.org%3E"
+       TITLE="[svn] r6375 - trunk/rpms/pound">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jun 22 16:40:31 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005173.html">[svn] r6374 - in trunk/rpms: aria2 coriander exiv2
+</A></li>
+        <LI>Next message: <A HREF="005175.html">[svn] r6376 - trunk/rpms/duplicity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5174">[ date ]</a>
+              <a href="thread.html#5174">[ thread ]</a>
+              <a href="subject.html#5174">[ subject ]</a>
+              <a href="author.html#5174">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2008-06-22 15:40:31 +0100 (Sun, 22 Jun 2008)
+New Revision: 6375
+
+Added:
+   trunk/rpms/pound/pound.cfg
+   trunk/rpms/pound/pound.init
+Modified:
+   trunk/rpms/pound/pound.spec
+Log:
+update + initscripts added, thanks to Thomas M Steenholdt
+
+Added: trunk/rpms/pound/pound.cfg
+===================================================================
+--- trunk/rpms/pound/pound.cfg	                        (rev 0)
++++ trunk/rpms/pound/pound.cfg	2008-06-22 14:40:31 UTC (rev 6375)
+@@ -0,0 +1,60 @@
++User        &quot;nobody&quot;
++Group       &quot;nobody&quot;
++#RootJail    &quot;/var/pound/jail&quot;
++#Alive       60
++
++## Main listening ports
++#ListenHTTP
++#    Address 1.2.3.4
++#    Port    80
++#    Client  10
++#End
++#ListenHTTPS
++#    Address 1.2.3.4
++#    Port    443
++#    Cert    &quot;/etc/pound/pound.pem&quot;
++#    Client  20
++#End
++
++## Image server
++#Service
++#    URL &quot;.*.(jpg|gif)&quot;
++#    BackEnd
++#        Address 192.168.0.10
++#        Port    80
++#    End
++#End
++## Virtual host www.myserver.com
++#Service
++#    URL         &quot;.*sessid=.*&quot;
++#    HeadRequire &quot;Host:.*www.myserver.com.*&quot;
++#    BackEnd
++#        Address 192.168.0.11
++#        Port    80
++#    End
++#    Session
++#        Type    URL
++#        ID      &quot;sessid&quot;
++#        TTL     120
++#    End
++#End
++
++## Everybody else
++#Service
++#    BackEnd
++#        Address 192.168.0.20
++#        Port    80
++#        Priority 5
++#    End
++#    BackEnd
++#        Address 192.168.0.21
++#        Port    80
++#        Priority 4
++#    End
++#    Session
++#        Type    COOKIE
++#        ID      &quot;userid&quot;
++#        TTL     180
++#    End
++#End
++
+
+Added: trunk/rpms/pound/pound.init
+===================================================================
+--- trunk/rpms/pound/pound.init	                        (rev 0)
++++ trunk/rpms/pound/pound.init	2008-06-22 14:40:31 UTC (rev 6375)
+@@ -0,0 +1,87 @@
++#!/bin/bash
++#
++# Init file for Pound - Reverse-Proxy and Load-Balancer
++#
++# chkconfig: - 60 20
++# description: Pound - Reverse-Proxy and Load-Balancer
++#
++# processname: pound
++# config: /etc/pound.conf
++# pidfile: /var/run/pound.pid
++
++# source function library
++. /etc/rc.d/init.d/functions
++
++RETVAL=0
++prog=&quot;pound&quot;
++
++# Some functions to make the below more readable
++POUND=/usr/sbin/pound
++PID_FILE=/var/run/pound.pid
++OPTIONS=&quot;&quot;
++
++# pull in sysconfig settings
++#[ -f /etc/sysconfig/pound ] &amp;&amp; . /etc/sysconfig/pound
++
++runlevel=$(set -- $(runlevel); eval &quot;echo \$$#&quot; )
++
++start()
++{
++	echo -n $&quot;Starting $prog: &quot;
++	$POUND $OPTIONS &amp;&gt;/dev/null &amp;&amp; success || failure
++	RETVAL=$?
++	[ &quot;$RETVAL&quot; = 0 ] &amp;&amp; touch /var/lock/subsys/$prog
++	echo
++}
++
++stop()
++{
++	echo -n $&quot;Stopping $prog: &quot;
++	if [ -n &quot;`pidfileofproc $POUND`&quot; ] ; then
++	    killproc $POUND
++	else
++	    failure $&quot;Stopping $prog&quot;
++	fi
++	RETVAL=$?
++	# if we are in halt or reboot runlevel kill all running sessions
++	# so the TCP connections are closed cleanly
++	if [ &quot;x$runlevel&quot; = x0 -o &quot;x$runlevel&quot; = x6 ] ; then
++	    killall $prog 2&gt;/dev/null
++	fi
++	[ &quot;$RETVAL&quot; = 0 ] &amp;&amp; rm -f /var/lock/subsys/$prog
++	echo
++}
++
++case &quot;$1&quot; in
++	start)
++		status $POUND &amp;&gt;/dev/null
++		if [ $? -ne 0 ]; then
++			start
++		fi
++		;;
++	stop)
++		stop
++		;;
++	restart)
++		stop
++		start
++		;;
++	reload)
++		stop
++		start
++		;;
++	condrestart)
++		if [ -f /var/lock/subsys/$prog ] ; then
++			stop
++			start
++		fi
++		;;
++	status)
++		status $POUND
++		RETVAL=$?
++		;;
++	*)
++		echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
++		RETVAL=1
++esac
++exit $RETVAL
+
+
+Property changes on: trunk/rpms/pound/pound.init
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/rpms/pound/pound.spec
+===================================================================
+--- trunk/rpms/pound/pound.spec	2008-06-22 14:23:46 UTC (rev 6374)
++++ trunk/rpms/pound/pound.spec	2008-06-22 14:40:31 UTC (rev 6375)
+@@ -4,13 +4,15 @@
+ 
+ Summary: Reverse HTTP proxy, load balancer and SSL wrapper
+ Name: pound
+-Version: 2.4.1
++Version: 2.4.3
+ Release: 1
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.apsis.ch/pound/index.html">http://www.apsis.ch/pound/index.html</A>
+ 
+ Source: <A HREF="http://www.apsis.ch/pound/Pound-%{version">http://www.apsis.ch/pound/Pound-%{version</A>}.tgz
++Source1: pound.init
++Source2: pound.cfg
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: openssl-devel, pkgconfig
+@@ -37,9 +39,20 @@
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__install} -d %{buildroot}%{_sbindir} %{buildroot}%{_mandir}
++%{__install} -d %{buildroot}%{_sbindir} %{buildroot}%{_mandir}  %{buildroot}%{_sysconfdir}/init.d
+ %{__make} install DESTDIR=%{buildroot}
++%{__install} %{_sourcedir}/pound.init %{buildroot}%{_sysconfdir}/init.d/pound
++%{__install} %{_sourcedir}/pound.cfg %{buildroot}%{_sysconfdir}/pound.cfg
+ 
++%post
++/sbin/chkconfig --add pound
++
++%preun
++if [ $1 -eq 0 ]; then
++	/sbin/service pound stop &gt;/dev/null 2&gt;&amp;1
++	/sbin/chkconfig --del pound
++fi
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+@@ -50,8 +63,14 @@
+ %doc %{_mandir}/man8/poundctl.8*
+ %{_sbindir}/pound
+ %{_sbindir}/poundctl
++%{_sysconfdir}/init.d/pound
++%config %{_sysconfdir}/pound.cfg
+ 
+ %changelog
++* Fri Jun 20 2008 Thomas M Steenholdt &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">tmus at tmus.dk</A>&gt; - 2.4.3-1
++- Updated to release 2.4.3
++- Added initscript and default pound.cfg (intentionally non-working as provided)
++
+ * Thu Apr 17 2008 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.4.1-1
+ - Updated to release 2.4.1.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005173.html">[svn] r6374 - in trunk/rpms: aria2 coriander exiv2
+</A></li>
+	<LI>Next message: <A HREF="005175.html">[svn] r6376 - trunk/rpms/duplicity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5174">[ date ]</a>
+              <a href="thread.html#5174">[ thread ]</a>
+              <a href="subject.html#5174">[ subject ]</a>
+              <a href="author.html#5174">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

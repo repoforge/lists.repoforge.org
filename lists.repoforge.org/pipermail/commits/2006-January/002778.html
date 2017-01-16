@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3978 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3978%20-%20trunk/tools/yam&In-Reply-To=%3C20060117161544.6BE8D3180F6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002777.html">
+   <LINK REL="Next"  HREF="002779.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3978 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3978%20-%20trunk/tools/yam&In-Reply-To=%3C20060117161544.6BE8D3180F6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3978 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jan 17 17:15:44 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002777.html">[svn] r3977 - trunk/rpms/armagetronad
+</A></li>
+        <LI>Next message: <A HREF="002779.html">[svn] r3979 - in trunk/rpms: . comix fftv fish ipac-ng liferea	uni2ascii
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2778">[ date ]</a>
+              <a href="thread.html#2778">[ thread ]</a>
+              <a href="subject.html#2778">[ subject ]</a>
+              <a href="author.html#2778">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-17 17:15:42 +0100 (Tue, 17 Jan 2006)
+New Revision: 3978
+
+Modified:
+   trunk/tools/yam/yam
+Log:
+More changes to RHN support
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-01-17 14:28:38 UTC (rev 3977)
++++ trunk/tools/yam/yam	2006-01-17 16:15:42 UTC (rev 3978)
+@@ -29,6 +29,10 @@
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+ 
++### Register rhn as a known scheme
++urlparse.uses_netloc.insert(0, 'rhn')
++urlparse.uses_query.insert(0, 'rhn')
++
+ class Options:
+ 	def __init__(self, args):
+ 		self.configfile = '/etc/yam.conf'
+@@ -450,13 +454,16 @@
+ 
+ def symlink(src, dst):
+ 	&quot;Create a symbolic link, force if dst exists&quot;
++	if src == dst:
++		return
+ 	if not os.path.islink(dst) and os.path.isdir(dst):
+ 		dst = os.path.join(dst, os.path.basename(src))
+ ### Not using filecmp increases speed with 15%
+ #	if os.path.isfile(dst) and filecmp.cmp(src, dst) == 0:
+ 	if os.path.isfile(dst):
++#		copy(dst, dst+'.yambak')
+ 		os.unlink(dst)
+-	if os.path.islink(dst):
++	elif os.path.islink(dst):
+ 		os.unlink(dst)
+ 	mkdir(os.path.dirname(dst))
+ 	if not os.path.exists(dst):
+@@ -581,40 +588,83 @@
+ 
+ def mirrorrhn(url, path, dist):
+ 	sys.path.insert(0, '/usr/share/rhn/')
+-	from up2date_client import up2date, up2dateAuth, config, repoDirector, rpcServer, wrapperUtils, rhnChannel
+-	import time, signal
+ 
+-#	t, rhnserver, label, t, t, t = urlparse.urlparse(url)
+-	m = re.match('<A HREF="rhn://(?P&lt;rhnserver">rhn://(?P&lt;rhnserver</A>&gt;.*?)/(?P&lt;label&gt;.+)', url)
+-	rhnserver = m.group('rhnserver')
+-	label = m.group('label')
++	t, rhnserver, label, t, t, t = urlparse.urlparse(url)
++	label = label.strip('/')
+ 
+-	if not rhnserver:
+-		rhnserver = 'xmlrpc.rhn.redhat.com'
++	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'rhn-config')):
++		rhnconfig = os.path.join(cf.srcdir, dist.nick, 'rhn-config')
++#	elif os.path.isfile('/etc/sysconfig/rhn/up2date'):
++#		rhnconfig = '/etc/sysconfig/rhn/up2date'
++	else:
++		error(1, 'No RHN config found, skipping download.')
++		return
++	error(4, 'Using RHN config from %s' % rhnconfig)
+ 
+ 	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'rhn-systemid')):
+-		systemid = os.path.join(cf.srcdir, dist.nick, 'rhn-systemid')
+-	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
+-		systemid = '/etc/sysconfig/rhn/systemid'
++		rhnsystemid = os.path.join(cf.srcdir, dist.nick, 'rhn-systemid')
++#	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
++#		rhnsystemid = '/etc/sysconfig/rhn/systemid'
+ 	else:
+-		error(1, 'No systemid found, skipping download.')
++		error(1, 'No RHN systemid found, skipping download.')
+ 		return
+-	registered = open(systemid).read(131072)
++	error(4, 'Using RHN systemid from %s' % rhnsystemid)
++
++	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'rhn-uuid')):
++		rhnuuid = os.path.join(cf.srcdir, dist.nick, 'rhn-uuid')
++#	elif os.path.isfile('/etc/sysconfig/rhn/up2date-uuid'):
++#		rhnuuid = '/etc/sysconfig/rhn/up2date-uuid'
++	else:
++		error(1, 'No RHN uuid found, skipping download.')
++		return
++	error(4, 'Using RHN uuid from %s' % rhnuuid)
++
++	### FIXME: The only way to currently work around it is to replace the uuid file :(	
++	### FIXME: Backup existing files first !
++	symlink(rhnconfig, '/etc/sysconfig/rhn/up2date')
++	symlink(rhnsystemid, '/etc/sysconfig/rhn/systemid')
++	symlink(rhnuuid, '/etc/sysconfig/rhn/up2date-uuid')
++	### FIXME: Also take care of sources-file
++#	print &gt;&gt;rhnsources 'rhn default'
++
++	from up2date_client import up2date, config, up2dateAuth, repoDirector, rpcServer, wrapperUtils, rhnChannel
++	import time, signal
++
++	cfg = config.initUp2dateConfig(rhnconfig)
++	cfg['systemIdPath'] = rhnsystemid
++	cfg['storageDir'] = path
++	cfg['retrieveOnly'] = 1
++	cfg['keepAfterInstall'] = 1
++	cfg['noReboot'] = 1
++
++	if rhnserver:
++		cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
++		cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
++
++	if op.verbose &gt;= 2:
++		cfg['debug'] = 1
++
++	### Write out configfile
++	fd = open(rhnconfig, 'w')
++	for key in cfg.keys(): fd.write('%s=%s\n' % (key, cfg[key]))
++	fd.close()
++
++	cfg = config.initUp2dateConfig(rhnconfig)
++
++	up2dateAuth.login()
+ 	up2dateAuth.updateLoginInfo()
+-	cfg = config.initUp2dateConfig()
+-	cfg['storageDir'] = path
+-	cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
+-	cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
++
+ 	mkdir(cfg['storageDir'])
+ 	repos = repoDirector.initRepoDirector()
+ 	channel = repos.channels.getByLabel(label)
+ 	if not channel:
+ #		version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
+ #		channel = rhnChannel.rhnChannel(label = label, version = version, type = 'up2date', url = cfg['serverURL'])
+-		error(0, 'Systemid for %s not subscribed to channel %s, dropping.' % (dist.nick, label))
++		error(0, 'RHN id for %s not subscribed to channel %s, dropping.' % (dist.nick, label))
++		error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
+ 		return
++	package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	signal.signal(signal.SIGINT, signal.SIG_DFL)
+-	package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	for pkg in package_list:
+ 		if op.verbose:
+ 			rpcServer.doCall(repos.getPackage, pkg, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002777.html">[svn] r3977 - trunk/rpms/armagetronad
+</A></li>
+	<LI>Next message: <A HREF="002779.html">[svn] r3979 - in trunk/rpms: . comix fftv fish ipac-ng liferea	uni2ascii
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2778">[ date ]</a>
+              <a href="thread.html#2778">[ thread ]</a>
+              <a href="subject.html#2778">[ subject ]</a>
+              <a href="author.html#2778">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

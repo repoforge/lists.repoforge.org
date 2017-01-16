@@ -1,0 +1,864 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4796 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4796%20-%20trunk/tools/yam&In-Reply-To=%3C20061007140554.7C859944A90%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003595.html">
+   <LINK REL="Next"  HREF="003597.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4796 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4796%20-%20trunk/tools/yam&In-Reply-To=%3C20061007140554.7C859944A90%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4796 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Oct  7 16:05:54 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003595.html">[svn] r4795 - in trunk/rpms: . madwifi nvidia-x11-drv
+</A></li>
+        <LI>Next message: <A HREF="003597.html">[svn] r4797 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3596">[ date ]</a>
+              <a href="thread.html#3596">[ thread ]</a>
+              <a href="subject.html#3596">[ subject ]</a>
+              <a href="author.html#3596">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-10-07 16:05:53 +0200 (Sat, 07 Oct 2006)
+New Revision: 4796
+
+Added:
+   trunk/tools/yam/rhnget
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/Makefile
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Moved the RHN code out of Yam, created rhnget tool
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-10-06 22:29:09 UTC (rev 4795)
++++ trunk/tools/yam/ChangeLog	2006-10-07 14:05:53 UTC (rev 4796)
+@@ -14,6 +14,7 @@
+ - Added alpha architecture (Oliver Falk)
+ - Change some informational messages to error messages to improve output
+ - Added --type directive to match repos by type (method)
++- Moved the RHN code out of Yam, created new rhnget tool
+ 
+ * 0.8.2 - Finally fixed - released 19/09/2006
+ - Use exec in conjunction with system()
+
+Modified: trunk/tools/yam/Makefile
+===================================================================
+--- trunk/tools/yam/Makefile	2006-10-06 22:29:09 UTC (rev 4795)
++++ trunk/tools/yam/Makefile	2006-10-07 14:05:53 UTC (rev 4796)
+@@ -22,8 +22,9 @@
+ 	@echo &quot;There is nothing to be build. Try install !&quot;
+ 
+ install:
++	install -Dp -m0755 gensystemid $(DESTDIR)$(bindir)/gensystemid
++	install -Dp -m0755 rhnget $(DESTDIR)$(bindir)/rhnget
+ 	install -Dp -m0755 yam $(DESTDIR)$(bindir)/yam
+-	install -Dp -m0755 gensystemid $(DESTDIR)$(bindir)/gensystemid
+ 	[ ! -f $(DESTDIR)$(sysconfdir)/yam.conf ] &amp;&amp; install -D -m0600 config/yam.conf $(DESTDIR)$(sysconfdir)/yam.conf || :
+ 	install -d -m0755 $(DESTDIR)$(sysconfdir)/yam.conf.d/
+ 	install -Dp -m0644 config/httpd/yam.conf $(DESTDIR)$(httpddir)/yam.conf
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-10-06 22:29:09 UTC (rev 4795)
++++ trunk/tools/yam/TODO	2006-10-07 14:05:53 UTC (rev 4796)
+@@ -22,15 +22,6 @@
+ + Autocreate yum .repo files and apt .list files to be used by local clients
+ + Add support for other remote synchronising tools (sitecopy, wget)
+ 
+-### RHN support
+-+ Move the RHN code out of Yam, create rhnget tool
+-+ Fix the 'cached' logininfo which causes old channel information to be present - Fixed when using unique systemids ?
+-+ Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+-+ Check for existence of packages on ISOs (updates vs os)
+-+ Allow Yam to create new systems (register) in RHN on demand (gensystemid functionality)
+-+ Remove unavailable RHN packages (rhn-cleanup option)
+-+ Reimplement using python xmlrpc instead of up2date
+-
+ ### Repository metadata
+ + Create anaconda-style metadata for booting an updated installation
+ + Complain when a required tool is not available
+@@ -65,6 +56,7 @@
+ 
+ ### Documentation
+ + Add a yam and yam.conf manpage
++- Add a gensystemid and rhnget manpage
+ + Add documentation on how to configure clients
+ + Add integration/documentation with ISC dhcpd
+ + Add documentation about chaining Yam servers
+@@ -83,6 +75,16 @@
+ + Correct file permissions/ownerships of packages in /var/yam (add umask option)
+ + Improve debugging output for pxelinux and /tftpboot/
+ 
++### RHNget tool / RHN support
+++ Fix the 'cached' logininfo which causes old channel information to be present - Fixed when using unique systemids ?
+++ Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+++ Check for existence of packages on ISOs (updates vs os)
+++ Allow rhnget to create new systems (register) in RHN on demand (gensystemid functionality)
+++ Handle channel subscription one way or the other
+++ Remove unavailable RHN packages (rhnget-cleanup/--delete option)
+++ Reimplement using python xmlrpc instead of up2date
+++ Allow to download packages based on a glob (--include, --exclude)
++
+ ### Yamcfg tool / generate a configuration for clients (Chandan Dutta Chowdhury)
+ + The tool should accept a URL as an argument
+ + Should have a list (-l) option to list the different distributions
+
+Added: trunk/tools/yam/rhnget
+===================================================================
+--- trunk/tools/yam/rhnget	                        (rev 0)
++++ trunk/tools/yam/rhnget	2006-10-07 14:05:53 UTC (rev 4796)
+@@ -0,0 +1,393 @@
++#!/usr/bin/python
++
++### This program is free software; you can redistribute it and/or modify
++### it under the terms of the GNU Library General Public License as published by
++### the Free Software Foundation; version 2 only
++###
++### This program is distributed in the hope that it will be useful,
++### but WITHOUT ANY WARRANTY; without even the implied warranty of
++### MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++### GNU Library General Public License for more details.
++###
++### You should have received a copy of the GNU Library General Public License
++### along with this program; if not, write to the Free Software
++### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++### Copyright 2004-2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++
++import os, sys, shutil, getopt, ConfigParser, urlparse, types
++
++__version__ = &quot;$Revision: 4786 $&quot;
++# $Source$
++
++VERSION = '0.8.2svn'
++
++### Register rhn and rhns as a known schemes
++for scheme in ('rhn', 'rhns'):
++	urlparse.uses_netloc.insert(0, scheme)
++	urlparse.uses_query.insert(0, scheme)
++
++class Options:
++	def __init__(self, args):
++		self.dryrun = False
++		self.quiet = False
++		self.rhngetcleanup = False
++		self.rhngetdownloadall = False
++		self.rhnrelease = None
++		self.systemid = '/etc/sysconfig/rhn/systemid'
++		self.verbose = 1
++
++		try:
++			opts, args = getopt.getopt (args, 'hnqr:s:v',
++				('delete', 'download-all', 'dryrun', 'help', 'quiet', 'release=', 'systemid=', 'verbose', 'version' ))
++		except getopt.error, exc:
++			print 'rhnget: %s, try rhnget -h for a list of all the options' % str(exc)
++			sys.exit(1)
++
++		for opt, arg in opts:
++			if opt in ('--delete', ):
++				self.rhngetcleanup = True
++			elif opt in ('--download-all', ):
++				self.rhngetdownloadall = True
++			elif opt in ('-h', '--help'):
++				self.usage()
++				print
++				self.help()
++				sys.exit(0)
++			elif opt in ('-n', '--dry-run'):
++				self.dryrun = True
++			elif opt in ('-q', '--quiet'):
++				self.quiet = True
++			elif opt in ('-r', '--release'):
++				self.rhnrelease = arg
++			elif opt in ('-s', '--systemid'):
++				self.systemid = os.path.abspath(arg)
++			elif opt in ('-v', '--verbose'):
++				self.verbose = self.verbose + 1
++			elif opt in ('--version', ):
++				self.version()
++				sys.exit(0)
++			elif opt in ('-x', '--extras'):
++				print 'rhnget: the use of -x or --extras is deprecated, use -u and -r instead'
++				self.update = True
++
++		self.uri = args[0]
++		self.destination = args[1]
++
++		if self.quiet:
++			self.verbose = 0
++
++		if self.verbose &gt;= 3:
++			print 'Verbosity set to level %d' % (self.verbose - 1)
++
++	def version(self):
++		print 'rhnget %s' % VERSION
++		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
++		print
++		print 'platform %s/%s' % (os.name, sys.platform)
++		print 'python %s' % sys.version
++		print
++		print 'build revision $Rev: 4786 $'
++
++	def usage(self):
++		print 'usage: rhnget [options] <A HREF="rhns://server/channel">rhns://server/channel</A> destination-path'
++
++	def help(self):
++		print '''Set up a distribution server from ISO files
++
++rhnget options:
++      --delete            delete files that are not on the sender side
++  -n, --dry-run           show what would have been done
++  -q, --quiet             minimal output
++  -r, --release=release   specify the RHN release (if different from the systemid)
++  -s, --systemid=file     systemid to use
++  -v, --verbose           increase verbosity
++  -vv, -vvv, -vvvv..      increase verbosity more
++'''
++
++class MirrorException(Exception):
++	def __init__(self, value):
++		self.value = value
++	def __str__(self):
++		return repr(self.value)
++
++def error(level, str):
++	&quot;Output error message&quot;
++	if level &lt;= op.verbose:
++		sys.stderr.write('rhnget: %s\n' % str)
++
++def info(level, str):
++	&quot;Output info message&quot;
++	if level &lt;= op.verbose:
++		sys.stdout.write('%s\n' % str)
++
++def die(ret, str):
++	&quot;Print error and exit with errorcode&quot;
++	error(0, str)
++	sys.exit(ret)
++
++def remove(file):
++	&quot;Remove files or directories&quot;
++	if isinstance(file, types.StringType):
++		if op.dryrun:
++			return
++		if os.path.islink(file):
++			os.unlink(file)
++		elif os.path.isdir(file):
++			try:
++				os.rmdir(file)
++			except:
++				os.path.walk(file, removedir, ())
++				os.rmdir(file)
++		elif os.path.isfile(file) or os.path.islink(file):
++			os.unlink(file)
++	else:
++		for f in file:
++			remove(f)
++
++def removedir(void, dir, files):
++	for file in files:
++		remove(os.path.join(dir, file))
++
++def mkdir(path):
++	&quot;Create a directory, and parents if needed&quot;
++	if op.dryrun:
++		return
++	if os.path.islink(path):
++		os.unlink(path)
++	if not os.path.exists(path):
++		os.makedirs(path)
++
++def rhnreset():
++	&quot;Clean up2date's global variables&quot;
++	global cfg, loginInfo, rd, config, repoDirector, rpcServer
++#   global cfg, loginInfo, rd, server_list, channel_blacklist, selected_channels, lastPercent
++       
++	cfg = {}
++	loginInfo = {}
++	rd = None
++#   server_list = None
++#   channel_blacklist = None
++#   selected_channels = None
++#   lastPercent = None
++#   pkgSack = None
++    
++	### Does this help ?
++#	reload(config)
++#	reload(repoDirector)
++#	reload(rpcServer)
++
++
++def rhnlogin(url, path, force=False):
++	'Log on to RHN and return cfg, loginInfo and systemid'
++	global cfg, loginInfo, rd, config, rpcServer
++
++	rhnscheme, rhnserver, t, t, t, t = urlparse.urlparse(url)
++
++	if os.path.isfile(op.systemid):
++		systemidpath = op.systemid
++	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
++		systemidpath = '/etc/sysconfig/rhn/systemid'
++	else:
++		info(1, 'No RHN systemid found, skipping download.')
++		return
++	info(3, 'Using RHN systemid from %s' % systemidpath)
++
++	systemid = open(systemidpath).read()
++
++	from up2date_client import config, rpcServer
++	from rhn import rpclib
++
++	rhnreset()
++
++	cfg['systemIdPath'] = systemidpath
++	cfg = config.initUp2dateConfig()
++	cfg['systemIdPath'] = systemidpath
++	cfg['storageDir'] = path
++	cfg['retrieveOnly'] = 1
++	cfg['keepAfterInstall'] = 1
++	cfg['noReboot'] = 1
++	cfg['useRhn'] = 1
++	cfg['showChannels'] = 1
++	cfg['showAvailablePackages'] = 1
++	cfg['isatty'] = 1
++	cfg['networkRetries'] = 3
++#	cfg['headerFetchCount'] = 20
++
++	if op.rhnrelease:
++		cfg['versionOverride'] = op.rhnrelease
++	else:
++		cfg['versionOverride'] = rpclib.xmlrpclib.loads(systemid)[0][0]['os_release']
++	info(3, 'Using RHN release %s' % cfg['versionOverride'])
++
++#	if op.arch:
++#		cfg['forceArch'] = '%s-redhat-linux' % op.arch
++
++	if os.access('/var/log/up2date', os.W_OK):
++		cfg['logFile'] = '/var/log/up2date'
++	else:
++		cfg['logFile'] = os.path.expanduser('~/up2date.log')
++
++	if rhnserver:
++		cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
++		if rhnscheme == 'rhn':
++			cfg['serverURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
++		else:
++			cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
++
++	if op.verbose &gt;= 3:
++		cfg['debug'] = 10000
++
++	info(4, '\nBEFORE LOGIN: logininfo: %s\n' % loginInfo)
++	try:
++		server = rpcServer.getServer()
++		li = rpcServer.doCall(server.up2date.login, systemid)
++		loginInfo.update(li)
++	except rpclib.Fault, f:
++		error(1, 'Error logging in with systemid %s. %s' % (systemidpath, f.faultString))
++		return None
++	info(4, '\nAFTER LOGIN: logininfo: %s\n' % loginInfo)
++
++	return systemid
++
++def rhngetchannel(channels, label):
++	'Return the channel with given label, if found'
++	for c in channels:
++		if isinstance(c, types.ListType):
++			l, v = c[0], c[1]
++		else:
++			l, v = c['label'], c['version']
++		if l == label:
++			return {
++				'label': l,
++				'version': v,
++				'type': 'up2date',
++				'url': cfg['serverURL'],
++			}
++	return None
++
++def mirrorrhn(url, path):
++	'Mirror a channel from RHN'
++	global cfg, loginInfo, rd, repoDirector, rpcServer
++
++	sys.path.insert(0, '/usr/share/rhn/')
++	sys.path.insert(1, '/usr/share/rhn/up2date_client/')
++
++	t, t, label, t, t, t = urlparse.urlparse(url)
++	label = label.strip('/')
++
++	from up2date_client import rpcServer, wrapperUtils, up2dateErrors, repoDirector
++	from rhn import rpclib
++	import signal, xmlrpclib
++
++	### Log on to RHN
++	systemid = rhnlogin(url, path)
++	if not systemid:
++		return
++
++	mkdir(cfg['storageDir'])
++
++	### Try to find a channel with label
++	channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
++	if not channel:
++		raise(Exception('Error system not subscribe to channel %s, skipping.' % label))
++#		if cf.rhnlogin:
++#			rhnusername, rhnpasswd = cf.rhnlogin.split(':')
++#		if True:
++#			rhnusername, rhnpasswd = 'ericom-3ti', 'hfozs94772'
++#		   	try:
++#				server = rpcServer.getServer()
++#				channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
++#			except rpclib.Fault, f:
++#				raise(Exception('Error subscribing to channel %s, skipping.%s' % (label, f.faultString)))
++#			systemid = rhnlogin(url, path, force=True)
++#			if not systemid:
++#				return
++#			info(4, '\nAFTER SUBSC: logininfo: %s\n' % loginInfo)
++#			channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
++#			if not channel:
++#				raise(Exception('Failed to subscribe RHN id to channel %s, skipping.' % label))
++#		else:
++#			raise(Exception('No RHN username or password supplied in Yam configuration. Please add channel %s on RHN website manually.' % label))
++
++	### Download packagelist for this channel
++	try:
++		repos = repoDirector.initRepoDirector()
++	except xmlrpclib.Fault, f:
++		raise(MirrorException('Problem setting up XML communication for channel %s.\n%s' % (label, f.faultString)))
++		return
++	except up2dateErrors.ServerCapabilityError, e:
++		raise(MirrorException('Problem negotiating capabilities for channel %s.\n%s' % (label, e)))
++		return
++	try:
++		if op.rhngetdownloadall == True:
++			package_list, type = rpcServer.doCall(repos.listAllPackages, channel, None, None)
++		else:
++			package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
++	except rpclib.Fault, f:
++		raise(MirrorException('Error listing packages from channel %s. Skipping. %s' % (label, f.faultString)))
++	except up2dateErrors.CommunicationError, e:
++		raise(MirrorException('Error listing packages from channel %s. Skipping.\n%s' % (label, e)))
++	except KeyError, e:
++		raise(MirrorException('Unknown error that needs more debugging occured with channel %s. Skipping.\n%s' % (label, e)))
++
++	### Download packages from the packagelist
++	signal.signal(signal.SIGINT, signal.SIG_DFL)
++	for pkg in package_list:
++		### FIXME: Check if not already on ISO-file or repository as well
++		filename = '%s-%s-%s.%s.rpm' % (pkg[0], pkg[1], pkg[2], pkg[4])
++
++		### If file (or symlink target) exists
++		if os.path.isfile(os.path.join(path, filename)):
++			stat = os.stat(os.path.join(path, filename))
++			if stat.st_size == int(pkg[5]):
++				info(3, 'File %s is already in %s' % (filename, path))
++				continue
++			else:
++				info(2, 'File %s has wrong size (found: %s, expected: %s), refetching.' % (filename, stat.st_size, pkg[5]))
++				remove(os.path.join(path, filename))
++
++		### If symlink target does not exist, remove symlink
++		elif os.path.islink(os.path.join(path, filename)):
++			remove(os.path.join(path, filename))
++
++		if op.dryrun:
++			info(1, 'Not downloading package %s' % filename)
++			continue
++		try:
++			if op.verbose &lt;= 1:
++				rpcServer.doCall(repos.getPackage, pkg, None, None)
++			else:
++				rpcServer.doCall(repos.getPackage, pkg, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
++		except rpclib.Fault, f:
++			error(0, 'rpcError: Error getting package %s from %s. %s' % (filename, label, f.faultString))
++		except TypeError, e:
++			error(0, 'TypeError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
++		except up2dateErrors.CommunicationError, e:
++			error(0, 'CommunicationError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
++			
++def main():
++	mirrorrhn(op.uri, op.destination)
++
++### Unbuffered sys.stdout
++sys.stdout = os.fdopen(1, 'w', 0)
++sys.stderr = os.fdopen(2, 'w', 0)
++
++### Workaround for python &lt;= 2.2.1
++try:
++     True, False
++except NameError:
++     True = 1
++     False = 0
++
++### Main entrance
++if __name__ == '__main__':
++	exitcode = 0
++
++	op = Options(sys.argv[1:])
++	try:
++		main()
++	except KeyboardInterrupt, e:
++		die(6, 'Exiting on user request')
++	sys.exit(exitcode)
++
++# vim:ts=4:sw=4
+
+
+Property changes on: trunk/tools/yam/rhnget
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-10-06 22:29:09 UTC (rev 4795)
++++ trunk/tools/yam/yam	2006-10-07 14:05:53 UTC (rev 4796)
+@@ -164,7 +164,7 @@
+ 		self.mailto = self.getoption('main', 'mailto', None)
+ 		self.smtpserver = self.getoption('main', 'smtp-server', 'localhost')
+ 
+-		self.rhnlogin = self.getoption('main', 'rhnlogin', None)
++#		self.rhnlogin = self.getoption('main', 'rhnlogin', None)
+ 
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+ 		self.metadata = self.getoption('main', 'metadata', 'repomd repoview')
+@@ -189,6 +189,7 @@
+ 		self.cmd['mirrordir'] = self.getoption('main', 'mirrordircmd', '/usr/bin/mirrordir')
+ 		self.cmd['mount'] = self.getoption('main', 'mountcmd', '/bin/mount')
+ 		self.cmd['repoview'] = self.getoption('main', 'repoview', '/usr/bin/repoview')
++		self.cmd['rhnget'] = self.getoption('main', 'rhnget', '/usr/bin/rhnget')
+ 		self.cmd['rsync'] = self.getoption('main', 'rsynccmd', '/usr/bin/rsync')
+ 		self.cmd['umount'] = self.getoption('main', 'umountcmd', '/bin/umount')
+ 		self.cmd['yumarch'] = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
+@@ -207,6 +208,10 @@
+ 		self.lftpmirroroptions = self.getoption('main', 'lftp-mirror-options', '-c -P')
+ 		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
++		self.rhngetoptions = self.getoption('main', 'rhnget-options', '')
++		self.rhngetcleanup = self.getoption('main', 'rhnget-cleanup', 'yes') not in disable
++		self.rhngetdownloadall = self.getoption('main', 'rhnget-download-all', 'no') not in disable
++
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+ 		self.rsynccleanup = self.getoption('main', 'rsync-cleanup', 'yes') not in disable
+ 		self.rsyncexcldebug = self.getoption('main', 'rsync-exclude-debug', 'yes') not in disable
+@@ -217,8 +222,6 @@
+ 		self.createrepooptions = self.getoption('main', 'createrepo-options', '-p')
+ 		self.repoviewoptions = self.getoption('main', 'repoview-options', '')
+ 
+-		self.rhndownloadall = self.getoption('main', 'rhn-download-all', 'no') not in disable
+-
+ 		self.shareiso = self.getoption('main', 'shareiso', 'yes') not in disable
+ 
+ 		self.alldists = []
+@@ -521,7 +524,7 @@
+ 				elif s in ('mc', ):
+ 					mirrormirrordir(url, self.srcdir)
+ 				elif s in ('rhn', 'rhns'):
+-					mirrorrhn(url, self.srcdir, self.dist)
++					mirrorrhnget(url, self.srcdir, self.dist)
+ 				else:
+ 					error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
+ 			except YamMirrorException, e:
+@@ -1147,212 +1150,41 @@
+ 	basename = os.path.basename(url)
+ 	symlink(os.path.join(cf.srcdir, pathname), os.path.join(path, basename))
+ 
+-def rhnreset():
+-	&quot;Clean up2date's global variables&quot;
+-	global cfg, loginInfo, rd, config, repoDirector, rpcServer
+-#	global cfg, loginInfo, rd, server_list, channel_blacklist, selected_channels, lastPercent
+-
+-	cfg = {}
+-	loginInfo = {}
+-	rd = None
+-#	server_list = None
+-#	channel_blacklist = None
+-#	selected_channels = None
+-#	lastPercent = None
+-#	pkgSack = None
+-
+-	### Does this help ?
+-	reload(config)
+-	reload(repoDirector)
+-	reload(rpcServer)
+-
+-def rhnlogin(url, path, dist, force=False):
+-	'Log on to RHN and return cfg, loginInfo and systemid'
+-	global cfg, loginInfo, rd, config, rpcServer
+-
+-	rhnscheme, rhnserver, t, t, t, t = urlparse.urlparse(url)
+-
+-	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'systemid')):
+-		systemidpath = os.path.join(cf.srcdir, dist.nick, 'systemid')
+-	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
+-		systemidpath = '/etc/sysconfig/rhn/systemid'
+-	else:
+-		info(1, 'No RHN systemid found, skipping download.')
++def mirrorrhnget(url, path, dist):
++	&quot;Mirror everything from a <A HREF="rhn://">rhn://</A> or <A HREF="rhns://">rhns://</A> URL&quot;
++	if not cf.cmd['rhnget']:
++		error(1, 'rhnget was not found. rhn and rhns support is therefor disabled.')
+ 		return
+-	info(5, 'Using RHN systemid from %s' % systemidpath)
++	mkdir(path)
+ 
+-	systemid = open(systemidpath).read()
++	opts = cf.rhngetoptions
++	if op.verbose &gt;= 3:
++		opts = opts + ' -v' * (op.verbose - 3)	
++	if op.dryrun:
++		opts = opts + ' --dry-run'
++	if cf.rhngetcleanup:
++		opts = opts + ' --delete'
++	if cf.rhngetdownloadall:
++		opts = opts + ' --download-all'
+ 
+-	from up2date_client import config, rpcServer
+-	from rhn import rpclib
++	systemidpath = os.path.join(cf.srcdir, dist.nick, 'systemid')
++	if os.path.isfile(systemidpath):
++		opts = opts + ' --systemid=%s' % systemidpath
+ 
+-	rhnreset()
+-
+-	cfg['systemIdPath'] = systemidpath
+-	cfg = config.initUp2dateConfig()
+-	cfg['systemIdPath'] = systemidpath
+-	cfg['storageDir'] = path
+-	cfg['retrieveOnly'] = 1
+-	cfg['keepAfterInstall'] = 1
+-	cfg['noReboot'] = 1
+-	cfg['useRhn'] = 1
+-	cfg['showChannels'] = 1
+-	cfg['showAvailablePackages'] = 1
+-	cfg['isatty'] = 1
+-	cfg['networkRetries'] = 3
+-#	cfg['headerFetchCount'] = 20
+-
+ 	if dist.rhnrelease:
+-		cfg['versionOverride'] = dist.rhnrelease
+-	else:
+-		cfg['versionOverride'] = rpclib.xmlrpclib.loads(systemid)[0][0]['os_release']
+-	info(5, 'Using RHN release %s' % cfg['versionOverride'])
++		opts = opts + ' --release=%s' % dist.rhnrelease
+ 
+-	if dist.arch:
+-		cfg['forceArch'] = '%s-redhat-linux' % dist.arch
++##	opts = opts + ' -I \&quot;*.rpm\&quot;'
++#	opts = opts + ' -G \&quot;headers\&quot; -G \&quot;repodata\&quot;'
++#	if cf.mirrordirexclsrpm:
++#		opts = opts + ' -G \&quot;*.src.rpm\&quot; -G \&quot;SRPMS\&quot;'
++#	if cf.mirrordirexcldebug:
++#		opts = opts + ' -G \&quot;*-debuginfo-*.rpm\&quot; -G \&quot;debug\&quot;'
+ 
+-	if os.access('/var/log/up2date', os.W_OK):
+-		cfg['logFile'] = '/var/log/up2date'
+-	else:
+-		cfg['logFile'] = os.path.expanduser('~/up2date.log')
++	ret = run(&quot;%s %s '%s' '%s'&quot; % (cf.cmd['rhnget'], opts, url, path), dryrun=True)
++	if ret:
++		raise(YamMirrorException('Failed with return code: %s' % ret))
+ 
+-
+-	if rhnserver:
+-		cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
+-		if rhnscheme == 'rhn':
+-			cfg['serverURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
+-		else:
+-			cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
+-
+-	if op.verbose &gt;= 5:
+-		cfg['debug'] = 10000
+-
+-	info(6, '\nBEFORE LOGIN: logininfo: %s\n' % loginInfo)
+-	try:
+-		server = rpcServer.getServer()
+-		li = rpcServer.doCall(server.up2date.login, systemid)
+-		loginInfo.update(li)
+-	except rpclib.Fault, f:
+-		error(1, 'Error logging in %s with systemid %s. %s' % (dist.nick, systemidpath, f.faultString))
+-		return None
+-	info(6, '\nAFTER LOGIN: logininfo: %s\n' % loginInfo)
+-
+-	return systemid
+-
+-def rhngetchannel(channels, label):
+-	'Return the channel with given label, if found'
+-	for c in channels:
+-		if isinstance(c, types.ListType):
+-			l, v = c[0], c[1]
+-		else:
+-			l, v = c['label'], c['version']
+-		if l == label:
+-			return {
+-				'label': l,
+-				'version': v,
+-				'type': 'up2date',
+-				'url': cfg['serverURL'],
+-			}
+-	return None
+-
+-def mirrorrhn(url, path, dist):
+-	'Mirror a channel from RHN'
+-	global cfg, loginInfo, rd, repoDirector, rpcServer
+-
+-	sys.path.insert(0, '/usr/share/rhn/')
+-	sys.path.insert(1, '/usr/share/rhn/up2date_client/')
+-
+-	t, t, label, t, t, t = urlparse.urlparse(url)
+-	label = label.strip('/')
+-
+-	from up2date_client import rpcServer, wrapperUtils, up2dateErrors, repoDirector
+-	from rhn import rpclib
+-	import signal, xmlrpclib
+-
+-	### Log on to RHN
+-	systemid = rhnlogin(url, path, dist)
+-	if not systemid:
+-		return
+-
+-	mkdir(cfg['storageDir'])
+-
+-	### Try to find a channel with label
+-	channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
+-	if not channel:
+-		if cf.rhnlogin:
+-			rhnusername, rhnpasswd = cf.rhnlogin.split(':')
+-		   	try:
+-				server = rpcServer.getServer()
+-				channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
+-			except rpclib.Fault, f:
+-				raise(YamMirrorException('Error subscribing %s to channel %s, skipping.%s' % (dist.nick, label, f.faultString)))
+-			systemid = rhnlogin(url, path, dist, force=True)
+-			if not systemid:
+-				return
+-			info(6, '\nAFTER SUBSC: logininfo: %s\n' % loginInfo)
+-			channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
+-			if not channel:
+-				raise(YamMirrorException('Failed to subscribe RHN id %s to channel %s, skipping.' % (dist.nick, label)))
+-		else:
+-			raise(YamMirrorException('No RHN username or password supplied in Yam configuration. Please add channel %s on RHN website manually.' % label))
+-
+-	### Download packagelist for this channel
+-	try:
+-		repos = repoDirector.initRepoDirector()
+-	except xmlrpclib.Fault, f:
+-		raise(YamMirrorException('Problem setting up XML communication for channel %s.\n%s' % (label, f.faultString)))
+-		return
+-	except up2dateErrors.ServerCapabilityError, e:
+-		raise(YamMirrorException('Problem negotiating capabilities for channel %s.\n%s' % (label, e)))
+-		return
+-	try:
+-		if cf.rhndownloadall == True:
+-			package_list, type = rpcServer.doCall(repos.listAllPackages, channel, None, None)
+-		else:
+-			package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+-	except rpclib.Fault, f:
+-		raise(YamMirrorException('Error listing packages from channel %s. Skipping. %s' % (label, f.faultString)))
+-	except up2dateErrors.CommunicationError, e:
+-		raise(YamMirrorException('Error listing packages from channel %s. Skipping.\n%s' % (label, e)))
+-	except KeyError, e:
+-		raise(YamMirrorException('Unknown error that needs more debugging occured with channel %s. Skipping.\n%s' % (label, e)))
+-
+-	### Download packages from the packagelist
+-	signal.signal(signal.SIGINT, signal.SIG_DFL)
+-	for pkg in package_list:
+-		### FIXME: Check if not already on ISO-file or repository as well
+-		filename = '%s-%s-%s.%s.rpm' % (pkg[0], pkg[1], pkg[2], pkg[4])
+-
+-		### If file (or symlink target) exists
+-		if os.path.isfile(os.path.join(path, filename)):
+-			stat = os.stat(os.path.join(path, filename))
+-			if stat.st_size == int(pkg[5]):
+-				info(5, 'File %s is already in %s' % (filename, path))
+-				continue
+-			else:
+-				info(4, 'File %s has wrong size (found: %s, expected: %s), refetching.' % (filename, stat.st_size, pkg[5]))
+-				remove(os.path.join(path, filename))
+-
+-		### If symlink target does not exist, remove symlink
+-		elif os.path.islink(os.path.join(path, filename)):
+-			remove(os.path.join(path, filename))
+-
+-		if op.dryrun:
+-			info(3, 'Not downloading package %s' % filename)
+-			continue
+-		try:
+-			if op.verbose &lt;= 3:
+-				rpcServer.doCall(repos.getPackage, pkg, None, None)
+-			else:
+-				rpcServer.doCall(repos.getPackage, pkg, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
+-		except rpclib.Fault, f:
+-			error(0, 'rpcError: Error getting package %s from %s. %s' % (filename, label, f.faultString))
+-		except TypeError, e:
+-			error(0, 'TypeError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
+-		except up2dateErrors.CommunicationError, e:
+-			error(0, 'CommunicationError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
+-			
+-
+ def hardlink(srcdir):
+ 	info(1, 'Hardlinking duplicate packages in %s.' % srcdir)
+ 	opts = ''
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-10-06 22:29:09 UTC (rev 4795)
++++ trunk/tools/yam/yam.spec	2006-10-07 14:05:53 UTC (rev 4796)
+@@ -61,8 +61,6 @@
+ mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
+ smtp-server = localhost
+ 
+-#rhnlogin = username:password
+-
+ ### Any other section is considered a definition for a distribution
+ ### You can put distribution sections in /etc/yam.conf.d/
+ ### Examples can be found in the documentation at:
+@@ -100,6 +98,7 @@
+ %config(noreplace) %{_sysconfdir}/yam.conf.d/
+ %config %{_initrddir}/yam
+ %{_bindir}/gensystemid
++%{_bindir}/rhnget
+ %{_bindir}/yam
+ %{_datadir}/yam/
+ %{_localstatedir}/cache/yam/
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003595.html">[svn] r4795 - in trunk/rpms: . madwifi nvidia-x11-drv
+</A></li>
+	<LI>Next message: <A HREF="003597.html">[svn] r4797 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3596">[ date ]</a>
+              <a href="thread.html#3596">[ thread ]</a>
+              <a href="subject.html#3596">[ subject ]</a>
+              <a href="author.html#3596">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

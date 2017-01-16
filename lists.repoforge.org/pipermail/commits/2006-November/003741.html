@@ -1,0 +1,318 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4941 - trunk/rpms/gstreamer-plugins-ugly
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4941%20-%20trunk/rpms/gstreamer-plugins-ugly&In-Reply-To=%3C20061127190551.2D742944A82%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003740.html">
+   <LINK REL="Next"  HREF="003742.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4941 - trunk/rpms/gstreamer-plugins-ugly</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4941%20-%20trunk/rpms/gstreamer-plugins-ugly&In-Reply-To=%3C20061127190551.2D742944A82%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4941 - trunk/rpms/gstreamer-plugins-ugly">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Nov 27 20:05:51 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003740.html">[svn] r4940 - in trunk/rpms: dkms-ipw3945 dvdrip vobcopy
+</A></li>
+        <LI>Next message: <A HREF="003742.html">[svn] r4942 - in trunk/rpms: exiv2 gramps gwenview k3dsurf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3741">[ date ]</a>
+              <a href="thread.html#3741">[ thread ]</a>
+              <a href="subject.html#3741">[ subject ]</a>
+              <a href="author.html#3741">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-11-27 20:05:27 +0100 (Mon, 27 Nov 2006)
+New Revision: 4941
+
+Added:
+   trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.4-ac3.patch
+Modified:
+   trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec
+Log:
+Patched gstreamer-plugins-ugly to fix AC3 sound.
+
+
+Added: trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.4-ac3.patch
+===================================================================
+--- trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.4-ac3.patch	                        (rev 0)
++++ trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.4-ac3.patch	2006-11-27 19:05:27 UTC (rev 4941)
+@@ -0,0 +1,207 @@
++diff -Naur gst-plugins-ugly-0.10.4/ext/a52dec/gsta52dec.c gst-plugins-ugly-0.10.4-new/ext/a52dec/gsta52dec.c
++--- gst-plugins-ugly-0.10.4/ext/a52dec/gsta52dec.c	2006-08-14 06:52:25.000000000 -0300
+++++ gst-plugins-ugly-0.10.4-new/ext/a52dec/gsta52dec.c	2006-11-26 08:50:21.000000000 -0200
++@@ -58,7 +58,9 @@
++ enum
++ {
++   ARG_0,
++-  ARG_DRC
+++  ARG_DRC,
+++  ARG_MODE,
+++  ARG_LFE,
++ };
++ 
++ static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE (&quot;sink&quot;,
++@@ -94,6 +96,30 @@
++ 
++ static GstElementClass *parent_class = NULL;
++ 
+++#define GST_TYPE_A52DEC_MODE (gst_a52dec_mode_get_type())
+++static GType
+++gst_a52dec_mode_get_type (void)
+++{
+++  static GType a52dec_mode_type = 0;
+++  static const GEnumValue a52dec_modes[] = {
+++    {A52_MONO, &quot;Mono&quot;, &quot;mono&quot;},
+++    {A52_STEREO, &quot;Stereo&quot;, &quot;stereo&quot;},
+++    {A52_3F, &quot;3 Front&quot;, &quot;3f&quot;},
+++    {A52_2F1R, &quot;2 Front, 1 Rear&quot;, &quot;2f1r&quot;},
+++    {A52_3F1R, &quot;3 Front, 1 Rear&quot;, &quot;3f1r&quot;},
+++    {A52_2F2R, &quot;2 Front, 2 Rear&quot;, &quot;2f2r&quot;},
+++    {A52_3F2R, &quot;3 Front, 2 Rear&quot;, &quot;3f2r&quot;},
+++    {A52_DOLBY, &quot;Dolby&quot;, &quot;dolby&quot;},
+++    {0, NULL, NULL},
+++  };
+++
+++  if (!a52dec_mode_type) {
+++    a52dec_mode_type = g_enum_register_static (&quot;GstA52DecMode&quot;, a52dec_modes);
+++  }
+++  return a52dec_mode_type;
+++}
+++
+++
++ GType
++ gst_a52dec_get_type (void)
++ {
++@@ -153,6 +179,11 @@
++   g_object_class_install_property (G_OBJECT_CLASS (klass), ARG_DRC,
++       g_param_spec_boolean (&quot;drc&quot;, &quot;Dynamic Range Compression&quot;,
++           &quot;Use Dynamic Range Compression&quot;, FALSE, G_PARAM_READWRITE));
+++  g_object_class_install_property (G_OBJECT_CLASS (klass), ARG_MODE,
+++      g_param_spec_enum (&quot;mode&quot;, &quot;Decoder Mode&quot;, &quot;Decoding Mode (default 3f2r)&quot;,
+++          GST_TYPE_A52DEC_MODE, A52_3F2R, G_PARAM_READWRITE));
+++  g_object_class_install_property (G_OBJECT_CLASS (klass), ARG_LFE,
+++      g_param_spec_boolean (&quot;lfe&quot;, &quot;LFE&quot;, &quot;LFE&quot;, TRUE, G_PARAM_READWRITE));
++ 
++   oil_init ();
++ 
++@@ -191,6 +222,7 @@
++   gst_pad_use_fixed_caps (a52dec-&gt;srcpad);
++   gst_element_add_pad (GST_ELEMENT (a52dec), a52dec-&gt;srcpad);
++ 
+++  a52dec-&gt;request_channels = A52_CHANNEL;
++   a52dec-&gt;dynamic_range_compression = FALSE;
++   a52dec-&gt;cache = NULL;
++ }
++@@ -268,6 +300,12 @@
++       }
++       chans += 2;
++       break;
+++    case A52_MONO:
+++      if (pos) {
+++        pos[0 + chans] = GST_AUDIO_CHANNEL_POSITION_FRONT_MONO;
+++      }
+++      chans += 1;
+++      break;
++     default:
++       /* error, caller should post error message */
++       g_free (pos);
++@@ -441,6 +479,49 @@
++     gst_a52dec_update_streaminfo (a52dec);
++   }
++ 
+++  /* If we haven't had an explicit number of channels chosen through properties
+++   * at this point, choose what to downmix to now, based on what the peer will 
+++   * accept - this allows a52dec to do downmixing in preference to a 
+++   * downstream element such as audioconvert.
+++   */
+++  if (a52dec-&gt;request_channels == A52_CHANNEL) {
+++    GstCaps *caps;
+++
+++    caps = gst_pad_get_allowed_caps (a52dec-&gt;srcpad);
+++    if (caps &amp;&amp; gst_caps_get_size (caps) &gt; 0) {
+++      GstCaps *copy = gst_caps_copy_nth (caps, 0);
+++      GstStructure *structure = gst_caps_get_structure (copy, 0);
+++      gint channels;
+++      const int a52_channels[6] = {
+++        A52_MONO,
+++        A52_STEREO,
+++        A52_STEREO | A52_LFE,
+++        A52_2F2R,
+++        A52_2F2R | A52_LFE,
+++        A52_3F2R | A52_LFE,
+++      };
+++
+++      /* Prefer the original number of channels, but fixate to something 
+++       * preferred (first in the caps) downstream if possible.
+++       */
+++      gst_structure_fixate_field_nearest_int (structure, &quot;channels&quot;,
+++          flags ? gst_a52dec_channels (flags, NULL) : 6);
+++      gst_structure_get_int (structure, &quot;channels&quot;, &amp;channels);
+++      if (channels &lt;= 6)
+++        a52dec-&gt;request_channels = a52_channels[channels - 1];
+++      else
+++        a52dec-&gt;request_channels = a52_channels[5];
+++
+++      gst_caps_unref (copy);
+++    } else if (flags)
+++      a52dec-&gt;request_channels = a52dec-&gt;stream_channels;
+++    else
+++      a52dec-&gt;request_channels = A52_3F2R | A52_LFE;
+++
+++    if (caps)
+++      gst_caps_unref (caps);
+++  }
+++
++   /* process */
++   flags = a52dec-&gt;request_channels;     /* | A52_ADJUST_LEVEL; */
++   a52dec-&gt;level = 1;
++@@ -681,7 +762,6 @@
++       a52dec-&gt;bit_rate = -1;
++       a52dec-&gt;sample_rate = -1;
++       a52dec-&gt;stream_channels = A52_CHANNEL;
++-      a52dec-&gt;request_channels = A52_3F2R | A52_LFE;
++       a52dec-&gt;using_channels = A52_CHANNEL;
++       a52dec-&gt;level = 1;
++       a52dec-&gt;bias = 0;
++@@ -729,6 +809,18 @@
++       src-&gt;dynamic_range_compression = g_value_get_boolean (value);
++       GST_OBJECT_UNLOCK (src);
++       break;
+++    case ARG_MODE:
+++      GST_OBJECT_LOCK (src);
+++      src-&gt;request_channels &amp;= ~A52_CHANNEL_MASK;
+++      src-&gt;request_channels |= g_value_get_enum (value);
+++      GST_OBJECT_UNLOCK (src);
+++      break;
+++    case ARG_LFE:
+++      GST_OBJECT_LOCK (src);
+++      src-&gt;request_channels &amp;= ~A52_LFE;
+++      src-&gt;request_channels |= g_value_get_boolean (value) ? A52_LFE : 0;
+++      GST_OBJECT_UNLOCK (src);
+++      break;
++     default:
++       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
++       break;
++@@ -747,6 +839,16 @@
++       g_value_set_boolean (value, src-&gt;dynamic_range_compression);
++       GST_OBJECT_UNLOCK (src);
++       break;
+++    case ARG_MODE:
+++      GST_OBJECT_LOCK (src);
+++      g_value_set_enum (value, src-&gt;request_channels &amp; A52_CHANNEL_MASK);
+++      GST_OBJECT_UNLOCK (src);
+++      break;
+++    case ARG_LFE:
+++      GST_OBJECT_LOCK (src);
+++      g_value_set_boolean (value, src-&gt;request_channels &amp; A52_LFE);
+++      GST_OBJECT_UNLOCK (src);
+++      break;
++     default:
++       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
++       break;
++diff -Naur gst-plugins-ugly-0.10.4/ext/a52dec/gsta52dec.h gst-plugins-ugly-0.10.4-new/ext/a52dec/gsta52dec.h
++--- gst-plugins-ugly-0.10.4/ext/a52dec/gsta52dec.h	2006-08-08 07:43:51.000000000 -0300
+++++ gst-plugins-ugly-0.10.4-new/ext/a52dec/gsta52dec.h	2006-11-26 08:50:26.000000000 -0200
++@@ -73,6 +73,31 @@
++ 
++ GType gst_a52dec_get_type (void);
++ 
+++#ifndef A52_MONO
+++#define A52_MONO 1
+++#endif
+++#ifndef A52_STEREO
+++#define A52_STEREO 2
+++#endif
+++#ifndef A52_3F
+++#define A52_3F 3
+++#endif
+++#ifndef A52_2F1R
+++#define A52_2F1R 4
+++#endif
+++#ifndef A52_3F1R
+++#define A52_3F1R 5
+++#endif
+++#ifndef A52_2F2R
+++#define A52_2F2R 6
+++#endif
+++#ifndef A52_3F2R
+++#define A52_3F2R 7
+++#endif
+++#ifndef A52_DOLBY
+++#define A52_DOLBY 10
+++#endif
+++
++ G_END_DECLS
++ 
++ #endif /* __GST_A52DEC_H__ */
+
+Modified: trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec
+===================================================================
+--- trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec	2006-11-27 19:01:47 UTC (rev 4940)
++++ trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec	2006-11-27 19:05:27 UTC (rev 4941)
+@@ -14,11 +14,12 @@
+ Summary: GStreamer streaming media framework &quot;ugly&quot; plug-ins
+ Name: %{gstreamer}-plugins-ugly
+ Version: 0.10.4
+-Release: 2
++Release: 3
+ License: LGPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://gstreamer.freedesktop.org/">http://gstreamer.freedesktop.org/</A>
+ Source: <A HREF="http://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-%{version">http://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-%{version</A>}.tar.bz2
++Patch0: gst-plugins-ugly-0.10.4-ac3.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires: %{gstreamer} &gt;= %{gst_minver}
+ BuildRequires: %{gstreamer}-devel &gt;= %{gst_minver}
+@@ -79,6 +80,7 @@
+ 
+ %prep
+ %setup -n gst-plugins-ugly-%{version}
++%patch0 -p1 -b .ac3
+ 
+ 
+ %build
+@@ -134,6 +136,9 @@
+ 
+ 
+ %changelog
++* Sun Nov 26 2006 Paulo Roma &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">roma at lcg.ufrj.br</A>&gt; 0.10.4-3
++- Patched to fix AC3 sound.
++
+ * Tue Oct 17 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.10.4-2
+ - Include translations which are now built.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003740.html">[svn] r4940 - in trunk/rpms: dkms-ipw3945 dvdrip vobcopy
+</A></li>
+	<LI>Next message: <A HREF="003742.html">[svn] r4942 - in trunk/rpms: exiv2 gramps gwenview k3dsurf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3741">[ date ]</a>
+              <a href="thread.html#3741">[ thread ]</a>
+              <a href="subject.html#3741">[ subject ]</a>
+              <a href="author.html#3741">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,494 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3291 - in trunk/tools/pydar2: . pydar scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3291%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts&In-Reply-To=%3C20050607162832.EFDBF94547C%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002092.html">
+   <LINK REL="Next"  HREF="002094.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3291 - in trunk/tools/pydar2: . pydar scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3291%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts&In-Reply-To=%3C20050607162832.EFDBF94547C%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3291 - in trunk/tools/pydar2: . pydar scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jun  7 18:28:32 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002092.html">[svn] r3290 - trunk/tools/dconf
+</A></li>
+        <LI>Next message: <A HREF="002094.html">[svn] r3292 - in trunk/tools/dconf: . config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2093">[ date ]</a>
+              <a href="thread.html#2093">[ thread ]</a>
+              <a href="subject.html#2093">[ subject ]</a>
+              <a href="author.html#2093">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-07 18:28:31 +0200 (Tue, 07 Jun 2005)
+New Revision: 3291
+
+Modified:
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar-buildserver-slave.py
+   trunk/tools/pydar2/pydar/buildrootresult.py
+   trunk/tools/pydar2/pydar/commandlist.py
+   trunk/tools/pydar2/pydar/memorystorage.py
+   trunk/tools/pydar2/pydar/rsyncyumbasedbuildroot.py
+   trunk/tools/pydar2/pydar/storage.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+   trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/buildrootresult.py
+===================================================================
+--- trunk/tools/pydar2/pydar/buildrootresult.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar/buildrootresult.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -29,6 +29,16 @@
+         self.__rpms = []
+         #self.__buildlog = &quot;&quot;
+         #self.__configlog = &quot;&quot;
++    
++    def append(self, brr):
++        if brr.containsErrors():
++            self.__containsErrors = 1
++        if brr.containsWarnings():
++            self.__containsWarnings = 1
++        self.__logText = self.__logText + &quot;\n&quot; + brr.getLog()
++        self.__srpm = self.__srpm + brr.getSrpm()
++        for i in brr.getRpms():
++            self.__rpms.append(i)
+         
+     def containsErrors(self):
+         return self.__containsErrors
+
+Modified: trunk/tools/pydar2/pydar/commandlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/commandlist.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar/commandlist.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -88,6 +88,7 @@
+         self.__cat.debug(&quot;got buildMachineId:&quot; + str(buildMachineId))
+         commanddir = os.path.join(os.path.join(self.__config.getMasterBuildResultsDir(), buildMachineId),commandId)
+         self.__cat.debug(&quot;got commanddir:&quot; + str(commanddir))
++        self.__cat.debug(&quot;isdir: &quot; + str(os.path.isdir(commanddir)))
+         if os.path.isdir(commanddir):
+             # nice, the dir exists.. 
+             self.__cat.debug(&quot;going to call moveCommandResults with command: &quot; + str(aCommand) + &quot;, commanddir: &quot; + str(commanddir))
+
+Modified: trunk/tools/pydar2/pydar/memorystorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/memorystorage.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar/memorystorage.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -49,16 +49,108 @@
+         #   'specrepoid' =&gt; id of the specrepo
+         #   'checksum'=&gt; the checksum of the spec file
+         # ]
++        self.buildmachineregistrations = {}
++        # id =&gt; {
++        #  'id' =&gt; unique buildmachineid
++        #  'distroarchtags' =&gt; array of distroarchtags
++        # ]
++        self.commands = {}
++        # id =&gt; [
++        #    'id'] =&gt; a unique id (commandId)
++        #    'specfileid'=&gt; 
++        #    'specrepoid'=&gt;
++        #    'toemail'
++        #    'distroarchtag'
++        #    'targetid'
++        #    'commandname'
++        #    'userid'
++        #    'priority'
++        #    'version'
++        #    'inprogress' = 0 of 1
++        #    'handled'= 0 of 1
++        # ]
+ 
+     def saveSpecRepository(self,specRepo):
+         self.specrepos.append(specRepo)
+ 
++    def createCommand(self,aCommand):
++        cmdobj = {}
++        cmdobj['id'] = len(self.commands) + 1
++        cmdobj['commandname'] = aCommand.getCommandName()
++        cmdobj['userid'] = aCommand.getUserId()
++        cmdobj['specrepoid'] = aCommand.getSpecRepoId()
++        cmdobj['specfileid'] = aCommand.getSpecFileId()
++        cmdobj['toemail'] = aCommand.getToEmail()
++        cmdobj['distroarchtag'] = aCommand.getDistroArchTag()
++        cmdobj['priority'] = aCommand.getPriority()
++        cmdobj['targetid'] = aCommand.getTargetId()
++        cmdobj['version'] = 0
++        cmdobj['handled'] = 0
++        cmdobj['inprogress'] = 0
++        self.commands[cmdobj['id']] = cmdobj
++        aCommand.setId(cmdobj['id'])
++        return aCommand
++        
++    def checkIfValidUserId(self, userId, password, right):
++        for i in self.accounts.values():
++            self.__cat.debug(&quot;acc value: &quot; + str(i))
++            if i['name'] == userId and i['type'] == 'USER' and i['passw'] == password:
++                self.__cat.debug(&quot;type and password ok&quot;)
++                if right in i['rights']:
++                    self.__cat.debug(&quot;right also ok&quot;)
++                    return 1
++        self.__cat.debug(&quot;not found..&quot;)
++        return 0
++        
++    def checkIfValidBuildMachineId(self, buildmachineid, password, right):
++        for i in self.accounts.values():
++            self.__cat.debug(&quot;acc value: &quot; + str(i))
++            if i['name'] == buildmachineid and i['type'] == 'BUILDMACHINE' and i['passw'] == password:
++                self.__cat.debug(&quot;type and password ok&quot;)
++                if right in i['rights']:
++                    self.__cat.debug(&quot;right also ok&quot;)
++                    return 1
++        self.__cat.debug(&quot;not found..&quot;)
++        return 0
++        
+     def updateTarget(self, newTarget):
+         self.targets.append(newTarget)
+         
++    def registerSlave(self, buildmachineid):
++        bmobj = {}
++        bmobj['id'] = buildmachineid
++        bmobj['distroarchtags'] = []
++        self.buildmachineregistrations[buildmachineid] = bmobj
++        
++    def addDistroArchTag(self, buildmachineid, distroArchTag):
++        obj = self.buildmachineregistrations[buildmachineid]
++        obj['distroarchtags'].append(distroArchTag)
++        
++    def reserveCommand(self, buildmachineid):
++        for i in self.commands.values():
++            if i['inprogress'] == 0 and i['handled'] == 0 and i['distroarchtag'] in self.buildmachineregistrations[buildmachineid]['distroarchtags']:
++                aCommand = MasterCommand(i['commandname'], i['userid'], i['specrepoid'], i['specfileid'], i['toemail'], i['distroarchtag'], i['priority'], i['targetid'])
++                aCommand.setVersion(i['version'])
++                aCommand.setCommandId(i['id'])
++                i['inprogress'] = 1
++                return aCommand
++        return &quot;&quot;
++            
++        
+     def clearAssignedRights(self):
+         self.userIdToRightsArr = {}
+         
++    def saveSpecRepositorySpecFile(self, specRepo, specRepoSpecFile):
++        specobj = {}
++        specobj['id'] = specRepoSpecFile.getId()
++        specobj['subdir'] = specRepoSpecFile.getSubDir()
++        specobj['filename'] = specRepoSpecFile.getFileName()
++        specobj['specrepoid'] = specRepo.getId()
++        specobj['checksum'] = specRepoSpecFile.getCheckSum()
++        self.specfiles[specRepoSpecFile.getId()] = specobj
++        
++    
++        
+     def addAccount(self,name,type,fullname,passw,rights):
+         acc = {}
+         acc['name'] = name
+@@ -72,14 +164,14 @@
+     def getSpecRepositoryFileListToIds(self,specRepo):
+         retval = {}
+         for i in self.specfiles.values():
+-            if i['specrepoid'] = specRepo.getId():
+-                retval[i['subdir'] + '/' + i.['filename']] = i['id']
++            if i['specrepoid'] == specRepo.getId():
++                retval[i['subdir'] + '/' + i['filename']] = i['id']
+         return retval
+         
+     def getSpecRepositoryFileListToChecksum(self,specRepo):
+         retval = {}
+         for i in self.specfiles.values():
+-            if i['specrepoid'] = specRepo.getId():
+-                ddddddddd dddd retval[i['subdir'] + '/' + i.['filename']] = i['id']
++            if i['specrepoid'] == specRepo.getId():
++                retval[i['subdir'] + '/' + i['filename']] = i['checksum']
+         return retval
+         
+\ No newline at end of file
+
+Modified: trunk/tools/pydar2/pydar/rsyncyumbasedbuildroot.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rsyncyumbasedbuildroot.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar/rsyncyumbasedbuildroot.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -50,7 +50,7 @@
+         if os.path.exists(self.__yumBuildRoot.rootdir + &quot;-rsync&quot;):
+             # ok rsync 
+             self.__yumBuildRoot._umounts(brr)
+-            cmd = &quot;sudo rsync -v -a -W -H --numeric-ids --delete &quot; + self.__yumBuildRoot.rootdir + &quot;-rsync/ &quot; + self.__yumBuildRoot.rootdir + &quot;/&quot;
++            cmd = &quot;sudo rsync -a -W -H --numeric-ids --delete &quot; + self.__yumBuildRoot.rootdir + &quot;-rsync/ &quot; + self.__yumBuildRoot.rootdir + &quot;/&quot;
+             self.__cat.debug(&quot;cmd: &quot; + cmd)
+             self.__yumBuildRoot.logCommand(cmd,brr)
+         else:
+@@ -59,9 +59,10 @@
+            self.__yumBuildRoot.prepareRoot()
+            self.__yumBuildRoot._umounts(brr)
+            os.mkdir(self.__yumBuildRoot.rootdir + &quot;-rsync&quot;)
+-           cmd = &quot;sudo rsync -v -a -W -H --numeric-ids --delete &quot; + self.__yumBuildRoot.rootdir + &quot;/ &quot; + self.__yumBuildRoot.rootdir + &quot;-rsync/&quot;
++           cmd = &quot;sudo rsync -a -W -H --numeric-ids --delete &quot; + self.__yumBuildRoot.rootdir + &quot;/ &quot; + self.__yumBuildRoot.rootdir + &quot;-rsync/&quot;
+            self.__cat.debug(&quot;cmd: &quot; + cmd)
+            self.__yumBuildRoot.logCommand(cmd,brr)
++        return brr
+             
+     def buildRpm(self,command):
+         self.__cat.debug(&quot;start&quot;)
+
+Modified: trunk/tools/pydar2/pydar/storage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/storage.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar/storage.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -52,55 +52,55 @@
+     #getInstance = classmethod(getInstance)
+     
+     def clearAssignedRights(self):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;clearAssignedRights:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+     def addAccount(self,name,type,fullname,passw,rights):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;addAccount:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+     def updateTarget(self, newTarget):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;updateTarget:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+     def getSpecRepositoryFileListToIds(self,specRepo):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;getSpecRepositoryFileListToIds:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+     def saveSpecRepositorySpecFile(self, specRepo, specRepoSpecFile):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;saveSpecRepositorySpecFile:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+     def saveSpecRepository(self,specRepo):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;saveSpecRepository:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+       
+     def getSpecRepositoryFileListToChecksum(self,specRepo):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;getSpecRepositoryFileListToChecksum:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+         
+     def checkIfValidUserId(self, userId,password, right):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;checkIfValidUserId:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+ 
+     def checkIfValidBuildMachineId(self, buildmachineid, password, right):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;checkIfValidBuildMachineId:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+ 
+     def registerSlave(self, buildmachineid):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;registerSlave:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+ 
+     def addDistroArchTag(self, buildmachineid, machroot):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;addDistroArchTag:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+ 
+     def addResultFileName(self,buildmachineid,commandId,fileName):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;addResultFileName:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+ 
+     def setBuildResult(self,buildmachineid,commandId,buildResult):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;setBuildResult:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+ 
+     # a seperate program updates the spec file repositories.
+     # result: the commands which have to be executed to update all the spec file repositories
+     # example:  &quot;cd /a/b/c; svn update&quot;
+     def getSpecRepositoriesUpdateCommands(self):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;getSpecRepositoriesUpdateCommands:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+ 
+     def reserveCommand(self, buildmachineid):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;reserveCommand:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+ 
+     # get a mapping from something like fc3-i386 to --define fc3 1 --define dist fc3 for example
+     def getDefinesByDistroArchTag(self,distroArchTag):
+-        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++        raise Exception(&quot;getDefinesByDistroArchTag:: Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar/target.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -78,9 +78,15 @@
+         self.__moveCommandResultsScript = newScript
+ 
+     def autoQueue(self, mailTo, userName, priority, specRepository, distroArchTag):
++        self.__cat.debug(&quot;start&quot;)
++        self.__storage = storagefactory.StorageFactory.getStorage()
++        if not self.supportsAutoQueueing():
++            return
++        self.__updateListOfRpms()
++        self.__cat.debug(&quot;updateListOfRpms is done&quot;)
+         self.__autoQueueByDistroArchTag(distroArchTag,mailTo,userName,priority,specRepository)
+         
+-    def autoQueue(self, mailTo, userName, priority, specRepository):
++    def autoQueueOld(self, mailTo, userName, priority, specRepository):
+         self.__cat.debug(&quot;start&quot;)
+         self.__storage = storagefactory.StorageFactory.getStorage()
+         if not self.supportsAutoQueueing():
+@@ -137,19 +143,22 @@
+         arr = self.__recursiveFindFiles(topDir, &quot;&quot;)
+         myFileNameToChecksum = self.__storage.getTargetFileListToChecksums(self)
+         for fileName in arr:
+-            checksum = self.__getCheckSum(fileName)
+-            if fileName in myFileNameToChecksum.keys():
+-                if checksum != myFileNameToChecksum[fileName]:
+-                    # rpm has changed?
+-                    self.__cat.debug(&quot;changed rpm&quot;)
++            try:
++                checksum = self.__getCheckSum(fileName)
++                if fileName in myFileNameToChecksum.keys():
++                    if checksum != myFileNameToChecksum[fileName]:
++                        # rpm has changed?
++                        self.__cat.debug(&quot;changed rpm&quot;)
++                        (name, version, distroarchtag) = self.getRpmData(os.path.join(self.getRpmsDir(),fileName))
++                        self.__cat.debug(&quot;going to update in db&quot;)
++                        self.__storage.updateTargetFile(self, fileName, checksum, version, distroarchtag, name)
++                else:
++                    self.__cat.debug(&quot;new rpm&quot;)
+                     (name, version, distroarchtag) = self.getRpmData(os.path.join(self.getRpmsDir(),fileName))
+-                    self.__cat.debug(&quot;going to update in db&quot;)
+-                    self.__storage.updateTargetFile(self, fileName, checksum, version, distroarchtag, name)
+-            else:
+-                self.__cat.debug(&quot;new rpm&quot;)
+-                (name, version, distroarchtag) = self.getRpmData(os.path.join(self.getRpmsDir(),fileName))
+-                self.__cat.debug(&quot;going to insert in db&quot;)
+-                self.__storage.insertTargetFile(self, fileName, checksum, version, distroarchtag, name)
++                    self.__cat.debug(&quot;going to insert in db&quot;)
++                    self.__storage.insertTargetFile(self, fileName, checksum, version, distroarchtag, name)
++            except:
++                self.__cat.debug(&quot;problem with rpm: &quot; + str(fileName))
+         # todo remove the data from the database about files which dont exist anymore    
+         
+     def __recursiveFindFiles(self,topDir,startDir):
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -71,7 +71,7 @@
+             raise Exception(&quot;UNKNOWN BUILDMACHINEID&quot;)
+ 
+     def sendResultFileName(self, buildmachineid, password, commandId,fileName):
+-        self.__cat.debug(&quot;buildmachineid=&quot; + buildmachineid + &quot;,commandId=&quot; + str(commandId) + &quot;,fileName=&quot; + fileName)
++        self.__cat.debug(&quot;buildmachineid=&quot; + str(buildmachineid) + &quot;,commandId=&quot; + str(commandId) + &quot;,fileName=&quot; + str(fileName))
+         if self.__storage.checkIfValidBuildMachineId(buildmachineid, password, Rights.SEND_RESULT_FILE_NAME):
+             self.__storage.addResultFileName(buildmachineid,commandId,fileName)
+             return &quot;OK&quot;
+
+Modified: trunk/tools/pydar2/pydar-buildserver-slave.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-slave.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/pydar-buildserver-slave.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -134,11 +134,11 @@
+         self.__cat.debug(&quot;start&quot;)
+         buildRoot = self.__config.getBuildRootList().getBuildRootByBuildRootTag(command.getDistroArchTag())
+         brr = buildRoot.cleanRoot()
+-        brr = buildRoot.prepareRoot()
+-        brr = buildRoot.installRpms(command.getSpecFileBuildReqs())
++        brr.append( buildRoot.prepareRoot() )
++        brr.append( buildRoot.installRpms(command.getSpecFileBuildReqs()) )
+         # all the previous brr results might already contain usefull information
+         # todo: check the previous brr info
+-        brr = buildRoot.buildRpm(command)
++        brr.append( buildRoot.buildRpm(command) )
+         return brr
+         
+     def __informMasterAfterRebuild(self,command,brr):
+
+Modified: trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -29,11 +29,15 @@
+         return False
+     if aCommand.getSpecRepositoryName() != &quot;rpmforge&quot;:
+         return False
+-    if string.find(aCommand.getSpecFileShortFileName(),&quot;perl-&quot;) &lt; 0:
++    #if string.find(aCommand.getSpecFileShortFileName(),&quot;perl-&quot;) &lt; 0:
++    #    return False
++    authority = aCommand.getAuthority()
++    if authority == None:
++        print &quot;spec file without authority, ignoring&quot;
+         return False
+-    if string.find(aCommand.getAuthority(), &quot;dries&quot;) &lt; 0:
+-        return False
+-    # todo check authority
++    else:
++        if string.find(authority, &quot;dries&quot;) &lt; 0:
++            return False
+     return True
+     
+     
+
+Modified: trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py	2005-06-07 06:48:38 UTC (rev 3290)
++++ trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py	2005-06-07 16:28:31 UTC (rev 3291)
+@@ -29,19 +29,19 @@
+     version = &quot;0&quot;
+     distroarchtag = None
+     
+-    if string.find(rpmPath,'1.fc3.rf.i386') &gt; 0 or (string.find(rpmPath,'1.fc3') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
++    if string.find(rpmPath,'fc3-i386') &gt; 0 or string.find(rpmPath,'1.fc3.rf.i386') &gt; 0 or (string.find(rpmPath,'1.fc3') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
+         distroarchtag='fc3-i386'
+-    if string.find(rpmPath,'1.fc2.rf.i386') &gt; 0 or (string.find(rpmPath,'1.fc2') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
++    if string.find(rpmPath,'fc2-i386') &gt; 0 or string.find(rpmPath,'1.fc2.rf.i386') &gt; 0 or (string.find(rpmPath,'1.fc2') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
+         distroarchtag='fc2-i386'
+-    if string.find(rpmPath,'1.fc1.rf.i386') &gt; 0 or (string.find(rpmPath,'fc1') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
++    if string.find(rpmPath,'fc1-i386') &gt; 0 or string.find(rpmPath,'1.fc1.rf.i386') &gt; 0 or (string.find(rpmPath,'fc1') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
+         distroarchtag='fc1-i386'
+-    if string.find(rpmPath,'.el4.rf') &gt; 0 and string.find(rpmPath,'i386') &gt; 0:
++    if string.find(rpmPath,'el4-i386') &gt; 0 or string.find(rpmPath,'.el4.rf') &gt; 0 and string.find(rpmPath,'i386') &gt; 0:
+         distroarchtag='el4-i386'
+-    if string.find(rpmPath,'.el3.') &gt; 0 and string.find(rpmPath,'i386') &gt; 0:
++    if string.find(rpmPath,'el3-i386') &gt; 0 or string.find(rpmPath,'.el3.') &gt; 0 and string.find(rpmPath,'i386') &gt; 0:
+         distroarchtag='el3-i386'
+-    if string.find(rpmPath,'au1.92.rf') &gt; 0 or string.find(rpmPath,'au1.92.dries') &gt; 0:
++    if string.find(rpmPath,'au1.92-sparc') &gt; 0 or string.find(rpmPath,'au1.92.rf') &gt; 0 or string.find(rpmPath,'au1.92.dries') &gt; 0:
+         distroarchtag='au1.92-sparc'
+-    if string.find(rpmPath,'au1.91.rf') &gt; 0 or string.find(rpmPath,'au1.91.dries') &gt; 0:
++    if string.find(rpmPath,'au1.91-sparc') &gt; 0 or string.find(rpmPath,'au1.91.rf') &gt; 0 or string.find(rpmPath,'au1.91.dries') &gt; 0:
+         distroarchtag='au1.91-sparc'
+     
+     
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002092.html">[svn] r3290 - trunk/tools/dconf
+</A></li>
+	<LI>Next message: <A HREF="002094.html">[svn] r3292 - in trunk/tools/dconf: . config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2093">[ date ]</a>
+              <a href="thread.html#2093">[ thread ]</a>
+              <a href="subject.html#2093">[ subject ]</a>
+              <a href="author.html#2093">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,191 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4820 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4820%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20061014125037.4C2AD31821E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003619.html">
+   <LINK REL="Next"  HREF="003621.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4820 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4820%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20061014125037.4C2AD31821E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4820 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Oct 14 14:50:37 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003619.html">[svn] r4819 - in trunk/rpms: synbak viewvc
+</A></li>
+        <LI>Next message: <A HREF="003621.html">[svn] r4821 - in trunk/rpms: . libsigc++20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3620">[ date ]</a>
+              <a href="thread.html#3620">[ thread ]</a>
+              <a href="subject.html#3620">[ subject ]</a>
+              <a href="author.html#3620">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-10-14 14:50:36 +0200 (Sat, 14 Oct 2006)
+New Revision: 4820
+
+Added:
+   trunk/tools/dstat/plugins/dstat_vz.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Added a dstat_vz plugin for openvz cpu statistics
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2006-10-14 09:26:23 UTC (rev 4819)
++++ trunk/tools/dstat/ChangeLog	2006-10-14 12:50:36 UTC (rev 4820)
+@@ -1,5 +1,6 @@
+-* 0.6.3svn - ... - released ../../2006
++* 0.6.3svn - ... - released 14/10/2006
+ - Fixed dstat_clock to use localtime() instead of gmtime()
++- Added external plugin dstat_vz for openvz cpu statistics
+ 
+ * 0.6.3 - Amsterdam - released 26/06/2006
+ - Changed default (silver) color of delimiter to gray
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-10-14 09:26:23 UTC (rev 4819)
++++ trunk/tools/dstat/dstat	2006-10-14 12:50:36 UTC (rev 4820)
+@@ -434,15 +434,6 @@
+ 		self.name = self.name()
+ 		self.init(self.vars + ['total',], 6)
+ 
+-	def name(self):
+-		ret = []
+-		for name in self.vars:
+-			if name == 'total':
+-				ret.append('total cpu usage')
+-			else:
+-				ret.append('cpu' + name + ' usage')
+-		return ret
+-
+ 	def discover(self, *list):
+ 		ret = []
+ 		if self.fd:
+@@ -455,6 +446,15 @@
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
++	def name(self):
++		ret = []
++		for name in self.vars:
++			if name == 'total':
++				ret.append('total cpu usage')
++			else:
++				ret.append('cpu' + name + ' usage')
++		return ret
++
+ 	def vars(self):
+ 		ret = []
+ 		if op.cpulist:
+
+Added: trunk/tools/dstat/plugins/dstat_vz.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vz.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_vz.py	2006-10-14 12:50:36 UTC (rev 4820)
+@@ -0,0 +1,67 @@
++global string
++import string
++
++#Version: 2.2
++#VEID   user    nice    system   uptime     idle             strv   uptime          used           maxlat  totlat  numsched
++#302    142926  0       10252    152896388  852779112954062  0      427034187248480 1048603937010  0       0       0
++#301    27188   0       7896     152899846  853267000490282  0      427043845492614 701812592320   0       0       0
++
++class dstat_vz(dstat):
++	def __init__(self):
++		self.format = ('p', 3, 34)
++		self.open('/proc/vz/vestat')
++		self.nick = ('usr', 'sys', 'idl', 'nic')
++		self.discover = self.discover()
++		self.vars = self.vars()
++		self.name = self.name()
++		self.init(self.vars + ['total'], 4)
++		info(1, 'Module dstat_vz is still experimental.')
++
++	def discover(self, *list):
++		ret = []
++		if self.fd:
++			self.fd.seek(0)
++			for line in self.fd.readlines():
++				l = line.split()
++				if len(l) &lt; 6 or l[0] == 'VEID': continue
++				ret.append(l[0])
++			ret.sort()
++		for item in list: ret.append(item)
++		return ret
++
++	def name(self):
++		ret = []
++		for name in self.vars:
++			if name == 'total':
++				ret.append('total ve usage')
++			else:
++				ret.append('ve ' + name + ' usage')
++		return ret
++
++	def vars(self):
++		ret = []
++		if not op.full:
++			list = ('total', )
++		else: 
++			list = self.discover
++		for name in list: 
++			if name in self.discover + ['total']:
++				ret.append(name)
++		return ret
++
++	def extract(self):
++		self.cn2['total'] = [0, 0, 0, 0]
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split() 
++			if len(l) &lt; 6 or l[0] == 'VEID': continue
++			name = l[0]
++			self.cn2[name] = ( long(l[1]), long(l[3]), long(l[4]) - long(l[1]) - long(l[2]) - long(l[3]), long(l[2]) )
++			self.cn2['total'] = ( self.cn2['total'][0] + long(l[1]), self.cn2['total'][1] + long(l[3]), self.cn2['total'][2] + long(l[4]) - long(l[1]) - long(l[2]) - long(l[3]), self.cn2['total'][3] + long(l[2]) )
++		for name in self.vars:
++			for i in range(4):
++				self.val[name][i] = 100.0 * (self.cn2[name][i] - self.cn1[name][i]) / (sum(self.cn2[name]) - sum(self.cn1[name]))
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003619.html">[svn] r4819 - in trunk/rpms: synbak viewvc
+</A></li>
+	<LI>Next message: <A HREF="003621.html">[svn] r4821 - in trunk/rpms: . libsigc++20
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3620">[ date ]</a>
+              <a href="thread.html#3620">[ thread ]</a>
+              <a href="subject.html#3620">[ subject ]</a>
+              <a href="author.html#3620">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

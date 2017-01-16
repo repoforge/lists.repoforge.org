@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4759 - in trunk/tools/yam: . config
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4759%20-%20in%20trunk/tools/yam%3A%20.%20config&In-Reply-To=%3C20060923154848.EF3B7944A94%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003558.html">
+   <LINK REL="Next"  HREF="003560.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4759 - in trunk/tools/yam: . config</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4759%20-%20in%20trunk/tools/yam%3A%20.%20config&In-Reply-To=%3C20060923154848.EF3B7944A94%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4759 - in trunk/tools/yam: . config">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Sep 23 17:48:48 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003558.html">[svn] r4758 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="003560.html">[svn] r4760 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3559">[ date ]</a>
+              <a href="thread.html#3559">[ thread ]</a>
+              <a href="subject.html#3559">[ subject ]</a>
+              <a href="author.html#3559">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-09-23 17:48:47 +0200 (Sat, 23 Sep 2006)
+New Revision: 4759
+
+Added:
+   trunk/tools/yam/config/yam.logrotate
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/Makefile
+   trunk/tools/yam/TODO
+   trunk/tools/yam/config/yam.conf
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Updates
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-09-23 07:53:59 UTC (rev 4758)
++++ trunk/tools/yam/ChangeLog	2006-09-23 15:48:47 UTC (rev 4759)
+@@ -1,8 +1,11 @@
+-* 0.8.3 - ... - released 21/09/2006
++* 0.8.3 - ... - released 23/09/2006
+ - Fixed a problem with specific python versions (Justin B Hochstetler)
+ - Fixed the non-functional -r option
+ - Apply -r option to repository generation as well
+ - Fixed leftover repo name reference (Justin B Hochstetler)
++- Added logging updates to /var/log/yam
++- Output changes to repositories and when very verbose show packages
++- Added yam.logrotate for rotating the yam logfile
+ 
+ * 0.8.2 - Finally fixed - released 19/09/2006
+ - Use exec in conjunction with system()
+
+Modified: trunk/tools/yam/Makefile
+===================================================================
+--- trunk/tools/yam/Makefile	2006-09-23 07:53:59 UTC (rev 4758)
++++ trunk/tools/yam/Makefile	2006-09-23 15:48:47 UTC (rev 4759)
+@@ -38,6 +38,8 @@
+ 
+ 	[ &quot;$(DESTDIR)&quot; -o ! -f &quot;$(DESTDIR)$(sysconfdir)/cron.d/yam&quot; ] &amp;&amp; install -Dp -m0644 config/yam.cron $(DESTDIR)$(sysconfdir)/cron.d/yam || :
+ 	
++	install -Dp -m0644 config/yam.logrotate $(DESTDIR)$(sysconfdir)/logrotate.d/yam
++
+ 	@if [ -z &quot;$(DESTDIR)&quot; -a -x &quot;/sbin/chkconfig&quot; ]; then \
+ 		/sbin/chkconfig --add yam; \
+ 	elif [ -z &quot;$(DESTDIR)&quot; -a -x &quot;$(sbindir)/chkconfig&quot; ]; then \
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-09-23 07:53:59 UTC (rev 4758)
++++ trunk/tools/yam/TODO	2006-09-23 15:48:47 UTC (rev 4759)
+@@ -37,8 +37,7 @@
+ + Add YaST/YOU support (both for mirroring as providing metadata, seems impossible ?)
+ 
+ ### Reporting utility
+-+ Add option to generate a report of recent additions (repoview already has this)
+-  (Would like to display only file-transfers, sadly rsync/lftp do not allow that)
+++ Logwatch configuration for Yam
+ 
+ ### Configuration
+ + Allow to specify rsync/lftp options on a per distribution basis (see ~/.lftp/rc)
+
+Modified: trunk/tools/yam/config/yam.conf
+===================================================================
+--- trunk/tools/yam/config/yam.conf	2006-09-23 07:53:59 UTC (rev 4758)
++++ trunk/tools/yam/config/yam.conf	2006-09-23 15:48:47 UTC (rev 4759)
+@@ -7,6 +7,10 @@
+ wwwdir = /var/www/yam
+ confdir = /etc/yam.conf.d
+ arch = i386
++
++mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
++smtp-server = localhost
++
+ #rhnlogin = username:password
+ 
+ ### Any other section is considered a definition for a distribution
+
+Added: trunk/tools/yam/config/yam.logrotate
+===================================================================
+--- trunk/tools/yam/config/yam.logrotate	                        (rev 0)
++++ trunk/tools/yam/config/yam.logrotate	2006-09-23 15:48:47 UTC (rev 4759)
+@@ -0,0 +1,5 @@
++/var/log/yam.log {
++    missingok
++    notifempty
++    copytruncate
++}
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-09-23 07:53:59 UTC (rev 4758)
++++ trunk/tools/yam/yam	2006-09-23 15:48:47 UTC (rev 4759)
+@@ -16,6 +16,7 @@
+ 
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse, sha, types, traceback
++import time
+ 
+ __version__ = &quot;$Revision$&quot;
+ # $Source$
+@@ -151,6 +152,7 @@
+ 		self.srcdir = self.getoption('main', 'srcdir', '/var/yam')
+ 		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/yam')
+ 		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/yam')
++		self.logfile = self.getoption('main', 'logfile', '/var/log/yam.log')
+ 
+ 		self.rhnlogin = self.getoption('main', 'rhnlogin', None)
+ 
+@@ -479,8 +481,8 @@
+ 
+ 		self.changed = False
+ 
+-		self.oldlist = None
+-		self.newlist = None
++		self.oldlist = Set()
++		self.newlist = Set()
+ 
+ 	def __repr__(self):
+ #		return &quot;%s/%s&quot; % (self.dist.nick, self.name)
+@@ -1417,6 +1419,13 @@
+ 					info(2, '%s: Repository %s changed (new: %d, removed: %d)' % (dist.nick, repo.name, len(new), len(removed)))
+ 					info(4, '%s: New packages: %s' % (dist.nick, new))
+ 					info(4, '%s: Removed packages: %s' % (dist.nick, removed))
++					fd = open(cf.logfile, 'a')
++					date = time.strftime(&quot;%b %d %H:%M:%S&quot;, time.gmtime())
++					for element in new.list:
++						fd.write('%s %s/%s Added %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
++					for element in removed.list:
++						fd.write('%s %s/%s Removed %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
++					fd.close()
+ 					repo.changed = True
+ 					distnew += len(new)
+ 					distremoved += len(removed)
+@@ -1443,7 +1452,8 @@
+ 		remove(glob.glob(os.path.join(cf.wwwdir, dist.nick, 'RPMS.all', '*.rpm')))
+ 
+ 		for repo in dist.listrepos(op.repos):
+-#			repo.lock()
++#			if not repo.lock('generate'):
++#				continue
+ 			repo.clean()
+ 			if repo.name in ('os', 'core') and dist.isos:
+ 				repo.url = None
+@@ -1461,7 +1471,7 @@
+ 			### After generation, write a sha1sum
+ 			repo.writesha1()
+ 
+-#			repo.unlock()
++#			repo.unlock('generate')
+ 
+ 		dist.unlock('generate')
+ 
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-09-23 07:53:59 UTC (rev 4758)
++++ trunk/tools/yam/yam.spec	2006-09-23 15:48:47 UTC (rev 4759)
+@@ -55,7 +55,12 @@
+ [main]
+ srcdir = /var/yam
+ wwwdir = /var/www/yam
++confdir = /etc/yam.conf.d
+ arch = i386
++
++mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
++smtp-server = localhost
++
+ #rhnlogin = username:password
+ 
+ ### Any other section is considered a definition for a distribution
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003558.html">[svn] r4758 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="003560.html">[svn] r4760 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3559">[ date ]</a>
+              <a href="thread.html#3559">[ thread ]</a>
+              <a href="subject.html#3559">[ subject ]</a>
+              <a href="author.html#3559">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

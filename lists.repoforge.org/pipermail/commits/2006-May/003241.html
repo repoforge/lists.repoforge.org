@@ -1,0 +1,315 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4441 - in trunk/tools/dar: . dists/fc2a scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4441%20-%20in%20trunk/tools/dar%3A%20.%20dists/fc2a%20scripts&In-Reply-To=%3C20060529035710.7D85A318222%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003240.html">
+   <LINK REL="Next"  HREF="003242.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4441 - in trunk/tools/dar: . dists/fc2a scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4441%20-%20in%20trunk/tools/dar%3A%20.%20dists/fc2a%20scripts&In-Reply-To=%3C20060529035710.7D85A318222%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4441 - in trunk/tools/dar: . dists/fc2a scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon May 29 05:57:10 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003240.html">[svn] r4440 - in trunk/rpms: amavisd-new createrepo	perl-Authen-SASL perl-Bit-Vector-Minimal perl-GSSAPI	perl-IP-Country perl-Test-SimpleUnit
+</A></li>
+        <LI>Next message: <A HREF="003242.html">[svn] r4442 - in trunk/rpms: amule lbreakout2 quake3 xmame
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3241">[ date ]</a>
+              <a href="thread.html#3241">[ thread ]</a>
+              <a href="subject.html#3241">[ subject ]</a>
+              <a href="author.html#3241">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-05-29 05:57:09 +0200 (Mon, 29 May 2006)
+New Revision: 4441
+
+Added:
+   trunk/tools/dar/scripts/pre-new-release.sh
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-kickoff
+   trunk/tools/dar/dar-prepare
+   trunk/tools/dar/dar-repo
+   trunk/tools/dar/dar-sync
+   trunk/tools/dar/dar-update
+   trunk/tools/dar/dists/fc2a/config
+Log:
+Updates
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dar-build	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -162,9 +162,9 @@
+ 						if [ -z &quot;$FORCE_OVERWRITE&quot; -a -f &quot;$PACKAGEDIR/$app/$rpmfile&quot; ]; then
+ 							warning &quot;Package \&quot;$PACKAGEDIR/$app/$rpmfile\&quot; already exists.&quot;
+ 			
+-							if [ -z &quot;$SOURCE_DISTS&quot; ]; then
+-								SOURCE_DISTS=&quot;$DISTNICK&quot;
+-							fi
++#							if [ -z &quot;$SOURCE_DISTS&quot; ]; then
++#								SOURCE_DISTS=&quot;$DISTNICK&quot;
++#							fi
+ 			
+ 							continue 4
+ 						fi
+@@ -175,7 +175,7 @@
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+ 
+ 			export origspecfile=&quot;$SPECFILE&quot; specfile=&quot;$NEWSPECFILE&quot; builddir=&quot;$BUILDDIR&quot; chrootdir=&quot;$CHROOTDIR/$dist&quot;
+-			export app buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;$DISTNAME&quot; repotag=&quot;$TAG&quot;
++			export app buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;$DISTNAME&quot; repotag=&quot;$TAG&quot; release=&quot;$RELEASE&quot;
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+ 				source &quot;$script&quot;
+ 			done
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dar-functions	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -356,7 +356,7 @@
+ 	done | sort | uniq &gt;$STATEDIR/packages-$DISTNAME-$DISTARCH.list
+ }
+ 
+-function build_repo_apt {
++function build_tree_apt {
+ 	local DISTTAG=&quot;$1&quot;
+ 	local DISTPATH=&quot;$2&quot;
+ 
+@@ -391,14 +391,18 @@
+ 
+ 		done
+ 	done
++}
+ 
++function build_repo_apt {
++	local DISTPATH=&quot;$1&quot;
++
+ 	### Build Apt repository
+ 	genbasedir --flat --bloat --bz2only $FTPDIR/$DISTPATH $REPO
+ #	genbasedir --progress --flat --bloat $FTPDIR/$DISTPATH $REPO
+ #	genbasedir --progress --hashonly $FTPDIR/$DISTPATH $REPO
+ }
+ 
+-function build_repo_yum {
++function build_tree_yum {
+ 	local DISTTAG=&quot;$1&quot;
+ 	local DISTPATH=&quot;$2&quot;
+ 
+@@ -433,7 +437,11 @@
+ 		done
+ 	done
+ #	ln -f $PACKAGEDIR/*/*.$TAG.src.rpm $FTPDIR/$DISTPATH/$REPO/SRPMS/ &amp;&gt;/dev/null
++}
+ 
++function build_repo_yum {
++	local DISTPATH=&quot;$1&quot;
++
+ 	### Build Yum repository
+ #	yum-arch -q -z -d -c $FTPDIR/$DISTPATH/$REPO/
+ 	yum-arch -q -z $FTPDIR/$DISTPATH/$REPO/ &amp;&gt;/dev/null
+@@ -443,10 +451,20 @@
+ 	local DISTPATH=&quot;$1&quot;
+ 	local REPODATA=&quot;$FTPDIR/$DISTPATH/$REPO/repodata/&quot;
+ 
++	if [ &quot;$DISTNICK&quot; ]; then
++		local RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK rpm --version | cut -d' ' -f3)&quot;
++	fi
++
++	local OPTIONS=&quot;&quot;
++	if [ &quot;$RPMVER&quot; \&lt; &quot;4.2.1&quot; ]; then
++		OPTIONS=&quot;-n&quot;
++	fi
++
+ 	if [ -d &quot;$FTPDIR/$DISTPATH/$REPO/.olddata/&quot; ]; then
+ 		rm -rf &quot;$FTPDIR/$DISTPATH/$REPO/.olddata/&quot;
+ 	fi
+-	createrepo -q -c &quot;$TEMPDIR/.cache/createrepo/&quot; &quot;$FTPDIR/$DISTPATH/$REPO&quot;
++	createrepo -q $OPTIONS --update -c &quot;$TEMPDIR/.cache/createrepo/&quot; &quot;$FTPDIR/$DISTPATH/$REPO&quot;
++	sync
+ 	echo &quot;&lt;?xml version=\&quot;1.0\&quot; encoding=\&quot;UTF-8\&quot;?&gt;&quot; &gt;&quot;$REPODATA/repomd.xml&quot;
+ 	echo &quot;&lt;repomd xmlns=\&quot;<A HREF="http://linux.duke.edu/metadata/repo\">http://linux.duke.edu/metadata/repo\</A>&quot;&gt;&quot; &gt;&gt;&quot;$REPODATA/repomd.xml&quot;
+ 	for file in other filelists primary; do
+
+Modified: trunk/tools/dar/dar-kickoff
+===================================================================
+--- trunk/tools/dar/dar-kickoff	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dar-kickoff	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -53,6 +53,10 @@
+ 
+ cp -avx /etc/{group,fstab,mtab,hosts,passwd,resolv.conf,modules.conf,modprobe.conf,localtime} $ROOT/$DIST/etc/
+ 
++### Prevent CPAN modules autoinstall
++mkdir -p -m0400 $ROOT/$DIST/home/dag/.cpan/
++chown root.root $ROOT/$DIST/home/dag/.cpan/
++
+ ### copy fstab and mtab
+ 
+ ### Customize /etc/rpm/macros
+
+Modified: trunk/tools/dar/dar-prepare
+===================================================================
+--- trunk/tools/dar/dar-prepare	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dar-prepare	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -7,6 +7,8 @@
+ 	exit 1
+ fi
+ 
++umount /dar/build 2&gt;/dev/null
++mount -o bind /dev/shm /dar/build/
+ 
+ for distname in $DEFAULT_DISTS; do
+ 	if [ &quot;${DEFAULT_DISTS// */}&quot; != $distname ]; then
+
+Modified: trunk/tools/dar/dar-repo
+===================================================================
+--- trunk/tools/dar/dar-repo	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dar-repo	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -33,8 +33,10 @@
+ 	fi
+ 
+ 	echo &quot;Building $dist repository in $DISTPATH.&quot;
+-	build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
+-	build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++	build_tree_apt &quot;$DISTNAME $DISTTAG&quot; &quot;$DISTPATH&quot;
++	build_tree_yum &quot;$DISTNAME $DISTTAG&quot; &quot;$DISTPATH&quot;
++	build_repo_apt &quot;$DISTPATH&quot;
++	build_repo_yum &quot;$DISTPATH&quot;
+ 	build_repo &quot;$DISTPATH&quot;
+ 	build_content &quot;$DISTNAME&quot; &quot;$DISTPATH&quot;
+ done
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dar-sync	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -43,12 +43,23 @@
+ 	if [ &quot;$CREATE_REPO&quot; ]; then
+ 		echo &quot;Building $distname repository in $DISTPATH.&quot;
+ 		ln -sf ../../../../source $FTPDIR/$DISTPATH/SRPMS.dag
++
+ 		if [ &quot;$REPO_APT&quot; == &quot;yes&quot; ]; then
+-			build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++			build_tree_apt &quot;$DISTNAME $DISTTAG&quot; &quot;$DISTPATH&quot;
+ 		fi
++
++		if [ &quot;$REPO_YUM&quot; == &quot;yes&quot; -o &quot;$REPO_CREATEREPO&quot; == &quot;yes&quot; ]; then
++			build_tree_yum &quot;$DISTNAME $DISTTAG&quot; &quot;$DISTPATH&quot;
++		fi
++
++		if [ &quot;$REPO_APT&quot; == &quot;yes&quot; ]; then
++			build_repo_apt &quot;$DISTPATH&quot;
++		fi
++
+ 		if [ &quot;$REPO_YUM&quot; == &quot;yes&quot; ]; then
+-			build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++			build_repo_yum &quot;$DISTPATH&quot;
+ 		fi
++
+ 		if [ &quot;$REPO_CREATEREPO&quot; == &quot;yes&quot; ]; then
+ 			build_repo &quot;$DISTPATH&quot;
+ 		fi
+@@ -77,6 +88,10 @@
+ echo -n &quot;Building package list.&quot;
+ cat $STATEDIR/packages-*.list | sort | uniq &gt; $STATEDIR/packages.list
+ ln -f $STATEDIR/all-packages.list $STATEDIR/../packagelist-dag.txt
++for file in $STATEDIR/*.list; do
++	base=&quot;$(basename $file .list)&quot;
++	wc -l $file &gt;$STATEDIR/$(basename $file .list).count
++done
+ echo -e &quot;\t($(wc -l $STATEDIR/packages.list))&quot;
+ 
+ echo -n &quot;Building summary list.&quot;
+
+Modified: trunk/tools/dar/dar-update
+===================================================================
+--- trunk/tools/dar/dar-update	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dar-update	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -22,7 +22,8 @@
+ 
+ 	if [ &quot;$CREATE_REPO&quot; ]; then
+ 		echo &quot;Building $distname repository in $DISTPATH.&quot;
+-		build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++		build_tree_apt &quot;$DISTNAME $DISTTAG&quot; &quot;$DISTPATH&quot;
++		build_repo_apt &quot;$DISTPATH&quot;
+ #		build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
+ 	fi
+ 
+
+Modified: trunk/tools/dar/dists/fc2a/config
+===================================================================
+--- trunk/tools/dar/dists/fc2a/config	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/dists/fc2a/config	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -4,9 +4,13 @@
+ DISTCC_CC=&quot;x86_64-redhat-linux-gcc-3.3.3&quot;
+ DISTCC_CXX=&quot;x86_64-redhat-linux-g++-3.3.3&quot;
+ 
+-INSTALLCMD=&quot;up2date -if&quot;
+-UPDATECMD=&quot;yum -y update&quot;
+-INSTALLCMD=&quot;yum -y install %p&quot;
++#INSTALLCMD=&quot;up2date -if&quot;
++#UPDATECMD=&quot;yum -y update&quot;
++#INSTALLCMD=&quot;yum -y install %p&quot;
++UPDATECMD=&quot;apt-get -qq update&quot;
++UPGRADECMD=&quot;apt-get -qq -f -y upgrade&quot;
++INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
++CLEANCMD=&quot;apt-get clean&quot;
+ 
+ RPMBUILDOPTS='--define &quot;fedora 2&quot;'
+ 
+
+Added: trunk/tools/dar/scripts/pre-new-release.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-new-release.sh	2006-05-29 03:10:27 UTC (rev 4440)
++++ trunk/tools/dar/scripts/pre-new-release.sh	2006-05-29 03:57:09 UTC (rev 4441)
+@@ -0,0 +1,13 @@
++#!/bin/bash
++
++### This script intervenes when a release tag conforms to the new scheme (has .2)
++
++script=&quot;pre-new-release&quot;
++release_regex=&quot;\b\.2\.rf$&quot;
++
++if [ &quot;$disttag&quot; != &quot;fc5&quot; ] &amp;&amp; echo $release | grep -q -E &quot;$release_regex&quot;; then
++	echo &quot;** $script: Not building $app for $disttag/$arch since $release matches new release scheme.&quot;
++	continue 2
++fi
++
++#echo &quot;** $script: App: $app, Release: $release&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003240.html">[svn] r4440 - in trunk/rpms: amavisd-new createrepo	perl-Authen-SASL perl-Bit-Vector-Minimal perl-GSSAPI	perl-IP-Country perl-Test-SimpleUnit
+</A></li>
+	<LI>Next message: <A HREF="003242.html">[svn] r4442 - in trunk/rpms: amule lbreakout2 quake3 xmame
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3241">[ date ]</a>
+              <a href="thread.html#3241">[ thread ]</a>
+              <a href="subject.html#3241">[ subject ]</a>
+              <a href="author.html#3241">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

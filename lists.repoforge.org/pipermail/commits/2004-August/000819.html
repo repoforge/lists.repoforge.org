@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2013 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2013%20-%20trunk/tools/yam&In-Reply-To=%3C20040815213809.2EEF817F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000818.html">
+   <LINK REL="Next"  HREF="000820.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2013 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2013%20-%20trunk/tools/yam&In-Reply-To=%3C20040815213809.2EEF817F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2013 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Aug 15 23:38:09 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000818.html">[SVN] r2012 - in trunk/rpms: intersync perl-XML-Parser
+</A></li>
+        <LI>Next message: <A HREF="000820.html">[SVN] r2014 - trunk/rpms/xmame
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#819">[ date ]</a>
+              <a href="thread.html#819">[ thread ]</a>
+              <a href="subject.html#819">[ subject ]</a>
+              <a href="author.html#819">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-15 23:38:07 +0200 (Sun, 15 Aug 2004)
+New Revision: 2013
+
+Modified:
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.sysv
+Log:
+Some more small fixes.
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-15 20:54:47 UTC (rev 2012)
++++ trunk/tools/yam/yam	2004-08-15 21:38:07 UTC (rev 2013)
+@@ -22,7 +22,7 @@
+ 
+ 		try:
+ 			opts, args = getopt.getopt (args, 'c:d:ghquvx',
+-				['config=', 'dist=', 'generate=', 'help', 'quiet', 'umount', 'update', 'verbose', 'extras'])
++				['config=', 'dist=', 'generate=', 'help', 'quiet', 'umount', 'unmount', 'update', 'verbose', 'extras'])
+ 		except getopt.error, exc:
+ 			print 'yam: %s, try yam -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -46,7 +46,7 @@
+ 				self.verbose = self.verbose + 1
+ 			elif opt in ('-x', '--extras'):
+ 				self.extra = True
+-			elif opt in ('--umount'):
++			elif opt in ('--umount', '--unmount'):
+ 				self.umount = True
+ 
+ 		if self.quiet:
+@@ -436,14 +436,16 @@
+ def rpmlink ((dist, repo), dirpath, filelist):
+ 	&quot;Symlink all RPM packages that match a given arch&quot;
+ 	if dist.arch:
++		mkdir(cf.wwwdir + '/' + dist.name + '/RPMS.' + repo)
++		mkdir(cf.wwwdir + '/' + dist.name + '/RPMS')
+ 		if archs[dist.arch]: as=archs[dist.arch] + ['noarch']
+ 		else: as=['dist.arch'] + ['noarch']
+ 		for arch in as:
+ 			rpmmatch='.+\.' + arch + '\.rpm$'
+ 			for file in filelist:
+ 				if re.compile(rpmmatch).match(file, 1):
+-					symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist.name + '/RPMS.' + repo)
+-					symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist.name + '/RPMS')
++					symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist.name + '/RPMS.' + repo + '/')
++					symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist.name + '/RPMS/')
+ 	
+ def rpmtaglink((dist, repo), dirpath, filelist):
+ 	&quot;Symlink all RPM packages that match a given arch and disttag&quot;
+@@ -481,14 +483,14 @@
+ 	for dist in cf.dists:
+ 		if op.dist:
+ 			if dist.dist not in op.dist and dist.name not in op.dist:
+-				info(3, '%s: Ignored, not requested' % dist.name)
++				info(4, '%s: Ignored, not requested' % dist.name)
+ 				continue
+ 
+ 		distdir = cf.wwwdir + '/' + dist.name
+ 
+ 		### Mount ISOs
+ 		if not dist.isos():
+-			info(3, '%s: Distribution has no ISOs' % dist.name)
++			info(4, '%s: Distribution has no ISOs' % dist.name)
+ 		else:
+ 			if op.umount:
+ 				dist.umount()
+@@ -517,14 +519,13 @@
+ 	htmlindex()
+ 
+ 	for dist in cf.dists:
+-		info(2, '%s: Generating distribution meta-data' % dist.name)
+ 		if op.dist:
+ 			if dist.dist not in op.dist and dist.name not in op.dist:
+-				info(3, '%s: Ignored, not requested' % dist.name)
++				info(4, '%s: Ignored, not requested' % dist.name)
+ 				continue
+ 
++		info(2, '%s: Generating distribution meta-data' % dist.name)
+ 		distdir = cf.wwwdir + '/' + dist.name
+-
+ 		dist.html()
+ 
+ 		cleanup(distdir + '/RPMS')
+@@ -558,14 +559,15 @@
+ 			os.path.walk(srcdir, rpmlink, (dist, 'local'))
+ 
+ 		srcdir = cf.srcdir + '/all/local/'
+-		if os.path.exists(distdir + '/RPMS.local'):
++		if os.path.exists(srcdir):
+ 			info(3, '%s: Symlink local packages from %s' % (dist.name, srcdir))
+ 			os.path.walk(srcdir, rpmlink, (dist, 'local'))
+ 
+ 		for repo in cf.repos:
+ 			srcdir = cf.srcdir + '/all/' + repo
+-			info(3, '%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
+-			os.path.walk(srcdir, rpmtaglink, (dist.name, repo))
++			if os.path.exists(srcdir):
++				info(3, '%s: Symlink %s packages from %s' % (dist.name, repo, srcdir))
++				os.path.walk(srcdir, rpmtaglink, (dist.name, repo))
+ 
+ 		### Create apt/yum repository
+ 		if cf.repo['createrepo']:
+
+Modified: trunk/tools/yam/yam.sysv
+===================================================================
+--- trunk/tools/yam/yam.sysv	2004-08-15 20:54:47 UTC (rev 2012)
++++ trunk/tools/yam/yam.sysv	2004-08-15 21:38:07 UTC (rev 2013)
+@@ -30,7 +30,7 @@
+ 
+ start() {
+ 	echo -n $&quot;Starting $desc ($prog): &quot;
+-	yam -c $YAMCONFIG
++	yam -q -c $YAMCONFIG
+ 	RETVAL=$?
+ 	[ $RETVAL -eq 0 ] &amp;&amp; success || failure
+ 	echo
+@@ -40,7 +40,7 @@
+ 
+ stop() {
+ 	echo -n $&quot;Shutting down $desc ($prog): &quot;
+-	yam --umount -c $YAMCONFIG
++	yam -q --umount -c $YAMCONFIG
+ 	RETVAL=$?
+ 	[ $RETVAL -eq 0 ] &amp;&amp; success || failure
+ 	echo
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000818.html">[SVN] r2012 - in trunk/rpms: intersync perl-XML-Parser
+</A></li>
+	<LI>Next message: <A HREF="000820.html">[SVN] r2014 - trunk/rpms/xmame
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#819">[ date ]</a>
+              <a href="thread.html#819">[ thread ]</a>
+              <a href="subject.html#819">[ subject ]</a>
+              <a href="author.html#819">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

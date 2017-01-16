@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3981 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3981%20-%20trunk/tools/yam&In-Reply-To=%3C20060118174101.689D13180F9%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002780.html">
+   <LINK REL="Next"  HREF="002782.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3981 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3981%20-%20trunk/tools/yam&In-Reply-To=%3C20060118174101.689D13180F9%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3981 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jan 18 18:41:01 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002780.html">[svn] r3980 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="002782.html">[svn] r3982 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2781">[ date ]</a>
+              <a href="thread.html#2781">[ thread ]</a>
+              <a href="subject.html#2781">[ subject ]</a>
+              <a href="author.html#2781">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-18 18:40:59 +0100 (Wed, 18 Jan 2006)
+New Revision: 3981
+
+Modified:
+   trunk/tools/yam/README.rhn
+   trunk/tools/yam/yam
+Log:
+Updates
+
+Modified: trunk/tools/yam/README.rhn
+===================================================================
+--- trunk/tools/yam/README.rhn	2006-01-18 17:19:10 UTC (rev 3980)
++++ trunk/tools/yam/README.rhn	2006-01-18 17:40:59 UTC (rev 3981)
+@@ -1,13 +1,15 @@
+ Using RHN support in Yam
+ &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+ For each distribution you want to add to Yam, you need to have a valid
+-RHN systemid/uuid. You can create one (if you don't have one already)
++RHN systemid. You can create one (if you don't have one already)
+ by installing a clean system and then register it using:
+ 
+ 	rhn_register
+ 
+ For simplicity, call this one yam-$dist-$arch (eg. yam-rhel4as-i386).
+-The resulting files you have the save into your yam directory, like:
++And disable sending the package-list and hardware config (this helps
++if you have other systems managed by RHN to ignore these). The
++resulting systemid you have the save into your yam directory, like:
+ 
+ 	cp /etc/sysconfig/rhn/systemid /var/yam/rhel4as-i386/rhn-systemid
+ 
+@@ -32,17 +34,27 @@
+ 
+ Using a single systemid
+ &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+-You can experiment with using 1 systemid for multiple dists/archs using
+-the rhnrelease option:
++You can experiment with using a single systemid for multiple dists/archs
++using the rhnrelease option:
+ 
+ 	rhnrelease = 3AS
+ 
+-This way you override the OS release that is in the systemid file. For
+-this to work I have to find a way to be able to query a channel to which
+-one is not subscribed (I know it is possible since up2date can do this
+-as well, but I haven't figured it out yet).
++This way you override the OS release that is in the systemid file.
+ 
++This works across the same entitlement. Eg. when you have an Advanced
++Server entitlement, you can download from 2.1AS, 3AS and 4AS channels.
++But not from the ES or WS channels.
+ 
++
++Downloading from unsubscribed channels
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++Currently this is not possible although up2date can do it. I still have
++to figure out how to do that. Once this is possible, we have one less
++step to set up RHN support in Yam :)
++
++Feel free to dig into the up2date code and send me patches.
++
++
+ Ignore packages you already have
+ &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+ This is possible, although hard to implement currently. I could check
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-01-18 17:19:10 UTC (rev 3980)
++++ trunk/tools/yam/yam	2006-01-18 17:40:59 UTC (rev 3981)
+@@ -42,6 +42,7 @@
+ 		self.generate = False
+ 		self.quiet = False
+ 		self.remount = False
++		self.repo = []
+ 		self.umount = False
+ 		self.update = False
+ 		self.verbose = 1
+@@ -231,6 +232,7 @@
+ 		self.iso = None
+ 		self.release = None
+ 		self.repos = {}
++		self.rhnrelease = None
+ 		self.tag = self.dist
+ 		self.srcdir = srcdir
+ 		self.discs = ()
+@@ -630,8 +632,8 @@
+ 	if op.verbose &gt;= 2:
+ 		cfg['debug'] = 10000
+ 
+-	for key in cfg.keys():
+-		print key, '-&gt;', cfg[key]
++#	for key in cfg.keys():
++#		print key, '-&gt;', cfg[key]
+ 
+ 	### From up2dateAuth.login()
+ 	error(0, 'Reading systemid from %s' % cfg['systemIdPath'])
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002780.html">[svn] r3980 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="002782.html">[svn] r3982 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2781">[ date ]</a>
+              <a href="thread.html#2781">[ thread ]</a>
+              <a href="subject.html#2781">[ subject ]</a>
+              <a href="author.html#2781">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

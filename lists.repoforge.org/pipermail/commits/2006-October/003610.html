@@ -1,0 +1,459 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4810 - in trunk/rpms: dkms-ipw3945 dkms-tiacx madwifi	nvidia-x11-drv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4810%20-%20in%20trunk/rpms%3A%20dkms-ipw3945%20dkms-tiacx%20madwifi%0A%09nvidia-x11-drv&In-Reply-To=%3C20061010105713.CF626944A9E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003609.html">
+   <LINK REL="Next"  HREF="003611.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4810 - in trunk/rpms: dkms-ipw3945 dkms-tiacx madwifi	nvidia-x11-drv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4810%20-%20in%20trunk/rpms%3A%20dkms-ipw3945%20dkms-tiacx%20madwifi%0A%09nvidia-x11-drv&In-Reply-To=%3C20061010105713.CF626944A9E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4810 - in trunk/rpms: dkms-ipw3945 dkms-tiacx madwifi	nvidia-x11-drv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Oct 10 12:57:13 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003609.html">[svn] r4809 - trunk/rpms/gq
+</A></li>
+        <LI>Next message: <A HREF="003611.html">[svn] r4811 - in trunk: rpms/gtkpod rpms/libgpod	web/freshrpms.net/packages/lists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3610">[ date ]</a>
+              <a href="thread.html#3610">[ thread ]</a>
+              <a href="subject.html#3610">[ subject ]</a>
+              <a href="author.html#3610">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-10-10 12:57:11 +0200 (Tue, 10 Oct 2006)
+New Revision: 4810
+
+Modified:
+   trunk/rpms/dkms-ipw3945/dkms-ipw3945.spec
+   trunk/rpms/dkms-tiacx/dkms-tiacx.spec
+   trunk/rpms/madwifi/madwifi.spec
+   trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec
+Log:
+Fix all dkms packages for upgrades.
+
+
+Modified: trunk/rpms/dkms-ipw3945/dkms-ipw3945.spec
+===================================================================
+--- trunk/rpms/dkms-ipw3945/dkms-ipw3945.spec	2006-10-09 21:17:08 UTC (rev 4809)
++++ trunk/rpms/dkms-ipw3945/dkms-ipw3945.spec	2006-10-10 10:57:11 UTC (rev 4810)
+@@ -2,12 +2,10 @@
+ # Authority: matthias
+ # Dist: nodist
+ 
+-%define dkms_name ipw3945
+-
+ Summary: Driver for Intel&#174; PRO/Wirelss 3945 network adaptors
+ Name: dkms-ipw3945
+ Version: 1.1.0
+-Release: 1
++Release: 2
+ License: GPL
+ Group: System Environment/Kernel
+ URL: <A HREF="http://ipw3945.sourceforge.net/">http://ipw3945.sourceforge.net/</A>
+@@ -17,8 +15,8 @@
+ BuildArch: noarch
+ Requires: gcc
+ Requires: ipw3945-firmware, ipw3945d
+-Requires(pre): dkms
+ Requires(post): dkms
++Requires(preun): dkms
+ 
+ %description
+ Driver (Linux kernel module) for Intel&#174; PRO/Wirelss 3945 network adaptors.
+@@ -35,15 +33,19 @@
+ %install
+ %{__rm} -rf %{buildroot}
+ 
++%define dkms_name ipw3945
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
+ # Kernel module sources install for dkms
+-%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ %{__cp} -a *.h *.c Makefile snapshot/ \
+-    %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++    %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ 
+ # Configuration for dkms
+-%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/dkms.conf &lt;&lt; 'EOF'
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
+ PACKAGE_NAME=%{dkms_name}
+-PACKAGE_VERSION=%{version}
++PACKAGE_VERSION=%{dkms_vers}
+ BUILT_MODULE_NAME[0]=ipw3945
+ DEST_MODULE_LOCATION[0]=/kernel/drivers/net/wireless
+ AUTOINSTALL=&quot;YES&quot;
+@@ -56,23 +58,30 @@
+ 
+ %post
+ # Add to DKMS registry
+-dkms add -m %{dkms_name} -v %{version} -q --rpm_safe_upgrade
+-# Build now
+-dkms build -m %{dkms_name} -v %{version} -q
+-dkms install -m %{dkms_name} -v %{version} -q
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
+ 
+ %preun
+ # Remove all versions from DKMS registry
+-dkms remove -m %{dkms_name} -v %{version} --all -q --rpm_safe_upgrade
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
+ 
+ 
+ %files
+ %defattr(-, root, root, 0755)
+ %doc CHANGES ISSUES LICENSE* README.ipw3945
+-%{_usrsrc}/%{dkms_name}-%{version}/
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ 
+ 
+ %changelog
++* Tue Oct 10 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.1.0-2
++- Add the rpm release to the dkms module version, to make updating the module
++  to a fixed same version work (--rpm_safe_upgrade doesn't work as advertised).
++- Force modules install so that the same version can be overwritten instead of
++  uninstalled by the old package's %%preun when updating.
++- Add build time quiet flag for the scriplets. Undefine to do verbose testing.
++
+ * Mon Oct  9 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.1.0-1
+ - Initial RPM release.
+ 
+
+Modified: trunk/rpms/dkms-tiacx/dkms-tiacx.spec
+===================================================================
+--- trunk/rpms/dkms-tiacx/dkms-tiacx.spec	2006-10-09 21:17:08 UTC (rev 4809)
++++ trunk/rpms/dkms-tiacx/dkms-tiacx.spec	2006-10-10 10:57:11 UTC (rev 4810)
+@@ -2,12 +2,10 @@
+ # Authority: matthias
+ # Dist: nodist
+ 
+-%define dkms_name tiacx
+-
+ Summary: Driver for Texas Instruments' ACX100/ACX111 wireless network chips
+ Name: dkms-tiacx
+ Version: 0.4.7
+-Release: 2
++Release: 3
+ License: GPL
+ Group: System Environment/Kernel
+ URL: <A HREF="http://www.kernel.org/pub/linux/kernel/people/linville/">http://www.kernel.org/pub/linux/kernel/people/linville/</A>
+@@ -17,8 +15,8 @@
+ BuildArch: noarch
+ Requires: gcc
+ Requires: acx100-firmware, acx111-firmware
+-Requires(pre): dkms
+ Requires(post): dkms
++Requires(preun): dkms
+ 
+ %description
+ Driver (Linux kernel module) for network interface cards based on Texas
+@@ -36,15 +34,19 @@
+ %install
+ %{__rm} -rf %{buildroot}
+ 
++%define dkms_name tiacx
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
+ # Kernel module sources install for dkms
+-%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ %{__cp} -a drivers/net/wireless/tiacx/{*.h,*.c,Makefile} \
+-    %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++    %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ 
+ # Configuration for dkms
+-%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/dkms.conf &lt;&lt; 'EOF'
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
+ PACKAGE_NAME=%{dkms_name}
+-PACKAGE_VERSION=%{version}
++PACKAGE_VERSION=%{dkms_vers}
+ BUILT_MODULE_NAME[0]=acx-common
+ BUILT_MODULE_NAME[1]=acx-pci
+ BUILT_MODULE_NAME[2]=acx-usb
+@@ -61,23 +63,30 @@
+ 
+ %post
+ # Add to DKMS registry
+-dkms add -m %{dkms_name} -v %{version} -q --rpm_safe_upgrade
+-# Build now
+-dkms build -m %{dkms_name} -v %{version} -q
+-dkms install -m %{dkms_name} -v %{version} -q
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
+ 
+ %preun
+ # Remove all versions from DKMS registry
+-dkms remove -m %{dkms_name} -v %{version} --all -q --rpm_safe_upgrade
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
+ 
+ 
+ %files
+ %defattr(-, root, root, 0755)
+ %doc drivers/net/wireless/tiacx/README
+-%{_usrsrc}/%{dkms_name}-%{version}/
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ 
+ 
+ %changelog
++* Tue Oct 10 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.4.7-3
++- Add the rpm release to the dkms module version, to make updating the module
++  to a fixed same version work (--rpm_safe_upgrade doesn't work as advertised).
++- Force modules install so that the same version can be overwritten instead of
++  uninstalled by the old package's %%preun when updating.
++- Add build time quiet flag for the scriplets. Undefine to do verbose testing.
++
+ * Mon Oct  9 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.4.7-2
+ - Further patch Makefile to simplify the dkms.conf entries.
+ 
+
+Modified: trunk/rpms/madwifi/madwifi.spec
+===================================================================
+--- trunk/rpms/madwifi/madwifi.spec	2006-10-09 21:17:08 UTC (rev 4809)
++++ trunk/rpms/madwifi/madwifi.spec	2006-10-10 10:57:11 UTC (rev 4810)
+@@ -1,12 +1,10 @@
+ # $Id$
+ # Authority: matthias
+ 
+-%define dkms_name madwifi
+-
+ Summary: Multiband Atheros Driver for Wireless Fidelity
+ Name: madwifi
+ Version: 0.9.2
+-Release: 1.1
++Release: 2
+ License: GPL
+ Group: System Environment/Kernel
+ URL: <A HREF="http://madwifi.org/">http://madwifi.org/</A>
+@@ -14,8 +12,8 @@
+ Patch0: madwifi-2.6.18-config.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires: gcc
+-Requires(pre): dkms
+ Requires(post): dkms
++Requires(preun): dkms
+ Provides: dkms-madwifi = %{version}-%{release}
+ 
+ %description
+@@ -43,6 +41,10 @@
+ %install
+ %{__rm} -rf %{buildroot}
+ 
++%define dkms_name madwifi
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
+ # Tools install
+ %{__make} -C tools install \
+     DESTDIR=%{buildroot} \
+@@ -51,15 +53,15 @@
+     MANDIR=%{_mandir}
+ 
+ # Kernel module sources install for dkms
+-%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ %{__cp} -a ath/ ath_rate/ hal/ include/ net80211/ scripts/ \
+     BuildCaps.inc kernelversion.c Makefile Makefile.inc release.h \
+-    %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++    %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ 
+ # Configuration for dkms
+-%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/dkms.conf &lt;&lt; 'EOF'
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
+ PACKAGE_NAME=%{dkms_name}
+-PACKAGE_VERSION=%{version}
++PACKAGE_VERSION=%{dkms_vers}
+ MAKE[0]=&quot;make modules KERNELPATH=${kernel_source_dir}&quot;
+ BUILT_MODULE_NAME[0]=ath_pci
+ BUILT_MODULE_LOCATION[0]=ath
+@@ -104,14 +106,14 @@
+ 
+ %post
+ # Add to DKMS registry
+-dkms add -m %{dkms_name} -v %{version} -q --rpm_safe_upgrade
+-# Build now, so the current user can simply restart X
+-dkms build -m %{dkms_name} -v %{version} -q
+-dkms install -m %{dkms_name} -v %{version} -q
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
+ 
+ %preun
+ # Remove all versions from DKMS registry
+-dkms remove -m %{dkms_name} -v %{version} --all -q --rpm_safe_upgrade
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
+ 
+ 
+ %files
+@@ -119,10 +121,17 @@
+ %doc COPYRIGHT README THANKS docs/users-guide.pdf docs/WEP-HOWTO.txt
+ %{_bindir}/*
+ %{_mandir}/man8/*
+-%{_usrsrc}/%{dkms_name}-%{version}/
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ 
+ 
+ %changelog
++* Tue Oct 10 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.9.2-2
++- Add the rpm release to the dkms module version, to make updating the module
++  to a fixed same version work (--rpm_safe_upgrade doesn't work as advertised).
++- Force modules install so that the same version can be overwritten instead of
++  uninstalled by the old package's %%preun when updating.
++- Add build time quiet flag for the scriplets. Undefine to do verbose testing.
++
+ * Mon Oct  9 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.9.2-1.1
+ - Add dkms-madwifi provides.
+ - Use %%{dkms_name} macro for the usr/src directory name.
+
+Modified: trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec
+===================================================================
+--- trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec	2006-10-09 21:17:08 UTC (rev 4809)
++++ trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec	2006-10-10 10:57:11 UTC (rev 4810)
+@@ -4,7 +4,6 @@
+ 
+ %define majmin          1.0
+ %define relver          8774
+-%define dkms_name       nvidia
+ %define nvidialibdir    %{_libdir}/nvidia
+ %define nvidialib32dir  %{_prefix}/lib/nvidia
+ 
+@@ -13,7 +12,7 @@
+ Summary: Proprietary NVIDIA hardware accelerated OpenGL driver
+ Name: nvidia-x11-drv
+ Version: %{majmin}.%{relver}
+-Release: 2.1
++Release: 3
+ License: Proprietary
+ Group: User Interface/X Hardware Support
+ URL: <A HREF="http://www.nvidia.com/object/unix.html">http://www.nvidia.com/object/unix.html</A>
+@@ -28,8 +27,8 @@
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ # Required for proper dkms operation
+ Requires: gcc
+-Requires(pre): dkms
+-Requires(post): dkms
++Requires(post): dkms, /sbin/ldconfig
++Requires(preun): dkms
+ # Required by the NVIDIA run file
+ Buildrequires: tar
+ # Required for our build
+@@ -64,11 +63,15 @@
+ sh %{SOURCE1} --extract-only --target pkg/
+ %endif
+ 
++%define dkms_name nvidia
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
+ # Copy dkms conf file
+-%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
+-%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/dkms.conf &lt;&lt; 'EOF'
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
+ PACKAGE_NAME=%{dkms_name}
+-PACKAGE_VERSION=%{version}
++PACKAGE_VERSION=%{dkms_vers}
+ MAKE[0]=&quot;make module KERNDIR=/lib/modules/$kernelver IGNORE_CC_MISMATCH=1&quot;
+ BUILT_MODULE_NAME[0]=nvidia
+ DEST_MODULE_LOCATION[0]=/kernel/drivers/video/nvidia
+@@ -76,12 +79,10 @@
+ EOF
+ 
+ # Install all the files, even the binary ones. Ick.
+-%{__install} -p -m 0644 pkg/usr/src/nv/{makefile,Makefile.kbuild} \
+-    %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
+-%{__install} -p -m 0644 pkg/usr/src/nv/*.{c,h,o} \
+-    %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++%{__install} -p -m 0644 pkg/usr/src/nv/{*.c,*.h,*.o,makefile,Makefile.kbuild} \
++    %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ %{__install} -p -m 0755 pkg/usr/src/nv/*.sh \
+-    %{buildroot}%{_usrsrc}/%{dkms_name}-%{version}/
++    %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ 
+ # Install libXvMCNVIDIA.*
+ %{__mkdir_p} %{buildroot}/%{nvidialibdir}/
+@@ -183,14 +184,14 @@
+ %post
+ /sbin/ldconfig
+ # Add to DKMS registry
+-dkms add -m %{dkms_name} -v %{version} -q --rpm_safe_upgrade
+-# Build now, so the current user can simply restart X
+-dkms build -m %{dkms_name} -v %{version} -q
+-dkms install -m %{dkms_name} -v %{version} -q
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
+ 
+ %preun
+ # Remove all versions from DKMS registry
+-dkms remove -m %{dkms_name} -v %{version} --all -q --rpm_safe_upgrade
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
+ 
+ %postun -p /sbin/ldconfig
+ 
+@@ -200,7 +201,7 @@
+ %doc pkg/LICENSE pkg/usr/share/doc/*
+ # Kernel and dkms related bits
+ %config %{_sysconfdir}/modprobe.d/nvidia
+-%{_usrsrc}/%{dkms_name}-%{version}/
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ # fixme: use udev
+ %attr(0600,root,root) %dev(c,195,0) /dev/nvidia0
+ %attr(0600,root,root) %dev(c,195,1) /dev/nvidia1
+@@ -243,6 +244,13 @@
+ 
+ 
+ %changelog
++* Tue Oct 10 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.8774-3
++- Add the rpm release to the dkms module version, to make updating the module
++  to a fixed same version work (--rpm_safe_upgrade doesn't work as advertised).
++- Force modules install so that the same version can be overwritten instead of
++  uninstalled by the old package's %%preun when updating.
++- Add build time quiet flag for the scriplets. Undefine to do verbose testing.
++
+ * Mon Oct  9 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.8774-2.1
+ - Add dkms-nvidia provides.
+ - Use %%{dkms_name} macro for the usr/src directory name.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003609.html">[svn] r4809 - trunk/rpms/gq
+</A></li>
+	<LI>Next message: <A HREF="003611.html">[svn] r4811 - in trunk: rpms/gtkpod rpms/libgpod	web/freshrpms.net/packages/lists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3610">[ date ]</a>
+              <a href="thread.html#3610">[ thread ]</a>
+              <a href="subject.html#3610">[ subject ]</a>
+              <a href="author.html#3610">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

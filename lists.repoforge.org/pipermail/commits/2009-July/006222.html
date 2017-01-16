@@ -1,0 +1,391 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7423 - in trunk: . hwsupport
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7423%20-%20in%20trunk%3A%20.%20hwsupport&In-Reply-To=%3C200907120027.n6C0RANR027838%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006221.html">
+   <LINK REL="Next"  HREF="006223.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7423 - in trunk: . hwsupport</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7423%20-%20in%20trunk%3A%20.%20hwsupport&In-Reply-To=%3C200907120027.n6C0RANR027838%40surya.karan.org%3E"
+       TITLE="[svn] r7423 - in trunk: . hwsupport">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jul 12 02:27:10 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006221.html">[svn] r7422 - in trunk/rpms: mercurial radlib soundconverter	wesnoth white_dune
+</A></li>
+        <LI>Next message: <A HREF="006223.html">[svn] r7424 - in trunk/rpms: . amavisd-new lua ntop python-pygments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6222">[ date ]</a>
+              <a href="thread.html#6222">[ thread ]</a>
+              <a href="subject.html#6222">[ subject ]</a>
+              <a href="author.html#6222">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-07-12 01:26:57 +0100 (Sun, 12 Jul 2009)
+New Revision: 7423
+
+Added:
+   trunk/hwsupport/
+   trunk/hwsupport/hwsdb-create.py
+   trunk/hwsupport/hwsdb-html.py
+   trunk/hwsupport/hwsdb-sql.py
+   trunk/hwsupport/hwsdb.py
+Log:
+Initial import of unfinished work.
+
+Added: trunk/hwsupport/hwsdb-create.py
+===================================================================
+--- trunk/hwsupport/hwsdb-create.py	                        (rev 0)
++++ trunk/hwsupport/hwsdb-create.py	2009-07-12 00:26:57 UTC (rev 7423)
+@@ -0,0 +1,129 @@
++#!/usr/bin/python
++
++import sys, os, glob, sqlite, popen2, re
++import hwsdb
++
++sys.stdout = os.fdopen(1, 'w', 0)
++
++con, cur = hwsdb.opendb()
++hwsdb.createtb(cur, 'kmod')
++hwsdb.createtb(cur, 'alias')
++hwsdb.createtb(cur, 'parm')
++hwsdb.createtb(cur, 'depends')
++hwsdb.createtb(cur, 'pci')
++hwsdb.createtb(cur, 'usb')
++
++### First fill PCI and USB database
++print 'Parsing pci.ids...'
++pcirec = {}
++for line in open('/usr/share/hwdata/pci.ids').readlines():
++    l = line.split()
++    if line.startswith('#'):
++        continue
++    elif len(l) == 0:
++        continue
++    elif line.startswith('\t\t'):
++        pcirec['subvendor'] = l[0].lower()
++        if len(l) &gt; 2:
++            pcirec['subdevice'] = l[1].lower()
++        if len(l) &gt; 3:
++            pcirec['subsystem_name'] = ' '.join(l[2:])
++    elif line.startswith('\t'):
++        pcirec['device'] = l[0].lower()
++        pcirec['device_name'] = ' '.join(l[1:])
++        pcirec['subvendor'] = ''
++        pcirec['subdevice'] = ''
++        pcirec['subsystem_name'] = ''
++    else:
++        pcirec['vendor'] = l[0].lower()
++        pcirec['vendor_name'] = ' '.join(l[1:])
++        pcirec['device'] = ''
++        pcirec['device_name'] = ''
++        pcirec['subvendor'] = ''
++        pcirec['subdevice'] = ''
++        pcirec['subsystem_name'] = ''
++    hwsdb.insertrec(cur, 'pci', pcirec)
++
++print 'Parsing usb.ids...'
++usbrec = {}
++for line in open('/usr/share/hwdata/usb.ids').readlines():
++    l = line.split()
++    if line.startswith('#'):
++        continue
++    elif len(l) == 0:
++        continue
++    elif line.startswith('\t\t'):
++        usbrec['interface'] = l[1]
++        usbrec['interface_name'] = ''.join(l[2:])
++    elif line.startswith('\t'):
++        usbrec['device'] = l[1]
++        usbrec['device_name'] = ''.join(l[2:])
++        usbrec['interface'] = ''
++        usbrec['interface_name'] = ''
++    else:
++        usbrec['vendor'] = l[0]
++        usbrec['vendor_name'] = ''.join(l[1:])
++        usbrec['device'] = ''
++        usbrec['device_name'] = ''
++        usbrec['interface'] = ''
++        usbrec['interface_name'] = ''
++    hwsdb.insertrec(cur, 'usb', usbrec)
++
++def addfile((filelist, ), path, files):
++    for file in files:
++        if file.endswith('.ko'):
++            filelist.add( os.path.join(path, file) )
++
++filelist = set()
++os.path.walk('/lib/modules/2.6.18-152.el5', addfile, (filelist,))
++
++pcifilter = re.compile('^pci:v(0000)?(?P&lt;vendor&gt;.+)d(0000)?(?P&lt;device&gt;.+)sv(0000)?(?P&lt;subvendor&gt;.+)sd(0000)?(?P&lt;subdevice&gt;.+)bc(?P&lt;bc&gt;.+)sc(?P&lt;sc&gt;.+)i(?P&lt;i&gt;.+)\*?$')
++usbfilter = re.compile('^usb:v(?P&lt;vendor&gt;.+)p(?P&lt;p&gt;.+)d(?P&lt;device&gt;.+)dc(?P&lt;dc&gt;.+)dsc(?P&lt;dsc&gt;.+)dp(?P&lt;dp&gt;.+)ic(?P&lt;ic&gt;.+)isc(?P&lt;isc&gt;.+)ip(?P&lt;ip&gt;.+)\*?$')
++
++for file in filelist:
++    print 'Parsing %s' % file
++    (o, i) = popen2.popen4('/sbin/modinfo %s' % file)
++
++    name = os.path.basename(file)
++    kmodrec = { 'name': name }
++
++    for line in o.readlines():
++        l = line.split()
++        if len(l) == 0:
++            continue
++
++        ### FIXME: Support pcmcia, serio and virtio
++        elif line.startswith('alias:'):
++            aliasrec = { 'filename': file, 'data': l[1] }
++            if l[1].startswith('pci:'):
++                aliasrec['type'] = 'pci'
++                m = pcifilter.match(l[1])
++                for key in m.groupdict().keys():
++                    if m.group(key):
++                        aliasrec[key] = m.group(key).lower()
++            elif l[1].startswith('usb:'):
++                aliasrec['type'] = 'usb'
++                m = usbfilter.match(l[1])
++                for key in m.groupdict().keys():
++                    if m.group(key):
++                        aliasrec[key] = m.group(key).lower()
++            else:
++                aliasrec['type'] = 'module'
++            hwsdb.insertrec(cur, 'alias', aliasrec)
++
++        elif line.startswith('parm:'):
++            parmrec = { 'filename': file, 'option': l[1], 'description': ''.join(l[2:]) }
++            hwsdb.insertrec(cur, 'parm', parmrec)
++
++        elif line.startswith('depends:'):
++            if len(l) &gt; 2:
++                for module in l[1].split(','):
++                    dependsrec = { 'filename': file, 'module': module }
++                    hwsdb.insertrec(cur, 'depends', dependsrec)
++
++        else:
++            key = l[0].split(':')[0]
++            kmodrec[key] = ''.join(l[1:])
++    hwsdb.insertrec(cur, 'kmod', kmodrec)
++
++con.commit()
+
+
+Property changes on: trunk/hwsupport/hwsdb-create.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/hwsupport/hwsdb-html.py
+===================================================================
+--- trunk/hwsupport/hwsdb-html.py	                        (rev 0)
++++ trunk/hwsupport/hwsdb-html.py	2009-07-12 00:26:57 UTC (rev 7423)
+@@ -0,0 +1,50 @@
++#!/usr/bin/python
++
++import sys, os, glob, sqlite
++import hwsdb
++
++sys.stdout = os.fdopen(1, 'w', 0)
++
++con, cur = hwsdb.opendb()
++
++os.makedirs('HardwareSupport')
++
++print 'Make PCI index...'
++os.makedirs('HardwareSupport/PCI')
++cur.execute('select * from alias where type == &quot;pci&quot; order by vendor')
++kmodlist = cur.fetchall()
++fd = open('HardwareSupport/PCI/index.html', 'w')
++for data in kmodlist:
++#    print &gt;&gt;fd, data
++    print data
++
++print 'Make USB index...'
++os.makedirs('HardwareSupport/USB')
++cur.execute('select * from alias where type == &quot;usb&quot; order by vendor')
++kmodlist = cur.fetchall()
++for data in kmodlist:
++    print data
++
++print 'Make KernelModule index...'
++os.makedirs('HardwareSupport/KernelModule')
++cur.execute('select * from kmod order by name')
++kmodlist = cur.fetchall()
++
++print 'Make Vendor index...'
++os.makedirs('HardwareSupport/Vendor')
++#cur.execute('select vendor_name,vendor from vendor order by vendor')
++#kmodlist = cur.fetchall()
++#count = {}
++#for adv, in advlist:
++#    if not count.has_key(adv): count[adv] = 0
++#    count[adv] += 1
++#print '  ',&#183;
++#for key in ('critical', 'important', 'moderate', 'low', 'unknown', 'error'):
++#    if key in count.keys():
++#        print '%s: %s  ' % (key, count[key]),
++#print
++#print
++
++
++
++con.commit()
+
+
+Property changes on: trunk/hwsupport/hwsdb-html.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/hwsupport/hwsdb-sql.py
+===================================================================
+--- trunk/hwsupport/hwsdb-sql.py	                        (rev 0)
++++ trunk/hwsupport/hwsdb-sql.py	2009-07-12 00:26:57 UTC (rev 7423)
+@@ -0,0 +1,24 @@
++#!/usr/bin/python
++
++import sys, os, sqlite, string
++import hwsdb
++
++sys.stdout = os.fdopen(1, 'w', 0)
++con, cur = hwsdb.opendb()
++
++query = string.join(sys.argv[1:], ' ')
++if not query:
++    print &gt;&gt;sys.stderr, 'syntax: hwsdb-sql \'sql statement\''
++    print &gt;&gt;sys.stderr, 'error: You did not provide a SQL command as argument.'
++    sys.exit(1)
++
++try:
++    cur.execute(query)
++except sqlite.DatabaseError, m:
++    print &gt;&gt;sys.stderr, 'error: Syntax error in SQL statement, %s' % m
++    sys.exit(2)
++
++for rec in cur.fetchall():
++    for col in rec:
++        print '%s\t' % col,
++    print
+
+
+Property changes on: trunk/hwsupport/hwsdb-sql.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/hwsupport/hwsdb.py
+===================================================================
+--- trunk/hwsupport/hwsdb.py	                        (rev 0)
++++ trunk/hwsupport/hwsdb.py	2009-07-12 00:26:57 UTC (rev 7423)
+@@ -0,0 +1,77 @@
++import os, sqlite, types
++
++dbase = 'hwsdb.sqlite'
++
++headers = {
++    'kmod': ('filename', 'name', 'license', 'author', 'version', 'description', 'firmware', 'srcversion', 'depends', 'vermagic', 'module_sig'),
++    'alias': ('filename', 'data', 'type', 'vendor', 'device', 'subvendor', 'subdevice'),
++    'parm': ('filename', 'option', 'description', 'type'),
++    'depends': ('filename', 'module'),
++    'pci': ('vendor', 'device', 'subvendor', 'subdevice', 'vendor_name', 'device_name', 'subsystem_name'),
++    'usb': ('vendor', 'device', 'interface', 'vendor_name', 'device_name', 'interface_name'),
++}
++
++dataopts = {
++    'kmod': { 'filename': 'unique primary key' },
++#    'alias': { 'filename': 'unique primary key', 'data': 'unique' },
++#    'parm': { 'filename': 'unique primary key', 'option': 'unique' },
++#    'pci': { 'vendor': 'unique primary key' },
++#    'usb': { 'vendor': 'unique primary key' },
++}
++
++
++### Build insert strings for each database
++insertstr = { }
++for name in headers.keys():
++    insertstr[name] = 'insert into %s ( ' % name
++    for key in headers[name]: insertstr[name] += '%s, ' % key
++    insertstr[name] = insertstr[name].rstrip(', ') + ' ) values ( ' + '%s, ' * len(headers[name])
++    insertstr[name] = insertstr[name].rstrip(', ') + ' )'
++
++def sqlcreate(name):
++    'Return a database create SQL statement'
++    str = 'create table %s ( ' % name
++    for key in headers[name]:
++        if dataopts.has_key(name) and dataopts[name].has_key(key):
++            str += '%s %s,' % (key, dataopts[name][key])
++        else:
++            str += '%s varchar(10),' % key
++    return str.rstrip(', ') + ' )'
++
++#def sqlinsert(name):
++#   'Return a database insert SQL statement'
++#   str = 'insert into %s ( ' % name
++#   for key in headers[name]: str += '%s, ' % key
++#   str = str.rstrip(', ') + ' ) values ( '
++#   for key in headers[name]: str += '&quot;%%(%s)s&quot;, ' % key
++#   return str.rstrip(', ') + ' )'
++
++def opendb():
++    'Open a database and return references'
++    con = sqlite.connect(dbase)
++    cur = con.cursor()
++    return con, cur
++
++def createtb(cur, name, create=False):
++    try:
++        cur.execute('drop table &quot;%s&quot;' % name)
++    except Exception, e: 
++#       print e
++        pass
++    cur.execute(sqlcreate(name))
++
++def insertrec(cur, name, rec):
++    'Insert a record in a database'
++    global insertstr
++
++    values = []
++    for key in headers[name]:
++        ### Convert to UTF-8
++        if key not in rec.keys():
++            rec[key] = ''
++        if isinstance(rec[key], types.UnicodeType):
++            rec[key] = rec[key].encode('utf-8')
++        values.append(rec[key])
++#   print insertstr[name]
++#   print values
++    cur.execute(insertstr[name], values)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006221.html">[svn] r7422 - in trunk/rpms: mercurial radlib soundconverter	wesnoth white_dune
+</A></li>
+	<LI>Next message: <A HREF="006223.html">[svn] r7424 - in trunk/rpms: . amavisd-new lua ntop python-pygments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6222">[ date ]</a>
+              <a href="thread.html#6222">[ thread ]</a>
+              <a href="subject.html#6222">[ subject ]</a>
+              <a href="author.html#6222">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

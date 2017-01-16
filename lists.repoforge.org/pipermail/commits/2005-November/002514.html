@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3714 - trunk/rpms/squale
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3714%20-%20trunk/rpms/squale&In-Reply-To=%3C20051114143526.42C4D3180E7%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002513.html">
+   <LINK REL="Next"  HREF="002515.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3714 - trunk/rpms/squale</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3714%20-%20trunk/rpms/squale&In-Reply-To=%3C20051114143526.42C4D3180E7%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3714 - trunk/rpms/squale">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Nov 14 15:35:26 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002513.html">[svn] r3713 - trunk/rpms/hardlink++
+</A></li>
+        <LI>Next message: <A HREF="002515.html">[svn] r3715 - trunk/rpms/armagetronad
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2514">[ date ]</a>
+              <a href="thread.html#2514">[ thread ]</a>
+              <a href="subject.html#2514">[ subject ]</a>
+              <a href="author.html#2514">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-11-14 15:35:24 +0100 (Mon, 14 Nov 2005)
+New Revision: 3714
+
+Modified:
+   trunk/rpms/squale/squale.spec
+Log:
+Updates to squale, split the python module out.
+
+
+Modified: trunk/rpms/squale/squale.spec
+===================================================================
+--- trunk/rpms/squale/squale.spec	2005-11-14 12:01:05 UTC (rev 3713)
++++ trunk/rpms/squale/squale.spec	2005-11-14 14:35:24 UTC (rev 3714)
+@@ -6,10 +6,10 @@
+ %{?dist: %{expand: %%define %dist 1}}
+ %{?rh7:  %define _without_python 1}
+ 
+-Summary: Persistent SQL database connection libarary and daemon
++Summary: Persistent SQL database connection library and daemon
+ Name: squale
+ Version: 0.1.5
+-Release: 1
++Release: 2
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://squale.sourceforge.net/">http://squale.sourceforge.net/</A>
+@@ -25,13 +25,12 @@
+ Requires: glib2 &gt;= 2.2.0
+ BuildRequires: glib2-devel &gt;= 2.2.0, libxml2-devel, pkgconfig, gettext, popt
+ BuildRequires: perl(XML::Parser), gcc-c++
+-%{!?_without_python:BuildRequires: Pyrex, python-devel, python}
+ %{?_with_oracle:BuildRequires: libsqlora8-devel &gt;= 2.3.1}
+ %{!?_without_mysql:BuildRequires: mysql-devel}
+ %{!?_without_postgresql:BuildRequires: postgresql-devel}
+ 
+ %description
+-SQuaLe.
++SQuaLe, persistent SQL database connection library and daemon.
+ 
+ Available rpmbuild rebuild options :
+ --with : oracle
+@@ -47,12 +46,22 @@
+ Development headers and library for SQuaLe.
+ 
+ 
++%package -n python-squale
++Summary: Python bindings for SQuaLe
++Group: System Environment/Daemons
++Requires: %{name} = %{version}, python
++%{!?_without_python:BuildRequires: Pyrex, python-devel, python}
++
++%description -n python-squale
++Python module which provides bindings to the SQuaLe persistent SQL database
++connection library.
++
++
+ %prep
+ %setup
+ 
+ 
+ %build
+-export CFLAGS=&quot;%{optflags}&quot;
+ %configure
+ %{__make} %{?_smp_mflags}
+ 
+@@ -63,20 +72,20 @@
+ %find_lang %{name}
+ 
+ # Change the default log file
+-%{__perl} -pi -e 's|&quot;/.*log&quot;|&quot;%{_localstatedir}/log/squale/squale.log&quot;|g' \
++%{__perl} -pi -e 's|&quot;/.*log&quot;|&quot;%{_var}/log/squale/squale.log&quot;|g' \
+     %{buildroot}%{_sysconfdir}/squale.xml
+-%{__mkdir_p} %{buildroot}%{_localstatedir}/log/squale
++%{__mkdir_p} %{buildroot}%{_var}/log/squale
+ 
+ # Install the init script
+-%{__install} -Dp -m0755 contrib/squale.init \
+-    %{buildroot}%{_initrddir}/squale
++%{__install} -D -p -m 0755 contrib/squale.init \
++    %{buildroot}%{_sysconfdir}/rc.d/init.d/squale
+ 
+ # Install the logrotate entry
+-%{__install} -Dp -m0644 contrib/squale.logrotate \
++%{__install} -D -p -m 0644 contrib/squale.logrotate \
+     %{buildroot}%{_sysconfdir}/logrotate.d/squale
+ 
+ # Install the monitoring check script
+-%{__install} -Dp -m0755 %{SOURCE1} \
++%{__install} -D -p -m 0755 %{SOURCE1} \
+     %{buildroot}%{_bindir}/squale_check.py
+ 
+ 
+@@ -86,7 +95,7 @@
+ 
+ %pre
+ # Create system account
+-/usr/sbin/useradd -c &quot;SQuaLe&quot; -r -M -d / -s '' squale &gt;/dev/null 2&gt;&amp;1 || :
++/usr/sbin/useradd -c &quot;SQuaLe&quot; -r -M -d / -s '' squale &amp;&gt;/dev/null || :
+ 
+ %post
+ /sbin/ldconfig
+@@ -95,7 +104,7 @@
+ %preun
+ if [ $1 -eq 0 ]; then
+     # Last removal, stop service and remove it
+-    /sbin/service squale stop &gt;/dev/null 2&gt;&amp;1 || :
++    /sbin/service squale stop &amp;&gt;/dev/null || :
+     /sbin/chkconfig --del squale
+ fi
+ 
+@@ -103,10 +112,10 @@
+ /sbin/ldconfig
+ if [ $1 -eq 0 ]; then
+     # Last removal, remove system account and matching group
+-    /usr/sbin/userdel squale &gt;/dev/null 2&gt;&amp;1 || :
+-    /usr/sbin/groupdel squale &gt;/dev/null 2&gt;&amp;1 || :
++    /usr/sbin/userdel squale &amp;&gt;/dev/null || :
++    /usr/sbin/groupdel squale &amp;&gt;/dev/null || :
+ else
+-    /sbin/service squale condrestart &gt;/dev/null 2&gt;&amp;1 || :
++    /sbin/service squale condrestart &amp;&gt;/dev/null || :
+ fi
+ 
+ 
+@@ -116,16 +125,11 @@
+ %doc conf/squale.xml
+ %attr(0640, root, squale) %config(noreplace) %{_sysconfdir}/squale.xml
+ %config %{_sysconfdir}/logrotate.d/squale
+-%{_initrddir}/squale
++%{_sysconfdir}/rc.d/init.d/squale
+ %{_bindir}/*
+-%if %{!?_without_python:1}0
+-%exclude %{python_sitearch}/squale.a
+-%exclude %{python_sitearch}/squale.la
+-%{python_sitearch}/squale.so
+-%endif
+ %{_libdir}/*.so.*
+ %{_mandir}/man?/*
+-%attr(0770, root, squale) %{_localstatedir}/log/squale
++%attr(0770, root, squale) %{_var}/log/squale
+ 
+ %files devel
+ %defattr(-, root, root, 0755)
+@@ -135,8 +139,21 @@
+ %{_libdir}/*.so
+ %{_libdir}/pkgconfig/*.pc
+ 
++%if %{!?_without_python:1}0
++%files -n python-squale
++%defattr(-, root, root, 0755)
++%exclude %{python_sitearch}/squale.a
++%exclude %{python_sitearch}/squale.la
++%{python_sitearch}/squale.so
++%endif
+ 
++
+ %changelog
++* Mon Nov 14 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.1.5-2
++- Split off the python bindings.
++- Remove redundant CFLAGS export.
++- Minor spec file cleanups.
++
+ * Thu Jun 23 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.1.5-1
+ - Update to 0.1.5.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002513.html">[svn] r3713 - trunk/rpms/hardlink++
+</A></li>
+	<LI>Next message: <A HREF="002515.html">[svn] r3715 - trunk/rpms/armagetronad
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2514">[ date ]</a>
+              <a href="thread.html#2514">[ thread ]</a>
+              <a href="subject.html#2514">[ subject ]</a>
+              <a href="author.html#2514">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

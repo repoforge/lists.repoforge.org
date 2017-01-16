@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9235 - in /trunk/tools/unoconv: ChangeLog unoconv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9235%20-%20in%20/trunk/tools/unoconv%3A%20ChangeLog%20unoconv&In-Reply-To=%3C201011031713.oA3HD9g8001995%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008018.html">
+   <LINK REL="Next"  HREF="008020.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9235 - in /trunk/tools/unoconv: ChangeLog unoconv</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9235%20-%20in%20/trunk/tools/unoconv%3A%20ChangeLog%20unoconv&In-Reply-To=%3C201011031713.oA3HD9g8001995%40surya.karan.org%3E"
+       TITLE="[svn] r9235 - in /trunk/tools/unoconv: ChangeLog unoconv">dag at wieers.com
+       </A><BR>
+    <I>Wed Nov  3 18:13:09 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008018.html">[svn] r9234 - /trunk/rpms/perl-WWW-Shorten/perl-WWW-Shorten.spec
+</A></li>
+        <LI>Next message: <A HREF="008020.html">[svn] r9236 - /trunk/rpms/leafnode/leafnode.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8019">[ date ]</a>
+              <a href="thread.html#8019">[ thread ]</a>
+              <a href="subject.html#8019">[ subject ]</a>
+              <a href="author.html#8019">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Wed Nov  3 17:13:09 2010
+New Revision: 9235
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9235&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9235&amp;view=rev</A>
+Log:
+Improve handling of LD_LIBRARY_PATH (Paul Polak)
+
+Modified:
+    trunk/tools/unoconv/ChangeLog
+    trunk/tools/unoconv/unoconv
+
+Modified: trunk/tools/unoconv/ChangeLog
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/ChangeLog?rev=9235&amp;r1=9234&amp;r2=9235&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/ChangeLog?rev=9235&amp;r1=9234&amp;r2=9235&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/unoconv/ChangeLog (original)
++++ trunk/tools/unoconv/ChangeLog Wed Nov  3 17:13:09 2010
+@@ -1,5 +1,6 @@
+-* 0.4svn - released 25/10/2010
++* 0.4svn - released 03/11/2010
+ - Change to how -o/--output/--outputpath works (can now output to filenames too)
++- Improve handling of LD_LIBRARY_PATH (Paul Polak)
+ 
+ * 0.4 - released 20/10/2010
+ - Now properly check if there is a GUI attached and terminate() or -unaccept instance
+
+Modified: trunk/tools/unoconv/unoconv
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/unoconv?rev=9235&amp;r1=9234&amp;r2=9235&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/unoconv?rev=9235&amp;r1=9234&amp;r2=9235&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/unoconv/unoconv (original)
++++ trunk/tools/unoconv/unoconv Wed Nov  3 17:13:09 2010
+@@ -64,7 +64,10 @@
+             sys.path.append(oolibpath)
+             import uno, unohelper
+             ### Export an environment that OpenOffice is pleased to work with
+-            os.environ['LD_LIBRARY_PATH'] = oolibpath + os.pathsep + os.environ['LD_LIBRARY_PATH']
++            if 'LD_LIBRARY_PATH' in os.environ:
++                os.environ['LD_LIBRARY_PATH'] = oolibpath + os.pathsep + os.environ['LD_LIBRARY_PATH']
++            else:
++                os.environ['LD_LIBRARY_PATH'] = oolibpath
+             break
+         except ImportError, e:
+             sys.path.remove(oolibpath)
+@@ -583,7 +586,7 @@
+     def convert(self, inputfn):
+         global exitcode
+ 
+-        doc = None
++        document = None
+         outputfmt = self.getformat(inputfn)
+ 
+         if op.verbose &gt; 0:
+@@ -602,9 +605,9 @@
+             )
+ 
+             inputurl = unohelper.absolutize(self.cwd, unohelper.systemPathToFileUrl(inputfn))
+-            doc = self.desktop.loadComponentFromURL( inputurl , &quot;_blank&quot;, 0, inputprops )
+-
+-            if not doc:
++            document = self.desktop.loadComponentFromURL( inputurl , &quot;_blank&quot;, 0, inputprops )
++
++            if not document:
+                 raise UnoException(&quot;File could not be loaded by OpenOffice&quot;, None)
+ 
+             ### Import style template
+@@ -616,7 +619,7 @@
+                         PropertyValue( &quot;OverwriteStyles&quot;, 0, True, 0),
+                     )
+                     templateurl = unohelper.absolutize(self.cwd, unohelper.systemPathToFileUrl(op.template))
+-                    doc.StyleFamilies.loadStylesFromURL(templateurl, templateprops)
++                    document.StyleFamilies.loadStylesFromURL(templateurl, templateprops)
+                 else:
+                     print &gt;&gt;sys.stderr, 'unoconv: template file `%s\' does not exist.' % op.template
+                     exitcode = 1
+@@ -627,15 +630,15 @@
+ 
+             ### Update document links
+             try:
+-                doc.updateLinks()
++                document.updateLinks()
+             except AttributeError:
+                 # the document doesn't implement the XLinkUpdate interface
+                 pass
+ 
+             ### Update document indexes
+             try:
+-                doc.refresh()
+-                indexes = doc.getDocumentIndexes()
++                document.refresh()
++                indexes = document.getDocumentIndexes()
+             except AttributeError:
+                 # the document doesn't implement the XRefreshable and/or
+                 # XDocumentIndexesSupplier interfaces
+@@ -669,13 +672,13 @@
+                     outputfn = op.output
+ 
+                 outputurl = unohelper.absolutize( self.cwd, unohelper.systemPathToFileUrl(outputfn) )
+-                doc.storeToURL(outputurl, tuple(outputprops) )
++                document.storeToURL(outputurl, tuple(outputprops) )
+                 info(1, &quot;Output file: %s&quot; % outputfn)
+             else:
+-                doc.storeToURL(&quot;private:stream&quot;, tuple(outputprops) )
+-
+-            doc.dispose()
+-            doc.close(True)
++                document.storeToURL(&quot;private:stream&quot;, tuple(outputprops) )
++
++            document.dispose()
++            document.close(True)
+ 
+         except SystemError, e:
+             error(&quot;unoconv: SystemError during conversion: %s&quot; % e)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008018.html">[svn] r9234 - /trunk/rpms/perl-WWW-Shorten/perl-WWW-Shorten.spec
+</A></li>
+	<LI>Next message: <A HREF="008020.html">[svn] r9236 - /trunk/rpms/leafnode/leafnode.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8019">[ date ]</a>
+              <a href="thread.html#8019">[ thread ]</a>
+              <a href="subject.html#8019">[ subject ]</a>
+              <a href="author.html#8019">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

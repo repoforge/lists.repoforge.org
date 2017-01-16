@@ -1,0 +1,813 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3502 - in trunk/tools/dar: . python scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3502%20-%20in%20trunk/tools/dar%3A%20.%20python%20scripts&In-Reply-To=%3C20050816110738.3CBBE318041%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002302.html">
+   <LINK REL="Next"  HREF="002304.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3502 - in trunk/tools/dar: . python scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3502%20-%20in%20trunk/tools/dar%3A%20.%20python%20scripts&In-Reply-To=%3C20050816110738.3CBBE318041%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3502 - in trunk/tools/dar: . python scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Aug 16 13:07:38 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002302.html">[svn] r3501 - trunk/rpms/transcode
+</A></li>
+        <LI>Next message: <A HREF="002304.html">[svn] r3503 - trunk/rpms/gstreamer-ffmpeg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2303">[ date ]</a>
+              <a href="thread.html#2303">[ thread ]</a>
+              <a href="subject.html#2303">[ subject ]</a>
+              <a href="author.html#2303">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-08-16 13:07:36 +0200 (Tue, 16 Aug 2005)
+New Revision: 3502
+
+Added:
+   trunk/tools/dar/commands.txt
+   trunk/tools/dar/dar-new
+   trunk/tools/dar/python/
+   trunk/tools/dar/python/create-htmldir.py
+   trunk/tools/dar/python/create-pkgdb.py
+   trunk/tools/dar/python/create-specdb.py
+   trunk/tools/dar/python/print-info.py
+   trunk/tools/dar/python/print-obsolete.py
+Modified:
+   trunk/tools/dar/Makefile
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-prepare
+   trunk/tools/dar/dar-repo
+   trunk/tools/dar/dar-sync
+   trunk/tools/dar/dar.conf
+   trunk/tools/dar/scripts/pre-diskspace.sh
+Log:
+Updates
+
+Modified: trunk/tools/dar/Makefile
+===================================================================
+--- trunk/tools/dar/Makefile	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/Makefile	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -10,7 +10,7 @@
+ sbindir=/usr/sbin
+ 
+ DIST_SCRIPTS=dar-build dar-dotty dar-exec dar-kickoff dar-new dar-prepare dar-repo dar-shell dar-sync dar-update
+-DIST_LIBS=dar-functions compartment.sh
++DIST_LIBS=dar-functions
+ 
+ DESTDIR=
+ 
+
+Added: trunk/tools/dar/commands.txt
+===================================================================
+--- trunk/tools/dar/commands.txt	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/commands.txt	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -0,0 +1,55 @@
++### BUILDING
++### &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++
++### Install build environment
++old=fc3-i386; new=el4-i386; chr=el4i; diff -u &lt;(cut -d&quot;$(echo -e '\t')&quot; -f1 /dar/pub/info/state/rpmqa-$old.list) &lt;(cut -d&quot;$(echo -e '\t')&quot; -f1 /dar/pub/info/state/rpmqa-$new.list) | grep &quot;^-&quot; | sed -e 's|^-||' | xargs dar-update
++
++### Build missing packages compared to other dist
++old=fc3-i386; new=el4-i386; chr=el4i; diff -u &lt;(cut -d&quot;$(echo -e '\t')&quot; -f1 /dar/pub/info/state/packages-$old.list) &lt;(cut -d&quot;$(echo -e '\t')&quot; -f1 /dar/pub/info/state/packages-$new.list) | grep &quot;^-&quot; | sed -e 's|^-||' | xargs dar-build -n -d $chr
++
++### Build library packages first
++old=fc3; chr=fc4i; for pkg in $(echo /dar/packages/*/*-devel-*.$old.rf.i386.rpm); do pkg=&quot;$(basename $pkg)&quot;; echo ${pkg%-*-*-*}; done | xargs dar-build -n -d $chr
++
++### Clean up chroots
++#dar-exec
++
++
++### INSTALLING
++### &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++
++echo ... | xargs chroot /dar/chroot/$chr/ up2date -if
++echo ... | xargs chroot /dar/chroot/$chr/ apt-get -qq -y -m install
++
++
++### QUALITY ASSURANCE
++### &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++
++### Find noarch perl packages with problems
++echo /dar/packages/*/*.noarch.rpm | xargs rpm -qpl | grep -E '\.(a|la|so)$'
++echo /dar/packages/*/*.noarch.rpm | xargs rpm -qpl | grep -E '/lib64'
++
++### Find missing requirements
++echo /dar/rpms/*/_buildlogs/*el2*.i386.log.gz | xargs zgrep -h ' is needed by ' | cut -d' ' -f1 | sort | uniq
++
++### Find build environment polution (32bit vs 64bit)
++dar-exec -d el3a,fc2a,fc3a,el4a 'rpm -qa --qf &quot;%{name}.%{arch}\n&quot; | grep i.86'
++
++### Count number/size of packages per project
++for i in /dar/packages/*; do j=&quot;$(ls $i/*.rpm | wc -l)&quot;; echo -e &quot;$j  -  $(basename $i)&quot;; done | sort -n | less
++for i in /dar/packages/*; do du -s $i; done | sort -n | less
++
++### Count packages that match latest distribution
++dist=&quot;el4&quot;; for i in /dar/packages/*/*.$dist.*; do v=&quot;${i%.*.*.*.*.*}&quot;; echo &quot;$(ls -l $v* | wc -l) - $(basename ${v%-*})&quot;; done | sort -n | uniq | less
++
++
++### METADATA
++### &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++
++### Create rpmforge-packages.txt
++for i in /dar/rpms/*; do pkg=&quot;$(basename $i)&quot;; author=&quot;$(grep '^# Authority:' $i/$pkg.spec | cut -f3 -d' ')&quot;; if [ &quot;$author&quot; ]; then echo -e &quot;$pkg $author&quot;; fi; done | sort &gt; /dar/pub/info/docs/rpmforge-packages.txt
++
++### Compare mega-merge.txt and rpmforge-packages.txt
++diff -ud &lt;(cat /dar/docs/mega-merge.txt | while read a b c; do echo &quot;$a $b&quot;; done) /dar/docs/rpmforge-packages.txt
++
++### Count packages per distribution
++wc -l /dar/pub/info/state/packages-*.list
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/dar-build	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -169,7 +169,7 @@
+ 
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+ 
+-			export origspecfile=&quot;$SPECFILE&quot; specfile=&quot;$NEWSPECFILE&quot; builddir=&quot;$BUILDDIR&quot;
++			export origspecfile=&quot;$SPECFILE&quot; specfile=&quot;$NEWSPECFILE&quot; builddir=&quot;$BUILDDIR&quot; chrootdir=&quot;$CHROOTDIR/$dist&quot;
+ 			export app buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;${DISTTAG// *}&quot; repotag=&quot;$TAG&quot;
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+ 				source &quot;$script&quot;
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/dar-functions	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -315,7 +315,7 @@
+ 		OPTIONS=&quot;$OPTIONS --nosignature&quot;
+ 	fi
+ 
+-	chroot $CHROOTDIR/$DISTNICK rpm -qa $OPTIONS --qf &quot;%{name}\t%{version}-%{release}\n&quot;| sort &gt;$FTPDIR/extra/state/rpmqa-$DISTNAME-$DISTARCH.list 2&gt;/dev/null
++	chroot $CHROOTDIR/$DISTNICK rpm -qa $OPTIONS --qf &quot;%{name}\t%{version}-%{release}\n&quot;| sort &gt;$STATEDIR/rpmqa-$DISTNAME-$DISTARCH.list 2&gt;/dev/null
+ }
+ 
+ function build_htaccess {
+@@ -346,12 +346,12 @@
+ #		sed -e &quot;
+ #			s|.\+/\(.\+\)-[0-9].\+-[0-9].*\.$TAG\.$DIST\..\+\.rpm|\1|;
+ #			s|.\+/\(.\+\)-[0-9].\+-[0-9].*\.$DIST\.$TAG\..\+\.rpm|\1|;
+-#		&quot; | sort | uniq &gt;$FTPDIR/extra/state/packages-$DIST.list
++#		&quot; | sort | uniq &gt;$STATEDIR/packages-$DIST.list
+ 
+ 	for rpm in $FTPDIR/$DISTPATH/RPMS.$REPO/*.rpm; do
+ 		rpm=&quot;${rpm%-*-*}&quot;
+ 		echo &quot;${rpm//#*\/}&quot;
+-	done | sort | uniq &gt;$FTPDIR/extra/state/packages-$DISTNAME-$DISTARCH.list
++	done | sort | uniq &gt;$STATEDIR/packages-$DISTNAME-$DISTARCH.list
+ }
+ 
+ function build_repo_apt {
+
+Added: trunk/tools/dar/dar-new
+===================================================================
+--- trunk/tools/dar/dar-new	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/dar-new	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -0,0 +1,106 @@
++#!/bin/bash
++
++shopt -s extglob
++source &quot;/usr/share/dar/dar-functions&quot;
++
++#daropts &quot;:a:d:fs:t:v&quot; $@
++#PKGS=&quot;$OPTS&quot;
++PKGS=$@
++
++function host {
++	HOST=&quot;$1&quot;
++	HOST=&quot;${HOST/#http:\/\/}&quot;
++	HOST=&quot;${HOST/#ftp:\/\/}&quot;
++	echo &quot;${HOST/%\/*}&quot;
++}
++
++function file {
++	FILE=&quot;$1&quot;
++	echo &quot;${FILE/#+([!\/])\/\/+([!\/])}&quot;
++}
++
++function httptest {
++	URL=&quot;$1&quot;
++	HOST=&quot;$(host $URL | sed -e 's|.sf.|.sourceforge.|')&quot;
++	FILE=&quot;$(host $URL)&quot;
++	echo -e &quot;HEAD $FILE HTTP/1.1\nHost: $HOST\n\n&quot; | nc -w 10 $HOST 80 | grep -E &quot; (200|302) &quot;
++	return $?
++}
++
++function v1 {
++	local V=&quot;$1&quot;
++	M=&quot;${V//*./}&quot;
++	echo &quot;${V//%+([0-9])/}$((M+1))&quot;
++}
++
++function v2 {
++	local V=&quot;$1&quot;
++	M=&quot;${V/%.+([0-9])/}&quot;
++	M=&quot;${M/#*./}&quot;
++	echo &quot;${V//%+([0-9]).+([0-9])/}$((M+1))&quot; 2&gt;/dev/null
++}
++
++function v3 {
++	local V=&quot;$1&quot;
++	M=&quot;${V/%.+([0-9])/}&quot;
++	M=&quot;${M/#*./}&quot;
++	echo &quot;${V//%+([0-9]).+([0-9])/}$((M+1)).0&quot; 2&gt;/dev/null
++}
++
++function rewrite {
++	echo &quot;$(echo &quot;$1&quot; | perl -p -e &quot;
++		s|\%{name}|$NAME|g;
++		s|\%{version}|$VERSIONX|g;
++		s|\%{real_name}|$RNAME|g;
++		s|\%{real_version}|$RVERSIONX|g;
++		s|\%{real_release}|$RRELEASE|g;
++	&quot;)&quot;
++}
++
++for app in $PKGS; do
++
++	SPECFILE=&quot;$PWD/$app&quot;
++	app=&quot;$(basename $app .spec)&quot;
++
++	if [ ! -r &quot;$SPECFILE&quot; -o ! -f &quot;$SPECFILE&quot; ]; then
++		SPECFILE=&quot;$PWD/$app.spec&quot;
++	fi
++	if [ ! -r &quot;$SPECFILE&quot; -o ! -f &quot;$SPECFILE&quot; ]; then
++		SPECFILE=&quot;$SPECSDIR/$app/$app.spec&quot;
++	fi
++	if [ ! -r &quot;$SPECFILE&quot; -o ! -f &quot;$SPECFILE&quot; ]; then
++		echo &quot;ERROR: specfile \&quot;$SPECFILE\&quot; is not found.&quot;
++		continue
++	fi
++
++	NAME=&quot;$(rpmconf Name)&quot;
++	VERSION=&quot;$(rpmconf Version)&quot;
++	RNAME=&quot;$(rpmmacro real_name)&quot;
++	RVERSION=&quot;$(rpmmacro real_version)&quot;
++	RRELEASE=&quot;$(rpmmacro real_release)&quot;
++
++	SOURCE=&quot;$(rpmconf Source)&quot;
++	if [ -z &quot;$SOURCE&quot; ]; then
++		SOURCE=&quot;$(rpmconf Source0)&quot;
++	fi
++
++	SOURCEX=&quot;$(rewrite $SOURCE)&quot;
++
++	if echo &quot;$SOURCEX&quot; | grep -q '%{'; then
++		error &quot;$NAME: Source $SOURCE incorrect&quot;
++		continue
++	fi
++	
++	if [ -z &quot;$SOURCEX&quot; ]; then
++		error &quot;$NAME: Source is empty&quot;
++		continue
++	fi
++
++	VERSIONX=&quot;$(v1 $VERSION)&quot;
++#	echo &quot;$NAME: $VERSION -&gt; $(host $SOURCE)&quot;
++	if httptest &quot;$(rewrite $SOURCE)&quot;; then
++		echo &quot;$NAME: New version $VERSIONX found !!&quot;
++		continue;
++	fi
++
++done
+
+
+Property changes on: trunk/tools/dar/dar-new
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/dar/dar-prepare
+===================================================================
+--- trunk/tools/dar/dar-prepare	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/dar-prepare	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -13,23 +13,23 @@
+ 		ln -f $CHROOTDIR/${DEFAULT_DISTS// */}/root/.bash_history $CHROOTDIR/$distname/root/.bash_history
+ 	fi
+ 
+-	umount $CHROOTDIR/$distname{/dev/pts,/proc,/tmp,$ROOT/build,$ROOT}/ 2&gt;/dev/null
++	umount $CHROOTDIR/$distname{/dev/pts,/proc,/tmp,$ROOT/build,$ROOT/} 2&gt;/dev/null
+ 
+ #	rm -rf $CHROOTDIR/$distname{$RPMTMPPATH}/*
+-	mkdir -p $CHROOTDIR/$distname$ROOT}/
+-	mount -o bind $ROOT $CHROOTDIR/$distname$ROOT
++	mkdir -p $CHROOTDIR/$distname$ROOT/
++	mount -o bind $ROOT $CHROOTDIR/$distname$ROOT/
+ 
+-	mkdir -p $CHROOTDIR/$distname/proc
++	mkdir -p $CHROOTDIR/$distname/proc/
+ 	mount -t proc proc $CHROOTDIR/$distname/proc/
+ 
+-	mkdir -p $CHROOTDIR/$distname/dev/pts
+-	mount -t devpts devpts $CHROOTDIR/$distname/dev/pts
++	mkdir -p $CHROOTDIR/$distname/dev/pts/
++	mount -t devpts devpts $CHROOTDIR/$distname/dev/pts/
+ 
+ ###	Use this when you want to speed up building :)
+-	mkdir -p $CHROOTDIR/$distname/$ROOT/build
+-	mount -o bind /dev/shm $CHROOTDIR/$distname$ROOT/build
++	mkdir -p $CHROOTDIR/$distname/$ROOT/build/
++	mount -o bind /dev/shm $CHROOTDIR/$distname$ROOT/build/
+ 
+ ###	Use thise when using X processes inside chroots
+-	mkdir -p $CHROOTDIR/$distname/tmp
++	mkdir -p $CHROOTDIR/$distname/tmp/
+ 	mount -o bind /tmp/ $CHROOTDIR/$distname/tmp/
+ done
+
+Modified: trunk/tools/dar/dar-repo
+===================================================================
+--- trunk/tools/dar/dar-repo	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/dar-repo	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -14,10 +14,10 @@
+ chkconfig rsync off
+ service xinetd restart
+ 
+-find $PACKAGEDIR -newer $FTPDIR/extra/state/dar-repo -name &quot;*.rpm&quot; -type f
++find $PACKAGEDIR -newer $STATEDIR/dar-repo -name &quot;*.rpm&quot; -type f
+ 
+ if [ $? -eq 0 ]; then
+-	touch $FTPDIR/extra/state/dar-repo
++	touch $STATEDIR/dar-repo
+ elif [ $? -gt 1 ]; then
+ 	chkconfig rsync on
+ 	service xinetd restart
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/dar-sync	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -12,15 +12,15 @@
+ ### Sign first as we're starting the script.
+ if [ &quot;$GPG_NAME&quot; -a &quot;$GPG_PATH&quot; ]; then
+ 	echo &quot;Signing (new) packages.&quot;
+-	touch &quot;$FTPDIR/extra/state/rpmfind&quot;
++	touch &quot;$STATEDIR/rpmfind&quot;
+ 	pushd $PACKAGEDIR &gt;/dev/null
+-	find . -newer $FTPDIR/extra/state/rpmsign -name &quot;*.rpm&quot; -type f | xargs rpm --resign  \
++	find . -newer $STATEDIR/rpmsign -name &quot;*.rpm&quot; -type f | xargs rpm --resign  \
+ 		--define &quot;_signature gpg&quot; \
+ 		--define &quot;_gpg_path $GPG_PATH&quot; \
+ 		--define &quot;_gpg_name $GPG_NAME&quot;
+ 	popd
+ 	if [ $? -eq 0 ]; then
+-		touch -r &quot;$FTPDIR/extra/state/rpmfind&quot; &quot;$FTPDIR/extra/state/rpmsign&quot;
++		touch -r &quot;$STATEDIR/rpmfind&quot; &quot;$STATEDIR/rpmsign&quot;
+ 	elif [ $? -gt 1 ]; then
+ 		echo $?
+ 		exit $?
+@@ -64,28 +64,28 @@
+ 		find $PACKAGEDIR/ -name &quot;*.$TAG.src.rpm&quot; | sed -e &quot;s|.\+/\(.\+\)-[0-9].\+-[0-9].*\.$TAG\.src\.rpm|\1|&quot; 
+ 		find $PACKAGEDIR/ -name &quot;*.$TAG.nosrc.rpm&quot; | sed -e &quot;s|.\+/\(.\+\)-[0-9].\+-[0-9].*\.$TAG\.nosrc\.rpm|\1|&quot; 
+ 	done
+-) | sort | uniq &gt;$FTPDIR/extra/state/packages-src.list
+-echo -e &quot;\t($(wc -l $FTPDIR/extra/state/packages-src.list))&quot;
++) | sort | uniq &gt;$STATEDIR/packages-src.list
++echo -e &quot;\t($(wc -l $STATEDIR/packages-src.list))&quot;
+ 
+ echo -n &quot;Building package list.&quot;
+-cat $FTPDIR/extra/state/packages-*.list | sort | uniq &gt; $FTPDIR/extra/state/packages.list
+-echo -e &quot;\t($(wc -l $FTPDIR/extra/state/packages.list))&quot;
++cat $STATEDIR/packages-*.list | sort | uniq &gt; $STATEDIR/packages.list
++echo -e &quot;\t($(wc -l $STATEDIR/packages.list))&quot;
+ 
+ echo -n &quot;Building summary list.&quot;
+-rm -f $FTPDIR/extra/state/summaries.list
++rm -f $STATEDIR/summaries.list
+ 
+ for app in $(cd $PACKAGEDIR; echo *); do
+ 	app=&quot;$(basename $app)&quot;
+ 	SPECFILE=&quot;$PACKAGEDIR/$app/$app.spec&quot;
+ 	if [ -r &quot;$SPECFILE&quot; ]; then
+-		echo -e &quot;$app\t$(rpmconf Summary &quot;&quot; nocheck)&quot; &gt;&gt; $FTPDIR/extra/state/summaries.list
++		echo -e &quot;$app\t$(rpmconf Summary &quot;&quot; nocheck)&quot; &gt;&gt; $STATEDIR/summaries.list
+ 	fi
+ done
+-echo -e &quot;\t($(wc -l $FTPDIR/extra/state/summaries.list))&quot;
++echo -e &quot;\t($(wc -l $STATEDIR/summaries.list))&quot;
+ 
+ echo -n &quot;Building all package list.&quot;
+-find $PACKAGEDIR/ -name &quot;*.rpm&quot; -printf &quot;%P\n&quot; | sort &gt; $FTPDIR/extra/state/all-packages.list
+-echo -e &quot;\t($(wc -l $FTPDIR/extra/state/all-packages.list))&quot;
++find $PACKAGEDIR/ -name &quot;*.rpm&quot; -printf &quot;%P\n&quot; | sort &gt; $STATEDIR/all-packages.list
++echo -e &quot;\t($(wc -l $STATEDIR/all-packages.list))&quot;
+ 
+ echo -n &quot;Press enter to start remote synchronisation.&quot;
+ read
+
+Modified: trunk/tools/dar/dar.conf
+===================================================================
+--- trunk/tools/dar/dar.conf	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/dar.conf	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -3,13 +3,14 @@
+ CONFIGDIR=&quot;/etc/dar&quot;
+ FTPDIR=&quot;$ROOT/pub&quot;
+ PACKAGEDIR=&quot;$FTPDIR/packages&quot;
++STATEDIR=&quot;$FTPDIR/info/state&quot;
+ SPECSDIR=&quot;$ROOT/rpms&quot;
+ CHROOTDIR=&quot;$ROOT/chroot&quot;
+ 
+ BUILDDIR=&quot;$ROOT/build&quot;
+ TEMPDIR=&quot;$ROOT/tmp&quot;
+ 
+-DEFAULT_DISTS=&quot;fc4i el4a el4i fc3a fc3i fc2a fc2i fc1i el3a el3i rh9i rh7i el2i&quot;
++DEFAULT_DISTS=&quot;el4a el4i fc3a fc3i fc2a fc2i fc1i el3a el3i rh9i rh7i el2i&quot;
+ DEFAULT_SOURCE_DISTS=&quot;fc3i&quot;
+ DEFAULT_ARCHS=&quot;i386&quot;
+ DEFAULT_TAGS=&quot;rf dag&quot;
+
+Added: trunk/tools/dar/python/create-htmldir.py
+===================================================================
+--- trunk/tools/dar/python/create-htmldir.py	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/python/create-htmldir.py	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -0,0 +1,30 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string
++
++def convgroup(str):
++	return str.translate(string.maketrans('/ ','-.'))
++
++sys.stdout = os.fdopen(1, 'w', 0)
++
++htmldir = '/dar/tmp/html'
++
++con = sqlite.connect('/dar/pub/info/state/specdb.sqlite')
++cur = con.cursor()
++
++cur.execute('select distinct category from spec order by category')
++cats = cur.fetchall()
++
++try: os.mkdir(htmldir)
++except: pass
++
++for cat in cats:
++	open(os.path.join(htmldir, convgroup(cat[0])) + '.php', 'w').write(cat[0])
++	cur.execute('select distinct name from spec where category = &quot;%s&quot; order by name, version, release' % cat[0])
++	names = cur.fetchall()
++	for name in names:
++		try: os.mkdir(os.path.join(htmldir, name[0]))
++		except: pass
++		open(os.path.join(htmldir, name[0], 'index.php'), 'w').write(cat[0]+'/'+name[0])
++cur.close()
++con.close()
+
+
+Property changes on: trunk/tools/dar/python/create-htmldir.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/dar/python/create-pkgdb.py
+===================================================================
+--- trunk/tools/dar/python/create-pkgdb.py	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/python/create-pkgdb.py	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -0,0 +1,82 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string
++
++sizes = {
++	'filename':100,
++	'name':40,
++	'version':15,
++	'release':15,
++	'arch':8,
++	'repo':5,
++	'dist':5,
++}
++
++def repo(filename):
++        try:
++                return re.search('.(dag|rf|test).\w+.rpm$', filename).groups()[0]
++        except: 
++                try:
++                        return re.search('.(dag|rf|test).(\w+|rhel2\.1).\w+.rpm$', filename).groups()[0]
++                except: 
++                        return None
++
++def dist(filename):
++        try:
++                dist = re.search('.(\w+|rhel2\.1).(dag|rf|test).\w+.rpm$', filename).groups()[0]
++        except: 
++                try:
++                        dist = re.search('.(dag|rf|test).(\w+).\w+.rpm$', filename).groups()[1]
++                except: 
++                        dist = None
++        if dist in ('0', 'rh6', 'rh7', 'rh8', 'rh9', 'el2', 'el3', 'el4', 'fc1', 'fc2', 'fc3', 'fc4'): return dist
++        elif dist == 'rhfc1': return 'fc1'
++        elif dist == 'rhel3': return 'el3'
++        elif dist == 'rhel2.1': return 'el2'
++        elif dist == 'rhas21': return 'el2'
++        elif dist == 'rh90': return 'rh9'
++        elif dist == 'rh80': return 'rh8'
++        elif dist == 'rh73': return 'rh7'
++        elif dist == 'rh62': return 'rh6'
++        else:   
++                print 'Unknown distribution tag %s in filename %s' % (dist, filename)
++                return None
++
++def readfile(str):
++	str = os.path.basename(str)
++	rec = { 'filename': str }
++	rec.update(re.search('(?P&lt;name&gt;.+)-(?P&lt;version&gt;[\w\.]+)-(?P&lt;release&gt;[\w\.]+)\.(?P&lt;arch&gt;\w+).rpm', str).groupdict())
++	rec['repo'] = repo(str)
++	if rec['arch'] in ('src', 'nosrc'): 
++		rec['dist'] = rec['arch']
++	else:
++		rec['dist'] = dist(str)
++	return rec
++
++sys.stdout = os.fdopen(1, 'w', 0)
++
++dropsta = 'drop table pkg'
++createsta = 'create table pkg ( '
++for key in sizes.keys(): createsta += '%s varchar(%d), ' % (key, sizes[key])
++createsta = createsta.rstrip(', ') + ' )'
++
++insertsta = 'insert into pkg ( '
++for key in sizes.keys(): insertsta += '%s, ' % key
++insertsta = insertsta.rstrip(', ') + ' ) values ( '
++for key in sizes.keys(): insertsta += '&quot;%%(%s)s&quot;, ' % key
++insertsta = insertsta.rstrip(', ') + ' )'
++
++con = sqlite.connect('/dar/pub/info/state/pkgdb.sqlite')
++cur = con.cursor()
++cur.execute(dropsta)
++cur.execute(createsta)
++
++for file in glob.glob('/dar/packages/*/*.rpm'):
++	rec = readfile(file)
++	if not rec:
++		print file, 'FAILED'
++		continue
++	cur.execute(insertsta % rec)
++
++con.commit()
++con.close()
+
+
+Property changes on: trunk/tools/dar/python/create-pkgdb.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/dar/python/create-specdb.py
+===================================================================
+--- trunk/tools/dar/python/create-specdb.py	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/python/create-specdb.py	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -0,0 +1,66 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string
++
++sizes = {
++	'authority':15,
++	'summary':100,
++	'name':40,
++	'version':15,
++	'release':15,
++	'license':20,
++	'category':30,
++	'url':50,
++#	'description':1024,
++}
++
++regs = {
++	'authority': '^# Authority: (\w+)$',
++	'summary': '^Summary: (.+)$',
++	'name': '^Name: ([\w\-_]+)$',
++	'version': '^Version: ([^\s]+)$',
++	'release': '^Release: ([^\s]+)$',
++	'license': '^License: (.+)$',
++	'category': '^Group: (.+)$',
++	'url': '^URL: ([^\s]+)$',
++	'description': '^%description:\n([.\n]+)\n\n%',
++}
++
++def readspec(data):
++	rec = {}
++	try:
++		for key in sizes.keys():
++			rec[key] = re.search(regs[key], data, re.M).group(1).replace('&quot;', '\'')
++	except:
++		print 'Error with key %s' % key
++		raise
++	return rec
++
++dropsta = 'drop table spec'
++createsta = 'create table spec ( '
++for key in sizes.keys(): createsta += '%s varchar(%d), ' % (key, sizes[key])
++createsta = createsta.rstrip(', ') + ' )'
++
++insertsta = 'insert into spec ( '
++for key in sizes.keys(): insertsta += '%s, ' % key
++insertsta = insertsta.rstrip(', ') + ' ) values ( '
++for key in sizes.keys(): insertsta += '&quot;%%(%s)s&quot;, ' % key
++insertsta = insertsta.rstrip(', ') + ' )'
++
++con = sqlite.connect('/dar/pub/info/state/specdb.sqlite')
++cur = con.cursor()
++cur.execute(dropsta)
++cur.execute(createsta)
++
++for file in glob.glob('/dar/rpms/*/*.spec'):
++	data = open(file, 'r').read(50000)
++	try:
++		rec = readspec(data)
++	except:
++		print file, 'FAILED'
++		continue
++	cur.execute(insertsta % rec)
++
++con.commit()
++cur.close()
++con.close()
+
+
+Property changes on: trunk/tools/dar/python/create-specdb.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/dar/python/print-info.py
+===================================================================
+--- trunk/tools/dar/python/print-info.py	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/python/print-info.py	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -0,0 +1,60 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string
++
++sys.stdout = os.fdopen(1, 'w', 0)
++
++con = sqlite.connect('/dar/pub/info/state/specdb.sqlite')
++cur = con.cursor()
++con2 = sqlite.connect('/dar/pub/info/state/pkgdb.sqlite')
++cur2 = con2.cursor()
++
++print 'General info'
++cur.execute('select * from spec order by name')
++print '  Number of SPEC files:', len(cur.fetchall())
++
++cur.execute('select distinct category from spec order by name')
++print '  Number of categories:', len(cur.fetchall())
++
++cur2.execute('select filename from pkg')
++print '  Number of packages:', len(cur2.fetchall())
++
++cur2.execute('select distinct name from pkg')
++print '  Number of unique packages:', len(cur2.fetchall())
++
++cur2.execute('select distinct name from pkg where arch = &quot;src&quot;')
++print '  Number of unique source packages:', len(cur2.fetchall())
++
++print
++print 'Arch stats:'
++cur2.execute('select distinct arch from pkg order by arch')
++for arch in cur2.fetchall():
++	cur2.execute('select * from pkg where arch = &quot;%s&quot;' % arch[0])
++	print '  %s has %d packages' % (arch[0], len(cur2.fetchall()))
++
++print
++print 'Dist stats:'
++cur2.execute('select distinct dist from pkg order by dist')
++for dist in cur2.fetchall():
++	if dist[0] in ('0', 'nosrc', 'src', 'fc4'): continue
++	cur2.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;i386&quot; or arch = &quot;i586&quot; or arch = &quot;i686&quot; or arch = &quot;athlon&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
++	print '  %s-i386 has %d packages' % (dist[0], len(cur2.fetchall()))
++	if dist[0] in ('rh6', 'rh8', 'rh7', 'rh9', 'el2', 'fc1', 'fc4'): continue
++	cur2.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;x86_64&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
++	print '  %s-x86_64 has %d packages' % (dist[0], len(cur2.fetchall()))
++
++print
++print 'Packager activity:'
++cur.execute('select distinct authority from spec order by authority')
++for name in cur.fetchall():
++	cur.execute('select * from spec where authority = &quot;%s&quot;' % name[0])
++	print '  %s packaged %d packages' % (name[0], len(cur.fetchall()))
++
++#print
++#print 'Print summaries:'
++#cur.execute('select distinct name, summary from spec order by name')
++#for pkg in cur.fetchall():
++#	print '  %s: %s' % (pkg[0], pkg[1])
++
++cur.close()
++con.close()
+
+
+Property changes on: trunk/tools/dar/python/print-info.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/dar/python/print-obsolete.py
+===================================================================
+--- trunk/tools/dar/python/print-obsolete.py	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/python/print-obsolete.py	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -0,0 +1,39 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string, rpm
++
++def vercmp((e1, v1, r1), (e2, v2, r2)):
++	rc = rpm.labelCompare((e1, v1, r1), (e2, v2, r2))
++	return rc
++
++sys.stdout = os.fdopen(1, 'w', 0)
++
++con = sqlite.connect('/dar/pub/info/state/pkgdb.sqlite')
++cur = con.cursor()
++
++cur.execute('select distinct name from pkg order by name')
++for name in cur.fetchall():
++#	print 'Processing', name[0]
++	cur.execute('select filename, arch, version, release, dist, repo from pkg where name = &quot;%s&quot; and arch != &quot;src&quot; order by dist, version, release, arch' % name[0])
++	filename = 0
++	arch = 1
++	version = 2
++	release = 3
++	dist = 4
++	repo = 5
++	pkgs = cur.fetchall()
++	for pkg1 in pkgs:
++		if pkg1[arch] == 'nosrc': continue
++		if pkg1[repo] == 'test': continue
++		if pkg1[filename].find('kernel') == 0: continue
++		for pkg2 in pkgs:
++			if pkg2[arch] == 'nosrc': continue
++			if pkg2[repo] == 'test': continue
++			if pkg1[filename] == pkg2[filename]: continue
++			if pkg1[dist] != pkg2[dist]: continue
++			if pkg1[arch] != pkg2[arch]: continue
++			if vercmp(('0', pkg1[version], pkg1[release]), ('0', pkg2[version], pkg2[release])) &gt; 0:
++				print '%s deprecated by %s' % (pkg2[filename], pkg1[filename])
++
++cur.close()
++con.close()
+
+
+Property changes on: trunk/tools/dar/python/print-obsolete.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/dar/scripts/pre-diskspace.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-diskspace.sh	2005-08-16 07:48:47 UTC (rev 3501)
++++ trunk/tools/dar/scripts/pre-diskspace.sh	2005-08-16 11:07:36 UTC (rev 3502)
+@@ -11,12 +11,12 @@
+ 
+ #echo &quot;** pre-diskspace: Builddir: $builddir&quot;; set -x
+ 
+-export free=&quot;$(set -- $(df $builddir | grep -v 'Filesystem'); echo $4)&quot;
++export free=&quot;$(set -- $(df $chrootdir/$builddir | grep -v 'Filesystem'); echo $4)&quot;
+ 
+ while [ -z &quot;$free&quot; -o $free -lt 20480 ]; do
+ 	echo &quot;Disk is almost full ($free kB), please free up space in $builddir and press ENTER.&quot; &gt;&amp;2
+ 	read a
+-	export free=&quot;$(set -- $(df /dev/shm/ | grep -v 'Filesystem'); echo $4)&quot;
++	export free=&quot;$(set -- $(df $chrootdir/$builddir | grep -v 'Filesystem'); echo $4)&quot;
+ done
+ 
+ #set +x
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002302.html">[svn] r3501 - trunk/rpms/transcode
+</A></li>
+	<LI>Next message: <A HREF="002304.html">[svn] r3503 - trunk/rpms/gstreamer-ffmpeg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2303">[ date ]</a>
+              <a href="thread.html#2303">[ thread ]</a>
+              <a href="subject.html#2303">[ subject ]</a>
+              <a href="author.html#2303">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

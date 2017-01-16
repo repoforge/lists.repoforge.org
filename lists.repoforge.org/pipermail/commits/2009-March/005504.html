@@ -1,0 +1,441 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6705 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6705%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903021630.n22GUdf7011549%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005503.html">
+   <LINK REL="Next"  HREF="005505.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6705 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6705%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903021630.n22GUdf7011549%40surya.karan.org%3E"
+       TITLE="[svn] r6705 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar  2 17:30:39 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005503.html">[svn] r6704 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="005505.html">[svn] r6706 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5504">[ date ]</a>
+              <a href="thread.html#5504">[ thread ]</a>
+              <a href="subject.html#5504">[ subject ]</a>
+              <a href="author.html#5504">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-03-02 16:30:39 +0000 (Mon, 02 Mar 2009)
+New Revision: 6705
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Added support for gqview, mplayer, vlc and xine. Implemented fullscreen toggle for OpenOffice. Mute audio when blanking screen.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-03-02 12:51:59 UTC (rev 6704)
++++ trunk/tools/wiipresent/ChangeLog	2009-03-02 16:30:39 UTC (rev 6705)
+@@ -1,11 +1,14 @@
+ * Mon Mar 02 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Detect application focus and adapt key-combinations
+-- Added support for openoffice, xpdf, evince
++- Added support for openoffice, evince, gqview, xpdf
+ - Added support for firefox, opera, pidgin
+-- Added support for rhythmbox, tvtime
++- Added support for mplayer, rhythmbox, tvtime, vlc, xine
+ - Disable screensaver during WiiPresent run
+ - Added ShiftMask in XFakeKeycode
+ - Use B key to enable mouse pointer (used to be A)
++- Added support for XF86 Audio keys
++- Implemented fullscreen toggle for OpenOffice
++- Mute audio when blanking screen
+ 
+ * Tue Feb 10 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Added -b/--bluetooth option to specify bluetooth address
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-03-02 12:51:59 UTC (rev 6704)
++++ trunk/tools/wiipresent/TODO	2009-03-02 16:30:39 UTC (rev 6705)
+@@ -6,6 +6,7 @@
+ - Record timings and print timestamp + keypress
+ - Follow keypresses so we know on what slide we are too
+ - Make the mouse pointer move based on IR data
++- Make the mouse buttons do the right thing
+ - Implement the power button to disconnect the device cleanly
+   (this is a bug in libwiimote)
+ 
+@@ -14,7 +15,7 @@
+  - up/down: change volume
+  - -/+: change workspace
+  - 1: fullscreen
+- - 2: blank screen
++ - 2: blank screen/mute audio
+  - B: enable mouse pointer
+  - home: exit
+  - exit/A: unused
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-03-02 12:51:59 UTC (rev 6704)
++++ trunk/tools/wiipresent/wiipresent.c	2009-03-02 16:30:39 UTC (rev 6705)
+@@ -29,12 +29,13 @@
+ #include &lt;X11/Xlib.h&gt;
+ #include &lt;X11/Xutil.h&gt;
+ #include &lt;X11/extensions/XTest.h&gt;
++#include &lt;X11/XF86keysym.h&gt;
+ #include &lt;X11/keysym.h&gt;
+ 
+ #include &quot;wiimote_api.h&quot;
+ 
+ static char NAME[] = &quot;wiipresent&quot;;
+-static char VERSION[] = &quot;0.5&quot;;
++static char VERSION[] = &quot;0.6&quot;;
+ 
+ static char *displayname = NULL;
+ static Display *display = NULL;
+@@ -56,6 +57,9 @@
+     if ( modifiers &amp; Mod1Mask )
+         XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Alt_L), True, 0);
+ 
++    if ( modifiers &amp; Mod2Mask )
++        XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Alt_R), True, 0);
++
+     if ( modifiers &amp; ShiftMask )
+         XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Shift_L), True, 0);
+ 
+@@ -68,12 +72,14 @@
+     if ( modifiers &amp; ShiftMask )
+         XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Shift_L), False, 0);
+ 
+-    if ( modifiers &amp; ControlMask )
+-        XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Control_L), False, 0);
++    if ( modifiers &amp; Mod2Mask )
++        XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Alt_R), False, 0);
+ 
+     if ( modifiers &amp; Mod1Mask )
+         XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Alt_L), False, 0);
+ 
++    if ( modifiers &amp; ControlMask )
++        XTestFakeKeyEvent(display, XKeysymToKeycode(display, XK_Control_L), False, 0);
+ }
+ 
+ void XMovePointer(Display *display, int xpos, int ypos, int relative) {
+@@ -122,19 +128,30 @@
+     Window *children_window;
+     unsigned int nchildrens;
+ 
++    // Prevent BadWindow
++    if (window == 1) return 0;
++
++    if (verbose &gt;= 2) printf(&quot;Trying XA_WM_COMMAND for window id: %ld\n&quot;, window);
+     // Try getting the command
+     if (XFetchProperty(display, window, XA_WM_COMMAND, name) == 0) {
+         // Try XClassHint next
+         XClassHint xclasshint;
++        if (verbose &gt;= 2) printf(&quot;Trying XClassHints for window id: %ld\n&quot;, window);
+         if (XGetClassHint(display, window, &amp;xclasshint) != 0) {
+             *name = xclasshint.res_class;
+             XFree(xclasshint.res_name);
+         // Try parent window
+         } else if (XQueryTree(display, window, &amp;root_window, &amp;parent_window, &amp;children_window, &amp;nchildrens) != 0) {
+-            if (XQueryCommand(display, parent_window, name) == 0)
++            if (parent_window) {
++                if (verbose &gt;= 2) printf(&quot;parent found with window id: %ld\n&quot;, parent_window);
++                if (XQueryCommand(display, parent_window, name) == 0)
++                    return 0;
++            } else if (XFetchProperty(display, window, XA_WM_NAME, name) == 0) {
+                 return 0;
+-        } else
++            }
++        } else {
+             return 0;
++        }
+     }
+     lowercase(*name);
+     return 1;
+@@ -143,9 +160,14 @@
+ void exit_clean(int sig) {
+     wiimote_disconnect(&amp;wmote);
+     XSetScreenSaver(display, timeout_return, interval_return, prefer_blanking_return, allow_exposures_return);
+-    if (sig != 0)
+-        printf(&quot;Exiting on signal %d.\n&quot;, sig);
+-    exit(0);
++    switch(sig) {
++        case(0):
++        case(2):
++            exit(0);
++        default:
++            printf(&quot;Exiting on signal %d.\n&quot;, sig);
++            exit(sig);
++    }
+ }
+ 
+ void rumble(wiimote_t *wmote, int msecs) {
+@@ -273,8 +295,6 @@
+     signal(SIGHUP, exit_clean);
+     signal(SIGQUIT, exit_clean);
+ 
+-    if (verbose) fprintf(stderr, &quot;It's alive, Jim!\n&quot;);
+-
+     if (length) fprintf(stderr, &quot;Presentation length is %dmin divided in 5 slots of %dmin.\n&quot;, length/60, length/60/5);
+ 
+     // Obtain the X11 display.
+@@ -307,6 +327,8 @@
+     wiimote_ir_t *point1 = &amp;wmote.ir1, *point2 = &amp;wmote.ir2;
+     int oldbattery = 0;
+     Window oldwindow = window;
++    int fullscreentoggle = False;
++    int screensavertoggle = False;
+ 
+     char *name;
+     XGetInputFocus(display, &amp;window, &amp;revert);
+@@ -326,9 +348,10 @@
+         if (window != oldwindow) {
+             if (name) XFree(name);
+             if (XQueryCommand(display, window, &amp;name) != 0) {
+-                if (verbose) fprintf(stderr, &quot;Loading keymaps for %s (%ld)\n&quot;, name, window);
++                if (verbose &gt;= 2) fprintf(stderr, &quot;Loading keymaps for %s (%ld)\n&quot;, name, window);
+             } else {
+-                fprintf(stderr, &quot;ERROR: Unknown %s (%ld)\n&quot;, name, window);
++                name = strdup(&quot;(unknown)&quot;);
++                fprintf(stderr, &quot;ERROR: Unable to find application name for window 0x%x.\n&quot;, (unsigned int) window);
+             }
+             oldwindow = window;
+         }
+@@ -389,13 +412,13 @@
+             if (!valid_point(point1) || (point1 == point2)) {
+                 point1 = search_newpoint(&amp;wmote, point2);
+             } else {
+-                printf(&quot;Point 1 is valid %4d %4d %2d\n&quot;, point1-&gt;x, point1-&gt;y, point1-&gt;size);
++                fprintf(stderr, &quot;Point 1 is valid %4d %4d %2d\n&quot;, point1-&gt;x, point1-&gt;y, point1-&gt;size);
+             }
+ 
+             if (!valid_point(point2) || (point1 == point2)) {
+                 point2 = search_newpoint(&amp;wmote, point1);
+             } else {
+-                printf(&quot;Point 2 is valid %4d %4d %2d\n&quot;, point2-&gt;x, point2-&gt;y, point2-&gt;size);
++                fprintf(stderr, &quot;Point 2 is valid %4d %4d %2d\n&quot;, point2-&gt;x, point2-&gt;y, point2-&gt;size);
+             }
+ 
+ //            if (valid_point(point1) &amp;&amp; ! valid_point(point2))
+@@ -438,7 +461,7 @@
+                 y = 0;
+             }
+ */
+-            if (verbose) fprintf(stderr, &quot;%d: ( %4d , %4d ) - [ %4d, %4d, %4d, %4d ] [ %4d, %4d, %4d, %4d ] [%2d, %2d, %2d, %2d ]\n&quot;, dots, x, y, wmote.ir1.x, wmote.ir2.x,wmote.ir3.x, wmote.ir4.x, wmote.ir1.y, wmote.ir2.y, wmote.ir3.y, wmote.ir4.y, wmote.ir1.size, wmote.ir2.size, wmote.ir3.size, wmote.ir4.size);
++            if (verbose &gt;= 2) fprintf(stderr, &quot;%d: ( %4d , %4d ) - [ %4d, %4d, %4d, %4d ] [ %4d, %4d, %4d, %4d ] [%2d, %2d, %2d, %2d ]\n&quot;, dots, x, y, wmote.ir1.x, wmote.ir2.x,wmote.ir3.x, wmote.ir4.x, wmote.ir1.y, wmote.ir2.y, wmote.ir3.y, wmote.ir4.y, wmote.ir1.size, wmote.ir2.size, wmote.ir3.size, wmote.ir4.size);
+ 
+             // Block repeating keys
+             if (keys == wmote.keys.bits) {
+@@ -476,7 +499,8 @@
+             }
+ 
+             if (wmote.keys.a) {
+-                if (verbose) fprintf(stderr, &quot;[A] &quot;);
++                if (verbose)
++                    fprintf(stderr, &quot;No A-key support for application %s.\n&quot;, name);
+             }
+ 
+             // Goto to previous workspace
+@@ -489,16 +513,22 @@
+                 XFakeKeycode(XK_Left, ControlMask | Mod1Mask);
+             }
+ 
++            if (name == NULL) continue;
++
+             if (wmote.keys.one) {
+                 if (strstr(name, &quot;firefox&quot;) == name)
+                     XFakeKeycode(XK_F11, 0);                    // Fullscreen
+                 else if (strstr(name, &quot;opera&quot;) == name)
+                     XFakeKeycode(XK_F11, 0);
+-                // TODO: Implement fullscreen toggle for openoffice (send Escape)
+                 else if (strstr(name, &quot;openoffice&quot;) == name)
+-                    XFakeKeycode(XK_F9, 0);
++                    if (fullscreentoggle) 
++                        XFakeKeycode(XK_F9, 0);
++                    else
++                        XFakeKeycode(XK_Escape, 0);
+                 else if (strstr(name, &quot;evince&quot;) == name)
+                     XFakeKeycode(XK_F5, 0);
++                else if (strstr(name, &quot;gqview&quot;) == name)
++                    XFakeKeycode(XK_F, 0);
+                 else if (strstr(name, &quot;xpdf&quot;) == name)
+                     XFakeKeycode(XK_F, Mod1Mask);
+                 else if (strstr(name, &quot;acroread&quot;) == name)
+@@ -507,14 +537,36 @@
+                     XFakeKeycode(XK_F11, 0);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)
+                     XFakeKeycode(XK_f, 0);
++                else if (strstr(name, &quot;mplayer&quot;) == name)
++                    XFakeKeycode(XK_f, 0);
++                else if (strstr(name, &quot;xine&quot;) == name)
++                    XFakeKeycode(XK_f, 0);
+                 else if (verbose)
+-                    fprintf(stderr, &quot;No support for down key in application %s.\n&quot;, name);
++                    fprintf(stderr, &quot;No one-key support for application %s.\n&quot;, name);
++                fullscreentoggle = ! fullscreentoggle;
+             }
+ 
+-            // TODO: Implement screensaver toggle
+-            // TODO: Also mute sound
+             if (wmote.keys.two) {
+-                XActivateScreenSaver(display);                  // Blank screen
++
++                // Mute audio
++                if (strstr(name, &quot;mplayer&quot;) == name)
++                    XFakeKeycode(XK_m, 0);
++                if (strstr(name, &quot;xine&quot;) == name)
++                    XFakeKeycode(XK_m, ControlMask);
++                else if (verbose) {
++                    XFakeKeycode(XF86XK_AudioMute, 0);
++//                    fprintf(stderr, &quot;No two-key support for application %s.\n&quot;, name);
++                }
++
++                // Blank screen
++                if (screensavertoggle) {
++                    XSetScreenSaver(display, 0, 0, 0, 0);
++                    XForceScreenSaver(display, ScreenSaverReset);
++                } else {
++                    XSetScreenSaver(display, 1, 1, 1, 1);
++                    XActivateScreenSaver(display);
++                }
++                screensavertoggle = ! screensavertoggle;
+             }
+ 
+             if (wmote.keys.up) {
+@@ -528,8 +580,19 @@
+                     XFakeKeycode(XK_Up, ControlMask);           // Volume Up
+                 else if (strstr(name, &quot;tvtime&quot;) == name)
+                     XFakeKeycode(XK_Up, 0);
+-                else if (verbose)
+-                    fprintf(stderr, &quot;No support for down key in application %s.\n&quot;, name);
++                else if (strstr(name, &quot;vlc&quot;) == name)
++                    XFakeKeycode(XK_Up, ControlMask);
++                else if (strstr(name, &quot;xine&quot;) == name)
++                    XFakeKeycode(XK_V, ShiftMask);
++                else if (strstr(name, &quot;mplayer&quot;) == name)
++                    XFakeKeycode(XK_0, ShiftMask);
++                // FIXME: This does not work
++                else if (strstr(name, &quot;gqview&quot;) == name)        // Rotate Clockwise
++                    XFakeKeycode(XK_bracketright, 0);
++                else if (verbose) {
++                    XFakeKeycode(XF86XK_AudioRaiseVolume, 0);
++                    fprintf(stderr, &quot;No up-key for application %s.\n&quot;, name);
++                }
+             }
+ 
+             if (wmote.keys.down) {
+@@ -543,8 +606,19 @@
+                     XFakeKeycode(XK_Down, ControlMask);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)
+                     XFakeKeycode(XK_Down, 0);
+-                else if (verbose)
+-                    fprintf(stderr, &quot;No support for down key in application %s.\n&quot;, name);
++                else if (strstr(name, &quot;vlc&quot;) == name)
++                    XFakeKeycode(XK_Down, ControlMask);
++                else if (strstr(name, &quot;xine&quot;) == name)
++                    XFakeKeycode(XK_v, 0);
++                else if (strstr(name, &quot;mplayer&quot;) == name)
++                    XFakeKeycode(XK_9, ShiftMask);
++                // FIXME: This does not work
++                else if (strstr(name, &quot;gqview&quot;) == name)        // Rotate Counter Clockwise
++                    XFakeKeycode(XK_bracketleft, 0);
++                else if (verbose) {
++                    XFakeKeycode(XF86XK_AudioLowerVolume, 0);
++                    fprintf(stderr, &quot;No down-key support for application %s.\n&quot;, name);
++                }
+             }
+ 
+             if (wmote.keys.right) {
+@@ -558,6 +632,8 @@
+                     XFakeKeycode(XK_Page_Down, 0);              // Next Slide
+                 else if (strstr(name, &quot;evince&quot;) == name)
+                     XFakeKeycode(XK_Page_Down, 0);
++                else if (strstr(name, &quot;gqview&quot;) == name)
++                    XFakeKeycode(XK_Page_Down, 0);
+                 else if (strstr(name, &quot;xpdf&quot;) == name)
+                     XFakeKeycode(XK_n, 0);
+                 else if (strstr(name, &quot;acroread&quot;) == name)
+@@ -566,8 +642,16 @@
+                     XFakeKeycode(XK_Right, Mod1Mask);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)         // Next Channel
+                     XFakeKeycode(XK_Up, 0);
+-                else if (verbose)
+-                    fprintf(stderr, &quot;No support for right key in application %s.\n&quot;, name);
++                else if (strstr(name, &quot;vlc&quot;) == name)            // Skip Forward
++                    XFakeKeycode(XK_Right, Mod1Mask);
++                else if (strstr(name, &quot;mplayer&quot;) == name)
++                    XFakeKeycode(XK_Right, 0);
++                else if (strstr(name, &quot;xine&quot;) == name)            // Skip Forward
++                    XFakeKeycode(XK_Right, ControlMask);
++                else if (verbose) {
++                    XFakeKeycode(XF86XK_AudioNext, 0);
++                    fprintf(stderr, &quot;No right-key support for application %s.\n&quot;, name);
++                }
+             }
+ 
+             if (wmote.keys.left) {
+@@ -581,6 +665,8 @@
+                     XFakeKeycode(XK_Page_Up, 0);                // Previous Slide
+                 else if (strstr(name, &quot;evince&quot;) == name)
+                     XFakeKeycode(XK_Page_Up, 0);
++                else if (strstr(name, &quot;gqview&quot;) == name)
++                    XFakeKeycode(XK_Page_Up, 0);
+                 else if (strstr(name, &quot;xpdf&quot;) == name)
+                     XFakeKeycode(XK_p, 0);
+                 else if (strstr(name, &quot;acroread&quot;) == name)
+@@ -589,8 +675,16 @@
+                     XFakeKeycode(XK_Left, Mod1Mask);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)         // Previous Channel
+                     XFakeKeycode(XK_Down, 0);
+-                else if (verbose)
+-                    fprintf(stderr, &quot;No support for left key in application %s.\n&quot;, name);
++                else if (strstr(name, &quot;vlc&quot;) == name)            // Skip Backward
++                    XFakeKeycode(XK_Left, Mod1Mask);
++                else if (strstr(name, &quot;mplayer&quot;) == name)
++                    XFakeKeycode(XK_Left, 0);
++                else if (strstr(name, &quot;xine&quot;) == name)
++                    XFakeKeycode(XK_Left, ControlMask);
++                else if (verbose) {
++                    XFakeKeycode(XF86XK_AudioPrev, 0);
++                    fprintf(stderr, &quot;No left-key support for application %s.\n&quot;, name);
++                }
+             }
+ 
+             // Save the keys state for next run
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005503.html">[svn] r6704 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="005505.html">[svn] r6706 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5504">[ date ]</a>
+              <a href="thread.html#5504">[ thread ]</a>
+              <a href="subject.html#5504">[ subject ]</a>
+              <a href="author.html#5504">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

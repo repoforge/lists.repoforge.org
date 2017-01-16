@@ -1,0 +1,283 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5106 - trunk/tools/sarah
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5106%20-%20trunk/tools/sarah&In-Reply-To=%3C20070122191036.EE9F9944B5A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003905.html">
+   <LINK REL="Next"  HREF="003907.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5106 - trunk/tools/sarah</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5106%20-%20trunk/tools/sarah&In-Reply-To=%3C20070122191036.EE9F9944B5A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5106 - trunk/tools/sarah">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jan 22 20:10:36 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003905.html">[svn] r5105 - trunk/tools/mrepo/config/httpd
+</A></li>
+        <LI>Next message: <A HREF="003907.html">[svn] r5107 - in trunk/tools/footprint: . vmx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3906">[ date ]</a>
+              <a href="thread.html#3906">[ thread ]</a>
+              <a href="subject.html#3906">[ subject ]</a>
+              <a href="author.html#3906">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-01-22 20:10:35 +0100 (Mon, 22 Jan 2007)
+New Revision: 5106
+
+Added:
+   trunk/tools/sarah/cve-check.sh
+   trunk/tools/sarah/rhsa-check.sh
+Modified:
+   trunk/tools/sarah/README
+   trunk/tools/sarah/TODO
+   trunk/tools/sarah/consistency.sh
+   trunk/tools/sarah/sarahdb.py
+   trunk/tools/sarah/sarahinfo.py
+   trunk/tools/sarah/sarahsql.py
+Log:
+Updates
+
+Modified: trunk/tools/sarah/README
+===================================================================
+--- trunk/tools/sarah/README	2007-01-22 15:12:19 UTC (rev 5105)
++++ trunk/tools/sarah/README	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -70,7 +70,13 @@
+ 	<A HREF="https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=543">https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=543</A>
+ 	<A HREF="http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/456195">http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/456195</A>
+ 
++A work-around would be to set up an HTTP-tunnel over your proxy by using
++proxytunnel, and then create a dynamic forwarding over SSH. And use
++dante or tocks to socksify aerrate's requests.
+ 
++	http_proxy=&quot;&quot; https_proxy=&quot;&quot; dsocksify ./aerrate.py -r --source=site --type=all --release=enterprise
++
++
+ MORE INFORMATION
+ ^^^^^^^^^^^^^^^^
+ You can find more information about errata and errata classification at:
+@@ -83,7 +89,9 @@
+ 
+ Some information and statistics from the Red Hat security team:
+ 
++	<A HREF="http://www.redhat.com/security/transparent/oval/">http://www.redhat.com/security/transparent/oval/</A>
+ 	<A HREF="http://people.redhat.com/mjc/">http://people.redhat.com/mjc/</A>
++	<A HREF="http://people.redhat.com/mjc/oval/">http://people.redhat.com/mjc/oval/</A>
+ 
+ General security information:
+ 
+
+Modified: trunk/tools/sarah/TODO
+===================================================================
+--- trunk/tools/sarah/TODO	2007-01-22 15:12:19 UTC (rev 5105)
++++ trunk/tools/sarah/TODO	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -1,7 +1,7 @@
+ aerrate.py: scrapes rhn advisory information
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ + Fix file-element syntax to match new RHN xml output
+-+ Fix reference-element syntax to match new RHN xml output
+++ Fix self reference-element syntax to match new RHN xml output
+ + Add bugzilla references and bugzilla reference synopsis information
+ + Add references to RHBA and RHEA as well
+ + Add keywords to advisories
+
+Modified: trunk/tools/sarah/consistency.sh
+===================================================================
+--- trunk/tools/sarah/consistency.sh	2007-01-22 15:12:19 UTC (rev 5105)
++++ trunk/tools/sarah/consistency.sh	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -1,5 +1,8 @@
+ #!/bin/bash
+ 
++### This script checks the consistency of the sarahdb
++### Known problems with the RHSA content is listed per item
++
+ echo &quot;Advisories with unknown severity:&quot;
+ ./sarahsql.py 'select advid,severity from adv where type = &quot;RHSA&quot; and severity = &quot;unknown&quot; order by advid'
+ echo
+@@ -9,16 +12,16 @@
+ echo
+ 
+ echo &quot;RPMs with no prodshort:&quot;
+-./sarahsql.py 'select a.advid from adv a, rpm r where a.advid = r.advid and r.prodshort = &quot;None&quot; order by a.advid'
++./sarahsql.py 'select adv.advid from adv, rpm where adv.advid = rpm.advid and rpm.prodshort = &quot;None&quot; order by adv.advid'
+ echo
+ 
+ ### FIXME: These do not work ?
+ #echo &quot;Advisories with no rpms:&quot;
+-#./sarahsql.py 'select a.advid, synopsis from adv a where ( select count(r.advid) from adv a, rpm r where r.advid = a.advid ) = 0.0'
++#./sarahsql.py 'select adv.advid, synopsis from adv where ( select count(rpm.advid) from adv, rpm where rpm.advid = adv.advid ) = 0.0'
+ #echo
+ 
+ #echo &quot;Advisories with no refs:&quot;
+-#./sarahsql.py 'select a.advid, synopsis from adv a where ( select count(*) from adv a, ref r where r.advid = a.advid ) = NULL'
++#./sarahsql.py 'select adv.advid, synopsis from adv where ( select count(*) from adv, ref where ref.advid = adv.advid ) = NULL'
+ #echo
+ 
+ #echo &quot;Show non-unique filenames&quot;
+
+Added: trunk/tools/sarah/cve-check.sh
+===================================================================
+--- trunk/tools/sarah/cve-check.sh	                        (rev 0)
++++ trunk/tools/sarah/cve-check.sh	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -0,0 +1,14 @@
++#!/bin/bash
++
++### This script checks a list of CVE numbers against sarahdb
++
++for CVE in $*; do
++	echo &quot;CVE $CVE&quot;
++	echo &quot;-----------------&quot;
++	echo &quot;Matches the following advisories:&quot;
++	./sarahsql.py &quot;select distinct ref.advid, adv.severity, adv.synopsis from ref, adv where adv.advid == ref.advid and ref.reftype == 'cve' and ref.refid == '$CVE'&quot;
++	echo
++	echo &quot;Providing the following updates:&quot;
++	./sarahsql.py &quot;select distinct rpm.prodshort, rpm.filename, ref.advid from ref, rpm where rpm.advid == ref.advid and ref.reftype == 'cve' and ref.refid == '$CVE' and rpm.prodshort in ('3AS', '4AS') and rpm.arch == 'i386'&quot;
++	echo &quot;-----------------&quot;
++done
+
+
+Property changes on: trunk/tools/sarah/cve-check.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+Added: trunk/tools/sarah/rhsa-check.sh
+===================================================================
+--- trunk/tools/sarah/rhsa-check.sh	                        (rev 0)
++++ trunk/tools/sarah/rhsa-check.sh	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -0,0 +1,14 @@
++#!/bin/bash
++
++### This script checks a list of RHSA numbers against sarahdb
++
++for RHSA in $*; do
++	echo &quot;RHSA $RHSA&quot;
++	echo &quot;------------------&quot;
++        echo &quot;Matches the following advisories:&quot;
++        ./sarahsql.py &quot;select advid, severity, synopsis from adv where advid == '$RHSA'&quot;
++        echo
++	echo &quot;Providing the following updates:&quot;
++	./sarahsql.py &quot;select distinct prodshort, filename, advid from rpm where advid == '$RHSA' and prodshort in ('3AS', '4AS') and arch == 'i386'&quot;
++	echo &quot;------------------&quot;
++done
+
+
+Property changes on: trunk/tools/sarah/rhsa-check.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+Modified: trunk/tools/sarah/sarahdb.py
+===================================================================
+--- trunk/tools/sarah/sarahdb.py	2007-01-22 15:12:19 UTC (rev 5105)
++++ trunk/tools/sarah/sarahdb.py	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -53,6 +53,16 @@
+ sarahlib.createtb(cur, 'pro')
+ 
+ filelist = glob.glob('advisories/RH?A-*.xml')
++if filelist:
++	print 'Using %s advisories from: ./advisories/' % len(filelist)
++else:
++	filelist = glob.glob('aerrate/advisories/RH?A-*.xml')
++if filelist:
++	print 'Using %s advisories from: ./advisories/' % len(filelist)
++else:
++	print &gt;&gt;sys.errout, 'error: No advisories found in ./advisories/ or ./aerrate/advisories/.'
++	sys.exit(1)
++
+ #filelist = glob.glob('advisories/RHSA-*.xml')
+ #filelist = ['advisories/RHSA-2005-791.xml', ]
+ #filelist.sort()
+
+Modified: trunk/tools/sarah/sarahinfo.py
+===================================================================
+--- trunk/tools/sarah/sarahinfo.py	2007-01-22 15:12:19 UTC (rev 5105)
++++ trunk/tools/sarah/sarahinfo.py	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -71,12 +71,20 @@
+ 
+ print 'Advisories per year:'
+ print '  ',
+-for year in ('2002', '2003', '2004', '2005', '2006'):
++for year in ('2002', '2003', '2004', '2005', '2006', '2007'):
+ 	cur.execute('select advid from adv where issued glob &quot;*%s*&quot;' % year)
+ 	print '%s: %s  ' % (year, len(cur.fetchall())),
+ print
+ print
+ 
++print 'Security advisories per year:'
++print '  ',
++for year in ('2002', '2003', '2004', '2005', '2006', '2007'):
++	cur.execute('select advid from adv where issued glob &quot;*%s*&quot; and type == &quot;RHSA&quot;' % year)
++	print '%s: %s  ' % (year, len(cur.fetchall())),
++print
++print
++
+ cur.execute('select reftype from ref order by reftype')
+ typelist = cur.fetchall()
+ print 'Number of references:', len(typelist)
+
+Modified: trunk/tools/sarah/sarahsql.py
+===================================================================
+--- trunk/tools/sarah/sarahsql.py	2007-01-22 15:12:19 UTC (rev 5105)
++++ trunk/tools/sarah/sarahsql.py	2007-01-22 19:10:35 UTC (rev 5106)
+@@ -7,7 +7,17 @@
+ con, cur = sarahlib.opendb()
+ 
+ query = string.join(sys.argv[1:], ' ')
+-cur.execute(query)
++if not query:
++	print &gt;&gt;sys.stderr, 'syntax: sarahsql \'sql statement\''
++	print &gt;&gt;sys.stderr, 'error: You did not provide a SQL command as argument.'
++	sys.exit(1)
++
++try:
++	cur.execute(query)
++except sqlite.DatabaseError, m:
++	print &gt;&gt;sys.stderr, 'error: Syntax error in SQL statement, %s' % m
++	sys.exit(2)
++	
+ for rec in cur.fetchall():
+ 	for col in rec:
+ 		print '%s\t' % col,
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003905.html">[svn] r5105 - trunk/tools/mrepo/config/httpd
+</A></li>
+	<LI>Next message: <A HREF="003907.html">[svn] r5107 - in trunk/tools/footprint: . vmx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3906">[ date ]</a>
+              <a href="thread.html#3906">[ thread ]</a>
+              <a href="subject.html#3906">[ subject ]</a>
+              <a href="author.html#3906">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4141 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4141%20-%20trunk/tools/dstat&In-Reply-To=%3C20060308224725.D126E3180A6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002940.html">
+   <LINK REL="Next"  HREF="002942.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4141 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4141%20-%20trunk/tools/dstat&In-Reply-To=%3C20060308224725.D126E3180A6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4141 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Mar  8 23:47:25 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002940.html">[svn] r4140 - in trunk/rpms: avidemux2 cdargs gtick gxine libnxml	nagios-plugins rssh
+</A></li>
+        <LI>Next message: <A HREF="002942.html">[svn] r4142 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2941">[ date ]</a>
+              <a href="thread.html#2941">[ thread ]</a>
+              <a href="subject.html#2941">[ subject ]</a>
+              <a href="author.html#2941">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-03-08 23:47:25 +0100 (Wed, 08 Mar 2006)
+New Revision: 4141
+
+Modified:
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat15
+Log:
+Updates
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-03-08 20:31:33 UTC (rev 4140)
++++ trunk/tools/dstat/dstat	2006-03-08 22:47:25 UTC (rev 4141)
+@@ -1611,7 +1611,7 @@
+ 		op.nolimit = True
+ 		op.update = False
+ 	elif termtype!='curses' or not hasattr(curses, 'tigetnum') or curses.tigetnum('colors') &lt; 0:
+-			op.color = False
++		op.color = False
+ 
+ 	if op.output:
+ 		if os.path.exists(op.output):
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2006-03-08 20:31:33 UTC (rev 4140)
++++ trunk/tools/dstat/dstat15	2006-03-08 22:47:25 UTC (rev 4141)
+@@ -196,9 +196,13 @@
+ 		print 'Kernel %s' % os.uname()[2]
+ 		print 'Python %s' % sys.version
+ 		print
++		rows, cols = getwinsize()
++		print 'Terminal type:', os.getenv('TERM') + '/' + termtype
++		print 'Terminal: %d lines, %d columns' % (rows, cols)
++		print
+ 		print 'Processors: %d' % getcpunr()
+ 		print 'Pagesize: %d' % resource.getpagesize()
+-		print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
++#		print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
+ 		print
+ 
+ 		global op
+@@ -957,8 +961,9 @@
+ 			l = string.split(line)
+ 			if len(l) &lt; 2: continue
+ 			name = string.split(l[0], ':')[0]
+-			if name in self.vars + ('MemTotal',):
++			if name in self.vars + ('MemTotal', 'SwapCached'):
+ 				self.val[name] = long(l[1]) * 1024.0
++		self.val['Cached'] += self.val['SwapCached']
+ 		self.val['MemUsed'] = self.val['MemTotal'] - self.val['MemFree'] - self.val['Buffers'] - self.val['Cached']
+ 
+ class dstat_net(dstat):
+@@ -1272,6 +1277,9 @@
+ 	'restore': '\0338',
+ 
+ 	'up': '\033[1A',
++	'down': '\033[1B',
++	'right': '\033[1C',
++	'left': '\033[1D',
+ 
+ 	'default': '\033[0;0m',
+ }
+@@ -1470,21 +1478,26 @@
+ 
+ def getwinsize():
+ 	&quot;Return the terminal geometry using several methods&quot;
+-	if op.nolimit:
+-		return 1024, 1024
++#	if op.nolimit:
++#		return 1024, 1024
++	global termtype
++	termtype = 'curses'
+ 	try:
+ 		curses.setupterm()
+ 		return curses.tigetnum('lines'), curses.tigetnum('cols')
+ 	except:
++		termtype = 'fcntl'
+ 		try:
+ 			import fcntl, struct, termios
+ 			s = struct.pack('HHHH', 0, 0, 0, 0)
+ 			x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+ 			return struct.unpack('HHHH', x)[:2]
+ 		except:
++			termtype = 'env'
+ 			try:
+ 				return int(os.environ['LINES']), int(os.environ['COLUMNS'])
+ 			except:
++				termtype = 'none'
+ 				return 25, 80
+ 
+ def getcpunr():
+@@ -1575,7 +1588,7 @@
+ 		print
+ 
+ def main():
+-	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile, tick, cols
++	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile, tick, cols, termtype
+ 
+ 	loop = update = 0
+ 	step = op.delay
+@@ -1588,19 +1601,20 @@
+ 	user = getpass.getuser()
+ 	hostname = string.split(os.uname()[1], '.')[0]
+ 
++	rows, cols = getwinsize()
++
+ 	### Write term-title
+ 	term = os.environ['TERM']
+ 	if term and re.compile('(screen*|xterm*)').match(term):
+ 		sys.stdout.write('\033]0;(%s@%s) %s %s\007' % (user, hostname, os.path.basename(sys.argv[0]), string.join(op.args, ' ')))
+ 
+ 	### Check terminal capabilities
+-	if sys.stdout.isatty():
+-		if 'curses' in sys.modules.keys() and hasattr(curses, 'tigetnum') and curses.tigetnum('colors') &lt; 0:
+-			op.color = False
+-	else:
++	if not sys.stdout.isatty():
+ 		op.color = False
+ 		op.nolimit = True
+ 		op.update = False
++	elif termtype!='curses' or not hasattr(curses, 'tigetnum') or curses.tigetnum('colors') &lt; 0:
++		op.color = False
+ 
+ 	if op.output:
+ 		if os.path.exists(op.output):
+@@ -1612,10 +1626,8 @@
+ 			outputfile.write('&quot;Author:&quot;,&quot;Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;&quot;,,,,&quot;URL:&quot;,&quot;<A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>&quot;\n')
+ 
+ 		outputfile.write('&quot;Host:&quot;,&quot;%s&quot;,,,,&quot;User:&quot;,&quot;%s&quot;\n' % (hostname, user))
+-		outputfile.write('&quot;Cmdline:&quot;,&quot;dstat %s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;\n\n' % (string.join(op.args, ' '), time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime())))
++		outputfile.write('&quot;Cmdline:&quot;,&quot;dstat %s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;\n\n' % (' '.join(op.args), time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime())))
+ 
+-	rows, cols = getwinsize()
+-
+ 	### Empty ansi database if no colors are requested
+ 	if not op.color:
+ 		op.update = False
+@@ -1648,6 +1660,7 @@
+ 					execfile(pathname)
+ 				except Exception, e:
+ 					info(1, 'Module dstat_%s failed to load. (%s)' % (mod, e))
++#					tb = sys.exc_info()[2]
+ 					continue
+ 
+ 			try:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002940.html">[svn] r4140 - in trunk/rpms: avidemux2 cdargs gtick gxine libnxml	nagios-plugins rssh
+</A></li>
+	<LI>Next message: <A HREF="002942.html">[svn] r4142 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2941">[ date ]</a>
+              <a href="thread.html#2941">[ thread ]</a>
+              <a href="subject.html#2941">[ subject ]</a>
+              <a href="author.html#2941">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

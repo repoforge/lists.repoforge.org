@@ -1,0 +1,585 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2609 - trunk/rpms/smart
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2609%20-%20trunk/rpms/smart&In-Reply-To=%3C20041205013723.2472217F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001413.html">
+   <LINK REL="Next"  HREF="001415.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2609 - trunk/rpms/smart</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2609%20-%20trunk/rpms/smart&In-Reply-To=%3C20041205013723.2472217F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2609 - trunk/rpms/smart">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Dec  5 02:37:23 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001413.html">[SVN] r2608 - trunk/rpms/fortune
+</A></li>
+        <LI>Next message: <A HREF="001415.html">[SVN] r2610 - trunk/rpms/smart
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1414">[ date ]</a>
+              <a href="thread.html#1414">[ thread ]</a>
+              <a href="subject.html#1414">[ subject ]</a>
+              <a href="author.html#1414">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-05 02:37:21 +0100 (Sun, 05 Dec 2004)
+New Revision: 2609
+
+Added:
+   trunk/rpms/smart/channelsync.py
+Modified:
+   trunk/rpms/smart/smart.spec
+Log:
+Added first plugin
+
+Added: trunk/rpms/smart/channelsync.py
+===================================================================
+--- trunk/rpms/smart/channelsync.py	2004-12-04 22:53:32 UTC (rev 2608)
++++ trunk/rpms/smart/channelsync.py	2004-12-05 01:37:21 UTC (rev 2609)
+@@ -0,0 +1,181 @@
++#
++# Copyright (c) 2004 Conectiva, Inc.
++#
++# Written by Gustavo Niemeyer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">niemeyer at conectiva.com</A>&gt;
++#
++# This file is part of Smart Package Manager.
++#
++# Smart Package Manager is free software; you can redistribute it and/or
++# modify it under the terms of the GNU General Public License as published
++# by the Free Software Foundation; either version 2 of the License, or (at
++# your option) any later version.
++#
++# Smart Package Manager is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++# General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with Smart Package Manager; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++#
++from smart.channel import *
++from smart import *
++import os, glob
++
++CHANNELSDIR = &quot;/etc/smart/channels/&quot;
++
++def syncChannels(channelsdir=CHANNELSDIR, force=None):
++
++    if force is None:
++        force = sysconf.get(&quot;force-channelsync&quot;, False)
++
++    if os.path.isdir(channelsdir):
++
++        seenalias = {}
++
++#       for entry in os.listdir(channelsdir):
++        for entry in glob.glob(channelsdir + '/*.channel'):
++
++            filepath = os.path.join(channelsdir, entry)
++            if not os.path.isfile(filepath):
++                continue
++
++            file = open(filepath)
++            data = file.read()
++            file.close()
++
++            try:
++                descriptions = parseChannelsDescription(data)
++            except Error, e:
++                iface.error(_(&quot;While using %s: %s&quot;) % (filepath, e))
++                continue
++
++            for alias in descriptions:
++
++                if alias in seenalias:
++                    continue
++                seenalias[alias] = True
++
++                olddescr = sysconf.get((&quot;channelsync&quot;, alias))
++                newdescr = descriptions[alias]
++                chndescr = sysconf.get((&quot;channels&quot;, alias))
++
++                if not olddescr and chndescr:
++                    olddescr = chndescr
++
++                if chndescr:
++                    name = chndescr.get(&quot;name&quot;)
++                else:
++                    name = None
++                if not name:
++                    name = newdescr.get(&quot;name&quot;)
++                    if not name:
++                        name = alias
++                    else:
++                        name += &quot; (%s)&quot; % alias
++
++                if not olddescr:
++                    if (force or
++                        iface.askYesNo(_(&quot;New channel '%s' detected. &quot;
++                                         &quot;Include it?&quot;) % name, True)):
++                        try:
++                            createChannel(alias, newdescr)
++                        except Error, e:
++                            iface.error(_(&quot;While using %s: %s&quot;) %
++                                        (filepath, e))
++                        else:
++                            sysconf.set((&quot;channels&quot;, alias), newdescr)
++                            sysconf.set((&quot;channelsync&quot;, alias), newdescr)
++                    else:
++                        sysconf.set((&quot;channelsync&quot;, alias), newdescr)
++
++                elif not chndescr:
++                    continue
++
++                elif not newdescr.get(&quot;type&quot;):
++                    iface.error(_(&quot;Channel in %s has no type.&quot;) % fielpath)
++
++                elif newdescr.get(&quot;type&quot;) != chndescr.get(&quot;type&quot;):
++                    if (force or
++                        iface.askYesNo(_(&quot;Change in channel '%s' detected.\n&quot;
++                                         &quot;Do you want to replace it?&quot;) % name,
++                                       True)):
++                        try:
++                            createChannel(alias, newdescr)
++                        except Error, e:
++                            iface.error(_(&quot;While using %s: %s&quot;) %
++                                        (filepath, e))
++                        else:
++                            sysconf.set((&quot;channels&quot;, alias), newdescr)
++                            sysconf.set((&quot;channelsync&quot;, alias), newdescr)
++                    else:
++                        sysconf.set((&quot;channelsync&quot;, alias), newdescr)
++
++                elif newdescr != olddescr:
++                    info = getChannelInfo(chndescr[&quot;type&quot;])
++                    def getLabel(key, info=info):
++                        for _key, label, ftype, default, descr in info.fields:
++                            if _key == key:
++                                return label
++                        return key
++
++                    try:
++                        pardescr = parseChannelData(newdescr)
++                    except Error, e:
++                        iface.error(_(&quot;While using %s: %s&quot;) % (filepath, e))
++                        continue
++
++                    changed = False
++                    for key in newdescr:
++                        oldvalue = olddescr.get(key)
++                        newvalue = newdescr.get(key)
++                        parvalue = pardescr.get(key)
++                        chnvalue = chndescr.get(key)
++                        if newvalue == oldvalue or parvalue == chnvalue:
++                            continue
++                        if (force or
++                            iface.askYesNo(_(&quot;Change in field '%(label)s' of &quot;
++                                             &quot;channel '%(alias)s' detected.\n&quot;
++                                             &quot;Old value: %(oldvalue)s\n&quot;
++                                             &quot;New value: %(newvalue)s\n&quot;
++                                             &quot;Replace current value?&quot;) %
++                                             {&quot;label&quot;: getLabel(key),
++                                              &quot;alias&quot;: alias,
++                                              &quot;oldvalue&quot;: oldvalue,
++                                              &quot;newvalue&quot;: newvalue}, True)):
++                            chndescr[key] = parvalue
++                            changed = True
++
++                    if changed:
++                        try:
++                            createChannel(alias, chndescr)
++                        except Error, e:
++                            iface.error(str(e))
++                        else:
++                            sysconf.set((&quot;channels&quot;, alias), chndescr)
++
++                    sysconf.set((&quot;channelsync&quot;, alias), newdescr)
++
++        if not sysconf.has(&quot;channelsync&quot;):
++            return
++
++        for alias in sysconf.keys(&quot;channelsync&quot;):
++            if alias not in seenalias:
++                sysconf.remove((&quot;channelsync&quot;, alias))
++                if not sysconf.has((&quot;channels&quot;, alias)):
++                    continue
++                name = sysconf.get((&quot;channels&quot;, alias, &quot;name&quot;))
++                if not name:
++                    name = alias
++                else:
++                    name += &quot; (%s)&quot; % alias
++                if (force or
++                    iface.askYesNo(_(&quot;Removing channel '%s' was suggested.\n&quot;
++                                     &quot;Do you want to remove it?&quot;) % name,
++                                   True)):
++                    sysconf.remove((&quot;channels&quot;, alias))
++
++if not sysconf.getReadOnly():
++    syncChannels()
++
+
+
+Property changes on: trunk/rpms/smart/channelsync.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/rpms/smart/smart.spec
+===================================================================
+--- trunk/rpms/smart/smart.spec	2004-12-04 22:53:32 UTC (rev 2608)
++++ trunk/rpms/smart/smart.spec	2004-12-05 01:37:21 UTC (rev 2609)
+@@ -26,15 +26,25 @@
+ 
+ Source: <A HREF="http://linux-br.conectiva.com.br/~niemeyer/smart/files/smart-%{version">http://linux-br.conectiva.com.br/~niemeyer/smart/files/smart-%{version</A>}.tar.bz2
+ #Source: <A HREF="http://smart.conectiva.com.br/files/smart-%{version">http://smart.conectiva.com.br/files/smart-%{version</A>}.tar.bz2
++Source1: channelsync.py
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: popt, rpm-devel &gt;= 4.2.1, python-devel
+ BuildRequires: kdelibs-devel, qt-devel
+-Requires: python, pygtk2 &gt;= 2.3.94
++Requires: python
+ 
+ %description
+ Smart Package Manager is a next generation package handling tool.
+ 
++%package gui
++Summary: Graphical interface to smart
++Group: Applications/System
++Requires: smart = %{version}-%{release}
++Requires: pygtk2 &gt;= 2.3.94
++
++%description gui
++A graphical interface to smart.
++
+ %package update
+ Summary: Allows execution of 'smart update' by normal users (suid)
+ Group: Applications/System
+@@ -63,128 +73,153 @@
+ %{?fc1:name=&quot;Fedora Core&quot;; version=&quot;1&quot;; path=&quot;fedora&quot;}
+ 
+ %{__cat} &lt;&lt;EOF &gt;distro.py
+-sysconf.set((&quot;channels&quot;, &quot;rpm-db&quot;), {
+-	&quot;name&quot;: &quot;RPM Database on this system&quot;,
+-	&quot;type&quot;: &quot;rpm-sys&quot;,
+-	&quot;priority&quot;: 10,
+-})
++for type in [&quot;&quot;, &quot;doc&quot;, &quot;smp&quot; ]:
++	if type:
++		kernel = &quot;kernel-%s&quot; % type
++	else:
++		kernel = &quot;kernel&quot;
++	pkgconf.setFlag(&quot;multi-version&quot;, kernel)
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;os&quot;), {
+-	&quot;name&quot;: &quot;OS packages from Red Hat for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://ayo.freshrpms.net/$path/linux/$version/%{_arch">http://ayo.freshrpms.net/$path/linux/$version/%{_arch</A>}/core/&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 10,
+-})
++%{__cat} &lt;&lt;EOF &gt;rpm-db.channel
++[rpm-db]
++name = RPM Database on this system
++type = rpm-sys
++priority = 10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;updates&quot;), {
+-	&quot;name&quot;: &quot;Updated packages from Red Hat for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://ayo.freshrpms.net/$path/linux/$version/%{_arch">http://ayo.freshrpms.net/$path/linux/$version/%{_arch</A>}/updates/&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 10,
+-})
++%{__cat} &lt;&lt;EOF &gt;os.channel
++[os]
++name = OS packages from Red Hat for $name $version (%{_arch}
++baseurl = <A HREF="http://ayo.freshrpms.net/$path/linux/$version/%{_arch">http://ayo.freshrpms.net/$path/linux/$version/%{_arch</A>}/core
++type = rpm-md
++priority = 10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-dag&quot;), {
+-	&quot;name&quot;: &quot;Various packages from RPMforge.net (dag) for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://apt.sw.be/$path/$version/en/%{_arch">http://apt.sw.be/$path/$version/en/%{_arch</A>}/dag&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 10,
+-})
++%{__cat} &lt;&lt;EOF &gt;updates.channel
++[updates]
++name = Updated packages from Red Hat for $name $version (%{_arch})
++baseurl = <A HREF="http://ayo.freshrpms.net/$path/linux/$version/%{_arch">http://ayo.freshrpms.net/$path/linux/$version/%{_arch</A>}/updates
++type = rpm-md
++priority = 10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-freshrpms&quot;), {
+-	&quot;name&quot;: &quot;Various packages from RPMforge.net (freshrpms) for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://ayo.freshrpms.net/$path/linux/$version/%{_arch">http://ayo.freshrpms.net/$path/linux/$version/%{_arch</A>}/freshrpms&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 10,
+-})
++%{__cat} &lt;&lt;EOF &gt;dag.channel
++[dag]
++name = RPMforge.net: Various packages from Dag RPM Repository for $name $version (%{_arch})
++baseurl = <A HREF="http://apt.sw.be/$path/$version/en/%{_arch">http://apt.sw.be/$path/$version/en/%{_arch</A>}/dag
++type = rpm-md
++priority = 10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-dries&quot;), {
+-	&quot;name&quot;: &quot;Various packages from RPMforge.net (dries) for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://apt.sw.be/dries/$path/fc$version/%{_arch">http://apt.sw.be/dries/$path/fc$version/%{_arch</A>}/dries/RPMS&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 10,
+-})
++%{__cat} &lt;&lt;EOF &gt;freshrpms.channel
++[freshrpms]
++name = RPMforge.net: Various packages from FreshRPMS.net for $name $version (%{_arch})
++baseurl = <A HREF="http://ayo.freshrpms.net/$path/linux/$version/%{_arch">http://ayo.freshrpms.net/$path/linux/$version/%{_arch</A>}/freshrpms
++type = rpm-md
++priority = 10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-planetccrma&quot;), {
+-	&quot;name&quot;: &quot;Various packages from RPMforge.net (planetccrma) for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;rpm <A HREF="http://ccrma.stanford.edu/planetccrma/apt/$path/$version/%{_arch">http://ccrma.stanford.edu/planetccrma/apt/$path/$version/%{_arch</A>}&quot;,
+-	&quot;components&quot;: &quot;planetccrma planetcore&quot;,
+-	&quot;type&quot;: &quot;apt-rpm&quot;,
+-	&quot;priority&quot;: 10,
+-	&quot;disabled&quot;: &quot;true&quot;,
+-})
++%{__cat} &lt;&lt;EOF &gt;dries.channel
++[dries]
++name = RPMforge.net: Various packages from Dries RPM Repository for $name $version (%{_arch})
++baseurl = <A HREF="http://apt.sw.be/dries/$path/fc$version/%{_arch">http://apt.sw.be/dries/$path/fc$version/%{_arch</A>}/dries/RPMS
++type = rpm-md
++priority = 10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-jpackage&quot;), {
+-	&quot;name&quot;: &quot;Java packages from JPackage.org for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://mirrors.sunsite.dk/jpackage/1.6/$path-$version/free/">http://mirrors.sunsite.dk/jpackage/1.6/$path-$version/free/</A>&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 0,
+-})
++%{__cat} &lt;&lt;EOF &gt;planetccrma.channel
++[planetcrrma]
++name = RPMforge.net: Various packages from Planet CCRMA for $name $version (%{_arch})
++baseurl = <A HREF="http://ccrma.stanford.edu/planetccrma/apt/$path/$version/%{_arch">http://ccrma.stanford.edu/planetccrma/apt/$path/$version/%{_arch</A>}
++components = planetccrma planetcore
++type = apt-rpm
++priority = 10
++disabled = true
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-newrpms&quot;), {
+-	&quot;name&quot;: &quot;Various packages from NewRPMS for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://newrpms.sunsite.dk/apt/redhat/en/%{_arch">http://newrpms.sunsite.dk/apt/redhat/en/%{_arch</A>}/fc$version&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 0,
+-})
++%{__cat} &lt;&lt;EOF &gt;jpackage.channel
++[jpackage]
++name = Java packages from JPackage.org for $name $version (%{_arch})
++baseurl = <A HREF="http://mirrors.sunsite.dk/jpackage/1.6/$path-$version/free">http://mirrors.sunsite.dk/jpackage/1.6/$path-$version/free</A>
++type = rpm-md
++priority = 0
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-biorpms&quot;), {
+-	&quot;name&quot;: &quot;Bioinformatic packages from BIOrpms for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://apt.bea.ki.se/biorpms/$path/linux/$version/%{_arch">http://apt.bea.ki.se/biorpms/$path/linux/$version/%{_arch</A>}/biorpms&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: 0,
+-})
++%{__cat} &lt;&lt;EOF &gt;newrpms.channel
++[newrpms]
++name = Various packages from NewRPMS for $name $version (%{_arch})
++baseurl = <A HREF="http://newrpms.sunsite.dk/apt/redhat/en/%{_arch">http://newrpms.sunsite.dk/apt/redhat/en/%{_arch</A>}/fc$version
++type = rpm-md
++priority = 0
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-kde-redhat&quot;), {
+-	&quot;name&quot;: &quot;KDE packages from the kde-redhat project for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://apt.kde-redhat.org/apt/kde-redhat/$version/stable">http://apt.kde-redhat.org/apt/kde-redhat/$version/stable</A>&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: -5,
+-})
++%{__cat} &lt;&lt;EOF &gt;biorpms.channel
++[biorpms]
++name = Bioinformatic packages from BIOrpms for $name $version (%{_arch})
++baseurl = <A HREF="http://apt.bea.ki.se/biorpms/$path/linux/$version/%{_arch">http://apt.bea.ki.se/biorpms/$path/linux/$version/%{_arch</A>}/biorpms
++type = rpm-md
++priority = 0
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-kde-redhat-all&quot;), {
+-	&quot;name&quot;: &quot;KDE (nodist) packages from the kde-redhat project for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://apt.kde-redhat.org/apt/kde-redhat/all/stable">http://apt.kde-redhat.org/apt/kde-redhat/all/stable</A>&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: -5,
+-})
++%{__cat} &lt;&lt;EOF &gt;kde-redhat.channel
++[kde-redhat]
++name = KDE packages from the kde-redhat project for $name $version (%{_arch})
++baseurl = <A HREF="http://apt.kde-redhat.org/apt/kde-redhat/$version/stable">http://apt.kde-redhat.org/apt/kde-redhat/$version/stable</A>
++type = rpm-md
++priority = -5
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-nrpms&quot;), {
+-	&quot;name&quot;: &quot;Various packages from Nrpms for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://yum.nrpms.net/$path-$version-%{_arch">http://yum.nrpms.net/$path-$version-%{_arch</A>}/production&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: -10,
+-})
++%{__cat} &lt;&lt;EOF &gt;kde-redhat-all.channel
++[kde-redhat-all]
++name = KDE (nodist) packages from the kde-redhat project for $name $version
++baseurl = <A HREF="http://apt.kde-redhat.org/apt/kde-redhat/all/stable">http://apt.kde-redhat.org/apt/kde-redhat/all/stable</A>
++type = rpm-md
++priority = -5
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-atrpms&quot;), {
+-	&quot;name&quot;: &quot;Various packages from ATrpms for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://apt.physik.fu-berlin.de/$path/$version/en/%{_arch">http://apt.physik.fu-berlin.de/$path/$version/en/%{_arch</A>}/at-testing&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: -10,
+-})
++%{__cat} &lt;&lt;EOF &gt;nrpms.channel
++[nrpms]
++name = Various packages from Nrpms for $name $version (%{_arch})
++baseurl = <A HREF="http://yum.nrpms.net/$path-$version-%{_arch">http://yum.nrpms.net/$path-$version-%{_arch</A>}/production
++type = rpm-md
++priority = -10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-livna&quot;), {
+-	&quot;name&quot;: &quot;Incompatible packages from Livna.org for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://rpm.livna.org/fedora/$version/%{_arch">http://rpm.livna.org/fedora/$version/%{_arch</A>}/RPMS.stable&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: -100,
+-})
++%{__cat} &lt;&lt;EOF &gt;atrpms.channel
++[atrpms]
++name = Various packages from ATrpms for $name $version (%{_arch})
++baseurl = <A HREF="http://apt.physik.fu-berlin.de/$path/$version/en/%{_arch">http://apt.physik.fu-berlin.de/$path/$version/en/%{_arch</A>}/at-testing
++type = rpm-md
++priority = -10
++EOF
+ 
+-sysconf.set((&quot;channels&quot;, &quot;repo-fedora.us&quot;), {
+-	&quot;name&quot;: &quot;Incompatible packages from Fedora.us for $name $version&quot;,
+-	&quot;baseurl&quot;: &quot;<A HREF="http://download.fedora.us/fedora/$path/$version/%{_arch">http://download.fedora.us/fedora/$path/$version/%{_arch</A>}/RPMS.extras/&quot;,
+-	&quot;type&quot;: &quot;rpm-md&quot;,
+-	&quot;priority&quot;: -100,
+-	&quot;disabled&quot;: &quot;true&quot;,
+-})
++%{__cat} &lt;&lt;EOF &gt;mozilla-seamonkey.channel
++[mozilla-seamonkey]
++name = Mozilla packages from Mozilla SeaMonkey for $name $version (%{_arch})
++baseurl = <A HREF="http://ftp.mozilla.org/pub/mozilla.org/mozilla/yum/SeaMonkey/releases/current/redhat/$version">http://ftp.mozilla.org/pub/mozilla.org/mozilla/yum/SeaMonkey/releases/current/redhat/$version</A>
++type = rpm-md
++priority = -10
++disabled = true
++EOF
+ 
+-for type in [&quot;&quot;, &quot;doc&quot;, &quot;smp&quot; ]:
+-	if type:
+-		kernel = &quot;kernel-%s&quot; % type
+-	else:
+-		kernel = &quot;kernel&quot;
+-	pkgconf.setFlag(&quot;multi-version&quot;, kernel)
++%{__cat} &lt;&lt;EOF &gt;livna.channel
++[livna]
++name = Incompatible packages from Livna.org for $name $version (%{_arch})
++baseurl = <A HREF="http://rpm.livna.org/$path/$version/%{_arch">http://rpm.livna.org/$path/$version/%{_arch</A>}/RPMS.stable
++type = rpm-md 
++priority = -100
+ EOF
+ 
++%{__cat} &lt;&lt;EOF &gt;fedora.us.channel
++[fedora.us]
++name = Incompatible packages from Fedora.us for $name $version (%{_arch})
++baseurl = <A HREF="http://download.fedora.us/fedora/$path/$version/%{_arch">http://download.fedora.us/fedora/$path/$version/%{_arch</A>}/RPMS.extras
++type = rpm-md
++priority = -100
++disabled = true
++EOF
++
+ %{__cat} &lt;&lt;EOF &gt;smart.console
+ USER=root
+ PROGRAM=%{_sbindir}/smart
+@@ -239,11 +274,13 @@
+ %{__ln_s} -f consolehelper %{buildroot}%{_bindir}/smart
+ 
+ %{__install} -D -m0644 distro.py %{buildroot}%{_libdir}/smart/distro.py
+-#%{__install} -D -m0755 %{SOURCE1} %{buildroot}%{python_dir}/smart/backends/rpm/rpmmodule.so
++%{__install} -D -m0755 %{SOURCE1} %{buildroot}%{python_dir}/smart/plugins/channelsync.py
+ %{__install} -D -m4755 contrib/smart-update/smart-update %{buildroot}%{_bindir}/smart-update
+ %{__install} -D -m0644 smart.console %{buildroot}%{_sysconfdir}/security/console.apps/smart
+ %{__install} -D -m0644 smart.pam %{buildroot}%{_sysconfdir}/pam.d/smart
+ %{__install} -D -m0644 smart/interfaces/images/smart.png %{buildroot}%{_datadir}/pixmaps/smart.png
++%{__install} -d -m0755 %{buildroot}%{_sysconfdir}/smart/channels/
++%{__cp} -av *.channel %{buildroot}%{_sysconfdir}/smart/channels/
+ 
+ %if %{?_without_freedesktop:1}0
+ 	%{__install} -D -m0644 smart.desktop %{buildroot}%{_datadir}/gnome/apps/System/smart.desktop
+@@ -264,12 +301,19 @@
+ %doc HACKING IDEAS LICENSE README TODO
+ %config %{_libdir}/smart/distro.py
+ %dir %{_libdir}/smart/
++%config(noreplace) %{_sysconfdir}/smart/channels/
+ %{_sysconfdir}/security/console.apps/smart
+ %{_sysconfdir}/pam.d/smart
+ %{_bindir}/smart
+ %{_sbindir}/smart
+ %{python_dir}/smart/
+ %{_libdir}/python%{python_version}/site-packages/smart/
++%exclude %{_libdir}/python%{python_version}/site-packages/smart/interfaces/gtk/
++%{_libdir}/python%{python_version}/site-packages/smart/interfaces/images/
++
++%files gui
++%defattr(-, root, root, 0755)
++%{_libdir}/python%{python_version}/site-packages/smart/interfaces/gtk/
+ %{!?_without_freedesktop:%{_datadir}/applications/%{desktop_vendor}-smart.desktop}
+ %{?_without_freedesktop:%{_datadir}/gnome/apps/System/smart.desktop}
+ %{_datadir}/pixmaps/smart.png
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001413.html">[SVN] r2608 - trunk/rpms/fortune
+</A></li>
+	<LI>Next message: <A HREF="001415.html">[SVN] r2610 - trunk/rpms/smart
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1414">[ date ]</a>
+              <a href="thread.html#1414">[ thread ]</a>
+              <a href="subject.html#1414">[ subject ]</a>
+              <a href="author.html#1414">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

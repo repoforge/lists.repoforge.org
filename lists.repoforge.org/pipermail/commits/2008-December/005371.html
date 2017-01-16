@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6572 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6572%20-%20trunk/tools/dstat&In-Reply-To=%3C200812012058.mB1KwMd4030278%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005370.html">
+   <LINK REL="Next"  HREF="005372.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6572 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6572%20-%20trunk/tools/dstat&In-Reply-To=%3C200812012058.mB1KwMd4030278%40surya.karan.org%3E"
+       TITLE="[svn] r6572 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Dec  1 21:58:22 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005370.html">[svn] r6571 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="005372.html">[svn] r6573 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5371">[ date ]</a>
+              <a href="thread.html#5371">[ thread ]</a>
+              <a href="subject.html#5371">[ subject ]</a>
+              <a href="author.html#5371">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-12-01 20:58:22 +0000 (Mon, 01 Dec 2008)
+New Revision: 6572
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+Listing modules (-M list) now also lists internal plugins
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-12-01 20:41:01 UTC (rev 6571)
++++ trunk/tools/dstat/ChangeLog	2008-12-01 20:58:22 UTC (rev 6572)
+@@ -2,10 +2,11 @@
+ - Input text color is now gray (again)
+ - Added external dstat_luster plugin (Brock Palen, Kilian Vavalotti)
+ - Validate integer values in /proc/swaps (Bert de Bruijn)
+-- Added VMware ESX dstat_vmmemctl plugin (Bert de Bruijn)
++- Added VMware guest dstat_vmmemctl plugin (Bert de Bruijn)
+ - Added internal dstat_fs plugin to show number of open files/inodes
+ - Added internal dstat_socket plugin to show total number of various sockets
+ - Added internal dstat_aio plugin to see number of asynchronous I/O requests
++- Listing modules (-M list) now also lists internal plugins
+ 
+ * 0.6.8 - Buenos Aires - release 12/09/2008
+ - Added improved tick patch (Kelly Long)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2008-12-01 20:41:01 UTC (rev 6571)
++++ trunk/tools/dstat/TODO	2008-12-01 20:58:22 UTC (rev 6572)
+@@ -36,7 +36,7 @@
+ + Add user plugin (number of users logged on, utmp is not that useful, /proc/key-users)
+ + Look into interfacing with apps (bind, sendmail, postfix, squid, amavisd, laus, samba)
+ + Look into interfacing with specific HW counters in /proc
+-+ Look at /proc/meminfo, /proc/mdstat, /proc/netstat, /proc/snmp, /proc/vmstat
+++ Look at /proc/meminfo, /proc/mdstat, /proc/net/netstat, /proc/net/snmp, /proc/vmstat
+ + Look at /proc/fs/cifs/stats
+ + Add i2c plugin (see /sys/class/i2c-adapter/i2c-*/*/*/*/*/*)
+ + Allow for SNMP counters to be added
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-12-01 20:41:01 UTC (rev 6571)
++++ trunk/tools/dstat/dstat	2008-12-01 20:58:22 UTC (rev 6572)
+@@ -108,8 +108,9 @@
+                 ['aio', 'cpu', 'disk', 'epoch', 'fs', 'filesystem', 'int', 'ipc',
+                  'load', 'lock', 'mem', 'net', 'page', 'proc', 'raw', 'socket',
+                  'swap', 'sys', 'tcp', 'time', 'udp', 'unix',
+-                 'all', 'debug', 'full', 'help', 'integer', 'mods', 'modules', 'nocolor',
+-                 'noheaders', 'noupdate', 'output=', 'pidfile=', 'version', 'vmstat'])
++                 'all', 'debug', 'full', 'help', 'integer', 'list', 'mods', 'modules',
++                 'nocolor', 'noheaders', 'noupdate', 'output=', 'pidfile=', 'version',
++                 'vmstat'])
+         except getopt.error, exc:
+             print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+             sys.exit(1)
+@@ -194,6 +195,9 @@
+                 self.output = arg
+             elif opt in ['--pidfile']:
+                 self.pidfile = arg
++            elif opt in ['--list']:
++                listmodules()
++                sys.exit(0)
+             elif opt in ['-h', '--help']:
+                 self.usage()
+                 self.help()
+@@ -277,9 +281,11 @@
+   --udp                  enable udp stats
+   --unix                 enable unix stats
+ 
+-  -M stat1,stat2         enable external stats
++  -M stat1,stat2         enable external plugins
+      --mods stat1,stat2
+ 
++  --list                 list all internal and external plugins
++
+   -a, --all              equals -cdngy (default)
+   -f, --full             expand -C, -D, -I, -N and -S discovery lists
+   -v, --vmstat           equals -pmgdsc -D total
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005370.html">[svn] r6571 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="005372.html">[svn] r6573 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5371">[ date ]</a>
+              <a href="thread.html#5371">[ thread ]</a>
+              <a href="subject.html#5371">[ subject ]</a>
+              <a href="author.html#5371">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,415 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5051 - trunk/rpms/magicpoint
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5051%20-%20trunk/rpms/magicpoint&In-Reply-To=%3C20070108160228.D16BF31815A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003850.html">
+   <LINK REL="Next"  HREF="003852.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5051 - trunk/rpms/magicpoint</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5051%20-%20trunk/rpms/magicpoint&In-Reply-To=%3C20070108160228.D16BF31815A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5051 - trunk/rpms/magicpoint">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jan  8 17:02:28 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003850.html">[svn] r5050 - in trunk/rpms: . magicpoint
+</A></li>
+        <LI>Next message: <A HREF="003852.html">[svn] r5052 - in trunk/tools/dconf: . config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3851">[ date ]</a>
+              <a href="thread.html#3851">[ thread ]</a>
+              <a href="subject.html#3851">[ subject ]</a>
+              <a href="author.html#3851">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-01-08 17:02:27 +0100 (Mon, 08 Jan 2007)
+New Revision: 5051
+
+Added:
+   trunk/rpms/magicpoint/magicpoint-1.11b-64bit.patch
+   trunk/rpms/magicpoint/magicpoint-1.11b-debian.patch
+   trunk/rpms/magicpoint/magicpoint-1.11b-embed.patch
+Log:
+Initial import 2
+
+Added: trunk/rpms/magicpoint/magicpoint-1.11b-64bit.patch
+===================================================================
+--- trunk/rpms/magicpoint/magicpoint-1.11b-64bit.patch	                        (rev 0)
++++ trunk/rpms/magicpoint/magicpoint-1.11b-64bit.patch	2007-01-08 16:02:27 UTC (rev 5051)
+@@ -0,0 +1,38 @@
++--- magicpoint-1.11b/draw.c.64bit	2006-10-21 13:29:24.000000000 +0200
+++++ magicpoint-1.11b/draw.c	2006-10-21 13:27:28.000000000 +0200
++@@ -4884,8 +4884,8 @@
++ 	char *registry;
++ {
++ 	char *xfont;
++-	static XftFont *last_xftfont;
++-	static char lastfont[100];
+++	static XftFont *last_xftfont = NULL;
+++	static char lastfont[100] = &quot;&quot;;
++ 	static int lastsize = 0;
++ 	XftFont *xftfont;
++ 	char *p, *p2;
++@@ -4934,12 +4934,12 @@
++ 		    XFT_FAMILY, XftTypeString, font,
++ 		    XFT_ENCODING, XftTypeString, registry,
++ 		    XFT_STYLE, XftTypeString, style,
++-		    XFT_PIXEL_SIZE, XftTypeDouble, (float)csize, 0);
+++		    XFT_PIXEL_SIZE, XftTypeDouble, (double)csize, NULL);
++ 	} else {
++ 		xftfont = XftFontOpen(display, screen,
++ 		    XFT_FAMILY, XftTypeString, font,
++ 		    XFT_ENCODING, XftTypeString, registry,
++-		    XFT_PIXEL_SIZE, XftTypeDouble, (float)csize, 0);
+++		    XFT_PIXEL_SIZE, XftTypeDouble, (double)csize, NULL);
++ 	}
++ 	if (xftfont == 0) {
++ 		free(xfont);
++@@ -4950,6 +4950,9 @@
++ 		fprintf(stderr, &quot;using xftfont [%s] size: %d\n&quot;, lastfont,
++ 		    csize);
++ 	}
+++	if (last_xftfont)
+++		XftFontClose(display, last_xftfont);
+++	
++ 	lastsize = csize;
++ 	last_xftfont = xftfont;
++ 	free(xfont);
+
+Added: trunk/rpms/magicpoint/magicpoint-1.11b-debian.patch
+===================================================================
+--- trunk/rpms/magicpoint/magicpoint-1.11b-debian.patch	                        (rev 0)
++++ trunk/rpms/magicpoint/magicpoint-1.11b-debian.patch	2007-01-08 16:02:27 UTC (rev 5051)
+@@ -0,0 +1,281 @@
++--- mgp-1.11b.orig/contrib/mgp2html.pl.in
+++++ mgp-1.11b/contrib/mgp2html.pl.in
++@@ -79,10 +79,18 @@
++ 
++ &amp;prologue;
++ while (&lt;&gt;) {
++-	s/\n$//;
+++	s/[\n\r]*$//; # trim CR and LF
+++	s/&lt;/&amp;lt;/g; # escape &lt; as &amp;lt;
++ 
++ 	$_ = '' if (/^#/o);
++ 
+++	# multiline processing (lines ending with '\')
+++	while ((/\\$/) &amp;&amp; (not eof())) {
+++		$_=substr($_,0,-1); # cuts last char (should be '\')
+++		$_=$_.&lt;&gt;; # concatenate next line
+++		s/[\n\r]*$//; # trim CR and LF
+++	}
+++
++ 	if ($_ eq '' || $_ =~ /^[^%]/) {
++ 		$line++;
++ 		$cont = 0 if ($cont == 2);
++@@ -103,6 +111,8 @@
++ 		next;
++ 	}
++ 
+++        $cont = 0 if ($cont == 2);
+++        $cont = 2 if ($cont == 1);
++ 	&amp;cmds($_);
++ }
++ &amp;pageepilogue;
++@@ -152,14 +162,15 @@
++ 			if (!$doimage) {
++ 				# don't use images
++ 			} elsif (scalar(@dir) == 2 || scalar(@dir) == 3) {
++-				print &quot;&lt;IMG SRC=\&quot;$dir[1]\&quot; ALT=\&quot;$dir[1]\&quot;&gt;\n&quot;;
+++				&amp;output(&quot;&lt;IMG SRC=\&quot;$dir[1]\&quot; ALT=\&quot;$dir[1]\&quot;&gt;\n&quot;);
++ 			} elsif (scalar(@dir) == 4) {
++ 				# interpretation wrong
++-				print &quot;&lt;IMG SRC=\&quot;$dir[1]\&quot; WIDTH=$dir[3]% HEIGHT=$dir[3]% ALT=\&quot;$dir[1]\&quot;&gt;\n&quot;;
+++				&amp;output(&quot;&lt;IMG SRC=\&quot;$dir[1]\&quot; WIDTH=$dir[3]% HEIGHT=$dir[3]% ALT=\&quot;$dir[1]\&quot;&gt;\n&quot;);
++ 			} elsif (scalar(@dir) &gt;= 5) {
++ 				# interpretation wrong
++-				print &quot;&lt;IMG SRC=\&quot;$dir[1]\&quot; WIDTH=$dir[3]% HEIGHT=$dir[4]% ALT=\&quot;$dir[1]\&quot;&gt;\n&quot;;
+++				&amp;output(&quot;&lt;IMG SRC=\&quot;$dir[1]\&quot; WIDTH=$dir[3]% HEIGHT=$dir[4]% ALT=\&quot;$dir[1]\&quot;&gt;\n&quot;);
++ 			}
+++			$endline = &quot;&lt;BR&gt;\n&quot;;
++ 		} elsif ($dir[0] eq 'nodefault') {
++ 			$nodefault++;
++ 		} elsif ($dir[0] =~ /^(left|leftfill|right|center)$/) {
++--- mgp-1.11b.orig/contrib/mgpnet.in
+++++ mgp-1.11b/contrib/mgpnet.in
++@@ -32,7 +32,7 @@
++ 
++ # configurations
++ $tmpdir = '/tmp';
++-$httpdatestr = &quot;date '+\%a, \%d \%b \%Y \%H:\%M:\%S \%Z'&quot;;
+++$httpdatestr = &quot;env LC_ALL=C date '+\%a, \%d \%b \%Y \%H:\%M:\%S \%Z'&quot;;
++ $seltimeout = 1;
++ $refreshtimeout = 10;
++ $debug = 0;
++@@ -53,6 +53,7 @@
++ 		} while ($hostname =~ /^127\./);
++ 		close(IN);
++ 	};
+++	$hostname =~ s/^<A HREF="addr://;">addr://;</A> # for GNU/Linux, by ukai
++ 	print &quot;<A HREF="http://$hostname:$port/\n">http://$hostname:$port/\n</A>&quot;;
++ 	exit 0;
++ }
++@@ -150,19 +151,19 @@
++ 	vec($rin, fileno(S), 1) = 1;
++ 	vec($win, fileno(S), 1) = 1;
++ 	$ewin = $rin | $win;
++-	print STDERR &quot;waiting for connetion...\n&quot; if ($debug);
+++	print STDERR &quot;waiting for connection...\n&quot; if ($debug);
++ 	($nfound, $timeleft) = 
++ 		select($rout = $rin, $wout = $win, $eout = $ein, $seltimeout);
++ 	next if ($nfound &lt;= 0);
++ 	if (vec($rout, fileno(S), 1)) {
++-		print STDERR &quot;accepting connetion...\n&quot; if ($debug);
+++		print STDERR &quot;accepting connection...\n&quot; if ($debug);
++ 		accept(NS, S) || do {
++ 			print STDERR &quot;server: accept fail\n&quot; if ($debug);
++ 			next;
++ 		};
++ 
++ 		$acceptstat++;
++-		print STDERR &quot;connetion accepted...\n&quot; if ($debug);
+++		print STDERR &quot;connection accepted...\n&quot; if ($debug);
++ 
++ 		$pid = fork;
++ 		if ($pid &lt; 0) {
++@@ -185,7 +186,7 @@
++ 	}
++ }
++ print STDERR &quot;leaving MagicPoint Netserver...\n&quot;;
++-print STDERR &quot;accepted $acceptstat connetions so far.\n&quot;;
+++print STDERR &quot;accepted $acceptstat connections so far.\n&quot;;
++ close(NS);
++ close(S);
++ unlink($imagefile);
++@@ -256,7 +257,7 @@
++ 	$httpmethod = $httppath = $httpver = '';
++ 	($httpmethod, $httppath, $httpver) = split(/\s+/, $httpreq);
++ 	$httppath =~ s/http:\/\/[^:\/]+(:\d+)\//\//;
++-	if ($httpver eq '' || $httpver eq 'HTTP/1.0') {
+++	if ($httpver eq '' || $httpver =~ m'HTTP/1.[01]') {
++ 		;	# ok
++ 	} else {
++ 		&amp;httpheader(501, $cthtml) if ($httpver);
++@@ -350,7 +351,7 @@
++ &lt;HEAD&gt;&lt;TITLE&gt;File Not found&lt;/TITLE&gt;&lt;/HEAD&gt;
++ &lt;BODY&gt;&lt;H1&gt;File Not found&lt;/H1&gt;
++ The requested URL $httppath was not found on this server.&lt;P&gt;
++-Looks like a mitake in configuration.
+++Looks like a mistake in configuration.
++ Contact the administrator.&lt;P&gt;
++ &lt;/BODY&gt;
++ EOF
++@@ -415,7 +416,7 @@
++ 'XXX4', 'SO_REUSEPORT',	'XXX5', 'SOCK_STREAM',	'XXX6', 'WNOHANG',
++ );
++ 	$tmpnam = &amp;tmpname;
++-	open(CPP, &quot;| @CPP@ &gt;$tmpnam&quot;) || return;
+++	open(CPP, &quot;| @CPP@ - &gt;$tmpnam&quot;) || return;
++ 	print CPP &quot;#include &lt;sys/socket.h&gt;\n&quot;;
++ 	print CPP &quot;#include &lt;sys/wait.h&gt;\n&quot;;
++ 	foreach $tmp (keys %varnames) {
++@@ -439,12 +440,19 @@
++ 		$havesinlen = 0; $sockaddr = 'S n a4 x8';
++ 	}
++ 
+++	use Socket;
++ 	foreach $i (keys %varnames) {
++ 		if (@tmp2 = grep($_ =~ /^$i/, @tmp1)) {
++ 			$tmp = (split(/\s+/, @tmp2[0]))[1];
++ 			$tmp = oct($tmp) if ($tmp =~ /^0/);
++-			next if ($tmp !~ /^[0-9]+$/);
++-			eval &quot;\$$varnames{$i} = \$tmp;&quot;;
+++			if ($tmp =~ /^[0-9]+$/) {
+++			    eval &quot;\$$varnames{$i} = \$tmp;&quot;;
+++			} else {
+++			    # some constant defined by enum, so we can not
+++			    # always use cpp as above. I believe use Socket
+++			    # is more reliable in these days.
+++			    eval &quot;\$$varnames{$i} = &amp;$varnames{$i};&quot;;
+++			}
++ 		}
++ 	}
++ }
++--- mgp-1.11b.orig/README.lang
+++++ mgp-1.11b/README.lang
++@@ -16,6 +16,9 @@
++ 
++ 	%charset &quot;iso8859-1&quot;
++ 
+++Note that this directive can be used after %page directive, that is,
+++you can't use %charset directive in preamble.
+++
++ In the future, we will add more encodings to charset directive, like
++ &quot;iso2022-jp&quot;, or &quot;euc-jp&quot;
++ 
++--- mgp-1.11b.orig/mgpembed.pl.in
+++++ mgp-1.11b/mgpembed.pl.in
++@@ -85,12 +85,20 @@
++ 			print OUT;
++ 			next;
++ 		}
++-		if (/^%(.*)image\s+/i) {
++-			$prefix = $1; $postfix = $';
++-			if ($postfix =~ /\&quot;([^&quot;]*)\&quot;/) { 
++-                # &quot;]*)\&quot;/) { # (workaround for bug in Emacs Perl-syntax)
+++		if (/^%(.*)image\s+([^,]+)/i) {
+++			$a = $1; $fname0 = $fname = $2; $b = $';
+++			if ($a =~ /new$/) {
+++			    if ($fname =~ /\&quot;([^&quot;]*)\&quot;$/) {
++ 				$fname = $1;
++-			} elsif ($b =~ /^(\S+)/) {
+++			    }
+++			} else {
+++			    if ($fname =~ /\s.*/) {
+++				$b = $' . $b;
+++			    }
+++			}
+++			if ($fname =~ /^\&quot;([^&quot;]*)\&quot;/) {
+++				$fname = $1;
+++			} elsif ($fname =~ /^(\S+)/) {
++ 				$fname = $1;
++ 			}
++ 			$base = $fname;
++@@ -106,10 +114,11 @@
++ 			}
++ 			$files{$base} = $fname;
++ 			$embfn = &quot;EMBEDDIR/&quot; . $base;
++-			$postfix =~ s/\&quot;$fname\&quot;/\&quot;$embfn\&quot;/;
+++			$fname0 =~ s/$fname/$embfn/;
++ 			print OUT '%';
++-			print OUT &quot;$prefix&quot;;
++-			print OUT &quot;image $postfix&quot;;
+++			print OUT &quot;$a&quot;;
+++			print OUT &quot;image $fname0&quot;;
+++			print OUT &quot;$b&quot;;
++ 		} elsif (/^%(.*)include\s+(\S+)(.*)$/i) {
++ 			$incfname = $2;
++ 			if ($incfname =~ /^\&quot;(.+)\&quot;$/) {
++--- mgp-1.11b.orig/parse.c
+++++ mgp-1.11b/parse.c
++@@ -782,6 +782,10 @@
++ 				}
++ 			}
++ 		} else {
+++#if 1 /* escape % by backslash */
+++			if (buf[0] == 0x5c)
+++				memcpy(&amp;buf[0], &amp;buf[1], strlen(buf));
+++#endif
++ 			/* this is data */
++ 
++ 			/*
++@@ -1091,6 +1099,7 @@
++ 				case CTL_TMFONT: tmpstr[4] = cp; break;
++ #endif
++ 				case CTL_XFONT2:
+++					define_font (cp);
++ 					if (strcmp(cp-&gt;ctc2_value2,
++ 							&quot;iso8859-1&quot;) == 0) {
++ 						tmpstr[2] = cp;
++@@ -1913,7 +1922,7 @@
++ 	int i;
++ 
++ 	/* find duplicated def */
++-	for (i = 0; i &lt; MAXFONTDEF; i++) {
+++	for (i = 0; cp-&gt;ct_op != CTL_XFONT2 &amp;&amp; i &lt; MAXFONTDEF; i++) {
++ 		if (!fontdef_control[i])
++ 			continue;
++ 		if (strcmp(fontdef_control[i]-&gt;ctc_value,
++@@ -1949,8 +1958,10 @@
++ 	for (i = 0; i &lt; MAXFONTDEF; i++) {
++ 		if (!fontdef_control[i])
++ 			continue;
++-		if (strcmp(fontdef_control[i]-&gt;ctc_value, font) == 0)
+++		if (fontdef_control[i]-&gt;ct_op != CTL_XFONT2
+++		    &amp;&amp; strcmp(fontdef_control[i]-&gt;ctc_value, font) == 0) {
++ 			return fontdef_control[i];
+++		}
++ 	}
++ 	return NULL;
++ }
++--- mgp-1.11b.orig/sample/sample-fr.mgp
+++++ mgp-1.11b/sample/sample-fr.mgp
++@@ -182,6 +182,8 @@
++ this is test
++ %endfilter
++ 
+++	Pour voir cette feature (et les 2 slides prochains) il faut utiliser -U parce que c'est dangereux.
+++
++ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
++ %PAGE
++ 
++--- mgp-1.11b.orig/sample/sample-jp.mgp
+++++ mgp-1.11b/sample/sample-jp.mgp
++@@ -312,6 +312,9 @@
++ %filter &quot;rev&quot;
++ this is test
++ %endfilter
+++
+++	$B$3$N%U%#!&lt;%A%c!&lt;$O4m$$$G$9$+$i(B -U $B$,I,MW$G$9!J&lt;!$N#2%9%i%$%I$b!K(B
+++
++ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
++ %PAGE
++ 
++--- mgp-1.11b.orig/sample/sample.mgp
+++++ mgp-1.11b/sample/sample.mgp
++@@ -229,6 +229,8 @@
++ this is test
++ %endfilter
++ 
+++	Note the -U command line option is required to make this (un-secure) feature and the next two slides work.
+++
++ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
++ %PAGE
++ %bgrad 0 0 256 0 0 &quot;white&quot; &quot;blue&quot;
+
+Added: trunk/rpms/magicpoint/magicpoint-1.11b-embed.patch
+===================================================================
+--- trunk/rpms/magicpoint/magicpoint-1.11b-embed.patch	                        (rev 0)
++++ trunk/rpms/magicpoint/magicpoint-1.11b-embed.patch	2007-01-08 16:02:27 UTC (rev 5051)
+@@ -0,0 +1,11 @@
++--- magicpoint-1.11b/draw.c~	2006-10-21 15:48:48.000000000 +0200
+++++ magicpoint-1.11b/draw.c	2006-10-21 15:48:48.000000000 +0200
++@@ -3750,7 +3750,7 @@
++ 		target = parent;
++ 	}
++ 	XReparentWindow(display, child_window, window, x, y);
++-#if 0
+++#if 1
++ 	XDestroyWindow(display, target);
++ #endif
++ }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003850.html">[svn] r5050 - in trunk/rpms: . magicpoint
+</A></li>
+	<LI>Next message: <A HREF="003852.html">[svn] r5052 - in trunk/tools/dconf: . config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3851">[ date ]</a>
+              <a href="thread.html#3851">[ thread ]</a>
+              <a href="subject.html#3851">[ subject ]</a>
+              <a href="author.html#3851">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

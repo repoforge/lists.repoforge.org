@@ -1,0 +1,460 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4071 - trunk/tools/sarah
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4071%20-%20trunk/tools/sarah&In-Reply-To=%3C20060210152013.AF3C03180B8%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002870.html">
+   <LINK REL="Next"  HREF="002872.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4071 - trunk/tools/sarah</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4071%20-%20trunk/tools/sarah&In-Reply-To=%3C20060210152013.AF3C03180B8%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4071 - trunk/tools/sarah">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Feb 10 16:20:13 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002870.html">[svn] r4070 - trunk/rpms/zaptel
+</A></li>
+        <LI>Next message: <A HREF="002872.html">[svn] r4072 - in trunk/rpms: bonddb bsc comix k3guitune libnxml	libtasn1 msort pbzip2 perl-Mail-Mbox-MessageParser umbrello
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2871">[ date ]</a>
+              <a href="thread.html#2871">[ thread ]</a>
+              <a href="subject.html#2871">[ subject ]</a>
+              <a href="author.html#2871">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-02-10 16:20:12 +0100 (Fri, 10 Feb 2006)
+New Revision: 4071
+
+Modified:
+   trunk/tools/sarah/README
+   trunk/tools/sarah/sarahdb.py
+   trunk/tools/sarah/sarahinfo.py
+   trunk/tools/sarah/sarahlib.py
+Log:
+Big update
+
+Modified: trunk/tools/sarah/README
+===================================================================
+--- trunk/tools/sarah/README	2006-02-10 13:16:40 UTC (rev 4070)
++++ trunk/tools/sarah/README	2006-02-10 15:20:12 UTC (rev 4071)
+@@ -72,6 +72,15 @@
+ 
+ 	<A HREF="http://www.redhat.com/security/updates/classification/">http://www.redhat.com/security/updates/classification/</A>
+ 
+-A life RSS feed to the latest security errata is available from:
++A live RSS feed to the latest security errata is available from:
+ 
+ 	<A HREF="http://rhn.redhat.com/rpc/recent-errata.pxt">http://rhn.redhat.com/rpc/recent-errata.pxt</A>
++
++Some information and statistics from the Red Hat security team:
++
++	<A HREF="http://people.redhat.com/mjc/">http://people.redhat.com/mjc/</A>
++
++General security information:
++
++	<A HREF="http://cve.mitre.org/">http://cve.mitre.org/</A>
++	<A HREF="http://oval.mitre.org/">http://oval.mitre.org/</A>
+
+Modified: trunk/tools/sarah/sarahdb.py
+===================================================================
+--- trunk/tools/sarah/sarahdb.py	2006-02-10 13:16:40 UTC (rev 4070)
++++ trunk/tools/sarah/sarahdb.py	2006-02-10 15:20:12 UTC (rev 4071)
+@@ -14,120 +14,136 @@
+ sarahlib.createtb(cur, 'ref')
+ sarahlib.createtb(cur, 'rpm')
+ sarahlib.createtb(cur, 'pro')
+-sarahlib.createtb(cur, 'typ')
+ 
+ reader = Sax2.Reader()
+ 
+-filelist = glob.glob('advisories/RHSA-*.xml')
+-#filelist = glob.glob('advisories/RHSA-2005-812.xml')
++filelist = glob.glob('advisories/RH?A-*.xml')
++#filelist = glob.glob('advisories/RHSA-2005-839.xml')
+ filelist.sort()
+ 
+ for file in filelist:
+ 	try:
+ 		doc = reader.fromStream(open(file))
+ 		walker = doc.createTreeWalker(doc.documentElement, NodeFilter.SHOW_ELEMENT, None, 0)
+-	except xml.sax._exceptions.SAXParseException:
+-		print '\033[0;31m%s\033[0;0m' % os.path.basename(file),
+-		continue
+ 
+-	print os.path.basename(file).strip('.xml'),
++		next = True
++		advrec = {};
++		while next is not None:
++#			print walker.currentNode.tagName
++	
++			if walker.currentNode.tagName == 'advisory':
++				advrec['sender'] = walker.currentNode.getAttribute('sender')
++				advrec['version'] = walker.currentNode.getAttribute('version')
++	
++			elif walker.currentNode.tagName == 'id':
++				advrec['advid'] = walker.currentNode.firstChild.data
++	
++			elif walker.currentNode.tagName == 'pushcount':
++				advrec['pushcount'] = int(walker.currentNode.firstChild.data)
++	
++			elif walker.currentNode.tagName == 'type':
++				advrec['type'] = walker.currentNode.getAttribute('short')
+ 
+-	next = True
+-	advrec = {};
+-	while next is not None:
+-#		print walker.currentNode.tagName
+-
+-		if walker.currentNode.tagName == 'advisory':
+-			advrec['sender'] = walker.currentNode.getAttribute('sender')
+-			advrec['version'] = walker.currentNode.getAttribute('version')
+-
+-		elif walker.currentNode.tagName == 'id':
+-			advrec['advid'] = walker.currentNode.firstChild.data
+-
+-		elif walker.currentNode.tagName == 'pushcount':
+-			advrec['pushcount'] = int(walker.currentNode.firstChild.data)
+-
+-		elif walker.currentNode.tagName == 'type':
+-			typrec = advrec.copy()
+-			typrec['type'] = walker.currentNode.firstChild.data
+-			advrec['typeshort'] = typrec['typeshort'] = walker.currentNode.getAttribute('short')
+-			cur.execute('select type from typ where typeshort = &quot;%(typeshort)s&quot;' % typrec)
+-			typelist = [type for type, in cur.fetchall()]
+-			if not typelist:
+-				sarahlib.insertrec(cur, 'typ', typrec)
+-				con.commit()
+-			elif typrec['type'] not in typelist:
+-				print 'ERROR: Wrong type exists (%s not in %s)' % (typrec['type'], typelist)
+-
+-		elif walker.currentNode.tagName == 'severity':
+-			if walker.currentNode.firstChild.data:
+-				advrec['severitylevel'] = walker.currentNode.firstChild.data
+-			elif walker.currentNode.getAttribute('level'):
+-				advrec['severitylevel'] = walker.currentNode.getAttribute('level')
+-			else:
+-				advrec['severitylevel'] = 'error'
+-
+-		elif walker.currentNode.tagName == 'synopsis':
+-			advrec['synopsis'] = walker.currentNode.firstChild.data
+-
+-		elif walker.currentNode.tagName == 'issued':
+-			advrec['issuedate'] = walker.currentNode.getAttribute('date')
+-
+-		elif walker.currentNode.tagName == 'updated':
+-			advrec['updatedate'] = walker.currentNode.getAttribute('date')
+-
+-		elif walker.currentNode.tagName == 'references':
+-			next = walker.nextNode()
+-			while walker.currentNode.tagName == 'reference':
+-				refrec = advrec.copy()
+-				refrec['reftype'] = walker.currentNode.getAttribute('type')
+-				if refrec['reftype'] == 'self':
+-					refrec['reference'] = walker.currentNode.firstChild.data
+-					refrec['cve'] = None
+-				elif refrec['reftype'] == 'cve':
+-					refrec['reference'] = walker.currentNode.getAttribute('href')
+-					refrec['cve'] = walker.currentNode.firstChild.firstChild.data
+-				sarahlib.insertrec(cur, 'ref', refrec)
+-				con.commit()
++			elif walker.currentNode.tagName == 'severity':
++				if walker.currentNode.hasAttribute('level'):
++					advrec['severitylevel'] = walker.currentNode.getAttribute('level')
++				elif walker.currentNode.firstChild.data:
++					advrec['severitylevel'] = walker.currentNode.firstChild.data
++				else:
++					advrec['severitylevel'] = 'error'
++	
++			elif walker.currentNode.tagName == 'synopsis':
++				advrec['synopsis'] = walker.currentNode.firstChild.data
++	
++			elif walker.currentNode.tagName == 'issued':
++				advrec['issuedate'] = walker.currentNode.getAttribute('date')
++	
++			elif walker.currentNode.tagName == 'updated':
++				advrec['updatedate'] = walker.currentNode.getAttribute('date')
++	
++			elif walker.currentNode.tagName == 'references':
+ 				next = walker.nextNode()
+-			continue
+-
+-		elif walker.currentNode.tagName == 'topic':
+-			advrec['topic'] = walker.currentNode.firstChild.data
+-
+-		elif walker.currentNode.tagName == 'description':
+-			advrec['description'] = walker.currentNode.firstChild.data
+-
+-		elif walker.currentNode.tagName == 'rpmlist':
+-			next = walker.nextNode()
+-			while walker.currentNode.tagName == 'product':
+-				prorec = advrec.copy()
+-				prorec['prodshort'] = walker.currentNode.getAttribute('short')
+-				### FIXME: Do proper nested parsing
++				while walker.currentNode.tagName == 'reference':
++					refrec = advrec.copy()
++					refrec['reftype'] = walker.currentNode.getAttribute('type')
++					if refrec['reftype'] == 'self':
++						refrec['reference'] = walker.currentNode.getAttribute('href')
++						refrec['id'] = advrec['advid']
++						refrec['summary'] = None
++					elif refrec['reftype'] == 'cve':
++						refrec['reference'] = walker.currentNode.getAttribute('href')
++						refrec['id'] = walker.currentNode.firstChild.firstChild.data
++						refrec['summary'] = None
++					elif refrec['reftype'] == 'bugzilla':
++						refrec['reference'] = walker.currentNode.getAttribute('href')
++						refrec['id'] = walker.currentNode.firstChild.firstChild.data
++						### FIXME: capture the summary as well, when available
++# &lt;reference type=&quot;bugzilla&quot; href=&quot;<A HREF="http://bugzilla.redhat.com/179171">http://bugzilla.redhat.com/179171</A>&quot;&gt;&lt;bugzilla&gt;179171&lt;/bugzilla&gt;&lt;summary&gt;CVE-2005-4134 Very long topic history.dat DoS&lt;/summary&gt;&lt;/reference&gt;
++						refrec['summary'] = None
++					else:
++						refrec['reference'] = None
++						refrec['id'] = None
++						refrec['summary'] = None
++					sarahlib.insertrec(cur, 'ref', refrec)
++					con.commit()
++					next = walker.nextNode()
++				continue
++	
++			elif walker.currentNode.tagName == 'topic':
++				advrec['topic'] = walker.currentNode.firstChild.data
++	
++			elif walker.currentNode.tagName == 'description':
++				advrec['description'] = walker.currentNode.firstChild.data
++	
++			elif walker.currentNode.tagName == 'rpmlist':
+ 				next = walker.nextNode()
+-				prorec['product'] = walker.currentNode.firstChild.data
+-				### FIXME: Create a unique insert function
+-				try: sarahlib.insertrec(cur, 'pro', prorec)
+-				except: pass
+-				next = walker.nextNode()
+-				while walker.currentNode.tagName == 'file':
+-					rpmrec = advrec
+-					rpmrec['arch'] = walker.currentNode.getAttribute('arch')
+-					rpmrec['prodshort'] = prorec['prodshort']
++				while walker.currentNode.tagName == 'product':
++					prorec = advrec.copy()
++					prorec['prodshort'] = walker.currentNode.getAttribute('short')
+ 					### FIXME: Do proper nested parsing
+ 					next = walker.nextNode()
+-					while walker.currentNode.tagName == 'filename':
+-						rpmrec['filename'] = walker.currentNode.firstChild.data
++					prorec['product'] = walker.currentNode.firstChild.data
++					### FIXME: Create a unique insert function
++					try: sarahlib.insertrec(cur, 'pro', prorec)
++					except: pass
++					next = walker.nextNode()
++					while walker.currentNode.tagName == 'file':
++						rpmrec = advrec
++						rpmrec['arch'] = walker.currentNode.getAttribute('arch')
++						rpmrec['prodshort'] = prorec['prodshort']
++						rpmrec['channel'] = []
++						### FIXME: Do proper nested parsing
+ 						next = walker.nextNode()
+-					while walker.currentNode.tagName == 'sum':
+-						rpmrec['md5'] = walker.currentNode.firstChild.data
+-						next = walker.nextNode()
+-					sarahlib.insertrec(cur, 'rpm', rpmrec)
++						while walker.currentNode.tagName in ('filename', 'sum', 'channel'):
++							if walker.currentNode.tagName == 'filename':
++								rpmrec['filename'] = walker.currentNode.firstChild.data
++							elif walker.currentNode.tagName == 'sum':
++								rpmrec['md5'] = walker.currentNode.firstChild.data
++							elif walker.currentNode.tagName == 'channel':
++								rpmrec['channel'].append(walker.currentNode.getAttribute('name'))
++							else:
++								raise 'Unknown tag in file node'
++							next = walker.nextNode()
++						sarahlib.insertrec(cur, 'rpm', rpmrec)
++				con.commit()
+ 				continue
+-				con.commit()
+-			continue
++	
++			next = walker.nextNode()
+ 
+-		next = walker.nextNode()
++		### RHBAs and RHEAs do not have a severity level
++		if advrec['type'] in ('RHBA', 'RHEA'):
++			advrec['severitylevel'] = None
++		if not advrec.has_key('severitylevel'):
++			advrec['severitylevel'] = 'unknown'
++	
++		sarahlib.insertrec(cur, 'adv', advrec)
++#		con.commit()
+ 
+-	sarahlib.insertrec(cur, 'adv', advrec)
+-	con.commit()
++		print '\033[0;32m%s\033[0;0m' % os.path.basename(file).strip('.xml'),
++
++	except (xml.sax._exceptions.SAXParseException, AttributeError, KeyError), e:
++		print '\033[0;31m%s\033[0;0m' % os.path.basename(file),
++		print e
++#		raise
++		continue
++con.commit()
+
+Modified: trunk/tools/sarah/sarahinfo.py
+===================================================================
+--- trunk/tools/sarah/sarahinfo.py	2006-02-10 13:16:40 UTC (rev 4070)
++++ trunk/tools/sarah/sarahinfo.py	2006-02-10 15:20:12 UTC (rev 4071)
+@@ -6,9 +6,24 @@
+ sys.stdout = os.fdopen(1, 'w', 0)
+ con, cur = sarahlib.opendb()
+ 
+-cur.execute('select severitylevel from adv')
++cur.execute('select advid from adv')
+ advlist = cur.fetchall()
+ print 'Number of advisories:', len(advlist)
++print
++
++cur.execute('select distinct type from adv order by type')
++typelist = [e for e, in cur.fetchall()]
++print 'Advisories per type:'
++print '  ',
++for type in typelist:
++	cur.execute('select distinct advid from adv where type == &quot;%s&quot;' % type)
++	print '%s: %s  ' % (type, len(cur.fetchall())),
++print
++print
++
++cur.execute('select severitylevel from adv where type == &quot;RHSA&quot;')
++advlist = cur.fetchall()
++print 'Security advisory per severity level:'
+ count = {}
+ for adv, in advlist:
+ 	if not count.has_key(adv): count[adv] = 0
+@@ -20,35 +35,39 @@
+ print
+ print
+ 
+-cur.execute('select typeshort from typ order by typeshort')
+-typelist = [e for e, in cur.fetchall()]
+-print 'Number of types:', len(typelist)
+-print '  ',
+-for type in typelist:
+-	cur.execute('select distinct advid from adv where typeshort == &quot;%s&quot;' % type)
+-	print '%s: %s  ' % (type, len(cur.fetchall()))
+-print
+-
+ cur.execute('select prodshort from pro order by prodshort')
+ prodlist = [e for e, in cur.fetchall()]
+-print 'Number of products:', len(prodlist)
+-print '  ', string.join(prodlist, ', ')
+-print
+-
++print 'Advisories per products'
++last = '2'
++print '  ',
+ for prod in prodlist:
++	if last != prod[0]:
++		print '\n  ',
++		last = prod[0]
+ 	cur.execute('select distinct advid from rpm where prodshort == &quot;%s&quot;' % prod)
+-	print '     ', prod, 'has', len(cur.fetchall()), 'advisories'
++	print '%s: %s \t' % (prod, len(cur.fetchall())),
+ print
++print
+ 
+-cur.execute('select reftype from ref')
+-reflist = cur.fetchall()
+-print 'Number of references:', len(reflist)
++print 'Advisories per year:'
++print '  ',
++for year in ('2002', '2003', '2004', '2005', '2006'):
++	cur.execute('select advid from adv where issuedate glob &quot;*%s*&quot;' % year)
++	print '%s: %s \t' % (year, len(cur.fetchall())),
++print
++print
++
++cur.execute('select reftype from ref order by reftype')
++typelist = cur.fetchall()
++print 'Number of references:', len(typelist)
+ count = {}
+-for ref, in reflist:
+-	if not count.has_key(ref): count[ref] = 0
+-	count[ref] += 1
++for type, in typelist:
++	if not count.has_key(type): count[type] = 0
++	count[type] += 1
+ print '  ', 
+-for key in count.keys():
++keys = count.keys()
++keys.sort()
++for key in keys:
+ 	print '%s: %s  ' % (key, count[key]),
+ print
+ print
+@@ -58,7 +77,7 @@
+ print
+ 
+ ### Calculate average length of datatypes
+-#for table in ('adv', 'ref', 'rpm', 'pro', 'typ'):
++#for table in ('adv', 'ref', 'rpm', 'pro'):
+ #	for header in sarahlib.headers[table]:
+ #		cur.execute('select %s from %s' % (header, table))
+ #		list = cur.fetchall()
+
+Modified: trunk/tools/sarah/sarahlib.py
+===================================================================
+--- trunk/tools/sarah/sarahlib.py	2006-02-10 13:16:40 UTC (rev 4070)
++++ trunk/tools/sarah/sarahlib.py	2006-02-10 15:20:12 UTC (rev 4071)
+@@ -3,12 +3,11 @@
+ dbase = 'sarahdb.sqlite'
+ 
+ headers = {
+-#	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'typeshort', 'synopsis', 'description', 'topic', 'sender', 'version'),
+-	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'typeshort', 'synopsis', 'description', 'topic'),
+-	'ref': ('advid', 'reftype', 'reference', 'cve'),
++#	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'type', 'synopsis', 'description', 'topic', 'sender', 'version'),
++	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'type', 'synopsis', 'description', 'topic'),
++	'ref': ('advid', 'reftype', 'reference', 'id', 'summary'),
+ 	'rpm': ('advid', 'prodshort', 'arch', 'filename', 'md5'),
+ 	'pro': ('prodshort', 'product'),
+-	'typ': ('typeshort', 'type'),
+ }
+ 
+ dataopts = {
+@@ -16,7 +15,6 @@
+ #	'ref': { 'reftype': 'unique primary key', },
+ #	'rpm': { 'filename': 'unique primary key', },
+ 	'pro': { 'prodshort': 'unique primary key', },
+-	'typ': { 'typeshort': 'unique primary key', },
+ }
+ 
+ def sqlcreate(name):
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002870.html">[svn] r4070 - trunk/rpms/zaptel
+</A></li>
+	<LI>Next message: <A HREF="002872.html">[svn] r4072 - in trunk/rpms: bonddb bsc comix k3guitune libnxml	libtasn1 msort pbzip2 perl-Mail-Mbox-MessageParser umbrello
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2871">[ date ]</a>
+              <a href="thread.html#2871">[ thread ]</a>
+              <a href="subject.html#2871">[ subject ]</a>
+              <a href="author.html#2871">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

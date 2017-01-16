@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1826 - in trunk/rpms: asterisk ffmpeg
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1826%20-%20in%20trunk/rpms%3A%20asterisk%20ffmpeg&In-Reply-To=%3C20040802214024.8EA4C17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000631.html">
+   <LINK REL="Next"  HREF="000633.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1826 - in trunk/rpms: asterisk ffmpeg</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1826%20-%20in%20trunk/rpms%3A%20asterisk%20ffmpeg&In-Reply-To=%3C20040802214024.8EA4C17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1826 - in trunk/rpms: asterisk ffmpeg">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Aug  2 23:40:24 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000631.html">[SVN] r1822 - trunk/rpms/thunderbird
+</A></li>
+        <LI>Next message: <A HREF="000633.html">[SVN] r1827 - in trunk/rpms: a52dec antinat apt asp2php	asterisk-sounds awesum beatforce boa bogofilter clamav	compartment compface dar devhelp distcc divx4linux dnsmasq	enblend gnet gpa gpgme gpgme0311 gq gtkglext gtkmm2 ipsc	iptstate kannel lftp lib3ds libds libebml libgcrypt librsync	libtc libtheora libxml2 liferea linkchecker lphdisk lua	mdbtools mergelog mplayerplug-in nagios-nrpe num-utils	nxtvepg openal paragui pearpc perl-Apache-Session	perl-Crypt-DES perl-File-Tail perl-HTML-Tree perl-IO-stringy	perl-MIME-tools perl-Net-SNMP perl-RPM-Specfile php-acid	php-adodb php-jpgraph php-mmcache php-pear-excel php-pear-ole	php-pecl-mailparse php-pecl-sqlite physfs portaudio	python-chm qstat rhide sketch smpeg soup tcptrack w32codec	xmms-status-plugin xpenguins xpenguins-applet xscorch yumi
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#632">[ date ]</a>
+              <a href="thread.html#632">[ thread ]</a>
+              <a href="subject.html#632">[ subject ]</a>
+              <a href="author.html#632">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-08-02 14:40:22 -0700 (Mon, 02 Aug 2004)
+New Revision: 1826
+
+Modified:
+   trunk/rpms/asterisk/asterisk.spec
+   trunk/rpms/ffmpeg/ffmpeg.spec
+Log:
+Fixes.
+
+
+Modified: trunk/rpms/asterisk/asterisk.spec
+===================================================================
+--- trunk/rpms/asterisk/asterisk.spec	2004-08-02 21:31:35 UTC (rev 1825)
++++ trunk/rpms/asterisk/asterisk.spec	2004-08-02 21:40:22 UTC (rev 1826)
+@@ -10,7 +10,7 @@
+ Summary: The Asterisk PBX and telephony application and toolkit
+ Name: asterisk
+ Version: 1.0
+-Release: %{?prever:0.%{prever}.}2
++Release: %{?prever:0.%{prever}.}5
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
+@@ -53,15 +53,17 @@
+ 
+ %build
+ # Replace /var/run by /var/run/asterisk since we don't run as root
+-#perl -pi -e 's|ASTVARRUNDIR=\$(INSTALL_PREFIX)/var/run|ASTVARRUNDIR=\$(INSTALL_PREFIX)/var/run/%{name}|g' Makefile
++%{__perl} -pi.orig -e 's|/var/run$|%{_localstatedir}/run/asterisk|g' Makefile
+ %{__make} PROC=&quot;%{_arch}&quot; OPTIMIZE=&quot;%{optflags}&quot; 
+-make progdocs
++%{__make} progdocs
+ 
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-make install INSTALL_PREFIX=%{buildroot}
+-install -D -m 0755 %{SOURCE1} %{buildroot}%{_initrddir}/asterisk
++%{__make} install INSTALL_PREFIX=%{buildroot}
++# Install all sample config files
++%{__make} samples DESTDIR=%{buildroot}
++%{__install} -D -m 0755 %{SOURCE1} %{buildroot}%{_initrddir}/asterisk
+ 
+ # Override wrong absolute links
+ %{__rm} -f %{buildroot}%{_localstatedir}/lib/asterisk/sounds/vm &amp;&amp; \
+@@ -74,12 +76,6 @@
+     %{__ln_s} -f voicemail/default \
+                  %{buildroot}%{_localstatedir}/spool/asterisk/vm
+ 
+-# Install all sample config files
+-for file in configs/*.*; do
+-    %{__install} -m 0640 $file \
+-        %{buildroot}%{_sysconfdir}/asterisk/`basename $file .sample`
+-done
+-
+ # We need that directory, see above
+ %{__mkdir_p} %{buildroot}%{_localstatedir}/run/asterisk
+ 
+@@ -89,10 +85,10 @@
+ 
+ # Install demo sounds
+ for file in sounds/demo-*; do
+-    install -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/sounds/
++    %{__install} -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/sounds/
+ done
+ for file in sounds/*.mp3; do
+-    install -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/mohmp3/
++    %{__install} -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/mohmp3/
+ done
+ 
+ 
+@@ -143,8 +139,11 @@
+ 
+ 
+ %changelog
+-* Thu Jul 29 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0-0.RC1.2
+-- Added Areski's cdr patch.
++* Thu Jul 29 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0-0.RC1.5
++- Added Areski's cdr patch -2.
++- Fix /var/run/asterisk -3.
++- Change sample install to use the Makefile -4.
++- Fix safe_asterisk -5.
+ 
+ * Mon Jul 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0-0.RC1.1
+ - Update to 1.0-RC1.
+
+Modified: trunk/rpms/ffmpeg/ffmpeg.spec
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg.spec	2004-08-02 21:31:35 UTC (rev 1825)
++++ trunk/rpms/ffmpeg/ffmpeg.spec	2004-08-02 21:40:22 UTC (rev 1826)
+@@ -17,16 +17,10 @@
+ Source: <A HREF="http://ffmpeg.sourceforge.net/cvs/%{name">http://ffmpeg.sourceforge.net/cvs/%{name</A>}-cvs-%{date}.tar.gz
+ %endif
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-Requires: imlib2, SDL, freetype, zlib
+-%{!?_without_lame:Requires: lame}
+-%{!?_without_vorbis:Requires: libogg, libvorbis}
+-%{!?_without_faad:Requires: faad2}
+-%{!?_without_faac:Requires: faac}
+ BuildRequires: imlib2-devel, SDL-devel, freetype-devel, zlib-devel
+ %{!?_without_lame:BuildRequires: lame-devel}
+ %{!?_without_vorbis:BuildRequires: libogg-devel, libvorbis-devel}
+ %{!?_without_faad:BuildRequires: faad2-devel}
+-%{!?_without_faac:BuildRequires: faac-devel}
+ %{!?_without_a52dec:BuildRequires: a52dec-devel}
+ Provides: libavcodec.so, libavformat.so
+ 
+@@ -47,6 +41,11 @@
+ Summary: Header files and static library for the ffmpeg codec library
+ Group: Development/Libraries
+ Requires: %{name} = %{version}
++Requires: imlib2-devel, SDL-devel, freetype-devel, zlib-devel
++%{!?_without_lame:Requires: lame-devel}
++%{!?_without_vorbis:Requires: libogg-devel, libvorbis-devel}
++%{!?_without_faad:Requires: faad2-devel}
++%{!?_without_a52dec:Requires: a52dec-devel}
+ 
+ %description devel
+ FFmpeg is a very fast video and audio converter. It can also grab from a
+@@ -81,7 +80,6 @@
+     %{!?_without_lame: --enable-mp3lame} \
+     %{!?_without_vorbis: --enable-vorbis} \
+     %{!?_without_faad: --enable-faad} \
+-    %{!?_without_faac: --enable-faac} \
+     %{!?_without_a52dec: --enable-a52}
+ %{__make} %{?_smp_mflags} \
+     OPTFLAGS=&quot;-fPIC %{optflags}&quot; \
+@@ -135,6 +133,12 @@
+ 
+ 
+ %changelog
++* Mon Aug  2 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.4.8-3
++- Removed explicit binary dependencies.
++- Removed faac support, it doesn't exist.
++- Seems like Imlib2 support is broken...
++- Added missing -devel requirements for the -devel package.
++
+ * Thu Jun 03 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.8-3
+ - Fixes for building for x86_64 architecture.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000631.html">[SVN] r1822 - trunk/rpms/thunderbird
+</A></li>
+	<LI>Next message: <A HREF="000633.html">[SVN] r1827 - in trunk/rpms: a52dec antinat apt asp2php	asterisk-sounds awesum beatforce boa bogofilter clamav	compartment compface dar devhelp distcc divx4linux dnsmasq	enblend gnet gpa gpgme gpgme0311 gq gtkglext gtkmm2 ipsc	iptstate kannel lftp lib3ds libds libebml libgcrypt librsync	libtc libtheora libxml2 liferea linkchecker lphdisk lua	mdbtools mergelog mplayerplug-in nagios-nrpe num-utils	nxtvepg openal paragui pearpc perl-Apache-Session	perl-Crypt-DES perl-File-Tail perl-HTML-Tree perl-IO-stringy	perl-MIME-tools perl-Net-SNMP perl-RPM-Specfile php-acid	php-adodb php-jpgraph php-mmcache php-pear-excel php-pear-ole	php-pecl-mailparse php-pecl-sqlite physfs portaudio	python-chm qstat rhide sketch smpeg soup tcptrack w32codec	xmms-status-plugin xpenguins xpenguins-applet xscorch yumi
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#632">[ date ]</a>
+              <a href="thread.html#632">[ thread ]</a>
+              <a href="subject.html#632">[ subject ]</a>
+              <a href="author.html#632">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

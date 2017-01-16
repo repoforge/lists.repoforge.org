@@ -1,0 +1,613 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2652 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2652%20-%20trunk/tools/dstat&In-Reply-To=%3C20041210171258.CDF2717F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001456.html">
+   <LINK REL="Next"  HREF="001458.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2652 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2652%20-%20trunk/tools/dstat&In-Reply-To=%3C20041210171258.CDF2717F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2652 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Dec 10 18:12:58 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001456.html">[SVN] r2651 - in trunk/rpms: . perl-IPC-Run3 perl-Module-Load	perl-Net-Pcap
+</A></li>
+        <LI>Next message: <A HREF="001458.html">[SVN] r2653 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1457">[ date ]</a>
+              <a href="thread.html#1457">[ thread ]</a>
+              <a href="subject.html#1457">[ subject ]</a>
+              <a href="author.html#1457">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-10 18:12:57 +0100 (Fri, 10 Dec 2004)
+New Revision: 2652
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Updates + smp support
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-12-10 17:04:22 UTC (rev 2651)
++++ trunk/tools/dstat/ChangeLog	2004-12-10 17:12:57 UTC (rev 2652)
+@@ -1,12 +1,15 @@
+ * 0.5.6
+ - Made sys and int stats unit-aware (so 10000 int/sec -&gt; 10.0k) (Anton Blanchard)
+-- Improve conv() function and stat show() functions.
+-- Improved the calculation of the cpu usage.
+-- cpu stats will now show hardirq and softirq by default if possible. (Anton Blanchard)
+-- Color cpu, proc, tcp and udp stats too.
+-- Don't clear the line after restoring the cursor at the start (disable flickering).
+-- Better formatting for load and proc stats.
++- Improve conv() function and stat show() functions
++- Improved the calculation of the cpu usage
++- cpu stats will now show hardirq and softirq by default if possible (Anton Blanchard)
++- Color cpu, proc, tcp and udp stats too
++- Don't clear the line after restoring the cursor at the start (disable flickering)
++- Better formatting for load and proc stats
+ - cpu stats are not longer snapshots but average over delay
++- Fix for diskless systems. (Werner Augustin)
++- Gracefully handle incorrect arguments
++- Added smp support (Bert de Bruijn)
+ 
+ * 0.5.5
+ - In fact, round() was not the problem, use str() instead. (Anton Blanchard)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-12-10 17:04:22 UTC (rev 2651)
++++ trunk/tools/dstat/TODO	2004-12-10 17:12:57 UTC (rev 2652)
+@@ -13,7 +13,6 @@
+ ### Extending statistics (help welcome!)
+ + Add all stats to seperate modules and allow people to plugin their own modules
+ + Add application stats (-a or -A pid,cmd)
+-+ Add mpstat information (-C 0,1,2)
+ + Add icmp stats ?
+ + Add ntp stats
+ + Add nfs stats
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-10 17:04:22 UTC (rev 2651)
++++ trunk/tools/dstat/dstat	2004-12-10 17:12:57 UTC (rev 2652)
+@@ -27,6 +27,7 @@
+ class Options:
+ 	def __init__(self, args):
+ 		self.count = -1
++		self.cpulist = None
+ 		self.delay = 1
+ 		self.disklist = None
+ 		self.full = False
+@@ -38,7 +39,7 @@
+ 		self.header = True
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'acdfghilmnpstvyD:I:M:N:',
++			opts, args = getopt.getopt (args, 'acdfghilmnpstvyC:D:I:M:N:',
+ 				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net', 'page',
+ 				'proc', 'swap', 'sys', 'tcp', 'time', 'udp', 'version', 'vmstat',
+ 				'full', 'integer', 'mods', 'modules', 'nocolor', 'noheader', 'noupdate'])
+@@ -51,6 +52,8 @@
+ 		for opt, arg in opts:
+ 			if opt in ['-c', '--cpu']:
+ 				self.modlist.append('cpu')
++			elif opt in ['-C']:
++				self.cpulist = arg.split(',')
+ 			elif opt in ['-d', '--disk']:
+ 				self.modlist.append('disk')
+ 			elif opt in ['-D']:
+@@ -113,14 +116,16 @@
+ 		if not self.modlist:
+ 			self.modlist = [ 'cpu', 'disk', 'net', 'sys', 'page' ]
+ 
+-		if len(args) &gt; 0:
+-			self.delay = int(args[0])
++		try:
++			if len(args) &gt; 0: self.delay = int(args[0])
++			if len(args) &gt; 1: self.count = int(args[1])
++		except:
++			print 'dstat: incorrect argument, try dstat -h for the correct syntax'
++			sys.exit(1)
+ 
+-		if len(args) &gt; 1:
+-			self.count = int(args[1])
+-
+ 		if self.delay == 0:
+-				die(6, 'Delay must be an integer, greater than zero')
++			print 'dstat: delay must be an integer, greater than zero'
++			sys.exit(1)
+ 
+ 	def version(self):
+ 		print 'Dstat %s' % VERSION
+@@ -139,6 +144,7 @@
+ 
+ Dstat options:
+   -c, --cpu                enable cpu stats
++     -C 0,3,                  include cpu0, cpu3 and total
+   -d, --disk               enable disk stats
+      -D total,hda             include hda and total
+   -g, --page               enable page stats
+@@ -205,15 +211,11 @@
+ 
+ class dstat:
+ 	def init(self):
+-#		if not self.check(): return
+-
++		### Initialise default variables
+ 		self.title1 = self.title1()
+ 		self.title2 = self.title2()
+ 
+-		### Initialise default variables
+-		self.val = {}
+-		self.cn1 = {}
+-		self.cn2 = {}
++		self.val = {}; self.cn1 = {}; self.cn2 = {}
+ 		for i in self.vars: self.val[i] = self.cn1[i] = self.cn2[i] = 0
+ 
+ 	def width(self):
+@@ -252,6 +254,9 @@
+ 			elif self.format in ('%s %s', '%s:%s', '%s-%s'):
+ 				sys.stdout.write(self.format % convlist(self.len, self.val[name]))
+ 				sep = ansi['default'] + '|'
++			elif self.format == '%s %s %s %s %s %s':
++				sys.stdout.write(self.format % convlist(self.len, self.val[name], 100))
++				sep = ansi['default'] + '|'
+ 			else:
+ 				sys.stdout.write(self.format % self.val[name])
+ 			if name != self.vars[-1]:
+@@ -260,13 +265,28 @@
+ class dstat_cpu(dstat):
+ 	def __init__(self):
+ 		self.name = 'cpu usage'
+-		self.len = 3
+-		self.format = '%ps'
+-		self.vars = ('user', 'sys', 'idle', 'wait', 'hardirq', 'softirq')
+-		self.nick = ( 'usr', 'sys', 'idl', 'wai', 'hiq', 'siq' )
++		self.len = 23
++		self.format = '%s %s %s %s %s %s'
++		if op.cpulist:
++			self.vars = op.cpulist
++		else:
++			self.vars = self.discover()
++		self.nick = []
++		for name in self.vars:
++			if name:
++				self.nick.append('us%1d sy%1d id%1d wa%1d hq%1d sq%1d' % (int(name), int(name), int(name), int(name), int(name), int(name)))
++			else:
++				self.nick.append('usr sys idl wai hiq siq')
++#		self.vars = ('user', 'sys', 'idle', 'wait', 'hardirq', 'softirq')
++#		self.nick = ( 'usr', 'sys', 'idl', 'wai', 'hiq', 'siq' )
+ 		self.init()
+-		self.cn1['total'] = 0
++		for name in self.vars: self.cn1[name] = (0, 0, 0, 0, 0, 0); self.cn1[''] = (0, 0, 0, 0, 0, 0)
++		for name in self.vars: self.cn2[name] = (0, 0, 0, 0, 0, 0); self.cn2[''] = (0, 0, 0, 0, 0, 0)
++		for name in self.vars: self.val[name] = [0, 0, 0, 0, 0, 0]; self.val[''] = [0, 0, 0, 0, 0, 0]
+ 
++	def discover(self):
++		return ('',)
++
+ 	def check(self):
+ 		if os.path.exists('/proc/stat'):
+ 			l = open('/proc/stat', 'r').readline().split()
+@@ -277,16 +297,12 @@
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split()
+-			if len(l) &lt;= 7 or l[0] != 'cpu': continue
+-			self.cn2['user'] = long(l[1]) + long(l[2])
+-			self.cn2['sys'] = long(l[3])
+-			self.cn2['idle'] = long(l[4])
+-			self.cn2['wait'] = long(l[5])
+-			self.cn2['hardirq'] = long(l[6])
+-			self.cn2['softirq'] = long(l[7])
+-			self.cn2['total'] = self.cn2['user'] + self.cn2['sys'] + self.cn2['idle'] + self.cn2['wait'] + self.cn2['hardirq'] + self.cn2['softirq']
++			for name in self.vars:
++				if len(l) &lt;= 7 or l[0] != 'cpu'+name: continue
++				self.cn2[name] = ( long(l[1]) + long(l[2]), long(l[3]), long(l[4]), long(l[5]), long(l[6]), long(l[7]) )
+ 		for name in self.vars:
+-			self.val[name] = 100.0 * (self.cn2[name] - self.cn1[name]) / (self.cn2['total'] - self.cn1['total'])
++			for i in (0, 1, 2, 3, 4, 5):
++				self.val[name][i] = 100.0 * (self.cn2[name][i] - self.cn1[name][i]) / (total(self.cn2[name]) - total(self.cn1[name]))
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+@@ -322,7 +338,6 @@
+ 
+ class dstat_disk(dstat):
+ 	def __init__(self):
+-		if not self.check(): return
+ 		self.format = '%s %s'
+ 		self.len = 11
+ 		self.name = 'disk i/o'
+@@ -345,6 +360,7 @@
+ 
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/diskstats'): return retlist
+ 		for line in open('/proc/diskstats', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 13 or l[3] == '0': continue
+@@ -356,7 +372,7 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/diskstats'):
++		if os.path.exists('/proc/diskstats') and len(self.vars) &gt; 0:
+ 			return True
+ 		return False
+ 
+@@ -384,6 +400,7 @@
+ class dstat_disk24(dstat_disk):
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/partitions'): return retlist
+ 		for line in open('/proc/partitions', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+@@ -395,10 +412,8 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/partitions') and not os.path.exists('/proc/diskstats'):
+-			l = open('/proc/partitions', 'r').readline().split()
+-			if len(l) &gt; 4:
+-				return True
++		if os.path.exists('/proc/partitions') and not os.path.exists('/proc/diskstats') and len(self.vars) &gt; 0:
++			return True
+ 		return False
+ 
+ 	def stats(self):
+@@ -426,6 +441,7 @@
+ class dstat_disk24old(dstat_disk24):
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/partitions'): return retlist
+ 		for line in open('/proc/partitions', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) != 4 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+@@ -438,12 +454,9 @@
+ 
+ 	def check(self):
+ 		if os.path.exists('/proc/stat') and \
+-			not os.path.exists('/proc/diskstats'):
+-			if os.path.exists('/proc/partitions'):
+-				l = open('/proc/partitions', 'r').readline().split()
+-				if len(l) &lt;= 4:
+-					return True
+-			else:
++			not os.path.exists('/proc/partitions') and \
++			not os.path.exists('/proc/diskstats') and \
++			len(self.vars) &gt; 0:
+ 				return True
+ 		return False
+ 
+@@ -487,6 +500,7 @@
+ 
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/interrupts'): return retlist
+ 		for line in open('/proc/interrupts', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 1: continue
+@@ -498,7 +512,7 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/interrupts'):
++		if os.path.exists('/proc/interrupts') and len(self.vars) &gt; 0:
+ 			return True
+ 		return False
+ 
+@@ -582,6 +596,7 @@
+ 
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/net/dev'): return retlist
+ 		for line in open('/proc/net/dev', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+@@ -594,7 +609,7 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/net/dev'):
++		if os.path.exists('/proc/net/dev') and len(self.vars) &gt; 0:
+ 			return True
+ 		return False
+ 
+@@ -691,11 +706,11 @@
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+-			if name in self.vars:
+-				self.val[name] = long(l[1])
+-			if name in ('processes',):
++			if name == 'processes':
+ 				self.val['processes'] = 0
+ 				self.cn2[name] = long(l[1])
++			elif name in self.vars:
++				self.val[name] = long(l[1])
+ 		if self.val['procs_running'] &gt; 0:
+ 			self.val['procs_running'] = self.val['procs_running'] - 1
+ 		if update:
+@@ -858,11 +873,17 @@
+ 	'default': '\033[0;0m',
+ }
+ 
+-def convlist(max, list):
++def total(list):
++	ret = 0
++	for i in list:
++		ret = ret + i
++	return ret
++
++def convlist(max, list, base = 1024):
+ 	max = max / len(list)
+ 	retlist = ()
+ 	for var in list:
+-		retlist = retlist + (conv(max, var), )
++		retlist = retlist + (conv(max, var, base), )
+ 	return retlist
+ 
+ #def convlist(max, list):
+@@ -1154,7 +1175,7 @@
+ 		print
+ 		print ansi['reset'] + 'OSError: %s' %e
+ 		sys.exit(7)
++
+ sys.exit(0)
+ 
+-
+ # vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/dstat.1
+===================================================================
+--- trunk/tools/dstat/dstat.1	2004-12-10 17:04:22 UTC (rev 2651)
++++ trunk/tools/dstat/dstat.1	2004-12-10 17:12:57 UTC (rev 2652)
+@@ -12,6 +12,9 @@
+ \fB\-c\fR, \fB\-\-cpu\fR
+ enable cpu stats
+ .TP
++\fB\-C\fR 0,3,
++include cpu0, cpu3 and total
++.TP
+ \fB\-d\fR, \fB\-\-disk\fR
+ enable disk stats
+ .TP
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2004-12-10 17:04:22 UTC (rev 2651)
++++ trunk/tools/dstat/dstat.spec	2004-12-10 17:12:57 UTC (rev 2652)
+@@ -72,7 +72,7 @@
+ %{_bindir}/dstat
+ 
+ %changelog
+-* Thu Dec 02 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.6-1
++* Wed Dec 08 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.6-1
+ - Updated to release 0.5.6.
+ 
+ * Thu Dec 02 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.5-1
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2004-12-10 17:04:22 UTC (rev 2651)
++++ trunk/tools/dstat/dstat15	2004-12-10 17:12:57 UTC (rev 2652)
+@@ -113,14 +113,16 @@
+ 		if not self.modlist:
+ 			self.modlist = [ 'cpu', 'disk', 'net', 'sys', 'page' ]
+ 
+-		if len(args) &gt; 0:
+-			self.delay = int(args[0])
++		try:
++			if len(args) &gt; 0: self.delay = int(args[0])
++			if len(args) &gt; 1: self.count = int(args[1])
++		except:
++			print 'dstat: incorrect argument, try dstat -h for the correct syntax'
++			sys.exit(1)
+ 
+-		if len(args) &gt; 1:
+-			self.count = int(args[1])
+-
+ 		if self.delay == 0:
+-				die(6, 'Delay must be an integer, greater than zero')
++			print 'dstat: delay must be an integer, greater than zero'
++			sys.exit(1)
+ 
+ 	def version(self):
+ 		print 'Dstat %s' % VERSION
+@@ -163,7 +165,7 @@
+   -a, --all          equals -cdngyl
+   -v, --vmstat       equals -pmgdsc -D total
+ 
+-  -f, --full         expand -D, -I and -N disovery lists
++  -f, --full         expand -D, -I and -N discovery lists
+   --integer          show integer values
+   --nocolor          disable colors (implies --noupdate)
+   --noheader         disable repetitive headers
+@@ -205,15 +207,11 @@
+ 
+ class dstat:
+ 	def init(self):
+-#		if not self.check(): return
+-
++		### Initialise default variables
+ 		self.title1 = self.title1()
+ 		self.title2 = self.title2()
+ 
+-		### Initialise default variables
+-		self.val = {}
+-		self.cn1 = {}
+-		self.cn2 = {}
++		self.val = {}; self.cn1 = {}; self.cn2 = {}
+ 		for i in self.vars: self.val[i] = self.cn1[i] = self.cn2[i] = 0
+ 
+ 	def width(self):
+@@ -322,7 +320,6 @@
+ 
+ class dstat_disk(dstat):
+ 	def __init__(self):
+-		if not self.check(): return
+ 		self.format = '%s %s'
+ 		self.len = 11
+ 		self.name = 'disk i/o'
+@@ -345,6 +342,7 @@
+ 
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/diskstats'): return retlist
+ 		for line in open('/proc/diskstats', 'r').readlines():
+ 			l = string.split(line)
+ 			if len(l) &lt; 13 or l[3] == '0': continue
+@@ -356,7 +354,7 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/diskstats'):
++		if os.path.exists('/proc/diskstats') and len(self.vars) &gt; 0:
+ 			return True
+ 		return False
+ 
+@@ -384,6 +382,7 @@
+ class dstat_disk24(dstat_disk):
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/partitions'): return retlist
+ 		for line in open('/proc/partitions', 'r').readlines():
+ 			l = string.split(line)
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+@@ -395,10 +394,8 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/partitions') and not os.path.exists('/proc/diskstats'):
+-			l = string.split(open('/proc/partitions', 'r').readline())
+-			if len(l) &gt; 4:
+-				return True
++		if os.path.exists('/proc/partitions') and not os.path.exists('/proc/diskstats') and len(self.vars) &gt; 0:
++			return True
+ 		return False
+ 
+ 	def stats(self):
+@@ -426,6 +423,7 @@
+ class dstat_disk24old(dstat_disk24):
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/partitions'): return retlist
+ 		for line in open('/proc/partitions', 'r').readlines():
+ 			l = string.split(line)
+ 			if len(l) != 4 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+@@ -438,12 +436,9 @@
+ 
+ 	def check(self):
+ 		if os.path.exists('/proc/stat') and \
+-			not os.path.exists('/proc/diskstats'):
+-			if os.path.exists('/proc/partitions'):
+-				l = string.split(open('/proc/partitions', 'r').readline())
+-				if len(l) &lt;= 4:
+-					return True
+-			else:
++			not os.path.exists('/proc/partitions') and \
++			not os.path.exists('/proc/diskstats') and \
++			len(self.vars) &gt; 0:
+ 				return True
+ 		return False
+ 
+@@ -487,6 +482,7 @@
+ 
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/interrupts'): return retlist
+ 		for line in open('/proc/interrupts', 'r').readlines():
+ 			l = string.split(line)
+ 			if len(l) &lt; 1: continue
+@@ -498,7 +494,7 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/interrupts'):
++		if os.path.exists('/proc/interrupts') and len(self.vars) &gt; 0:
+ 			return True
+ 		return False
+ 
+@@ -582,6 +578,7 @@
+ 
+ 	def discover(self):
+ 		retlist = []
++		if not os.path.exists('/proc/net/dev'): return retlist
+ 		for line in open('/proc/net/dev', 'r').readlines():
+ 			l = string.split(line)
+ 			if len(l) &lt; 2: continue
+@@ -594,7 +591,7 @@
+ 		return retlist
+ 
+ 	def check(self):
+-		if os.path.exists('/proc/net/dev'):
++		if os.path.exists('/proc/net/dev') and len(self.vars) &gt; 0:
+ 			return True
+ 		return False
+ 
+@@ -691,11 +688,11 @@
+ 			l = string.split(line)
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+-			if name in self.vars:
+-				self.val[name] = long(l[1])
+-			if name in ('processes',):
++			if name == 'processes':
+ 				self.val['processes'] = 0
+ 				self.cn2[name] = long(l[1])
++			elif name in self.vars:
++				self.val[name] = long(l[1])
+ 		if self.val['procs_running'] &gt; 0:
+ 			self.val['procs_running'] = self.val['procs_running'] - 1
+ 		if update:
+@@ -1158,5 +1155,4 @@
+ 
+ sys.exit(0)
+ 
+-
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001456.html">[SVN] r2651 - in trunk/rpms: . perl-IPC-Run3 perl-Module-Load	perl-Net-Pcap
+</A></li>
+	<LI>Next message: <A HREF="001458.html">[SVN] r2653 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1457">[ date ]</a>
+              <a href="thread.html#1457">[ thread ]</a>
+              <a href="subject.html#1457">[ subject ]</a>
+              <a href="author.html#1457">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

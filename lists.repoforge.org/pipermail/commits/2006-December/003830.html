@@ -1,0 +1,985 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5030 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5030%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20061228200608.F19A631815C%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003829.html">
+   <LINK REL="Next"  HREF="003831.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5030 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5030%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20061228200608.F19A631815C%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5030 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Dec 28 21:06:08 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003829.html">[svn] r5029 - in trunk/tools/dstat: . plugins
+</A></li>
+        <LI>Next message: <A HREF="003831.html">[svn] r5031 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3830">[ date ]</a>
+              <a href="thread.html#3830">[ thread ]</a>
+              <a href="subject.html#3830">[ subject ]</a>
+              <a href="author.html#3830">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-12-28 21:05:54 +0100 (Thu, 28 Dec 2006)
+New Revision: 5030
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_cpufreq.py
+   trunk/tools/dstat/plugins/dstat_dbus.py
+   trunk/tools/dstat/plugins/dstat_freespace.py
+   trunk/tools/dstat/plugins/dstat_gpfs.py
+   trunk/tools/dstat/plugins/dstat_gpfsop.py
+   trunk/tools/dstat/plugins/dstat_nfs3.py
+   trunk/tools/dstat/plugins/dstat_nfs3op.py
+   trunk/tools/dstat/plugins/dstat_nfsd3.py
+   trunk/tools/dstat/plugins/dstat_nfsd3op.py
+   trunk/tools/dstat/plugins/dstat_postfix.py
+   trunk/tools/dstat/plugins/dstat_rpc.py
+   trunk/tools/dstat/plugins/dstat_rpcd.py
+   trunk/tools/dstat/plugins/dstat_sendmail.py
+   trunk/tools/dstat/plugins/dstat_thermal.py
+   trunk/tools/dstat/plugins/dstat_utmp.py
+   trunk/tools/dstat/plugins/dstat_vmkhba.py
+   trunk/tools/dstat/plugins/dstat_vmkint.py
+   trunk/tools/dstat/plugins/dstat_vzcpu.py
+   trunk/tools/dstat/plugins/dstat_vzubc.py
+   trunk/tools/dstat/plugins/dstat_wifi.py
+Log:
+Small improvements to modules.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/ChangeLog	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -1,5 +1,8 @@
+ * 0.6.5 - ... - released 28/12/2006
+ - Added VMware ESX plugins (Bert de Bruijn)
++- Added tcp6 and udp6 statistics within dstat_tcp and dstat_udp
++- Added module readlines() taking care of seek() and multiple files
++- Improved module exception messages
+ 
+ * 0.6.4 - Ahoy - released 12/12/2006
+ - Fixed dstat_clock to use localtime() instead of gmtime()
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/dstat	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -99,9 +99,10 @@
+ 		try:
+ 			import getopt
+ 			opts, args = getopt.getopt (args, 'acdfghilmno:pstTvyC:D:I:M:N:S:V',
+-				['all', 'cpu', 'disk', 'epoch', 'help', 'int', 'ipc', 'load', 'lock', 'mem', 'net', 'page',
+-				'proc', 'raw', 'swap', 'sys', 'tcp', 'time', 'udp', 'unix', 'version', 'vmstat',
+-				'debug', 'full', 'integer', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate', 'output='])
++				['cpu', 'disk', 'epoch', 'int', 'ipc', 'load', 'lock', 'mem', 'net',
++				'page', 'proc', 'raw', 'swap', 'sys', 'tcp', 'time', 'udp', 'unix', 
++				'all', 'debug', 'full', 'help', 'integer', 'mods', 'modules', 'nocolor',
++				'noheaders', 'noupdate', 'output=', 'version', 'vmstat'])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+ 			exit(1)
+@@ -283,11 +284,22 @@
+ 					for i in range(len):
+ 						self.val[name][i] = self.cn1[name][i] = self.cn2[name][i] = 0
+ 
+-	def open(self, file):
++	def open(self, *files):
+ 		&quot;Open stat file descriptor&quot;
+-		self.file = file
+-		self.fd = dopen(file)
++		self.file = []
++		self.fd = []
++		for file in files:
++			self.file.append(file)
++			self.fd.append(dopen(file))
++		if not self.fd:
++			raise Exception, 'Cannot open file %s.' % file
+ 
++	def readlines(self):
++		for fd in self.fd:
++			fd.seek(0)
++			for line in fd.readlines():
++				yield line
++
+ 	def statwidth(self):
+ 		&quot;Return complete stat width&quot;
+ 		return len(self.vars) * self.width() + len(self.vars) - 1
+@@ -366,11 +378,13 @@
+ 
+ 	def check(self):
+ 		&quot;Check if stat is applicable&quot;
+-		if hasattr(self, 'fd') and not self.fd:
+-			raise Exception, 'File %s does not exist' % self.file
++#		if hasattr(self, 'fd') and not self.fd:
++#			raise Exception, 'File %s does not exist' % self.file
+ 		if not self.vars:
+-			raise Exception, 'No objects found, no stats available, module disabled'
+-		if self.discover and self.width():
++			raise Exception, 'No objects found, no stats available'
++		if not self.discover:
++			raise Exception, 'No objects discovered, no stats available'
++		if self.width():
+ 			return True
+ 		raise Exception, 'Unknown problem, please report'
+ 
+@@ -436,13 +450,11 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		if self.fd:
+-			self.fd.seek(0)
+-			for line in self.fd.readlines():
+-				l = line.split()
+-				if len(l) &lt; 8 or l[0][0:3] != 'cpu': continue
+-				ret.append(l[0][3:])
+-			ret.sort()
++		for line in self.readlines():
++			l = line.split()
++			if len(l) &lt; 8 or l[0][0:3] != 'cpu': continue
++			ret.append(l[0][3:])
++		ret.sort()
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
+@@ -474,8 +486,7 @@
+ 		return ret
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 8: continue
+ 			for name in self.vars:
+@@ -508,8 +519,7 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) != 5 or l[0][0:3] != 'cpu': continue
+ 			ret.append(l[0][3:])
+@@ -536,8 +546,7 @@
+ 		return ret
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			for name in self.vars:
+ 				if l[0] == 'cpu' + name or ( l[0] == 'cpu' and name == 'total' ):
+@@ -560,15 +569,13 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		if self.fd:
+-			self.fd.seek(0)
+-			for line in self.fd.readlines():
+-				l = line.split()
+-				if len(l) &lt; 13: continue
+-				if l[3:] == ['0',] * 11: continue
+-				name = l[2]
+-				if re.match('(md[0-9]+|dm-[0-9]+)', name): continue
+-				ret.append(name)
++		for line in self.readlines():
++			l = line.split()
++			if len(l) &lt; 13: continue
++			if l[3:] == ['0',] * 11: continue
++			name = l[2]
++			if re.match('(md[0-9]+|dm-[0-9]+)', name): continue
++			ret.append(name)
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
+@@ -589,8 +596,7 @@
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 13: continue
+ 			if l[5] == '0' and l[9] == '0': continue
+@@ -621,14 +627,13 @@
+ 		self.discover = self.discover()
+ 		self.vars = self.vars()
+ 		if self.fd and not self.discover:
+-			raise Exception, 'kernel is not compiled with CONFIG_BLK_STATS'
++			raise Exception, 'Kernel is not compiled with CONFIG_BLK_STATS'
+ 		self.name = ['dsk/'+sysfs_dev(name) for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+@@ -654,8 +659,7 @@
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+@@ -690,8 +694,7 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split(':')
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+@@ -725,8 +728,7 @@
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split(':')
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+@@ -796,8 +798,7 @@
+ 
+ 	def discover(self):
+ 		ret = []
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if l[0] != 'intr': continue
+ 			for name, i in enumerate(l[2:]):
+@@ -805,9 +806,9 @@
+ 		return ret
+ 
+ #	def check(self):
+-#		if self.fd and self.vars:
+-#			self.fd.seek(0)
+-#			for line in self.fd.readlines():
++#		if self.fd[0] and self.vars:
++#			self.fd[0].seek(0)
++#			for line in self.fd[0].readlines():
+ #				l = line.split()
+ #				if l[0] != 'intr': continue
+ #				return True
+@@ -831,8 +832,7 @@
+ 		return ret
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if not l or l[0] != 'intr': continue
+ 			for name in self.vars:
+@@ -854,8 +854,7 @@
+ 
+ 	def intmap(self):
+ 		ret = {}
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt;= cpunr: continue
+ 			l1 = l[0].split(':')[0]
+@@ -867,8 +866,7 @@
+ 
+ 	def discover(self):
+ 		ret = []
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; cpunr+1: continue
+ 			name = l[0].split(':')[0]
+@@ -878,8 +876,8 @@
+ 
+ #	def check(self):
+ #		if self.fd and self.discover:
+-#			self.fd.seek(0)
+-#			for line in self.fd.readlines():
++#			self.fd[0].seek(0)
++#			for line in self.fd[0].readlines():
+ #				l = line.split()
+ #				if l[0] != 'intr' or len(l) &gt; 2: continue
+ #				return True
+@@ -903,8 +901,7 @@
+ 		return ret
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; cpunr+1: continue
+ 			name = l[0].split(':')[0]
+@@ -943,8 +940,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 3: continue
+ 			self.val['load1'] = float(l[0])
+@@ -962,8 +958,7 @@
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.val[name] = 0
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 4: continue
+ 			if l[1] == 'POSIX':
+@@ -985,8 +980,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+@@ -1007,8 +1001,7 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.replace(':', ' ').split()
+ 			if len(l) &lt; 17: continue
+ 			if l[2] == '0' and l[10] == '0': continue
+@@ -1036,8 +1029,7 @@
+ 
+ 	def extract(self):
+ 		self.cn2['total'] = [0, 0]
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.replace(':', ' ').split()
+ 			if len(l) &lt; 17: continue
+ 			if l[2] == '0' and l[10] == '0': continue
+@@ -1065,8 +1057,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+@@ -1087,8 +1078,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+@@ -1111,8 +1101,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+@@ -1141,8 +1130,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		self.val['sockets'] = len(self.fd.readlines()) - 1
++		self.val['sockets'] = len(self.readlines()) - 1
+ 
+ class dstat_swap(dstat):
+ 	def __init__(self):
+@@ -1157,8 +1145,7 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 5: continue
+ 			if l[0] == 'Filename': continue
+@@ -1185,8 +1172,7 @@
+ 
+ 	def extract(self):
+ 		self.val['total'] = [0, 0]
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 5 or l[0] == 'Filename': continue
+ 			name = l[0]
+@@ -1203,8 +1189,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+@@ -1222,8 +1207,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+@@ -1238,21 +1222,24 @@
+ 	def __init__(self):
+ 		self.name = 'tcp sockets'
+ 		self.format = ('f', 3, 100)
+-		self.open('/proc/net/tcp')
+-		self.nick = ('lis', 'act', 'syn', 'tim')
+-		self.vars = ('listen', 'established', 'syn_sent', 'time_wait')
++		self.open('/proc/net/tcp', '/proc/net/tcp6')
++		self.nick = ('lis', 'act', 'syn', 'tim', 'clo')
++		self.vars = ('listen', 'established', 'syn', 'wait', 'close')
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.val[name] = 0
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 12: continue
+-			if l[3] == '0A': self.val['listen'] = self.val['listen'] + 1
+-			elif l[3] == '01': self.val['established'] = self.val['established'] + 1
+-			elif l[3] == '02': self.val['syn_sent'] = self.val['syn_sent'] + 1
+-			elif l[3] == '06': self.val['time_wait'] = self.val['time_wait'] + 1
++			### 01: established, 02: syn_sent,  03: syn_recv, 04: fin_wait1,
++			### 05: fin_wait2,   06: time_wait, 07: close,    08: close_wait,
++			### 09: last_ack,    0A: listen,    0B: closing
++			if l[3] in ('0A',): self.val['listen'] = self.val['listen'] + 1
++			elif l[3] in ('01',): self.val['established'] = self.val['established'] + 1
++			elif l[3] in ('02', '03', '09',): self.val['syn'] = self.val['syn'] + 1
++			elif l[3] in ('06',): self.val['wait'] = self.val['wait'] + 1
++			elif l[3] in ('04', '05', '07', '08', '0B',): self.val['close'] = self.val['close'] + 1
+ 
+ class dstat_time(dstat):
+ 	def __init__(self):
+@@ -1275,15 +1262,14 @@
+ 	def __init__(self):
+ 		self.name = 'udp'
+ 		self.format = ('f', 3, 100)
+-		self.open('/proc/net/udp')
++		self.open('/proc/net/udp', '/proc/net/udp6')
+ 		self.nick = ('lis', 'act')
+ 		self.vars = ('listen', 'established')
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.val[name] = 0
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if l[3] == '07': self.val['listen'] = self.val['listen'] + 1
+ 			elif l[3] == '01': self.val['established'] = self.val['established'] + 1
+@@ -1299,8 +1285,7 @@
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.val[name] = 0
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if l[4] == '0002':
+ 				self.val['datagram'] = self.val['datagram'] + 1
+@@ -1788,7 +1773,7 @@
+ #					exec compile(readfile(pathname), pathname, 'exec')
+ 					execfile(pathname)
+ 				except Exception, e:
+-					info(1, 'Module dstat_%s failed to load. (%s)' % (mod, e))
++					info(1, 'Module %s failed to load. (%s)' % (mod, e))
+ #					tb = sys.exc_info()[2]
+ 					continue
+ 
+@@ -1806,7 +1791,7 @@
+ 
+ 			except Exception, e:
+ 				if mod == mods[-1]:
+-					info(1, 'Module dstat_%s has problems. (%s)' % (mod, e))
++					info(1, 'Module %s has problems. (%s)' % (mod, e))
+ 					if op.debug:
+ 						raise
+ 				continue
+
+Modified: trunk/tools/dstat/plugins/dstat_cpufreq.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_cpufreq.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_cpufreq.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -21,9 +21,9 @@
+ 		if self.vars:
+ 			for cpu in self.vars:
+ 				if not os.access('/sys/devices/system/cpu/'+cpu+'/cpufreq/cpuinfo_cur_freq', os.R_OK):
+-					raise Exception, 'Module cannot access acpi cpu frequency information'
++					raise Exception, 'Cannot access acpi cpu frequency information'
+ 			return True
+-		raise Exception, 'No variables defined'
++		raise Exception, 'No statistics found'
+ 
+ 	def extract(self):
+ 		for cpu in self.vars:
+
+Modified: trunk/tools/dstat/plugins/dstat_dbus.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_dbus.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_dbus.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -23,10 +23,10 @@
+ 				except:
+ 					self.sesbus = None
+ 			except:
+-				raise Exception, 'Module is unable to connect to dbus message bus.'
++				raise Exception, 'Unable to connect to dbus message bus'
+ 			return True
+ 		except:
+-			raise Exception, 'Module needs the python-dbus module.'
++			raise Exception, 'Needs python-dbus module'
+ 
+ 	def extract(self):
+ 		self.val['system'] = len(self.sysbus.ListServices()) - 1
+
+Modified: trunk/tools/dstat/plugins/dstat_freespace.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_freespace.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_freespace.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -19,18 +19,16 @@
+ 
+ 	def vars(self):
+ 		ret = []
+-		if self.fd:
+-			self.fd.seek(0)
+-			for line in self.fd.readlines():
+-				l = string.split(line)
+-				if len(l) &lt; 6: continue
+-				if l[2] in ('binfmt_misc', 'devpts', 'iso9660', 'none', 'proc', 'sysfs', 'usbfs'): continue
+-				### FIXME: Excluding 'none' here may not be what people want (/dev/shm)
+-				if l[0] in ('devpts', 'none', 'proc', 'sunrpc', 'usbfs'): continue
+-				name = l[1] 
+-				res = os.statvfs(name)
+-				if res[0] == 0: continue ### Skip zero block filesystems
+-				ret.append(name)
++		for line in self.readlines():
++			l = string.split(line)
++			if len(l) &lt; 6: continue
++			if l[2] in ('binfmt_misc', 'devpts', 'iso9660', 'none', 'proc', 'sysfs', 'usbfs'): continue
++			### FIXME: Excluding 'none' here may not be what people want (/dev/shm)
++			if l[0] in ('devpts', 'none', 'proc', 'sunrpc', 'usbfs'): continue
++			name = l[1] 
++			res = os.statvfs(name)
++			if res[0] == 0: continue ### Skip zero block filesystems
++			ret.append(name)
+ 		return ret
+ 
+ 	def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_gpfs.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_gpfs.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_gpfs.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -16,9 +16,9 @@
+ 				self.stdin.write('reset\n')
+ 				readpipe(self.stdout)
+ 			except IOError:
+-				raise Exception, 'Module can not interface with gpfs mmpmon binary'
++				raise Exception, 'Cannot interface with gpfs mmpmon binary'
+ 			return True
+-		raise Exception, 'Module needs gpfs mmpmon binary'
++		raise Exception, 'Needs GPFS mmpmon binary'
+ 
+ 	def extract(self):
+ 		try:
+
+Modified: trunk/tools/dstat/plugins/dstat_gpfsop.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_gpfsop.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_gpfsop.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -16,9 +16,9 @@
+ 				self.stdin.write('reset\n')
+ 				readpipe(self.stdout)
+ 			except IOError:
+-				raise Exception, 'Module can not interface with gpfs mmpmon binary'
++				raise Exception, 'Cannot interface with gpfs mmpmon binary'
+ 			return True
+-		raise Exception, 'Module needs gpfs mmpmon binary'
++		raise Exception, 'Needs GPFS mmpmon binary'
+ 
+ 	def extract(self):
+ 		try:
+
+Modified: trunk/tools/dstat/plugins/dstat_nfs3.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfs3.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_nfs3.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -12,8 +12,7 @@
+ 		info(1, 'Module dstat_nfs3 is still experimental.')
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if not l or l[0] != 'proc3': continue
+ 			self.cn2['read'] = long(l[8])
+
+Modified: trunk/tools/dstat/plugins/dstat_nfs3op.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfs3op.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_nfs3op.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -12,8 +12,7 @@
+ 		info(1, 'Module dstat_nfs3op is still experimental.')
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if not l or l[0] != 'proc3': continue
+ 			for i, name in enumerate(self.vars):
+
+Modified: trunk/tools/dstat/plugins/dstat_nfsd3.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfsd3.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_nfsd3.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -12,8 +12,7 @@
+ 		info(1, 'Module dstat_nfsd3 is still experimental.')
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if not l or l[0] != 'proc3': continue
+ 			self.cn2['read'] = long(l[8])
+
+Modified: trunk/tools/dstat/plugins/dstat_nfsd3op.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfsd3op.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_nfsd3op.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -12,8 +12,7 @@
+ 		info(1, 'Module dstat_nfsd3op is still experimental.')
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if not l or l[0] != 'proc3': continue
+ 			for i, name in enumerate(self.vars):
+
+Modified: trunk/tools/dstat/plugins/dstat_postfix.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_postfix.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_postfix.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -11,7 +11,7 @@
+ 
+ 	def check(self): 
+ 		if not os.access('/var/spool/postfix/active', os.R_OK):
+-			raise Exception, 'Module cannot access postfix queues'
++			raise Exception, 'Cannot access postfix queues'
+ 		return True
+ 
+ 	def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_rpc.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_rpc.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_rpc.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -11,8 +11,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if not l or l[0] != 'rpc': continue
+ 			for i, name in enumerate(self.vars):
+
+Modified: trunk/tools/dstat/plugins/dstat_rpcd.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_rpcd.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_rpcd.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -11,8 +11,7 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split()
+ 			if not l or l[0] != 'rpc': continue
+ 			for i, name in enumerate(self.vars):
+
+Modified: trunk/tools/dstat/plugins/dstat_sendmail.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_sendmail.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_sendmail.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -12,7 +12,7 @@
+ 
+ 	def check(self):
+ 		if not os.access('/var/spool/mqueue', os.R_OK):
+-			raise Exception, 'Module cannot access sendmail queue'
++			raise Exception, 'Cannot access sendmail queue'
+ 		return True
+ 
+ 	def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_thermal.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_thermal.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_thermal.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -21,7 +21,7 @@
+ 			for name in self.vars:
+ 				self.nick.append(string.lower(name))
+ 		else:
+-			raise Exception, 'Module needs kernel ACPI or IBM-ACPI support.'
++			raise Exception, 'Needs kernel ACPI or IBM-ACPI support'
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_utmp.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_utmp.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_utmp.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -12,7 +12,7 @@
+ 			import utmp
+ 			return True
+ 		except:
+-			raise Exception, 'Module needs the python-utmp module.'
++			raise Exception, 'Needs python-utmp module'
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.val[name] = 0
+
+Modified: trunk/tools/dstat/plugins/dstat_vmkhba.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vmkhba.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_vmkhba.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -26,7 +26,10 @@
+ 	# discover will list all vmhba's found.
+ 	# we might want to filter out the unused vmhba's (read stats, compare with ['0', ] * 13)
+ 		ret = []
+-		list = os.listdir('/proc/vmware/scsi/')
++		try:
++			list = os.listdir('/proc/vmware/scsi/')
++		except:
++			raise Exception, 'Needs VMware ESX'
+ 		for name in list:
+ 			for line in dopen('/proc/vmware/scsi/%s/stats' % name).readlines():
+ 				l = line.split()
+@@ -57,8 +60,7 @@
+ 		try:
+ 			os.listdir('/proc/vmware')
+ 		except:
+-			ret = False
+-			raise Exception, 'Module vmkhba can only run on VMware ESX.'
++			raise Exception, 'Needs VMware ESX'
+ 		return ret
+ 
+ 	def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_vmkint.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vmkint.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_vmkint.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -14,9 +14,9 @@
+ class dstat_vmkint(dstat):
+ 	def __init__(self):
+ 		self.name = 'vmkint'
++		self.open('/proc/vmware/interrupts')
+ 		self.discover = self.discover()
+ 		self.format = ('d', 4, 1000)
+-		self.open('/proc/vmware/interrupts')
+ #		self.intmap = self.intmap()
+ 		self.vars = self.vars()
+ 		self.nick = self.vars
+@@ -39,7 +39,8 @@
+ 		ret = []
+ 		# default cpu number is 2
+ 		ret = 2
+-		for line in dopen('/proc/vmware/interrupts').readlines():
++		self.fd[0].seek(0)
++		for line in self.fd[0].readlines():
+ 			l = line.split()
+ 			if l[0] == 'Vector': 
+ 				ret = int( int( l[-1] ) + 1 )
+@@ -48,7 +49,8 @@
+ 	def discover(self):
+ 		#interrupt names are not decimal numbers, but rather hexadecimal numbers like 0x7e
+ 		ret = []
+-		for line in dopen('/proc/vmware/interrupts').readlines():
++		self.fd[0].seek(0)
++		for line in self.fd[0].readlines():
+ 			l = line.split()
+ 			if l[0] == 'Vector': continue
+ 			if len(l) &lt; self.vmkcpunr()+1: continue
+@@ -80,11 +82,12 @@
+ 			os.listdir('/proc/vmware')
+ 		except:
+ 			ret = False
+-			raise Exception, 'Module vmkint can only run on VMware ESX.'
++			raise Exception, 'Needs VMware ESX'
+ 		return ret
+ 
+ 	def extract(self):
+-		for line in dopen('/proc/vmware/interrupts').readlines():
++		self.fd[0].seek(0)
++		for line in self.fd[0].readlines():
+ 			l = line.split()
+ 			if len(l) &lt; self.vmkcpunr()+1: continue
+ 			name = l[0].split(':')[0]
+
+Modified: trunk/tools/dstat/plugins/dstat_vzcpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vzcpu.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_vzcpu.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -19,13 +19,11 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		if self.fd:
+-			self.fd.seek(0)
+-			for line in self.fd.readlines():
+-				l = line.split()
+-				if len(l) &lt; 6 or l[0] == 'VEID': continue
+-				ret.append(l[0])
+-			ret.sort()
++		for line in self.readlines():
++			l = line.split()
++			if len(l) &lt; 6 or l[0] == 'VEID': continue
++			ret.append(l[0])
++		ret.sort()
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
+@@ -51,8 +49,7 @@
+ 
+ 	def extract(self):
+ 		self.cn2['total'] = [0, 0, 0, 0]
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split() 
+ 			if len(l) &lt; 6 or l[0] == 'VEID': continue
+ 			name = l[0]
+
+Modified: trunk/tools/dstat/plugins/dstat_vzubc.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vzubc.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_vzubc.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -14,13 +14,11 @@
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		if self.fd:
+-			self.fd.seek(0)
+-			for line in self.fd.readlines():
+-				l = line.split()
+-				if len(l) &lt; 7 or l[0] in ('uid', '0:'): continue
+-				ret.append(l[0][0:-1])
+-			ret.sort()
++		for line in self.readlines():
++			l = line.split()
++			if len(l) &lt; 7 or l[0] in ('uid', '0:'): continue
++			ret.append(l[0][0:-1])
++		ret.sort()
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
+@@ -47,8 +45,7 @@
+ 	def extract(self):
+ 		for name in self.vars + ['total']:
+ 			self.cn2[name] = 0
+-		self.fd.seek(0)
+-		for line in self.fd.readlines():
++		for line in self.readlines():
+ 			l = line.split() 
+ 			if len(l) &lt; 6 or l[0] == 'uid':
+ 				continue
+
+Modified: trunk/tools/dstat/plugins/dstat_wifi.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_wifi.py	2006-12-28 18:02:18 UTC (rev 5029)
++++ trunk/tools/dstat/plugins/dstat_wifi.py	2006-12-28 20:05:54 UTC (rev 5030)
+@@ -16,7 +16,7 @@
+ 		try:
+ 			from pythonwifi import iwlibs
+ 		except:
+-			raise Exception, 'Module needs the python-wifi module.'
++			raise Exception, 'Needs python-wifi module'
+ 		return True
+ 
+ 	def extract(self):
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003829.html">[svn] r5029 - in trunk/tools/dstat: . plugins
+</A></li>
+	<LI>Next message: <A HREF="003831.html">[svn] r5031 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3830">[ date ]</a>
+              <a href="thread.html#3830">[ thread ]</a>
+              <a href="subject.html#3830">[ subject ]</a>
+              <a href="author.html#3830">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,388 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1983 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1983%20-%20trunk/tools/yam&In-Reply-To=%3C20040812073015.C93E517FAC%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000788.html">
+   <LINK REL="Next"  HREF="000790.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1983 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1983%20-%20trunk/tools/yam&In-Reply-To=%3C20040812073015.C93E517FAC%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1983 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Aug 12 09:30:15 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000788.html">[SVN] r1982 - trunk/rpms/dnsmasq
+</A></li>
+        <LI>Next message: <A HREF="000790.html">[SVN] r1984 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#789">[ date ]</a>
+              <a href="thread.html#789">[ thread ]</a>
+              <a href="subject.html#789">[ subject ]</a>
+              <a href="author.html#789">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-12 09:30:14 +0200 (Thu, 12 Aug 2004)
+New Revision: 1983
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/Makefile
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.httpd
+   trunk/tools/yam/yam.spec
+Log:
+Some more updates.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-12 07:05:48 UTC (rev 1982)
++++ trunk/tools/yam/ChangeLog	2004-08-12 07:30:14 UTC (rev 1983)
+@@ -1,6 +1,7 @@
+ * 0.4
+ - Added noarch by default to all dists
+ - Added i?86 to all x86_64 dists
++- Make i?86 the default (when omitted)
+ - Directory restructured, /mnt/iso is now /var/yam, ISOs go into /var/yam/iso
+ - Added createrepo (new-style Yum) support
+ - Don't ignore dists when ISOs are not around
+@@ -8,8 +9,12 @@
+ - Disable most examples by default (since ISOs are no longer needed)
+ - If no ISOs are found, try downloading os packages
+ - Fixed /usr/lib problem on x86_64 (Dries Verachtert)
+-- Added README.loop (Jeff Pitman)
++- Added documentation about loops, see README.loop (Jeff Pitman)
+ - Make Yam work on python &lt;= 2.2.1 (Dhawal Doshy)
++- Improved symlinking code
++- Added example yam.conf
++- Split extras directory into seperate local directory (see README.dirs)
++- Added 0 as special repotag (see README.naming)
+ 
+ * 0.3
+ - Remove dangling symlinks (crashes yum/apt)
+@@ -18,7 +23,7 @@
+ - Added Yam httpd configuration for Apache
+ - Added serverside HTML pages and file-descriptions
+ - Added ISO-directory in repository
+-- Added information to integrate with dnsmasq (on-going)
++- Added information to integrate with dnsmasq (on-going), see README.dnsmasq
+ - Added SYSV script to automatically mount on boot and unmount on shutdown
+ 
+ * 0.2
+
+Modified: trunk/tools/yam/Makefile
+===================================================================
+--- trunk/tools/yam/Makefile	2004-08-12 07:05:48 UTC (rev 1982)
++++ trunk/tools/yam/Makefile	2004-08-12 07:30:14 UTC (rev 1983)
+@@ -26,7 +26,7 @@
+ 	install -d -m0755 $(DESTDIR)$(htmldir)
+ 	install -m0644 html/* $(DESTDIR)$(htmldir)
+ 
+-	install -d -m0755 $(DESTDIR)$(srcdir)/{extras,iso,os,updates}/
++	install -d -m0755 $(DESTDIR)$(srcdir)/{extras,iso,local/{all,el3-i386,fc2-i386},os,updates}/
+ 	install -d -m0755 $(DESTDIR)$(wwwdir)
+ 	
+ 	@if [ &quot;$(prefix)&quot; == &quot;/usr&quot; -a -x &quot;/sbin/chkconfig&quot; ]; then \
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-12 07:05:48 UTC (rev 1982)
++++ trunk/tools/yam/TODO	2004-08-12 07:30:14 UTC (rev 1983)
+@@ -15,6 +15,7 @@
+ + Add default kickstart files/location
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+ + Improve SHTML output (more condensed and useful information)
+++ Allow to log output and change debugging levels
+ 
+ ### Back-end support
+ + Add RHN (<A HREF="rhn://">rhn://</A>) support
+@@ -24,3 +25,4 @@
+ + Improve the copy/symlink/rename functions, using exceptions
+ 
+ ### Bugs
+++ Rsync --include/--exclude does not work properly
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-12 07:05:48 UTC (rev 1982)
++++ trunk/tools/yam/yam	2004-08-12 07:30:14 UTC (rev 1983)
+@@ -18,7 +18,7 @@
+ 
+ 		try:
+ 			opts, args = getopt.getopt (args, 'c:d:ghqr:uvx',
+-                                    ['config=', 'dists=', 'generate=', 'help', 'quiet', 'repos=', 'umount', 'update', 'verbose', 'extras'])
++				['config=', 'dists=', 'generate=', 'help', 'quiet', 'repos=', 'umount', 'update', 'verbose', 'extras'])
+ 		except getopt.error, exc:
+ 			die(5, 'error: %s' % str(exc))
+ 
+@@ -43,7 +43,7 @@
+ 				self.verbose = True
+ 			elif opt in ('-x', '--extras'):
+ 				self.extra = True
+-			elif opt in ('-x', '--umount'):
++			elif opt in ('--umount'):
+ 				self.umount = True
+ 
+ 	def usage(self):
+@@ -307,55 +307,70 @@
+ 	if not os.path.isfile(cf.lftpcmd):
+ 		die(4, 'lftp command not found as %s' % cf.lftpcmd)
+ 	mkdir(path)
+-	print '%s -c \'mirror -a -r -I *.rpm %s %s\'' % (cf.lftpcmd, url, path)
+-	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm %s %s\'' % (cf.lftpcmd, url, path))
++	print '%s -c \'mirror -a -r %s %s\'' % (cf.lftpcmd, url, path)
++	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm -X *.src.rpm %s %s\'' % (cf.lftpcmd, url, path))
+ 
+ def filemirror(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL&quot;
+ 	print('<A HREF="file://">file://</A> method not implemented yet')
+ 
+-def extralink((dist, extra), dirpath, namelist):
+-	&quot;Symlink RPM packages that match a given arch and disttag&quot;
++def rpmlink ((dist, repo), dirpath, filelist):
++	&quot;Symlink all RPM packages that match a given arch&quot;
++	if cf.dists[dist]['arch']:
++		for arch in cf.dists[dist]['arch'] + [ 'noarch' ]:
++			rpmmatch='.+\.' + arch + '\.rpm$'
++			for file in filelist:
++				if re.compile(rpmmatch).match(file, 1):
++					symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist + '/RPMS.' + repo)
++					symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist + '/RPMS')
++	
++def rpmtaglink((dist, repo), dirpath, filelist):
++	&quot;Symlink all RPM packages that match a given arch and disttag&quot;
+ 	if cf.dists[dist].has_key('tag') and cf.dists[dist]['arch']:
+-		for tag in cf.dists[dist]['tag']:
++		mkdir(cf.wwwdir + '/' + dist + '/RPMS.' + repo)
++		mkdir(cf.wwwdir + '/' + dist + '/RPMS')
++		for tag in cf.dists[dist]['tag'] + [ '0' ]:
+ 			for arch in cf.dists[dist]['arch'] + [ 'noarch' ]:
+-				symlinkglob(dirpath + '/*.' + tag + '*.' + arch + '.rpm', 
+-					cf.wwwdir + '/' + dist + '/RPMS.'+ extra, 
+-					cf.wwwdir + '/' + dist + '/RPMS')
++				rpmmatch='.+\.' + tag + '\..+\.' + arch + '\.rpm$'
++				for file in filelist:
++					if re.compile(rpmmatch).match(file, 1):
++						symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist + '/RPMS.' + repo)
++						symlink(dirpath + '/' + file, cf.wwwdir + '/' + dist + '/RPMS')
+ 
+ def aptrepo(dist):
+ 	&quot;Create an Apt repository for a specific dist&quot;
+-	repos = ''
+-	wwwdir = cf.wwwdir + '/' + dist
++	distdir = cf.wwwdir + '/' + dist
+ 	if not os.path.isfile(cf.genbasedircmd):
+ 		die(4, 'genbasedir command not found as %s' % cf.genbasedircmd)	
+-	for repo in ['os', 'updates', 'extras'] + cf.extras.keys():
+-		if os.path.exists(wwwdir + '/RPMS.' + repo): repos = repos + repo + ' '
++	repos = ''
++	for repo in ['os', 'extras'] + cf.extras.keys():
++		if os.path.exists(distdir + '/RPMS.' + repo):
++			repos = repos + repo + ' '
+ 	if repos:
+ 		info('Create Apt repository for %s' % repos)
+-		os.system('%s --flat --bloat --bz2only %s %s' % (cf.genbasedircmd, wwwdir, repos))
++		os.system('%s --flat --bloat --bz2only %s %s' % (cf.genbasedircmd, distdir, repos))
+ 
+ def yumrepo(dist):
+ 	&quot;Create an old-style Yum repository for a specific dist&quot;
+-	wwwdir = cf.wwwdir + '/' + dist
++	distdir = cf.wwwdir + '/' + dist
+ 	if not os.path.isfile(cf.yumarchcmd):
+ 		die(4, 'yum-arch command not found as %s' % cf.yumarchcmd)
+-	os.system('%s -q -l %s' % (cf.yumarchcmd, wwwdir + '/RPMS'))
+-	for repo in ['os', 'updates', 'extras'] + cf.extras.keys():
+-		if os.path.exists(wwwdir + '/RPMS.' + repo):
++	os.system('%s -q -l %s' % (cf.yumarchcmd, distdir + '/RPMS'))
++	for repo in ['os', 'extras'] + cf.extras.keys():
++		if os.path.exists(distdir + '/RPMS.' + repo):
+ 			info('Create old-style Yum repository for %s' % repo)
+-			os.system('%s -q -l %s' % (cf.yumarchcmd, wwwdir + '/RPMS.' + repo))
++			os.system('%s -q -l %s' % (cf.yumarchcmd, distdir + '/RPMS.' + repo))
+ 
+ def createrepo(dist):
+ 	&quot;Create a new-style Yum repository for a specific dist&quot;
+-	wwwdir = cf.wwwdir + '/' + dist
++	distdir = cf.wwwdir + '/' + dist
+ 	if not os.path.isfile(cf.creatrepocmd):
+ 		die(4, 'createrepo command not found as %s' % cf.yumarchcmd)
+-	os.system('%s %s' % (cf.creatrepocmd, wwwdir + '/RPMS'))
+-	for repo in ['os', 'updates', 'extras'] + cf.extras.keys():
+-		if os.path.exists(wwwdir + '/RPMS.' + repo):
++	os.system('%s %s' % (cf.creatrepocmd, distdir + '/RPMS'))
++	for repo in ['os', 'extras'] + cf.extras.keys():
++		if os.path.exists(distdir + '/RPMS.' + repo):
+ 			info('Create new-style Yum repository for %s' % repo)
+-			os.system('%s %s' % (cf.yumarchcmd, wwwdir + '/RPMS.' + repo))
++			os.system('%s %s' % (cf.yumarchcmd, distdir + '/RPMS.' + repo))
+ 
+ def htmlrepo(dist):
+ 	&quot;Put html information in repository&quot;
+@@ -363,7 +378,6 @@
+ 	symlink(cf.htmldir + '/HEADER.repo.shtml', distdir + '/HEADER.shtml')
+ 	symlink(cf.htmldir + '/README.index.shtml', distdir + '/README.shtml')
+ 	
+-
+ def main():
+ 	if op.dists:
+ 		dists=op.dists
+@@ -394,13 +408,15 @@
+ 				mirror(cf.dists[dist]['os'], srcdir + '/os/' + dist)
+ 		else:
+ 			discnr = 0
++			discs = [ ]
+ 			for iso in cf.getisos(dist):
+-				mkdir(distdir + '/ISO/')
+-				symlink(iso, distdir + '/ISO/')
++				mkdir(distdir + '/iso/')
++				symlink(iso, distdir + '/iso/')
+ 				try:
+ 					discnr = re.compile('disc([0-9])').search(iso).group(1)
+ 				except AttributeError, e:
+ 					discnr = discnr + 1
++				discs = discs + [ 'disc%s' % discnr ]
+ 				if op.umount:
+ 					umountiso(distdir + '/disc' + str(discnr))
+ 					continue
+@@ -418,50 +434,35 @@
+ 		if not op.generate:
+ 			continue
+ 
+-		### Generate repositories/PXE stuff
+ 		cleanup(distdir + '/RPMS')
+-
+-		### Symlink os and updates packages
+-		cleanup(distdir + '/RPMS.updates')
+-#		rmdir(distdir + '/RPMS.updates')
+ 		cleanup(distdir + '/RPMS.os')
+-
+ 		if cf.getisos(dist):
+ 			info('Symlink os packages from ISO')
+-			symlinkglob(distdir + '/disc?/*/RPMS/*.rpm',
+-				distdir + '/RPMS.os',
+-				distdir + '/RPMS')
++			for disc in discs:
++				os.path.walk(distdir + '/' + disc + '/', rpmlink, (dist, 'os'))
+ 		elif cf.dists[dist]['os']:
+ 			info('Symlink os packages from %s' % cf.srcdir + '/os/' + dist)
+-			symlinkglob(cf.srcdir + '/os/' + dist,
+-				distdir + '/RPMS.os',
+-				distdir + '/RPMS')
++			os.path.walk(cf.srcdir + '/os/', rpmlink, (dist, 'os'))
+ 
++		cleanup(distdir + '/RPMS.updates')
+ 		if cf.dists[dist]['updates']:
+ 			info('Symlink os packages from %s' % cf.srcdir + '/updates/' + dist)
+-			symlinkglob(cf.srcdir + '/updates/' + dist + '/*.rpm',
+-				distdir + '/RPMS.os',
+-				distdir + '/RPMS')
++			os.path.walk(cf.srcdir + '/updates/', rpmlink, (dist, 'updates'))
+ 
+ 		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
+ #	os.remove(cf.srcdir + '/updates/' + dist + '/' + os.path.basename(file))
+ 
+-		### Symlink extra packages
+ 		info('Symlink extras packages from %s' % cf.srcdir + '/extras/' + dist)
+ 		cleanup(distdir + '/RPMS.extras')
+-		symlinkglob(cf.srcdir + '/extras/' + dist + '/*.rpm',
+-			distdir + '/RPMS.extras',
+-			distdir + '/RPMS')
++		os.path.walk(cf.srcdir + '/local/' + dist, rpmlink, (dist, 'extras'))
+ 
+ 		info('Symlink extras packages from %s' % cf.srcdir + '/extras/all')
+-		symlinkglob(cf.srcdir + '/extras/all/*.rpm',
+-			distdir + '/RPMS.extras',
+-			distdir + '/RPMS')
++		os.path.walk(cf.srcdir + '/local/all/', rpmlink, (dist, 'extras'))
+ 
+ 		for extra in cf.extras:
+ 			info('Symlink %s packages from %s' % (extra, cf.srcdir + '/extras/' + extra))
+ 			cleanup(distdir + '/RPMS.' + extra)
+-			os.path.walk(cf.srcdir + '/extras/' + extra, extralink, (dist, extra))
++			os.path.walk(cf.srcdir + '/extras/' + extra, rpmtaglink, (dist, extra))
+ 
+ 		### Create apt/yum repository
+ 		if cf.createrepo:
+
+Modified: trunk/tools/yam/yam.httpd
+===================================================================
+--- trunk/tools/yam/yam.httpd	2004-08-12 07:05:48 UTC (rev 1982)
++++ trunk/tools/yam/yam.httpd	2004-08-12 07:30:14 UTC (rev 1983)
+@@ -8,7 +8,7 @@
+ 	HeaderName HEADER.shtml
+ 	ReadmeName README.shtml
+ 
+-	AddDescription &quot;CDROM ISO files&quot; ISO
++	AddDescription &quot;CDROM ISO files&quot; iso
+ 	AddDescription &quot;OS RPM packages&quot; RPMS.os
+ 	AddDescription &quot;OS update RPM packages&quot; RPMS.updates
+ 	AddDescription &quot;Extra RPM packages&quot; RPMS.extras
+@@ -39,9 +39,8 @@
+ 	AddDescription &quot;Red Hat Enterprise Server 3 for x86_64&quot; rhes3-x86_64
+ 	AddDescription &quot;Red Hat Workstation 3 for x86&quot; rhws3-i386
+ 	AddDescription &quot;Red Hat Workstation 3 for x86_64&quot; rhws3-x86_64
++	AddDescription &quot;Tao Linux 1 for i386&quot; tao1-i386
+ 	AddDescription &quot;Tao Linux 1 for x86_64&quot; tao1-x86-64
+-	AddDescription &quot;Tao Linux 1 for x86&quot; tao1-i386
+-	AddDescription &quot;Tao Linux 1 for x86_64&quot; tao1-x86-64
+ &lt;/Directory&gt;
+ 
+ &lt;VirtualHost *&gt;
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2004-08-12 07:05:48 UTC (rev 1982)
++++ trunk/tools/yam/yam.spec	2004-08-12 07:30:14 UTC (rev 1983)
+@@ -41,6 +41,8 @@
+ %prep
+ %setup
+ 
++%{__perl} -pi.orig -e 's|/usr/lib|%{_libdir}|' yam.conf
++
+ %build
+ 
+ %install
+@@ -52,7 +54,7 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README THANKS TODO
++%doc AUTHORS ChangeLog COPYING README THANKS TODO *.conf
+ %config(noreplace) %{_sysconfdir}/yam.conf
+ %config(noreplace) %{_sysconfdir}/httpd/conf.d/yam.conf
+ %config %{_initrddir}/yam
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000788.html">[SVN] r1982 - trunk/rpms/dnsmasq
+</A></li>
+	<LI>Next message: <A HREF="000790.html">[SVN] r1984 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#789">[ date ]</a>
+              <a href="thread.html#789">[ thread ]</a>
+              <a href="subject.html#789">[ subject ]</a>
+              <a href="author.html#789">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

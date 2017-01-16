@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1273 - trunk/rpms/gq
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1273%20-%20trunk/rpms/gq&In-Reply-To=%3C20040608214812.0B3971FC8B%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000081.html">
+   <LINK REL="Next"  HREF="000083.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1273 - trunk/rpms/gq</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1273%20-%20trunk/rpms/gq&In-Reply-To=%3C20040608214812.0B3971FC8B%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1273 - trunk/rpms/gq">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Jun  8 23:48:12 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000081.html">[SVN] r1272 - trunk/rpms/rpm-macros-rpmforge
+</A></li>
+        <LI>Next message: <A HREF="000083.html">[SVN] r1274 - trunk/rpms/mlview
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82">[ date ]</a>
+              <a href="thread.html#82">[ thread ]</a>
+              <a href="subject.html#82">[ subject ]</a>
+              <a href="author.html#82">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-06-08 23:48:10 +0200 (Tue, 08 Jun 2004)
+New Revision: 1273
+
+Modified:
+   trunk/rpms/gq/gq.spec
+Log:
+Added improved desktop file
+Merged with my SPEC file
+Fixes to build for older releases.
+
+
+Modified: trunk/rpms/gq/gq.spec
+===================================================================
+--- trunk/rpms/gq/gq.spec	2004-06-08 18:00:07 UTC (rev 1272)
++++ trunk/rpms/gq/gq.spec	2004-06-08 21:48:10 UTC (rev 1273)
+@@ -2,12 +2,17 @@
+ # Authority: matthias
+ # Upstream: &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">gqclient-discuss at lists.sf.net</A>&gt;
+ 
++%{?dist: %{expand: %%define %dist 1}}
++
++%{?rh7:%define _without_freedesktop 1}
++%{?el2:%define _without_freedesktop 1}
++
+ %define desktop_vendor freshrpms
+ 
+ Summary: graphical LDAP directory browser and editor
+ Name: gq
+ Version: 0.6.0
+-Release: 3
++Release: 4
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://biot.com/gq/">http://biot.com/gq/</A>
+@@ -15,9 +20,9 @@
+ Source: <A HREF="http://dl.sf.net/gqclient/gq-%{version">http://dl.sf.net/gqclient/gq-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-BuildRequires: gtk+-devel, openldap-devel, krb5-devel, openssl-devel
+-BuildRequires: desktop-file-utils
+-Requires: gtk+, openldap, krb5-libs, openssl
++BuildRequires: gtk+-devel, openldap-devel &gt;= 2.0, krb5-devel, openssl-devel
++%{!?_without_freedesktop:BuildRequires: desktop-file-utils}
++Requires: gtk+, openldap &gt;= 2.0, krb5-libs, openssl
+ 
+ %description
+ GQ is a graphical browser for LDAP directories and schemas.  Using GQ,
+@@ -27,36 +32,58 @@
+ %prep
+ %setup
+ 
++%{__cat} &lt;&lt;EOF &gt;src/gq.desktop
++[Desktop Entry]
++Name=GQ LDAP Client
++Comment=Manage your LDAP directories
++Exec=gq
++Icon=redhat-system_tools.png
++Terminal=false
++Type=Application
++Encoding=UTF-8
++Categories=GNOME;Application;System;
++EOF
++
+ %build
+-%configure --with-ldap-prefix=%{_prefix}
+-%{__make}
++%configure \
++	--enable-cache \
++	--enable-browser-dnd
++#	--with-ldap-prefix=&quot;%{_prefix}&quot; \
+ 
++%{__make} %{?_smp_mflags}
++
+ %install
+ %{__rm} -rf %{buildroot}
+ %makeinstall
+ %find_lang %{name}
+ 
+-# Desktop entry
+-mkdir -p %{buildroot}%{_datadir}/applications
+-desktop-file-install --vendor %{desktop_vendor} --delete-original \
+-  --dir %{buildroot}%{_datadir}/applications                      \
+-  --add-category X-Red-Hat-Extra                                  \
+-  --add-category Application                                      \
+-  --add-category System                                           \
+-  %{buildroot}%{_datadir}/gnome/apps/Internet/%{name}.desktop
++%if %{!?_without_freedesktop:1}0
++	%{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
++	desktop-file-install --vendor %{desktop_vendor} --delete-original \
++		--add-category X-Red-Hat-Base                             \
++		--dir %{buildroot}%{_datadir}/applications                \
++		%{buildroot}%{_datadir}/gnome/apps/Internet/gq.desktop
++%endif
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+ %files -f %{name}.lang
+ %defattr(-, root, root, 0755)
+-%doc README COPYING ChangeLog NEWS TODO AUTHORS
++%doc AUTHORS ChangeLog COPYING NEWS README* TODO
+ %{_bindir}/*
+-%{_datadir}/applications/%{desktop_vendor}-%{name}.desktop
+-%{_datadir}/pixmaps/%{name}/*
++%{_datadir}/pixmaps/%{name}/
++%{!?_without_freedesktop:%{_datadir}/applications/%{desktop_vendor}-gq.desktop}
++%{?_without_freedesktop:%{_datadir}/gnome/apps/Internet/gq.desktop}
+ 
++
+ %changelog
+-* Thu Nov 13 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.6.0-3.fr
++* Wed Jun 09 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.0-4
++- Merged SPEC file with my version.
++- Changes to build on older releases.
++- Added improved desktop file.
++
++* Thu Nov 13 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.6.0-3
+ - Rebuild for Fedora Core 1.
+ 
+ * Mon Mar 31 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000081.html">[SVN] r1272 - trunk/rpms/rpm-macros-rpmforge
+</A></li>
+	<LI>Next message: <A HREF="000083.html">[SVN] r1274 - trunk/rpms/mlview
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#82">[ date ]</a>
+              <a href="thread.html#82">[ thread ]</a>
+              <a href="subject.html#82">[ subject ]</a>
+              <a href="author.html#82">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

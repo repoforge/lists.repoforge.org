@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6394 - in trunk/tools/unoconv: . tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6394%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C200807021728.m62HSqYU019119%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005192.html">
+   <LINK REL="Next"  HREF="005194.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6394 - in trunk/tools/unoconv: . tests</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6394%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C200807021728.m62HSqYU019119%40surya.karan.org%3E"
+       TITLE="[svn] r6394 - in trunk/tools/unoconv: . tests">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jul  2 19:28:52 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005192.html">[svn] r6393 - in trunk/rpms: . imapsync meld perl-Module-ScanDeps	perl-Module-Versions-Report rsync sdparm unhide
+</A></li>
+        <LI>Next message: <A HREF="005194.html">[svn] r6395 - in trunk/rpms: . amrnb amrwb gsm liferea meld	perl-Nagios-Plugin syslinux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5193">[ date ]</a>
+              <a href="thread.html#5193">[ thread ]</a>
+              <a href="subject.html#5193">[ subject ]</a>
+              <a href="author.html#5193">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-07-02 18:28:50 +0100 (Wed, 02 Jul 2008)
+New Revision: 6394
+
+Modified:
+   trunk/tools/unoconv/ChangeLog
+   trunk/tools/unoconv/tests/Makefile
+   trunk/tools/unoconv/unoconv
+Log:
+- Added OpenOffice path to LD_LIBRARY_PATH env var
+- Added -nofirstwizard to ooffice invocations
+
+
+
+Modified: trunk/tools/unoconv/ChangeLog
+===================================================================
+--- trunk/tools/unoconv/ChangeLog	2008-06-30 22:25:34 UTC (rev 6393)
++++ trunk/tools/unoconv/ChangeLog	2008-07-02 17:28:50 UTC (rev 6394)
+@@ -6,6 +6,8 @@
+ - Added -i/--pipe option to communicate with UNO pipe (Fernando Lucas Rodriguez)
+ - Added -o/--outputpath option to modify the output path (Fernando Lucas Rodriguez)
+ - Added support for MediaWiki output (txt)
++- Added OpenOffice path to LD_LIBRARY_PATH env var
++- Added -nofirstwizard to ooffice invocations
+ 
+ * 0.3 - released 31/08/2007
+ - Determine doctype from input filename (if not specified)
+
+Modified: trunk/tools/unoconv/tests/Makefile
+===================================================================
+--- trunk/tools/unoconv/tests/Makefile	2008-06-30 22:25:34 UTC (rev 6393)
++++ trunk/tools/unoconv/tests/Makefile	2008-07-02 17:28:50 UTC (rev 6394)
+@@ -11,7 +11,7 @@
+ 
+ %:
+ #	-killall ooffice soffice.bin
+-	-../unoconv -vvvv -f $@ document-example.odt
++	-../unoconv -vvvv -p 12345 -f $@ document-example.odt
+ #	@ps aux | grep office
+ #	-unoconv -f $@ dag.gif
+ #	docbook2pdf -d curriculum-vitae.dsl#print curriculum-vitae-dag-wieers.xml
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2008-06-30 22:25:34 UTC (rev 6393)
++++ trunk/tools/unoconv/unoconv	2008-07-02 17:28:50 UTC (rev 6394)
+@@ -16,13 +16,14 @@
+ 
+ import getopt, sys, os, glob, time
+ 
+-#extrapaths = ('/usr/lib/openoffice/program/', '/usr/lib/openoffice.org2.0/program/')
+ extrapaths = glob.glob('/usr/lib*/openoffice*/program') + glob.glob('/usr/lib*/ooo*/program') + glob.glob('/opt/openoffice*/program') + glob.glob('C:\\Program Files\\OpenOffice.org *\\program\\') + [ '/Applications/NeoOffice.app/Contents/program', '/usr/bin' ]
+ for path in extrapaths:
+     try:
+         sys.path.append(path)
+         import uno, unohelper
+         os.environ['PATH'] = '%s:' % path + os.environ['PATH']
++        ### Not sure if this helps running soffice.bin on some systems ? please report
++        os.environ['LD_LIBRARY_PATH'] = '%s:' % path
+         break
+     except ImportError:
+         sys.path.remove(path)
+@@ -315,6 +316,8 @@
+ #               self.connection = &quot;socket,host=%s,port=%s;urp;&quot; % (self.server, self.port)
+             else:
+                 self.connection = &quot;pipe,name=%s;urp;StarOffice.ComponentContext&quot; % (self.pipe)
++            if self.verbose &gt;=3:
++                print &gt;&gt;sys.stderr, 'Connection type: %s' % self.connection
+ 
+         ### Make it easier for people to use a doctype (first letter is enough)
+         if self.doctype:
+@@ -519,7 +522,7 @@
+         for bin in ('soffice.bin', 'soffice', ):
+             error(2, &quot;Warning: trying to launch %s.&quot; % bin)
+             try:
+-                os.execvp(bin, [bin, &quot;-nologo&quot;, &quot;-nodefault&quot;, &quot;-accept=%s&quot; % op.connection]);
++                os.execvp(bin, [bin, &quot;-headless&quot;, &quot;-nologo&quot;, &quot;-nodefault&quot;, &quot;-norestore&quot;, &quot;-nofirststartwizard&quot;, &quot;-accept=%s&quot; % op.connection]);
+             except:
+                 error(3, &quot;Launch of %s failed.\n%s&quot; % (bin, e))
+                 continue
+@@ -552,7 +555,7 @@
+         if convertor.desktop.getCurrentFrame():
+             for bin in ('soffice.bin', 'soffice', ):
+                 try:
+-                    os.spawnvp(os.P_NOWAIT, bin, [bin, &quot;-nologo&quot;, &quot;-nodefault&quot;, &quot;-headless&quot;, &quot;-unaccept=%s&quot; % op.connection]);
++                    os.spawnvp(os.P_NOWAIT, bin, [bin, &quot;-headless&quot;, &quot;-nologo&quot;, &quot;-nodefault&quot;, &quot;-norestore&quot;, &quot;-nofirststartwizard&quot;, &quot;-unaccept=%s&quot; % op.connection]);
+                     error(2, 'OpenOffice listener successfully disabled.')
+                     break
+                 except Exception, e:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005192.html">[svn] r6393 - in trunk/rpms: . imapsync meld perl-Module-ScanDeps	perl-Module-Versions-Report rsync sdparm unhide
+</A></li>
+	<LI>Next message: <A HREF="005194.html">[svn] r6395 - in trunk/rpms: . amrnb amrwb gsm liferea meld	perl-Nagios-Plugin syslinux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5193">[ date ]</a>
+              <a href="thread.html#5193">[ thread ]</a>
+              <a href="subject.html#5193">[ subject ]</a>
+              <a href="author.html#5193">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

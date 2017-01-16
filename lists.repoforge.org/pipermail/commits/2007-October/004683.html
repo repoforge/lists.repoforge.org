@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5884 - trunk/tools/mrepo
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5884%20-%20trunk/tools/mrepo&In-Reply-To=%3C20071003183457.88183944ADC%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004682.html">
+   <LINK REL="Next"  HREF="004684.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5884 - trunk/tools/mrepo</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5884%20-%20trunk/tools/mrepo&In-Reply-To=%3C20071003183457.88183944ADC%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5884 - trunk/tools/mrepo">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Oct  3 20:34:57 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004682.html">[svn] r5883 - trunk/tools/mrepo
+</A></li>
+        <LI>Next message: <A HREF="004684.html">[svn] r5885 - trunk/rpms/guyum
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4683">[ date ]</a>
+              <a href="thread.html#4683">[ thread ]</a>
+              <a href="subject.html#4683">[ subject ]</a>
+              <a href="author.html#4683">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-10-03 20:34:57 +0200 (Wed, 03 Oct 2007)
+New Revision: 5884
+
+Modified:
+   trunk/tools/mrepo/rhnget
+Log:
+Added preliminary --source support to rhnget.
+
+Modified: trunk/tools/mrepo/rhnget
+===================================================================
+--- trunk/tools/mrepo/rhnget	2007-10-03 18:34:34 UTC (rev 5883)
++++ trunk/tools/mrepo/rhnget	2007-10-03 18:34:57 UTC (rev 5884)
+@@ -24,7 +24,8 @@
+     sys.path.insert(0, '/usr/share/rhn/')
+     sys.path.insert(1, '/usr/share/rhn/up2date_client/')
+ else:
+-    die(1,'up2date libraries are not installed. Aborting execution')
++    print &gt;&gt;sys.stderr, 'rhnget: up2date libraries are not installed. Aborting execution'
++    sys.exit(1)
+ 
+ from up2date_client import config, rpcServer, wrapperUtils, up2dateErrors, repoDirector
+ from rhn import rpclib
+@@ -54,13 +55,14 @@
+         self.rhnpassword = None
+         self.rhnrelease = None
+         self.rhnusername = None
++        self.source = False
+         self.systemid = '/etc/sysconfig/rhn/systemid'
+         self.verbose = 1
+ 
+         try:
+             opts, args = getopt.getopt (args, 'hlnqp:r:s:u:v',
+                 ('delete', 'download-all', 'dryrun', 'filter=', 'help', 'list', 'password=', 'quiet',
+-                 'release=', 'systemid=', 'username=', 'verbose', 'version' ))
++                 'release=', 'source', 'systemid=', 'username=', 'verbose', 'version' ))
+         except getopt.error, exc:
+             print 'rhnget: %s, try rhnget -h for a list of all the options' % str(exc)
+             sys.exit(1)
+@@ -89,6 +91,8 @@
+                 self.quiet = True
+             elif opt in ('-r', '--release'):
+                 self.rhnrelease = arg
++            elif opt in ('--source'):
++                self.source = True
+             elif opt in ('-s', '--systemid'):
+                 self.systemid = os.path.abspath(arg)
+             elif opt in ['-u', '--username']:
+@@ -141,6 +145,7 @@
+   -n, --dry-run           show what would have been done
+   -q, --quiet             minimal output
+   -r, --release=release   specify the RHN release (if different from the systemid)
++      --source            download source packages
+   -s, --systemid=file     systemid to use
+   -v, --verbose           increase verbosity
+   -vv, -vvv, -vvvv..      increase verbosity more
+@@ -449,6 +454,21 @@
+         except up2dateErrors.CommunicationError, e:
+             error(0, 'CommunicationError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
+ 
++        if op.source:
++            try:
++                hdr, call_type = rpcServer.doCall(repos.getHeader, pkg)
++                srcrpm = hdr['sourcerpm']
++                if op.verbose &lt;= 1:
++                    rpcServer.doCall(repos.getPackageSource, channel, srcrpm, None, None)
++                else:
++                    rpcServer.doCall(repos.getPackageSource, channel, srcrpm, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
++            except rpclib.Fault, f:
++                error(0, 'rpcError: Error getting package %s from %s. %s' % (filename, label, f.faultString))
++            except TypeError, e:
++                error(0, 'TypeError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
++            except up2dateErrors.CommunicationError, e:
++                error(0, 'CommunicationError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
++
+     ### Remove packages on the receiver side that are not on the sender side
+     if op.cleanup:
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004682.html">[svn] r5883 - trunk/tools/mrepo
+</A></li>
+	<LI>Next message: <A HREF="004684.html">[svn] r5885 - trunk/rpms/guyum
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4683">[ date ]</a>
+              <a href="thread.html#4683">[ thread ]</a>
+              <a href="subject.html#4683">[ subject ]</a>
+              <a href="author.html#4683">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

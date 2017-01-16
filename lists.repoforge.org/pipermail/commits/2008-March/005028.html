@@ -1,0 +1,160 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6229 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6229%20-%20trunk/tools/dstat&In-Reply-To=%3C200803221238.m2MCcfeH018391%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005027.html">
+   <LINK REL="Next"  HREF="005029.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6229 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6229%20-%20trunk/tools/dstat&In-Reply-To=%3C200803221238.m2MCcfeH018391%40surya.karan.org%3E"
+       TITLE="[svn] r6229 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Mar 22 13:38:41 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005027.html">[svn] r6228 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="005029.html">[svn] r6230 - in trunk/rpms: . audacious audacious-plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5028">[ date ]</a>
+              <a href="thread.html#5028">[ thread ]</a>
+              <a href="subject.html#5028">[ subject ]</a>
+              <a href="author.html#5028">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-03-22 12:38:41 +0000 (Sat, 22 Mar 2008)
+New Revision: 6229
+
+Modified:
+   trunk/tools/dstat/dstat
+Log:
+Output improvements. Variable cleanup.
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-03-22 10:17:00 UTC (rev 6228)
++++ trunk/tools/dstat/dstat	2008-03-22 12:38:41 UTC (rev 6229)
+@@ -1561,9 +1561,9 @@
+ 
+     if var &lt; 0:
+         if unit:
+-            return ansi['default'] + '-'.rjust(max) + ' '
++            return ansi['white'] + ansi['redbg'] + '-'.rjust(max) + ' ' + ansi['default']
+         else:
+-            return ansi['default'] + '-'.rjust(max)
++            return ansi['white'] + ansi['redbg'] + '-'.rjust(max) + ansi['default']
+ 
+     if base == 1024:
+         units = ('B', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+@@ -1797,8 +1797,8 @@
+ 
+ def main():
+     global pagesize, cpunr, ansi, outputfile
+-    global totlist, tickbefore, now
+-    global interval, update, missed
++    global totlist, inittime
++    global update, missed
+ 
+     pagesize = resource.getpagesize()
+     cpunr = getcpunr()
+@@ -1933,29 +1933,26 @@
+         showcsvtitle(2, totlist)
+ 
+     scheduler = sched.scheduler(time.time, time.sleep)
+-    now = tickbefore = time.time()
++    inittime = time.time()
+ 
+-#    loop = 0
+     update = -1
+-#    step = op.delay
+     missed = 0
+ 
+     ### Let the games begin
+     while update &lt;= op.delay * op.count or op.count == -1:
+-        scheduler.enterabs(now + update + 1, 1, perform, ())
++        update = update + interval
++        scheduler.enterabs(inittime + update, 1, perform, ())
+         scheduler.run()
+ 
+-#        update = update + interval
+-
+     if op.update:
+         sys.stdout.write('\n')
+ 
+ def perform():
+         global totlist, oldvislist, vislist, showheader, rows, cols
+-        global tick, tickbefore, totaltime, starttime
++        global tick, totaltime, starttime
+         global loop, step, update, missed
+ 
+-        update = update + 1
++        starttime = time.time()
+ 
+         loop = (update - 1 + op.delay) / op.delay
+         step = ((update - 1) % op.delay) + 1
+@@ -1964,14 +1961,13 @@
+         if not op.debug:
+             curwidth = 0
+         else:
+-            starttime = time.time()
+             if step == 1 or loop == 0:
+                 totaltime = 0
+             curwidth = 8
+ 
+         ### FIXME: This is temporary functionality, we should do this better
+         ### If it takes longer than 500ms, than warn !
+-        if starttime - now - update &gt; 1:
++        if starttime - inittime - update &gt; 1:
+             missed = missed + 1
+             return 0
+ 
+@@ -2048,10 +2044,13 @@
+         ### Print debugging output
+         if op.debug:
+             totaltime = totaltime + (time.time() - starttime) * 1000.0
+-            if loop == 0: totaltime = totaltime * step
++            if loop == 0:
++                totaltime = totaltime * step
+             if op.debug == 1:
+                 sys.stdout.write('%s%6.2fms%s' % (ansi['darkblue'], totaltime / step, ansi['default']))
+-            elif op.debug &gt; 1:
++            elif op.debug == 2:
++                sys.stdout.write('%s%6.2f %s%d:%d%s' % (ansi['darkblue'], totaltime / step, ansi['darkred'], loop, step, ansi['default']))
++            elif op.debug &gt; 2:
+                 sys.stdout.write('%s%6.2f %s%d:%d:%d%s' % (ansi['darkblue'], totaltime / step, ansi['darkred'], loop, step, update, ansi['default']))
+ 
+         if missed &gt; 0:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005027.html">[svn] r6228 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="005029.html">[svn] r6230 - in trunk/rpms: . audacious audacious-plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5028">[ date ]</a>
+              <a href="thread.html#5028">[ thread ]</a>
+              <a href="subject.html#5028">[ subject ]</a>
+              <a href="author.html#5028">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

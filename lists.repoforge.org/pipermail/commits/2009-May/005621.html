@@ -1,0 +1,252 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6822 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6822%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200905280935.n4S9ZgMo031315%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005620.html">
+   <LINK REL="Next"  HREF="005622.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6822 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6822%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200905280935.n4S9ZgMo031315%40surya.karan.org%3E"
+       TITLE="[svn] r6822 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu May 28 11:35:42 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005620.html">[svn] r6821 - trunk/rpms/perl-Class-MOP
+</A></li>
+        <LI>Next message: <A HREF="005622.html">[svn] r6823 - trunk/rpms/perl-Class-Accessor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5621">[ date ]</a>
+              <a href="thread.html#5621">[ thread ]</a>
+              <a href="subject.html#5621">[ subject ]</a>
+              <a href="author.html#5621">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-05-28 10:35:42 +0100 (Thu, 28 May 2009)
+New Revision: 6822
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/docs/dstat.1
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_ntp.py
+   trunk/tools/dstat/plugins/dstat_power.py
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topcpu.py
+Log:
+Filtering out interfaces. Make topcpu SMP aware. Improve power plugin.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/ChangeLog	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -1,4 +1,4 @@
+-* 0.6.9svn - ... - release 15/12/2008
++* 0.6.9svn - ... - release 28/05/2009
+ - Fixed dstat_disk plugin for total calculation on 2.6.25+ kernels (Noel J. Bergman)
+ - Precompile regular expressions used as a disk filter (self.diskfilter)
+ - Raise a warning when discovery returns empty
+@@ -7,6 +7,9 @@
+ - Simplified logic inside dstat_time
+ - Added external dstat_ntp to show time from an NTP server
+ - Flush sys.stdout later in the loop
++- Filtering out more interfaces (eg. bonding) in total values (Bert de Bruijn)
++- Provide error output when now power information is available (AC power)
++- Make topcpu plugin SMP aware (values are not percent per CPU)
+ 
+ * 0.6.9 - Locarno - release 02/12/2008
+ - Input text color is now gray (again)
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/Makefile	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -34,7 +34,7 @@
+ 
+ dist: clean
+ 	$(MAKE) -C docs dist
+-	find . ! -wholename '*/.svn*' | pax -d -w -x ustar -s ,^,$(name)-$(version)/, | bzip2 &gt;../$(name)-$(version).tar.bz2
++	svn list -R | pax -d -w -x ustar -s ,^,$(name)-$(version)/, | bzip2 &gt;../$(name)-$(version).tar.bz2
+ 
+ rpm: dist
+ 	rpmbuild -tb --clean --rmsource --rmspec --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; --define &quot;_rpmdir ../&quot; ../$(name)-$(version).tar.bz2
+
+Modified: trunk/tools/dstat/docs/dstat.1
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/docs/dstat.1	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -2,7 +2,7 @@
+ .\&quot; It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+ .\&quot; Instead of manually editing it, you probably should edit the DocBook XML
+ .\&quot; source for it and then use the DocBook XSL Stylesheets to regenerate it.
+-.TH &quot;DSTAT&quot; &quot;1&quot; &quot;12/02/2008&quot; &quot;&quot; &quot;&quot;
++.TH &quot;DSTAT&quot; &quot;1&quot; &quot;04/10/2009&quot; &quot;&quot; &quot;&quot;
+ .\&quot; disable hyphenation
+ .nh
+ .\&quot; disable justification (adjust text to left margin only)
+@@ -29,7 +29,7 @@
+ .nr an-break-flag 1
+ .br
+ \fBNote\fR
+-Users of Sleuthkit might find Sleuthkit's dstat being renamed to datastat to avoid a name conflict. See Debian bug #283709 for more information.
++Users of Sleuthkit might find Sleuthkit\(cqs dstat being renamed to datastat to avoid a name conflict. See Debian bug #283709 for more information.
+ .sp
+ .SH &quot;OPTIONS&quot;
+ .TP
+@@ -171,7 +171,7 @@
+ .nf
+ dstat \-dnyc \-N eth0 \-C total \-f 5
+ .fi
+-Checking dstat's behaviour and the system's impact on dstat:
++Checking dstat\(cqs behaviour and the system\(cqs impact on dstat:
+ .sp
+ .sp
+ .nf
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/dstat	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -1171,6 +1171,7 @@
+         self.format = ('f', 5, 1024)
+         self.open('/proc/net/dev')
+         self.nick = ('recv', 'send')
++        self.totalfilter = re.compile('(lo|bond[0-9]+|face|.+\.[0-9]+)')
+         self.discover = self.discover()
+         self.vars = self.vars()
+         self.name = ['net/'+name for name in self.vars]
+@@ -1187,8 +1188,6 @@
+                 ret.append(name)
+         ret.sort()
+         for item in objlist: ret.append(item)
+-        if not ret:
+-            raise Exception, &quot;No suitable network interfaces found to monitor&quot;
+         return ret
+ 
+     def vars(self):
+@@ -1204,6 +1203,8 @@
+         for name in varlist:
+             if name in self.discover + ['total', 'lo']:
+                 ret.append(name)
++        if not ret:
++            raise Exception, &quot;No suitable network interfaces found to monitor&quot;
+         return ret
+ 
+     def extract(self):
+@@ -1215,7 +1216,7 @@
+             name = l[0]
+             if name in self.vars :
+                 self.cn2[name] = ( long(l[1]), long(l[9]) )
+-            if name not in ('lo','face'):
++            if not self.totalfilter.match(name):
+                 self.cn2['total'] = ( self.cn2['total'][0] + long(l[1]), self.cn2['total'][1] + long(l[9]))
+         if update:
+             for name in self.cn2.keys():
+
+Modified: trunk/tools/dstat/plugins/dstat_ntp.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_ntp.py	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/plugins/dstat_ntp.py	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -41,11 +41,11 @@
+ 
+     def check(self):
+         try:
+-            t = self.gettime()
++            self.gettime()
+         except socket.gaierror:
+-            raise Exception, 'Failed to connect to NTP server.'
++            raise Exception, 'Failed to connect to NTP server %s.' % self.ntpserver
+         except socket.error:
+-            raise Exception, 'Error connecting to NTP server.'
++            raise Exception, 'Error connecting to NTP server %s.' % self.ntpserver
+         return True
+ 
+     def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_power.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_power.py	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/plugins/dstat_power.py	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -48,6 +48,10 @@
+ 
+             self.rate = self.rate + watts_drawn + voltage * amperes_drawn
+ 
++        ### Return error if we found no information
++        if self.rate == 0:
++            self.rate = -1
++
+         if op.update:
+             self.val['rate'] = self.rate / tick
+         else:
+
+Modified: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -67,7 +67,7 @@
+         if self.val['usage'] == 0.0:
+             self.val['process'] = ''
+         else:
+-            self.val['process'] = self.val['name']
++            self.val['process'] = os.path.basename(self.val['name'])
+ 
+             ### Debug (show PID)
+ #           self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.format[1]-6, self.val['name'])
+
+Modified: trunk/tools/dstat/plugins/dstat_topcpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topcpu.py	2009-05-28 07:15:38 UTC (rev 6821)
++++ trunk/tools/dstat/plugins/dstat_topcpu.py	2009-05-28 09:35:42 UTC (rev 6822)
+@@ -6,6 +6,8 @@
+ global string
+ import string
+ 
++global cpunr
++
+ class dstat_topcpu(dstat):
+     def __init__(self):
+         self.name = 'most expensive'
+@@ -34,7 +36,7 @@
+                     self.cn1[pid] = 0
+ 
+                 self.cn2[pid] = int(l[13]) + int(l[14])
+-                usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
++                usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick / cpunr
+ 
+                 ### Is it a new topper ?
+                 if usage &lt; self.val['max']: continue
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005620.html">[svn] r6821 - trunk/rpms/perl-Class-MOP
+</A></li>
+	<LI>Next message: <A HREF="005622.html">[svn] r6823 - trunk/rpms/perl-Class-Accessor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5621">[ date ]</a>
+              <a href="thread.html#5621">[ thread ]</a>
+              <a href="subject.html#5621">[ subject ]</a>
+              <a href="author.html#5621">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

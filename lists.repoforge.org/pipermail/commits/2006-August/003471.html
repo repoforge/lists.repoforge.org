@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4671 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4671%20-%20trunk/tools/yam&In-Reply-To=%3C20060818123842.E17AB944AD9%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003470.html">
+   <LINK REL="Next"  HREF="003472.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4671 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4671%20-%20trunk/tools/yam&In-Reply-To=%3C20060818123842.E17AB944AD9%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4671 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug 18 14:38:42 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003470.html">[svn] r4670 - in trunk/rpms: . normalize python-flac retty
+</A></li>
+        <LI>Next message: <A HREF="003472.html">[svn] r4672 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3471">[ date ]</a>
+              <a href="thread.html#3471">[ thread ]</a>
+              <a href="subject.html#3471">[ subject ]</a>
+              <a href="author.html#3471">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-18 14:38:40 +0200 (Fri, 18 Aug 2006)
+New Revision: 4671
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Added locking support allowing to download repos and dists in parallel
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-08-17 15:08:54 UTC (rev 4670)
++++ trunk/tools/yam/ChangeLog	2006-08-18 12:38:40 UTC (rev 4671)
+@@ -36,6 +36,7 @@
+ - Initial attempt to comply with PEP8
+ - Improved debug output to understand where Yam is looking for ISO files (Frederik Kaputa)
+ - Improved finding ISO files
++- Added locking support so that running multiple Yam instances is possible
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-08-17 15:08:54 UTC (rev 4670)
++++ trunk/tools/yam/TODO	2006-08-18 12:38:40 UTC (rev 4671)
+@@ -50,7 +50,6 @@
+ + Add more working distributions to yam-complex.conf
+ 
+ ### Usability
+-+ Locking to prevent multiple Yam instances working on the same distribution
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+ + Generate sample yum.conf and apt .list files for people to use
+ + Add selinux support
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-08-17 15:08:54 UTC (rev 4670)
++++ trunk/tools/yam/yam	2006-08-18 12:38:40 UTC (rev 4671)
+@@ -317,20 +317,20 @@
+ 			for file in self.iso.split(' '):
+ 				absfile = file
+ 				if not os.path.isabs(file):
+-					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, self.nick, file)))
+ 					absfile = os.path.join(cf.srcdir, self.nick, file)
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+ 					list = glob.glob(absfile)
+ 				if not list:
+-					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, self.name, file)))
+ 					absfile = os.path.join(cf.srcdir, self.name, file)
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+ 					list = glob.glob(absfile)
+ 				if not list:
+-					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, 'iso', file)))
+ 					absfile = os.path.join(cf.srcdir, 'iso', file)
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+ 					list = glob.glob(absfile)
+ 				if not list:
+-					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, file)))
+ 					absfile = os.path.join(cf.srcdir, file)
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+ 					list = glob.glob(absfile)
+ 				list.sort()
+ 				for iso in list:
+@@ -341,6 +341,40 @@
+ 		else:
+ 			info(4, '%s: No ISO files found !' % self.nick)
+ 
++	def lock(self, path):
++		lockfile = os.path.join(path, '.lock')
++		try:
++			fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
++			info(5, '%s: Setting lock %s' % (self.nick, lockfile))
++			os.write(fd, '%d' % os.getpid())
++			os.close(fd)
++			return True
++		except:
++			if os.path.exists(lockfile):
++				pid = open(lockfile).read()
++				if os.path.exists('/proc/%s' % pid):
++					info(1, '%s: Found existing lock %s owned by pid %s' % (self.nick, lockfile, pid))
++				else:
++					info(5, '%s: Removing stale lock %s' % (self.nick, lockfile))
++					os.unlink(lockfile)
++					self.lock(path)
++					return True
++			else:
++				info(1, '%s: Lockfile %s does not exist. Cannot lock. Parallel universe ?' % (self.nick, lockfile))
++		return False
++
++	def unlock(self, path):
++		lockfile = os.path.join(path, '.lock')
++		info(5, '%s: Removing lock %s' % (self.nick, lockfile))
++		if os.path.exists(lockfile):
++			pid = open(lockfile).read()
++			if pid == os.getpid():
++				os.unlink(lockfile)
++			else:
++				info(1, '%s: Existing lock %s found owned by another process with pid %s. This should NOT happen.' % (self.nick, lockfile, pid))
++		else:
++				info(1, '%s: Lockfile %s does not exist. Cannot unlock. Something fishy here ?' % (self.nick, lockfile))
++	
+ 	def mount(self):
+ 		&quot;Loopback mount all ISOs&quot;
+ 		discs = []
+@@ -573,7 +607,8 @@
+ 
+ 	def clean(self, repo):
+ 		info(5, '%s: Removing %s' % (self.nick, repo))
+-		remove(glob.glob(os.path.join(self.dir, 'RPMS.' + repo, '*.rpm')))
++		repodir = os.path.join(self.dir, 'RPMS.' + repo)
++		remove(glob.glob(os.path.join(repodir, '*.rpm')))
+ 
+ class YamMirrorException(Exception):
+ 	def __init__(self, value):
+@@ -1130,7 +1165,6 @@
+ 			info(5, 'Found command %s in path %s' % (cmd, path))
+ 			return os.path.join(path, cmd)
+ 	return ''
+-		
+ 
+ def htmlindex():
+ 	symlink(cf.htmldir + '/HEADER.index.shtml', cf.wwwdir + '/HEADER.shtml')
+@@ -1190,6 +1224,8 @@
+ 			### Downloading things
+ 			for repo in repos:
+ 				srcdir = os.path.join(cf.srcdir, dist.nick, repo)
++				if not dist.lock(srcdir):
++					continue
+ 				if repo in ('os', 'core'):
+ 					if not dist.isos:
+ 						mirror(dist.repos[repo], srcdir, dist)
+@@ -1197,6 +1233,7 @@
+ 					mirror(dist.repos[repo], srcdir, dist)
+ 				else:
+ 					info(2, '%s: Repository %s does not exist' % (dist.nick, repo))
++				dist.unlock(srcdir)
+ 
+ 	if not op.generate:
+ 		sys.exit(0)
+@@ -1211,6 +1248,9 @@
+ 		repos.sort()
+ 
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
++		if not dist.lock(dist.dir):
++			continue
++
+ 		dist.html()
+ 
+ 		info(2, '%s: Relinking repositories' % dist.nick)
+@@ -1262,6 +1302,8 @@
+ 		### After generation, write a sha1sum
+ 		dist.writereposha1()
+ 
++		dist.unlock(dist.dir)
++
+ 		### Create pxe boot
+ 		if cf.tftpdir and os.path.isdir(cf.tftpdir):
+ 			tftpdir = os.path.join(cf.tftpdir, dist.nick)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003470.html">[svn] r4670 - in trunk/rpms: . normalize python-flac retty
+</A></li>
+	<LI>Next message: <A HREF="003472.html">[svn] r4672 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3471">[ date ]</a>
+              <a href="thread.html#3471">[ thread ]</a>
+              <a href="subject.html#3471">[ subject ]</a>
+              <a href="author.html#3471">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

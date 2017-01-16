@@ -1,0 +1,372 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4531 - in trunk/rpms: acx-kmod acx-kmod-common
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4531%20-%20in%20trunk/rpms%3A%20acx-kmod%20acx-kmod-common&In-Reply-To=%3C20060619145312.0C33231810D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003330.html">
+   <LINK REL="Next"  HREF="003332.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4531 - in trunk/rpms: acx-kmod acx-kmod-common</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4531%20-%20in%20trunk/rpms%3A%20acx-kmod%20acx-kmod-common&In-Reply-To=%3C20060619145312.0C33231810D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4531 - in trunk/rpms: acx-kmod acx-kmod-common">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jun 19 16:53:12 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003330.html">[svn] r4530 - trunk/rpms/bmpx
+</A></li>
+        <LI>Next message: <A HREF="003332.html">[svn] r4532 - in trunk/rpms: gnokii mytop pssh
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3331">[ date ]</a>
+              <a href="thread.html#3331">[ thread ]</a>
+              <a href="subject.html#3331">[ subject ]</a>
+              <a href="author.html#3331">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-06-19 16:53:10 +0200 (Mon, 19 Jun 2006)
+New Revision: 4531
+
+Added:
+   trunk/rpms/acx-kmod/kmodtool
+Modified:
+   trunk/rpms/acx-kmod-common/acx-kmod-common.spec
+   trunk/rpms/acx-kmod/acx-kmod.spec
+Log:
+Update acx-kmod, acx-kmod-common and the kmodtool it uses.
+
+
+Modified: trunk/rpms/acx-kmod/acx-kmod.spec
+===================================================================
+--- trunk/rpms/acx-kmod/acx-kmod.spec	2006-06-19 13:56:51 UTC (rev 4530)
++++ trunk/rpms/acx-kmod/acx-kmod.spec	2006-06-19 14:53:10 UTC (rev 4531)
+@@ -2,37 +2,32 @@
+ # authority: matthias
+ # ExclusiveDist: fc4 fc5
+ 
+-%define snapshot 20060215
++%define snapshot 20060521
+ 
+ # Stuff to be implemented externally :
+ Source10: kmodtool
+-%define   kmodtool sh %{SOURCE10}
++%define   kmodtool bash %{SOURCE10}
+ # End stuff to be ...
+ 
+-# Temporarily hardcoded :
+-%{!?kver: %define kver 2.6.16-1.2080_FC5}
+-%ifnarch i686 x86_64 ppc
+-%define kvariants &quot;&quot;
+-%else
+-%ifarch i686
+-%define kvariants &quot;&quot; smp xen0 xenU
+-%endif
+-%ifarch x86_64
+-%define kvariants &quot;&quot; xen0 xenU
+-%endif
+-%ifarch ppc
+-%define kvariants &quot;&quot; smp
+-%endif
+-%endif
++%{!?kversion: %define kversion 2.6.16-1.2122_FC5}
+ 
+ %define kmod_name acx
+-%define kverrel %(%{kmodtool} verrel  %{?kver} 2&gt;/dev/null)
+-%{!?kvariants: %global kvariants %(%{kmodtool} variant %{?kver} 2&gt;/dev/null)}
++%define kverrel %(%{kmodtool} verrel  %{?kversion} 2&gt;/dev/null)
+ 
++%define upvar &quot;&quot;
++%ifarch i586 i686 ppc
++%define smpvar smp
++%endif
++%ifarch i686 x86_64
++%define xenvar xen0 xenU
++%define kdumpvar kdump
++%endif
++%{!?kvariants: %define kvariants %{?upvar} %{?smpvar} %{?xenvar} %{?kdumpvar}}
++
+ Summary: Kernel module for Texas Instruments ACX100/ACX111 based network adapters
+ Name: %{kmod_name}-kmod
+-Version: 0.0.0
+-Release: 1.%{snapshot}.%(echo %{kverrel} | tr - _)
++Version: 0.0.0.%{snapshot}
++Release: 1.%(echo %{kverrel} | tr - _)
+ Group: System Environment/Kernel
+ License: GPL
+ URL: <A HREF="http://acx100.sourceforge.net/">http://acx100.sourceforge.net/</A>
+@@ -46,14 +41,10 @@
+ provides a driver for Texas Instruments ACX100/ACX111 based wireless network
+ adapters.
+ 
+-# magic hidden here:
+ %{expand:%(%{kmodtool} rpmtemplate %{kmod_name} %{kverrel} %{kvariants} 2&gt;/dev/null)}
+ 
+ 
+ %prep
+-# To understand the magic better or to debug it, uncomment this :
+-#{kmodtool} rpmtemplate %{kmod_name} %{kverrel} %{kvariants} 2&gt;/dev/null
+-#sleep 5
+ %setup -c -T
+ # Can't think of any better way to do this since we basically need -c twice
+ for kvariant in %{kvariants}; do
+@@ -88,6 +79,13 @@
+ 
+ 
+ %changelog
++* Mon Jun 19 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.0-1.20060521
++- Enable i586 SMP since the kernel is available.
++
++* Wed May 31 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.0-1.20060521
++- Update to 20060521.
++- Update kmodtool to 0.10.10.
++
+ * Fri Mar 31 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.0-1.20060215
+ - Initial RPM release, based on the new Extras kernel module template.
+ 
+
+Added: trunk/rpms/acx-kmod/kmodtool
+===================================================================
+--- trunk/rpms/acx-kmod/kmodtool	2006-06-19 13:56:51 UTC (rev 4530)
++++ trunk/rpms/acx-kmod/kmodtool	2006-06-19 14:53:10 UTC (rev 4531)
+@@ -0,0 +1,172 @@
++#!/bin/bash
++
++# kmodtool - Helper script for building kernel module RPMs
++# Copyright (c) 2003-2006 Ville Skytt&#228; &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">ville.skytta at iki.fi</A>&gt;,
++#                         Thorsten Leemhuis &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">fedora at leemhuis.info</A>&gt;
++#
++# Permission is hereby granted, free of charge, to any person obtaining
++# a copy of this software and associated documentation files (the
++# &quot;Software&quot;), to deal in the Software without restriction, including
++# without limitation the rights to use, copy, modify, merge, publish,
++# distribute, sublicense, and/or sell copies of the Software, and to
++# permit persons to whom the Software is furnished to do so, subject to
++# the following conditions:
++#
++# The above copyright notice and this permission notice shall be
++# included in all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND,
++# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++shopt -s extglob
++
++myprog=&quot;kmodtool&quot;
++myver=&quot;0.10.10&quot;
++knownvariants=@(BOOT|PAE|@(big|huge)mem|debug|enterprise|kdump|?(large)smp|uml|xen[0U]?(-PAE))
++kmod_name=
++kver=
++verrel=
++variant=
++
++get_verrel ()
++{
++  verrel=${1:-$(uname -r)}
++  verrel=${verrel%%$knownvariants}
++}
++
++print_verrel ()
++{
++  get_verrel $@
++  echo &quot;${verrel}&quot;
++}
++
++get_variant ()
++{
++  get_verrel $@
++  variant=${1:-$(uname -r)}
++  variant=${variant##$verrel}
++  variant=${variant:-'&quot;&quot;'}
++}
++
++print_variant ()
++{
++  get_variant $@
++  echo &quot;${variant}&quot;
++}
++
++
++get_rpmtemplate ()
++{
++    local variant=&quot;${1}&quot;
++    local dashvariant=&quot;${variant:+-${variant}}&quot;
++    case &quot;$verrel&quot; in
++        *.EL*) kdep=&quot;kernel${dashvariant}-%{_target_cpu} = ${verrel}&quot; ;;
++        *)     kdep=&quot;kernel-%{_target_cpu} = ${verrel}${variant}&quot;     ;;
++    esac
++    cat &lt;&lt;EOF
++%package       -n kmod-${kmod_name}${dashvariant}
++Summary:          ${kmod_name} kernel module(s)
++Group:            System Environment/Kernel
++Provides:         kernel-modules = ${verrel}${variant}
++Provides:         ${kmod_name}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
++Requires:         ${kdep}
++Requires:         ${kmod_name}-kmod-common &gt;= %{?epoch:%{epoch}:}%{version}
++Requires(post):   /sbin/depmod
++Requires(postun): /sbin/depmod
++BuildRequires:    kernel${dashvariant}-devel-%{_target_cpu} = ${verrel}
++%description   -n kmod-${kmod_name}${dashvariant}
++This package provides the ${kmod_name} kernel modules built for the Linux
++kernel ${verrel}${variant} for the %{_target_cpu} family of processors.
++%post          -n kmod-${kmod_name}${dashvariant}
++/sbin/depmod -aeF /boot/System.map-${verrel}${variant} ${verrel}${variant} &gt; /dev/null || :
++%postun        -n kmod-${kmod_name}${dashvariant}
++/sbin/depmod -aF /boot/System.map-${verrel}${variant} ${verrel}${variant} &amp;&gt; /dev/null || :
++%files         -n kmod-${kmod_name}${dashvariant}
++%defattr(644,root,root,755)
++/lib/modules/${verrel}${variant}/extra/${kmod_name}/
++
++EOF
++}
++
++print_rpmtemplate ()
++{
++  kmod_name=&quot;${1}&quot;
++  shift
++  kver=&quot;${1}&quot;
++  get_verrel &quot;${1}&quot;
++  shift
++  if [ -z &quot;${kmod_name}&quot; ] ; then
++    echo &quot;Please provide the kmodule-name as first parameter.&quot; &gt;&amp;2
++    exit 2
++  elif [ -z &quot;${kver}&quot; ] ; then
++    echo &quot;Please provide the kver as second parameter.&quot; &gt;&amp;2
++    exit 2
++  elif [ -z &quot;${verrel}&quot; ] ; then
++    echo &quot;Couldn't find out the verrel.&quot; &gt;&amp;2
++    exit 2
++  fi
++
++  for variant in &quot;$@&quot; ; do
++    get_rpmtemplate &quot;${variant}&quot;
++  done
++}
++
++usage ()
++{
++  cat &lt;&lt;EOF
++You called: ${invocation}
++
++Usage: ${myprog} &lt;command&gt; &lt;option&gt;+
++ Commands:
++  verrel &lt;uname&gt;                               
++    - Get &quot;base&quot; version-release.
++  variant &lt;uname&gt;                               
++    - Get variant from uname.
++  rpmtemplate &lt;mainpgkname&gt; &lt;uname&gt; &lt;variants&gt; 
++    - Return a template for
++  version  
++    - Output version number and exit.
++EOF
++}
++
++invocation=&quot;$(basename ${0}) $@&quot;
++while [ &quot;${1}&quot; ] ; do
++  case &quot;${1}&quot; in
++    verrel)
++      shift
++      print_verrel $@
++      exit $?
++      ;;
++    variant)
++      shift
++      print_variant $@
++      exit $?
++      ;;
++    rpmtemplate)
++      shift
++      print_rpmtemplate &quot;$@&quot;
++      exit $?
++      ;;
++    version)
++      echo &quot;${myprog} ${myver}&quot;
++      exit 0
++      ;;
++    *)
++      echo &quot;Error: Unknown option '${1}'.&quot; &gt;&amp;2
++      usage &gt;&amp;2
++      exit 2
++      ;;
++  esac
++done
++
++# Local variables:
++# mode: sh
++# sh-indentation: 2
++# indent-tabs-mode: nil
++# End:
++# ex: ts=2 sw=2 et
+
+
+Property changes on: trunk/rpms/acx-kmod/kmodtool
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/rpms/acx-kmod-common/acx-kmod-common.spec
+===================================================================
+--- trunk/rpms/acx-kmod-common/acx-kmod-common.spec	2006-06-19 13:56:51 UTC (rev 4530)
++++ trunk/rpms/acx-kmod-common/acx-kmod-common.spec	2006-06-19 14:53:10 UTC (rev 4531)
+@@ -2,11 +2,13 @@
+ # authority: matthias
+ # Dist: nodist
+ 
++%define snapshot 20060521
++
+ %define kmod_name acx
+ 
+ Summary: Common files for the ACX kernel module
+ Name: %{kmod_name}-kmod-common
+-Version: 0.0.0
++Version: 0.0.0.%{snapshot}
+ Release: 1
+ Group: System Environment/Kernel
+ License: GPL
+@@ -40,6 +42,9 @@
+ 
+ 
+ %changelog
+-* Fri Mar 31 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.0-1
++* Wed May 31 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.0.20060521-1
++- Update to 20060521.
++
++* Fri Mar 31 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.0.20060215-1
+ - Initial RPM release, based on the new Extras kernel module template.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003330.html">[svn] r4530 - trunk/rpms/bmpx
+</A></li>
+	<LI>Next message: <A HREF="003332.html">[svn] r4532 - in trunk/rpms: gnokii mytop pssh
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3331">[ date ]</a>
+              <a href="thread.html#3331">[ thread ]</a>
+              <a href="subject.html#3331">[ subject ]</a>
+              <a href="author.html#3331">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,135 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6675 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6675%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200902010117.n111HnBE009316%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="005475.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6675 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6675%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200902010117.n111HnBE009316%40surya.karan.org%3E"
+       TITLE="[svn] r6675 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Feb  1 02:17:49 CET 2009</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="005475.html">[svn] r6676 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5474">[ date ]</a>
+              <a href="thread.html#5474">[ thread ]</a>
+              <a href="subject.html#5474">[ subject ]</a>
+              <a href="author.html#5474">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-02-01 01:17:49 +0000 (Sun, 01 Feb 2009)
+New Revision: 6675
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/plugins/dstat_battery.py
+   trunk/tools/dstat/plugins/dstat_cpufreq.py
+Log:
+Improvements to dstat_battery and dstat_cpufreq.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-01-31 17:24:40 UTC (rev 6674)
++++ trunk/tools/dstat/ChangeLog	2009-02-01 01:17:49 UTC (rev 6675)
+@@ -2,10 +2,12 @@
+ - Fixed dstat_disk plugin for total calculation on 2.6.25+ kernels (Noel J. Bergman)
+ - Precompile regular expressions used as a disk filter (self.diskfilter)
+ - Raise a warning when discovery returns empty
++- Improvements to dstat_battery and dstat_cpufreq
++- Added external dstat_power plugin to show ACPI power usage
+ 
+ * 0.6.9 - Locarno - release 02/12/2008
+ - Input text color is now gray (again)
+-- Added external dstat_luster plugin (Brock Palen, Kilian Vavalotti)
++- Added external dstat_lustre plugin (Brock Palen, Kilian Vavalotti)
+ - Validate integer values in /proc/swaps (Bert de Bruijn)
+ - Added VMware guest dstat_vmmemctl plugin (Bert de Bruijn)
+ - Added internal dstat_fs plugin showing number of open files/inodes
+
+Modified: trunk/tools/dstat/plugins/dstat_battery.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_battery.py	2009-01-31 17:24:40 UTC (rev 6674)
++++ trunk/tools/dstat/plugins/dstat_battery.py	2009-02-01 01:17:49 UTC (rev 6675)
+@@ -9,7 +9,7 @@
+ class dstat_battery(dstat):
+     def __init__(self):
+         self.name = 'battery'
+-        self.format = ('f', 4, 34)
++        self.format = ('p', 4, 34)
+         self.vars = []
+         for battery in os.listdir('/proc/acpi/battery/'):
+             for line in dopen('/proc/acpi/battery/'+battery+'/state').readlines():
+@@ -17,6 +17,7 @@
+                 if len(l) &lt; 2: continue
+                 if l[0] == 'present:' and l[1] == 'yes':
+                     self.vars.append(battery)
++        self.vars.sort()
+ #       self.nick = [string.lower(name) for name in self.vars]
+         self.nick = []
+         for name in self.vars:
+
+Modified: trunk/tools/dstat/plugins/dstat_cpufreq.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_cpufreq.py	2009-01-31 17:24:40 UTC (rev 6674)
++++ trunk/tools/dstat/plugins/dstat_cpufreq.py	2009-02-01 01:17:49 UTC (rev 6675)
+@@ -20,6 +20,7 @@
+             name = os.path.basename(name)
+             self.vars.append(name)
+             self.nick.append(string.lower(name))
++        self.nick.sort()
+         self.init(self.vars, 1)
+ 
+     def check(self): 
+@@ -40,6 +41,14 @@
+                 cur = int(l[0])
+             ### Need to close because of bug in sysfs (?)
+             dclose('/sys/devices/system/cpu/'+cpu+'/cpufreq/scaling_cur_freq')
+-            self.val[cpu] = cur * 100.0 / max
++            self.cn1[cpu] = self.cn1[cpu] + cur * 100.0 / max
+ 
++            if op.update:
++                self.val[cpu] = self.cn1[cpu] / tick
++            else:
++                self.val[cpu] = self.cn1[cpu]
++
++            if step == op.delay:
++                self.cn1[cpu] = 0
++
+ # vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="005475.html">[svn] r6676 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5474">[ date ]</a>
+              <a href="thread.html#5474">[ thread ]</a>
+              <a href="subject.html#5474">[ subject ]</a>
+              <a href="author.html#5474">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

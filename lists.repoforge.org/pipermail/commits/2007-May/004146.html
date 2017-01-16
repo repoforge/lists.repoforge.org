@@ -1,0 +1,210 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5347 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5347%20-%20trunk/tools/dar&In-Reply-To=%3C20070502183616.ED756318162%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004145.html">
+   <LINK REL="Next"  HREF="004147.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5347 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5347%20-%20trunk/tools/dar&In-Reply-To=%3C20070502183616.ED756318162%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5347 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed May  2 20:36:16 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004145.html">[svn] r5346 - trunk/rpms/ati-x11-drv
+</A></li>
+        <LI>Next message: <A HREF="004147.html">[svn] r5348 - in trunk/rpms: . perl-Authen-GoogleAccount	perl-CGI-Application-Plugin-Output-XSV	perl-Catalyst-Plugin-Charsets-Japanese perl-Config-Format-Ini	perl-Config-Properties perl-Crypt-Camellia_PP	perl-Data-Phrasebook-Loader-Ini	perl-Data-Phrasebook-Loader-XML perl-Data-Random-String	perl-Data-SearchReplace perl-Devel-LineTrace	perl-Devel-TrackObjects perl-Egg-Plugin-SessionKit	perl-File-Find-Closures perl-File-Next perl-Games-Crossword-Puzzle	perl-Geo-Coordinates-DecimalDegrees perl-Geo-IP-PurePerl	perl-Google-Checkout perl-HTML-TreeBuilder-XPath	perl-HTML-Widgets-SelectLayers perl-Net-SIP	perl-POE-Component-Client-Pastebot	perl-Parallel-Fork-BossWorker perl-Parallel-Mpich-MPD	perl-SVN-Notify-Mirror perl-Template-Plugin-Shorten	perl-Text-Hatena perl-URI-ParseSearchString	perl-WWW-Scraper-ISBN-Pearson_Driver perl-WWW-TwentyQuestions	perl-WebService-Careerjet perl-XML-Compile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4146">[ date ]</a>
+              <a href="thread.html#4146">[ thread ]</a>
+              <a href="subject.html#4146">[ subject ]</a>
+              <a href="author.html#4146">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-02 20:36:15 +0200 (Wed, 02 May 2007)
+New Revision: 5347
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Check real_version against version.
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-05-02 11:05:49 UTC (rev 5346)
++++ trunk/tools/dar/dar-perl.py	2007-05-02 18:36:15 UTC (rev 5347)
+@@ -1,6 +1,6 @@
+ #!/usr/bin/python
+ 
+-import sys, os, time, getopt, urllib2, gzip
++import sys, os, time, getopt, urllib2, gzip, re
+ import cElementTree as ElementTree
+ import tarfile
+ 
+@@ -8,6 +8,7 @@
+ logname = os.getlogin()
+ debug = False
+ noarch = True
++realversion = None
+ 
+ docfiles = ('Announce', 'ANNOUNCE', 'Artistic', 'ARTISTIC', 'Artistic.txt', 'AUTHORS', 'Bugs', 'BUGS', 'Changelog', 'ChangeLog', 'CHANGELOG', 'Changes', 'CHANGES', 'Changes.pod', 'CHANGES.TXT', 'Copying', 'COPYING', 'COPYRIGHT', 'Credits', 'CREDITS', 'CREDITS.txt', 'FAQ', 'GNU_GPL.txt', 'GNU_LGPL.txt', 'GNU_LICENSE', 'HACKING', 'HISTORY', 'INFO', 'INSTALL', 'INSTALLING', 'INSTALL.txt', 'LICENCE', 'LICENSE', 'MANIFEST', 'META.yml', 'NEWS', 'NOTES', 'NOTICE', 'PORTING', 'readme', 'README', 'readme.txt', 'README.txt', 'README.TXT', 'RELEASE_NOTES', 'SIGNATURE', 'THANKS', 'TODO', 'UPGRADE', 'VERSION', '.txt')
+ 
+@@ -96,10 +97,21 @@
+ 			email = ''
+ 		break
+ 
++### Get the correct version from the source distribution
++sdistname = &quot;%s-%s.tar.gz&quot; % (module, version)
++cdistname = os.path.basename(location)
++if sdistname != cdistname:
++	realversion = version
++	### FIXME: Get the version from the cdistname
++	m = re.match('.+-([\d\.]+).tar.gz', cdistname)
++	if m:
++	        l = m.groups()
++		version = l[0]
++#	print &gt;&gt;sys.stdout, &quot;sdistname != cdistname&quot;
++
+ ### Try to download distribution
+-distname = os.path.basename(location)
+-archive = os.path.join('/dar/tmp', distname)
+-download(&quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], distname))
++archive = os.path.join('/dar/tmp', cdistname)
++download(&quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], cdistname))
+ bymodule = True
+ if not os.path.exists(archive):
+ 	download(location)
+@@ -107,19 +119,32 @@
+ 
+ ### Inspect distribution and extract information (%doc, META.yml, arch/noarch)
+ distfd = tarfile.open(archive, 'r:gz')
++### Remove .tar.gz from base (Name-Version)
++base = os.path.basename(archive)
++l = base.split('.tar.gz')
++base = l[0]
+ docs = []
+ for file in distfd.getnames():
++	### Remove Name-Version/ from filename
++	l = file.split(base+'/')
++	shortfile = l[1]
+ 	if file.endswith('.c') or file.endswith('.h') or file.endswith('.cc') or file.endswith('.xs'):
+ 		noarch = False
+ 	for docfile in docfiles:
+-		if file.endswith(docfile):
+-			l = file.split('/')
+-			docs.append('/'.join(l[1:]))
+-#	if file.endswith('META.yml'):
++		if shortfile == docfile:
++			docs.append(shortfile)
++	### Parse META.yml
++#	if shortfile == 'META.yml':
+ #		member = distfd.getmember(file)
+ #		meta = distfd.extractfile(member)
+ #		for line in meta.readlines():
+ #			print &gt;&gt;sys.stderr, line
++	### Parse README
++#	if shortfile == 'README':
++#		member = distfd.getmember(file)
++#		meta = distfd.extractfile(member)
++#		for line in meta.readlines():
++#			print &gt;&gt;sys.stderr, line
+ docs.sort()
+ 
+ if debug:
+@@ -128,8 +153,10 @@
+ 		print &gt;&gt;sys.stderr, 'noarch package by %s &lt;%s&gt;' % (author, email)
+ 	else:
+ 		print &gt;&gt;sys.stderr, 'arch package by %s &lt;%s&gt;' % (author, email)
++	if realversion:
++		print &gt;&gt;sys.stderr, 'source has different version format than CPAN (%s vs %s)' % (version, realversion)
+ 	print &gt;&gt;sys.stderr, 'Found following docs:', ' '.join(docs)
+-	print &gt;&gt;sys.stderr, 'Distribution archive %s contains:' % distname
++	print &gt;&gt;sys.stderr, 'Distribution archive %s contains:' % cdistname
+ 	for file in distfd.getnames():
+ 		print &gt;&gt;sys.stderr, '  ', file
+ 
+@@ -138,7 +165,7 @@
+ print '# $Id$'
+ print '# Authority:', logname
+ 
+-### FIXME: Make unicode characters work
++### FIXME: Make unicode characters work, instead of removing them
+ #author.encode('latin-1', errors='replace') 
+ author = author.encode('latin-1', 'replace') 
+ print &quot;# Upstream: %s &lt;%s&gt;&quot; % (author, email)
+@@ -147,15 +174,19 @@
+ print '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'
+ print
+ print '%define real_name', module
++
++if realversion:
++	print '%define real_version', realversion
++	
+ print
+ 
+-### FIXME: Get Summary from CPAN or Archive
++### FIXME: Get Summary from README in Archive
+ print &quot;Summary: %s module for perl&quot; % module
+ print &quot;Name: perl-%s&quot; % module
+ print 'Version:', version
+ print 'Release: 1'
+ 
+-### FIXME: Get License from CPAN or Archive
++### FIXME: Get License from Archive
+ print 'License: Artistic'
+ print 'Group: Applications/CPAN'
+ print &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+@@ -173,14 +204,16 @@
+ 	print &quot;BuildArch: noarch&quot;
+ 
+ print &quot;BuildRequires: perl&quot;
+-print &quot;Requires: perl&quot;
++#print &quot;Requires: perl&quot;
+ print
+ 
+-### FIXME: Get Description from CPAN or Archive
++### FIXME: Get Description from README in Archive
+ print &quot;%description&quot;
+ print &quot;%s module for perl.&quot; % module
+ print
+ print &quot;%prep&quot;
++#if realversion:
++#	print &quot;%setup -n %{real_name}-%{real_version}&quot;
+ print &quot;%setup -n %{real_name}-%{version}&quot;
+ print
+ print &quot;%build&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004145.html">[svn] r5346 - trunk/rpms/ati-x11-drv
+</A></li>
+	<LI>Next message: <A HREF="004147.html">[svn] r5348 - in trunk/rpms: . perl-Authen-GoogleAccount	perl-CGI-Application-Plugin-Output-XSV	perl-Catalyst-Plugin-Charsets-Japanese perl-Config-Format-Ini	perl-Config-Properties perl-Crypt-Camellia_PP	perl-Data-Phrasebook-Loader-Ini	perl-Data-Phrasebook-Loader-XML perl-Data-Random-String	perl-Data-SearchReplace perl-Devel-LineTrace	perl-Devel-TrackObjects perl-Egg-Plugin-SessionKit	perl-File-Find-Closures perl-File-Next perl-Games-Crossword-Puzzle	perl-Geo-Coordinates-DecimalDegrees perl-Geo-IP-PurePerl	perl-Google-Checkout perl-HTML-TreeBuilder-XPath	perl-HTML-Widgets-SelectLayers perl-Net-SIP	perl-POE-Component-Client-Pastebot	perl-Parallel-Fork-BossWorker perl-Parallel-Mpich-MPD	perl-SVN-Notify-Mirror perl-Template-Plugin-Shorten	perl-Text-Hatena perl-URI-ParseSearchString	perl-WWW-Scraper-ISBN-Pearson_Driver perl-WWW-TwentyQuestions	perl-WebService-Careerjet perl-XML-Compile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4146">[ date ]</a>
+              <a href="thread.html#4146">[ thread ]</a>
+              <a href="subject.html#4146">[ subject ]</a>
+              <a href="author.html#4146">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

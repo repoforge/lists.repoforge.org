@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1704 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1704%20-%20trunk/tools/dar&In-Reply-To=%3C20040721180352.9C8AE1FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000512.html">
+   <LINK REL="Next"  HREF="000514.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1704 - trunk/tools/dar</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1704%20-%20trunk/tools/dar&In-Reply-To=%3C20040721180352.9C8AE1FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1704 - trunk/tools/dar">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Jul 21 20:03:52 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000512.html">[SVN] r1703 - trunk/rpms/amule
+</A></li>
+        <LI>Next message: <A HREF="000514.html">[SVN] r1705 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#513">[ date ]</a>
+              <a href="thread.html#513">[ thread ]</a>
+              <a href="subject.html#513">[ subject ]</a>
+              <a href="author.html#513">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-07-21 20:03:50 +0200 (Wed, 21 Jul 2004)
+New Revision: 1704
+
+Modified:
+   trunk/tools/dar/ChangeLog
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-sync
+   trunk/tools/dar/dar.conf
+Log:
+Small updates, see ChangeLog.
+
+
+Modified: trunk/tools/dar/ChangeLog
+===================================================================
+--- trunk/tools/dar/ChangeLog	2004-07-21 16:41:23 UTC (rev 1703)
++++ trunk/tools/dar/ChangeLog	2004-07-21 18:03:50 UTC (rev 1704)
+@@ -20,6 +20,10 @@
+ - dar-functions: Fixed a small bug in rpmconf()
+ - dar-prepare: Replace /mnt/dar by ROOT (Edward Rudd)
+ - dar-build: Added BUILD_GROUP (Edward Rudd)
++- dar-build: Small fixes to SPEC file location
++- dar-build: Added -n flag to build  without building a source RPM
++- dar-sync: Added i386 packages to x86_64 (could be done without hardcoding it)
++- dar-build: Added SETARCH supprt (Ralf Ertzinger)
+ 
+ Version 0.6.0
+ - dar.conf: Removed DISTSMAP, added it to dists specific section
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2004-07-21 16:41:23 UTC (rev 1703)
++++ trunk/tools/dar/dar-build	2004-07-21 18:03:50 UTC (rev 1704)
+@@ -4,7 +4,7 @@
+ 
+ source &quot;/usr/lib/dar/dar-functions&quot;
+ 
+-daropts &quot;:a:d:fs:t:v&quot; $@
++daropts &quot;:a:d:fns:t:v&quot; $@
+ PKGS=&quot;$OPTS&quot;
+ 
+ if [ ! -d &quot;$ROOT&quot; ]; then
+@@ -33,9 +33,14 @@
+ 	fi
+ 
+ 	if [ ! -f &quot;$SPECFILE&quot; ]; then
+-		SPECFILE=&quot;$app.spec&quot;
++		SPECFILE=&quot;SPECDIR/$SPECFILE&quot;
+ 	fi
++
+ 	if [ ! -f &quot;$SPECFILE&quot; ]; then
++		SPECFILE=&quot;SPECDIR/$app.spec&quot;
++	fi
++
++	if [ ! -f &quot;$SPECFILE&quot; ]; then
+ 		SPECDIR=&quot;$SPECSDIR/$app&quot;
+ 		SPECFILE=&quot;$SPECDIR/$app.spec&quot;
+ 	fi
+@@ -247,6 +252,13 @@
+ 				export CCACHE_RECACHE=&quot;1&quot;
+ 			fi
+ 
++			### Check for Setarch
++			if [ -x &quot;/usr/bin/setarch&quot; -a &quot;$DISTARCH&quot; != &quot;$(uname -m)&quot; ]; then
++				SETARCH=&quot;/usr/bin/setarch $DISTARCH&quot;
++			else
++				unset SETARCH
++			fi
++
+ 			### Remove buildroot
+ 			rm -rf &quot;$TEMPDIR/root-$app-$VERSION&quot;
+ 
+@@ -286,7 +298,7 @@
+ 
+ 				### Check for building as user
+ 				if [ $AS_ROOT -eq 1 ]; then
+-					chroot &quot;$CHROOTDIR/$dist&quot; /usr/bin/rpmbuild -bb $RPMOPTS \
++					$SETARCH chroot &quot;$CHROOTDIR/$dist&quot; /usr/bin/rpmbuild -bb $RPMOPTS \
+ 						--define &quot;_smp_mflags $MAKEFLAGS&quot; \
+ 						--define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; \
+ 						--define &quot;_initrddir %{_sysconfdir}/rc.d/init.d&quot; \
+@@ -299,7 +311,7 @@
+ 						--define &quot;$DISTNICK 1&quot; \
+ 						&quot;$NEWSPECFILE&quot;
+ 				else
+-					chroot &quot;$CHROOTDIR/$dist&quot; /bin/su - -m $BUILD_USER -c &quot;/usr/bin/rpmbuild -bb $RPMOPTS \
++					$SETARCH chroot &quot;$CHROOTDIR/$dist&quot; /bin/su - -m $BUILD_USER -c &quot;/usr/bin/rpmbuild -bb $RPMOPTS \
+ 						--define '_smp_mflags $MAKEFLAGS' \
+ 						--define '_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm' \
+ 						--define '_initrddir %{_sysconfdir}/rc.d/init.d' \
+@@ -370,7 +382,7 @@
+ 	done
+ 
+ 	### Only build when there was a succesful binary build
+-	if [ &quot;$DARBUILDRC&quot; -eq 0 ]; then
++	if [ &quot;$DARBUILDRC&quot; -eq 0 -a &quot;$NOSOURCE&quot; != &quot;true&quot; ]; then
+ 
+ 		if [ -z &quot;$SOURCE_DISTS&quot; ]; then SOURCE_DISTS=&quot;$DEFAULT_SOURCE_DISTS&quot;; fi
+ 
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2004-07-21 16:41:23 UTC (rev 1703)
++++ trunk/tools/dar/dar-functions	2004-07-21 18:03:50 UTC (rev 1704)
+@@ -134,6 +134,7 @@
+ 			(a)	FORCE_ARCHS=&quot;$OPTARG&quot;;;
+ 			(d)	FORCE_DISTS=&quot;$OPTARG&quot;;;
+ 			(f)	FORCE_OVERWRITE=&quot;true&quot;;;
++			(n)	NOSOURCE=&quot;true&quot;;;
+ 			(s)	FORCE_SOURCE_DISTS=&quot;$OPTARG&quot;;;
+ 			(t)	FORCE_TAG=&quot;$OPTARG&quot;;;
+ 			(v)	FORCE_VERBOSE=&quot;true&quot;;;
+@@ -337,8 +338,8 @@
+ 				echo $PACKAGEDIR/*/*.{$tag,0}.$REPO.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
+ 				;;
+ 			x86_64)
+-				echo $PACKAGEDIR/*/*.$REPO.$tag.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null # Backward compatibility
+-				echo $PACKAGEDIR/*/*.{$tag,0}.$REPO.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
++				echo $PACKAGEDIR/*/*.$REPO.$tag.{noarch,i386,i586,i686,athlon,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null # Backward compatibility
++				echo $PACKAGEDIR/*/*.{$tag,0}.$REPO.{noarch,i386,i586,i686,athlon,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
+ 				;;
+ 		esac
+ 	done
+@@ -362,6 +363,8 @@
+ 	echo $FTPDIR/$DISTPATH/$REPO/RPMS/*.rpm | xargs rm -f
+ 	echo $FTPDIR/$DISTPATH/$REPO/headers/*.hdr | xargs rm -f
+ 
++	### FIXME: This should not be done hardcoded, rather have a list of archs inside the dist-config
++	### FIXME: And iterate through that list
+ 	### Hardlink files
+ 	for tag in $DISTTAG; do
+ 		case &quot;$DISTARCH&quot; in
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2004-07-21 16:41:23 UTC (rev 1703)
++++ trunk/tools/dar/dar-sync	2004-07-21 18:03:50 UTC (rev 1704)
+@@ -67,9 +67,8 @@
+ echo -n &quot;Press enter to start remote synchronisation.&quot;
+ read
+ echo &quot;Starting remote synchronisation.&quot;
+-RSYNC_OPTIONS=&quot;&quot;
+ if [ $RSYNC_LIMIT ]; then
+-	RSYNC_OPTIONS=&quot;--bwlimit=&quot;$RSYNC_LIMIT&quot;&quot;
++	RSYNC_OPTIONS=&quot;$RSYNC_OPTIONS --bwlimit=\&quot;$RSYNC_LIMIT\&quot;&quot;
+ fi
+ #rsync -anvzHL --progress --delete-after $RSYNC_OPTIONS -e /usr/bin/ssh $PACKAGEDIR $FTPDIR $RSYNC_TARGET
+-rsync -avHL --progress --delete-after $RSYNC_OPTIONS -e &quot;/usr/bin/ssh -oCompression=no&quot; $PACKAGEDIR $FTPDIR $RSYNC_TARGET
++rsync -avHL --progress --delete-after $RSYNC_OPTIONS -e &quot;/usr/bin/ssh -oCompression=no&quot; $FTPDIR $RSYNC_TARGET
+
+Modified: trunk/tools/dar/dar.conf
+===================================================================
+--- trunk/tools/dar/dar.conf	2004-07-21 16:41:23 UTC (rev 1703)
++++ trunk/tools/dar/dar.conf	2004-07-21 18:03:50 UTC (rev 1704)
+@@ -26,6 +26,7 @@
+ DISTCC_HOSTS=&quot;emyn localhost&quot;
+ 
+ ### Variables for dar-sync
++RSYNC_OPTIONS=&quot;--exclude dries/&quot;
+ RSYNC_TARGET=&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>:dag.wieers.com/&quot;
+ ### Use wondershaper
+ #RSYNC_LIMIT=&quot;8&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000512.html">[SVN] r1703 - trunk/rpms/amule
+</A></li>
+	<LI>Next message: <A HREF="000514.html">[SVN] r1705 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#513">[ date ]</a>
+              <a href="thread.html#513">[ thread ]</a>
+              <a href="subject.html#513">[ subject ]</a>
+              <a href="author.html#513">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,494 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6707 - in trunk/tools/wiipresent: . docs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6707%20-%20in%20trunk/tools/wiipresent%3A%20.%20docs&In-Reply-To=%3C200903022028.n22KSmrg013016%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005505.html">
+   <LINK REL="Next"  HREF="005507.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6707 - in trunk/tools/wiipresent: . docs</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6707%20-%20in%20trunk/tools/wiipresent%3A%20.%20docs&In-Reply-To=%3C200903022028.n22KSmrg013016%40surya.karan.org%3E"
+       TITLE="[svn] r6707 - in trunk/tools/wiipresent: . docs">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar  2 21:28:48 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005505.html">[svn] r6706 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="005507.html">[svn] r6708 - in trunk/tools/wiipresent: . test
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5506">[ date ]</a>
+              <a href="thread.html#5506">[ thread ]</a>
+              <a href="subject.html#5506">[ subject ]</a>
+              <a href="author.html#5506">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-03-02 20:28:48 +0000 (Mon, 02 Mar 2009)
+New Revision: 6707
+
+Added:
+   trunk/tools/wiipresent/docs/
+   trunk/tools/wiipresent/docs/Makefile
+   trunk/tools/wiipresent/docs/wiipresent.1
+   trunk/tools/wiipresent/wiipresent.spec
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/Makefile
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Added manpage and RPM spec file.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-03-02 17:16:45 UTC (rev 6706)
++++ trunk/tools/wiipresent/ChangeLog	2009-03-02 20:28:48 UTC (rev 6707)
+@@ -9,6 +9,8 @@
+ - Added support for XF86 Audio keys
+ - Implemented fullscreen toggle for OpenOffice
+ - Mute audio when blanking screen
++- Added manpage in asciidoc
++- Added RPM spec file
+ 
+ * Tue Feb 10 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Added -b/--bluetooth option to specify bluetooth address
+
+Modified: trunk/tools/wiipresent/Makefile
+===================================================================
+--- trunk/tools/wiipresent/Makefile	2009-03-02 17:16:45 UTC (rev 6706)
++++ trunk/tools/wiipresent/Makefile	2009-03-02 20:28:48 UTC (rev 6707)
+@@ -1,13 +1,44 @@
+ name = wiipresent
++version = $(shell awk '/^Version: / {print $$2}' $(name).spec)
+ 
++prefix = /usr
++sysconfdir = /etc
++bindir = $(prefix)/bin
++datadir = $(prefix)/share
++mandir = $(datadir)/man
++
+ CC = cc
+-CFLAGS = -Wall -O2 -I /usr/include/libcwiimote -D_ENABLE_TILT -D_ENABLE_FORCE -D_DISABLE_BLOCKING_UPDATE
++CFLAGS = -Wall -O2
++OPTFLAGS = -I /usr/include/libcwiimote -D_ENABLE_TILT -D_ENABLE_FORCE -D_DISABLE_BLOCKING_UPDATE
+ LDFLAGS= -lm -lX11 -lXtst -lcwiimote -lbluetooth
+ 
+-all: wiipresent
++.PHONY: all install docs clean
+ 
++all: wiipresent docs
++
+ wiipresent: wiipresent.c
+-	$(CC) $(CFLAGS) $(LDFLAGS) wiipresent.c -o wiipresent
++	$(CC) $(CFLAGS) $(OPTFLAGS) $(LDFLAGS) wiipresent.c -o wiipresent
+ 
++install:
++	install -Dp -m0755 wiipresent $(DESTDIR)$(bindir)/wiipresent
++	install -Dp -m0644 docs/wiipresent.1 $(DESTDIR)$(mandir)/man1/wiipresent.1
++
++docs:
++	$(MAKE) -C docs docs
++
++docs-install:
++	$(MAKE) -C docs install
++
+ clean:
+ 	rm -f wiipresent
++	$(MAKE) -C docs clean
++
++dist: clean
++	$(MAKE) -C docs dist
++	find . ! -wholename '*/.svn*' | pax -d -w -x ustar -s ,^,$(name)-$(version)/, | bzip2 &gt;../$(name)-$(version).tar.bz2
++
++rpm: dist
++	rpmbuild -tb --clean --rmsource --rmspec --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; --define &quot;_rpmdir ../&quot; --define &quot;debug_package %nil&quot; ../$(name)-$(version).tar.bz2
++
++srpm: dist
++	rpmbuild -ts --clean --rmsource --rmspec --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; --define &quot;_srcrpmdir ../&quot; --define &quot;debug_package %nil&quot; ../$(name)-$(version).tar.bz2
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-03-02 17:16:45 UTC (rev 6706)
++++ trunk/tools/wiipresent/TODO	2009-03-02 20:28:48 UTC (rev 6707)
+@@ -6,18 +6,24 @@
+ - Record timings and print timestamp + keypress
+ - Follow keypresses so we know on what slide we are too
+ - Make the mouse pointer move based on IR data
+-- Make the mouse buttons do the right thing
+ - Implement the power button to disconnect the device cleanly
+   (this is a bug in libwiimote)
+ - Use playertoggle to switch between skip forward and next playback
+ 
+ == OpenOffice keymaps
+- - left/right: change slide/channel/tab
+- - up/down: change volume
+- - -/+: change workspace
+- - 1: fullscreen
+- - 2: blank screen/mute audio
+- - A: Play/Pause
+- - B: enable mouse pointer
+- - home: exit
+- - exit: unavailable
++- left/right: change slide/channel/tab
++- up/down: change volume
++- -/+: change workspace
++- 1: fullscreen
++- 2: blank screen/mute audio
++- A: Play/Pause
++- B: enable mouse pointer
++- home: exit
++- exit: unavailable
++
++== Bugs
++- Known bug where some applications causing a BadWindow error
++  - vlc when going into fullscreen
++  - qiv when starting
++- Mouse buttons do not work (yet)
++
+
+Added: trunk/tools/wiipresent/docs/Makefile
+===================================================================
+--- trunk/tools/wiipresent/docs/Makefile	                        (rev 0)
++++ trunk/tools/wiipresent/docs/Makefile	2009-03-02 20:28:48 UTC (rev 6707)
+@@ -0,0 +1,30 @@
++prefix = /usr
++datadir = $(prefix)/share
++mandir = $(datadir)/man
++
++txttargets = $(shell echo *.txt)
++htmltargets = $(patsubst %.txt, %.html, $(txttargets))
++
++all:
++
++dist: docs
++
++docs: wiipresent.1 $(htmltargets)
++
++install: wiipresent.1
++	install -Dp -m0644 wiipresent.1 $(DESTDIR)$(mandir)/man1/wiipresent.1
++
++clean:
++	rm -f dstat.1 *.html *.xml
++
++%.1.html: %.1.txt
++	-asciidoc -d manpage $&lt;
++
++%.1: %.1.xml
++	xmlto man $&lt;
++
++%.html: %.txt
++	asciidoc $&lt;
++
++%.1.xml: %.1.txt
++	asciidoc -b docbook -d manpage $&lt;
+
+Added: trunk/tools/wiipresent/docs/wiipresent.1
+===================================================================
+--- trunk/tools/wiipresent/docs/wiipresent.1	                        (rev 0)
++++ trunk/tools/wiipresent/docs/wiipresent.1	2009-03-02 20:28:48 UTC (rev 6707)
+@@ -0,0 +1,90 @@
++.\&quot; ** You probably do not want to edit this file directly **
++.\&quot; It was generated using the DocBook XSL Stylesheets (version 1.69.1).
++.\&quot; Instead of manually editing it, you probably should edit the DocBook XML
++.\&quot; source for it and then use the DocBook XSL Stylesheets to regenerate it.
++.TH &quot;WIIPRESENT&quot; &quot;1&quot; &quot;03/02/2009&quot; &quot;&quot; &quot;&quot;
++.\&quot; disable hyphenation
++.nh
++.\&quot; disable justification (adjust text to left margin only)
++.ad l
++.SH &quot;NAME&quot;
++wiipresent \- tool to control applications using the wiimote
++.SH &quot;SYNOPSIS&quot;
++wiipresent [\-v] [\-l length] [\-b bluetooth\-address ]
++.sp
++.SH &quot;DESCRIPTION&quot;
++wiipresent is a tool to control applications using the wiimote. It was originally developed for using the wiimote to give presentations using openoffice or xpdf, but is now turned into a tool to control your mouse and/or other applications.
++.sp
++.SH &quot;OPTIONS&quot;
++.TP
++\-b bt\-address, \-\-bluetooth=bt\-address
++Wiimote bluetooth address (use hcitool scan)
++.TP
++\-d name, \-\-display=name
++X display to use
++.TP
++\-l length, \-\-length=minutes
++presentation length in minutes
++.TP
++\-h, \-\-help
++display this help and exit
++.TP
++\-v, \-\-verbose
++increase verbosity
++.TP
++\-\-version
++output version information and exit
++.SH &quot;USAGE&quot;
++Before you can start using wiipresent you need to know the bluetooth address of the wiimote you want to use. You can scan your bluetooth viscinity by using hcitool like:
++.sp
++.sp
++.nf
++hcitool scan
++.fi
++after having pressed the 1 and 2 keys on your wiimote once. You will then see something like:
++.sp
++.sp
++.nf
++[<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at moria</A> ~]# hcitool scan
++Scanning ...
++00:21:64:EF:62:F5       Nokia E71
++00:1B:7A:F8:B5:64       Nintendo RVL\-CNT\-01
++.fi
++Then start wiipresent using the following syntax:
++.sp
++.sp
++.nf
++[<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at moria</A> ~]# wiipresent \-b 00:1B:7A:F8:B5:64
++Please press 1+2 on the wiimote with address 00:1B:7A:F8:B5:64...
++Battery level now is 81%.
++.fi
++.SH &quot;BUGS&quot;
++This program is free of bugs. Yeah right.
++.sp
++If you have improvements or bugreports, please send them to: [1]\&amp;\<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">fIdag at wieers.com</A>\fR
++.sp
++.sp
++.it 1 an-trap
++.nr an-no-space-flag 1
++.nr an-break-flag 1
++.br
++\fBNote\fR
++Please see the TODO file for known bugs and future plans.
++.sp
++.SH &quot;SEE ALSO&quot;
++.sp
++.nf
++hcitool(1)
++.fi
++.SH &quot;AUTHOR&quot;
++Written by Dag Wieers [1]\&amp;\<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">fIdag at wieers.com</A>\fR
++.sp
++Homepage at [2]\&amp;\<A HREF="fIhttp://dag.wieers.com/home\-made/wiipresent/\fR">fIhttp://dag.wieers.com/home\-made/wiipresent/\fR</A>
++.sp
++.SH &quot;REFERENCES&quot;
++.TP 3
++1.\ <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++\%mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++.TP 3
++2.\ <A HREF="http://dag.wieers.com/home\-made/wiipresent/">http://dag.wieers.com/home\-made/wiipresent/</A>
++\%<A HREF="http://dag.wieers.com/home\-made/wiipresent/">http://dag.wieers.com/home\-made/wiipresent/</A>
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-03-02 17:16:45 UTC (rev 6706)
++++ trunk/tools/wiipresent/wiipresent.c	2009-03-02 20:28:48 UTC (rev 6707)
+@@ -129,7 +129,7 @@
+     unsigned int nchildrens;
+ 
+     // Prevent BadWindow
+-    if (window == 1) return 0;
++    if (window &lt; 2) return 0;
+ 
+     if (verbose &gt;= 2) printf(&quot;Trying XA_WM_COMMAND for window id: %ld\n&quot;, window);
+     // Try getting the command
+@@ -178,6 +178,7 @@
+     wmote-&gt;rumble = 0;
+ }
+ 
++/*
+ // Is this a valid point ?
+ int valid_point(wiimote_ir_t *point) {
+     if (point == NULL)
+@@ -204,6 +205,7 @@
+     }
+     return new;
+ }
++*/
+ 
+ int main(int argc, char **argv) {
+     int length = 0;
+@@ -320,11 +322,13 @@
+     time_t start = 0, now = 0, duration = 0;
+     int phase = 0, oldphase = 0;
+     uint16_t keys = 0;
++/*
+     int x = 0, y = 0;
+     int prev1x = 0, prev1y = 0;
+     int prev2x = 0, prev2y = 0;
+     int dots = 0;
+     wiimote_ir_t *point1 = &amp;wmote.ir1, *point2 = &amp;wmote.ir2;
++*/
+     int oldbattery = 0;
+     Window oldwindow = window;
+     int playertoggle = False;
+@@ -404,12 +408,13 @@
+ 
+         // Inside the mouse functionality
+         if (wmote.keys.b) {
+-            wmote.mode.ir = 1;
++//            wmote.mode.ir = 1;
+             wmote.mode.acc = 1;
+ 
+             // Tilt method
+             XMovePointer(display, wmote.tilt.x / 4, wmote.tilt.y / 4, 1);
+ 
++/*
+             if (!valid_point(point1) || (point1 == point2)) {
+                 point1 = search_newpoint(&amp;wmote, point2);
+             } else {
+@@ -441,7 +446,7 @@
+             prev2y = point2-&gt;y;
+ 
+             // Infrared method
+-/*            dots = (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? 1 : 0) +
++            dots = (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? 1 : 0) +
+                    (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? 1 : 0) +
+                    (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? 1 : 0) +
+                    (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? 1 : 0);
+@@ -461,9 +466,9 @@
+                 x = 0;
+                 y = 0;
+             }
+-*/
+             if (verbose &gt;= 2) fprintf(stderr, &quot;%d: ( %4d , %4d ) - [ %4d, %4d, %4d, %4d ] [ %4d, %4d, %4d, %4d ] [%2d, %2d, %2d, %2d ]\n&quot;, dots, x, y, wmote.ir1.x, wmote.ir2.x,wmote.ir3.x, wmote.ir4.x, wmote.ir1.y, wmote.ir2.y, wmote.ir3.y, wmote.ir4.y, wmote.ir1.size, wmote.ir2.size, wmote.ir3.size, wmote.ir4.size);
+ 
++*/
+             // Block repeating keys
+             if (keys == wmote.keys.bits) {
+                 continue;
+@@ -495,7 +500,7 @@
+             // Disconnect the device
+             // TODO: Exit application too
+             if (wmote.keys.home) {
+-                printf(&quot;Exit on user request.\n&quot;);
++                if (verbose) printf(&quot;Exit on user request.\n&quot;);
+                 exit_clean(0);
+             }
+ 
+@@ -516,6 +521,8 @@
+                     XFakeKeycode(XK_p, 0);
+                 else if (strstr(name, &quot;xine&quot;) == name)
+                     XFakeKeycode(XK_space, 0);
++                else if (strstr(name, &quot;tvtime&quot;) == name)
++                    XFakeKeycode(XK_a, 0);
+                 else {
+                     XFakeKeycode(XF86XK_AudioPlay, 0);
+                     if (verbose)
+@@ -548,6 +555,8 @@
+                     XFakeKeycode(XK_f, 0);
+                 else if (strstr(name, &quot;mplayer&quot;) == name)
+                     XFakeKeycode(XK_f, 0);
++                else if (strstr(name, &quot;vlc&quot;) == name)
++                    XFakeKeycode(XK_f, 0);
+                 else if (strstr(name, &quot;xine&quot;) == name)
+                     XFakeKeycode(XK_f, 0);
+                 else if (verbose)
+@@ -585,7 +594,7 @@
+                     XFakeKeycode(XF86XK_AudioRaiseVolume, 0);   // Volume Up
+ //                    XFakeKeycode(XK_Up, ControlMask);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)
+-                    XFakeKeycode(XK_Up, 0);
++                    XFakeKeycode(XK_KP_Add, 0);
+                 else if (strstr(name, &quot;vlc&quot;) == name)
+                     XFakeKeycode(XK_Up, ControlMask);
+                 else if (strstr(name, &quot;xine&quot;) == name)
+@@ -612,7 +621,7 @@
+                     XFakeKeycode(XF86XK_AudioLowerVolume, 0);   // Volume Down
+ //                    XFakeKeycode(XK_Down, ControlMask);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)
+-                    XFakeKeycode(XK_Down, 0);
++                    XFakeKeycode(XK_KP_Subtract, 0);
+                 else if (strstr(name, &quot;vlc&quot;) == name)
+                     XFakeKeycode(XK_Down, ControlMask);
+                 else if (strstr(name, &quot;xine&quot;) == name)
+
+Added: trunk/tools/wiipresent/wiipresent.spec
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.spec	                        (rev 0)
++++ trunk/tools/wiipresent/wiipresent.spec	2009-03-02 20:28:48 UTC (rev 6707)
+@@ -0,0 +1,52 @@
++# $Id$
++# Authority: dag
++# Upstream: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++
++%{?dist: %{expand: %%define %dist 1}}
++
++Summary: Giving presentations with your Wiimote (or control applications with the Wiimote)
++Name: wiipresent
++Version: 0.6
++Release: 1
++License: GPL
++Group: Applications/Productivity
++URL: <A HREF="http://dag.wieers.com/home-made/wiipresent/">http://dag.wieers.com/home-made/wiipresent/</A>
++
++Source: <A HREF="http://dag.wieers.com/home-made/wiipresent/wiipresent-%{version">http://dag.wieers.com/home-made/wiipresent/wiipresent-%{version</A>}.tar.bz2
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: libwiimote-devel
++
++%description
++wiipresent is a program to control applications using your wiimote. It was
++originally developed for giving presentations with your wiimote, but can also
++be used to control your mouse-pointer and control various applications.
++
++%prep
++%setup
++
++%build
++%{__make} %{?_smp_mflags} CFLAGS=&quot;%{optflags}&quot;
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS ChangeLog COPYING README TODO docs/*.html docs/*.txt
++%doc %{_mandir}/man1/wiipresent.1*
++%{_bindir}/wiipresent
++
++%changelog
++* Mon Mar 02 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6-1
++- Updated to release 0.6.
++
++* Tue Feb 10 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5-1
++- Updated to release 0.5.
++
++* Mon Feb 09 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.2-1
++- Initial package. (using DAR)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005505.html">[svn] r6706 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="005507.html">[svn] r6708 - in trunk/tools/wiipresent: . test
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5506">[ date ]</a>
+              <a href="thread.html#5506">[ thread ]</a>
+              <a href="subject.html#5506">[ subject ]</a>
+              <a href="author.html#5506">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

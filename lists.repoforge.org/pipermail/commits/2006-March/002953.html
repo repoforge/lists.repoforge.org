@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4153 - trunk/tools/sarah
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4153%20-%20trunk/tools/sarah&In-Reply-To=%3C20060310191029.8F5543180A6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002952.html">
+   <LINK REL="Next"  HREF="002954.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4153 - trunk/tools/sarah</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4153%20-%20trunk/tools/sarah&In-Reply-To=%3C20060310191029.8F5543180A6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4153 - trunk/tools/sarah">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Mar 10 20:10:29 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002952.html">[svn] r4152 - trunk/tools/sarah
+</A></li>
+        <LI>Next message: <A HREF="002954.html">[svn] r4154 - in trunk/rpms: gnomeradio pychecker scponly yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2953">[ date ]</a>
+              <a href="thread.html#2953">[ thread ]</a>
+              <a href="subject.html#2953">[ subject ]</a>
+              <a href="author.html#2953">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-03-10 20:10:29 +0100 (Fri, 10 Mar 2006)
+New Revision: 4153
+
+Added:
+   trunk/tools/sarah/sarahdb.py
+Removed:
+   trunk/tools/sarah/sarahdb2.py
+Log:
+Rename phase 2
+
+Copied: trunk/tools/sarah/sarahdb.py (from rev 4151, trunk/tools/sarah/sarahdb2.py)
+
+Deleted: trunk/tools/sarah/sarahdb2.py
+===================================================================
+--- trunk/tools/sarah/sarahdb2.py	2006-03-10 19:10:21 UTC (rev 4152)
++++ trunk/tools/sarah/sarahdb2.py	2006-03-10 19:10:29 UTC (rev 4153)
+@@ -1,119 +0,0 @@
+-#!/usr/bin/python
+-
+-import sys, os, glob, sqlite
+-import sarahlib
+-
+-import cElementTree as ElementTree
+-
+-sys.stdout = os.fdopen(1, 'w', 0)
+-
+-con, cur = sarahlib.opendb()
+-sarahlib.createtb(cur, 'adv')
+-sarahlib.createtb(cur, 'ref')
+-sarahlib.createtb(cur, 'rpm')
+-sarahlib.createtb(cur, 'pro')
+-
+-filelist = glob.glob('advisories/RH?A-*.xml')
+-#filelist = glob.glob('advisories/RHSA-*.xml')
+-#filelist = ['advisories/RHSA-2005-791.xml', ]
+-filelist.sort()
+-
+-for file in filelist:
+-	try:
+-		tree = ElementTree.ElementTree(file=file)
+-		root = tree.getroot()
+-
+-		advrec = {};
+-		advrec['sender'] = root.get('from')
+-		advrec['version'] = root.get('version')
+-		advrec['version'] = root.get('version')
+-
+-		advrec['advid'] = root.findtext('id')
+-		advrec['pushcount'] = root.findtext('pushcount')
+-		advrec['type'] = root.find('type').get('short')
+-		advrec['keywords'] = root.findtext('keywords')
+-		advrec['obsoletes'] = root.findtext('obsoletes')
+-
+-		if root.find('group'):
+-			advrec['rhgroup'] = root.find('group').get('name')
+-		else:
+-			advrec['rhgroup'] = None
+-
+-		### RHBAs and RHEAs do not have a severity level
+-		if advrec['type'] in ('RHBA', 'RHEA'):
+-			advrec['severity'] = None
+-		elif root.find('severity') != None:
+-			advrec['severity'] = root.find('severity').get('level')
+-		elif root.findtext('severity'):
+-			advrec['severity'] = root.findtext('severity')
+-		else:
+-#			raise Exception, 'severity not found.'
+-			advrec['severity'] = 'error'
+-
+-		advrec['synopsis'] = root.findtext('synopsis')
+-		advrec['issued'] = root.find('issued').get('date')
+-		advrec['updated'] = root.find('updated').get('date')
+-		advrec['topic'] = root.findtext('topic')
+-		advrec['description'] = root.findtext('description')
+-
+-#		print 'advrec:', advrec
+-		sarahlib.insertrec(cur, 'adv', advrec)
+-
+-		for refnode in root.find('references'):
+-			refrec = { 'advid': advrec['advid'] }
+-			refrec['reftype'] = refnode.get('type')
+-			refrec['reference'] = refnode.get('href')
+-
+-			if refrec['reftype'] == 'self':
+-				refrec['refid'] = advrec['advid']
+-			elif refnode.findtext('advisory'):
+-				refrec['refid'] = refnode.findtext('advisory')
+-			elif refnode.findtext('bugzilla'):
+-				refrec['refid'] = refnode.findtext('bugzilla')
+-			elif refnode.findtext('cve'):
+-				refrec['refid'] = refnode.findtext('cve')
+-			elif refnode.findtext('self'):
+-				refrec['refid'] = refnode.findtext('self')
+-			else:
+-				refrec['refid'] = 'error'
+-#				raise Exception, 'refid not found.'
+-
+-			if refnode.find('summary'):
+-				refrec['summary'] = refnode.findtext('summary')
+-			else:
+-				refrec['summary'] = None
+-
+-#			print 'refrec:', refrec
+-			sarahlib.insertrec(cur, 'ref', refrec)
+-
+-		if not root.find('rpmlist'): continue
+-		for pronode in root.find('rpmlist'):
+-			prorec = { 'advid': advrec['advid'] }
+-			prorec['prodshort'] = pronode.get('short')
+-			prorec['product'] = pronode.findtext('name')
+-#			print prorec
+-			try: sarahlib.insertrec(cur, 'pro', prorec)
+-			except: pass
+-
+-			if not pronode.find('file'): continue
+-			for rpmnode in pronode.findall('file'):
+-				rpmrec = { 'advid': advrec['advid'], 'prodshort': prorec['prodshort'] }
+-				rpmrec['arch'] = rpmnode.get('arch')
+-				rpmrec['filename'] = rpmnode.findtext('filename')
+-				if rpmnode.find('sum').get('type') == 'md5':
+-					rpmrec['md5'] = rpmnode.findtext('sum')
+-				rpmrec['channels'] = []
+-				for channel in root.findall('channel'):
+-					rpmrec['channels'].append(channel.get('name'))
+-#				print rpmrec
+-				sarahlib.insertrec(cur, 'rpm', rpmrec)
+-			
+-		print '\033[0;32m%s\033[0;0m' % os.path.basename(file).strip('.xml'),
+-
+-	except Exception, e:
+-#	except (xml.sax._exceptions.SAXParseException, AttributeError, KeyError), e:
+-		print '\033[0;31m%s\033[0;0m' % os.path.basename(file),
+-		print e
+-#		raise
+-		continue
+-con.commit()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002952.html">[svn] r4152 - trunk/tools/sarah
+</A></li>
+	<LI>Next message: <A HREF="002954.html">[svn] r4154 - in trunk/rpms: gnomeradio pychecker scponly yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2953">[ date ]</a>
+              <a href="thread.html#2953">[ thread ]</a>
+              <a href="subject.html#2953">[ subject ]</a>
+              <a href="author.html#2953">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5363 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5363%20-%20trunk/tools/dar&In-Reply-To=%3C20070504013507.A9586944A87%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004161.html">
+   <LINK REL="Next"  HREF="004163.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5363 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5363%20-%20trunk/tools/dar&In-Reply-To=%3C20070504013507.A9586944A87%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5363 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri May  4 03:35:07 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004161.html">[svn] r5362 - in trunk/rpms: . perl-Gtk2-GladeXML	perl-Module-Loaded perl-Module-Locate perl-Module-Pluggable	perl-Module-Starter-PBP perl-Moose perl-Moose-Policy	perl-MooseX-Object-Pluggable perl-Net-DBus perl-Net-GPSD	perl-Net-SCP perl-Object-InsideOut perl-OpenFrame	perl-Sub-Exporter perl-Sub-Install perl-Sub-Name perl-gettext	perl-version
+</A></li>
+        <LI>Next message: <A HREF="004163.html">[svn] r5364 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4162">[ date ]</a>
+              <a href="thread.html#4162">[ thread ]</a>
+              <a href="subject.html#4162">[ subject ]</a>
+              <a href="author.html#4162">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-04 03:35:06 +0200 (Fri, 04 May 2007)
+New Revision: 5363
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Small fixes and META.yml example.
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-05-04 00:48:51 UTC (rev 5362)
++++ trunk/tools/dar/dar-perl.py	2007-05-04 01:35:06 UTC (rev 5363)
+@@ -3,8 +3,12 @@
+ ### This python scripts automatically generates an RPMforge SPEC files
+ ### for Perl modules.
+ 
+-### Failed examples:
+-###	perl-Moose		- problem with single component modules
++### TODO:
++###	- Improve docfiles handling (case-insensitive matching, deflates list)
++###	- Get License based on availability of files (LICENSE, Artistic)
++###	- Get dependencies from META.yml if available
++###	- Get author, license, abstract from META.yml if available
++###	- Compare name and version with META.yml
+ 
+ import sys, os, time, getopt, urllib2, gzip, re
+ import cElementTree as ElementTree
+@@ -51,17 +55,19 @@
+ 	elif opt in ['-d', '--debug']:
+ 		debug = True
+ 
+-if args:
+-	module = args[0]
+-else:
+-	module = 'RPMforge-Template'
++if not args:
++	print &gt;&gt;sys.stderr, 'You have to provide a module name.'
++	sys.exit(1)
+ 
++module = args[0]
++module = module.replace('::', '-')
++modparts = module.split('-')
++
+ if module.startswith('perl-'):
+-	l = module.split('-')
+-	module = '-'.join(l[1:])
++	modparts = modparts[1:]
++	module = '-'.join(modparts)
+ 
+-modparts = module.split('-')
+-pmodule = '::'.join(modparts)
++pmodule = module.replace('-', '::')
+ 
+ ### Download latest package list from CPAN
+ download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>')
+@@ -125,7 +131,7 @@
+ 	source = &quot;<A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
+ 	download(source)
+ 
+-### Add %{version} and %{real_version} to source and basedir
++### Add %{version} and %{real_version} to source
+ source = source.replace(version, '%{version}')
+ if realversion:
+ 	source = source.replace(realversion, '%{real_version}')
+@@ -154,6 +160,21 @@
+ 		if shortfile == docfile:
+ 			docs.append(shortfile)
+ 	### Parse META.yml
++### Example:
++#name: IO-Digest
++#version: 0.10
++#abstract: Calculate digests while reading or writing
++#author: Chia-liang Kao &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">clkao at clkao.org</A>&gt;
++#license: perl
++#distribution_type: module
++#requires:
++#  PerlIO::via::dynamic: 0.10
++#  Digest: 0.0
++#no_index:
++#  directory:
++#    - inc
++#generated_by: Module::Install version 0.35
++
+ #	if shortfile == 'META.yml':
+ #		member = distfd.getmember(file)
+ #		meta = distfd.extractfile(member)
+@@ -280,6 +301,8 @@
+ 		for nr, part in enumerate(modparts[:-1]):
+ 			str = str + &quot;%s/&quot; % modparts[nr]
+ 		print str + &quot;%s.pm&quot; % modparts[-1]
++	else:
++		print '%%{perl_vendorlib}/%s.pm' % modparts[0]
+ else:
+ 	### Print directory entries (if any)
+ 	if modparts[:-1]:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004161.html">[svn] r5362 - in trunk/rpms: . perl-Gtk2-GladeXML	perl-Module-Loaded perl-Module-Locate perl-Module-Pluggable	perl-Module-Starter-PBP perl-Moose perl-Moose-Policy	perl-MooseX-Object-Pluggable perl-Net-DBus perl-Net-GPSD	perl-Net-SCP perl-Object-InsideOut perl-OpenFrame	perl-Sub-Exporter perl-Sub-Install perl-Sub-Name perl-gettext	perl-version
+</A></li>
+	<LI>Next message: <A HREF="004163.html">[svn] r5364 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4162">[ date ]</a>
+              <a href="thread.html#4162">[ thread ]</a>
+              <a href="subject.html#4162">[ subject ]</a>
+              <a href="author.html#4162">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

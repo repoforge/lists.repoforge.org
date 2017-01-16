@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] RE: 64bit wine packages
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20RE%3A%2064bit%20wine%20packages&In-Reply-To=%3CSNT104-DS25D9418AE7FF553F0FF2D6C2650%40phx.gbl%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002730.html">
+   <LINK REL="Next"  HREF="002724.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] RE: 64bit wine packages</H1>
+    <B>arnebjarne72 at hotmail.com</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20RE%3A%2064bit%20wine%20packages&In-Reply-To=%3CSNT104-DS25D9418AE7FF553F0FF2D6C2650%40phx.gbl%3E"
+       TITLE="[packagers] RE: 64bit wine packages">arnebjarne72 at hotmail.com
+       </A><BR>
+    <I>Sat May  9 19:32:05 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002730.html">[packagers] Issue with gscn2pdf
+</A></li>
+        <LI>Next message: <A HREF="002724.html">[packagers] RE: 64bit wine packages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2723">[ date ]</a>
+              <a href="thread.html#2723">[ thread ]</a>
+              <a href="subject.html#2723">[ subject ]</a>
+              <a href="author.html#2723">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Dag.
+
+I managed to build a 64-bit Wine on a RedHat 5.3 x86_64 system.
+
+It seams that Wine (on 64 bit platforms) needs gcc version &gt; 4.4.
+RH/CO 5-3 only ships with gcc 4.1.x
+(see <A HREF="http://wiki.winehq.org/Wine64">http://wiki.winehq.org/Wine64</A>)
+
+This is how I did:
+
+1) Grabed the gcc-4.4 SRPM from Fedora 11
+export CVSROOT=:pserver:<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">anonymous at cvs.fedoraproject.org</A>:/cvs/pkgs ; cvs co 
+gcc
+Applied the patches and build gcc in /usr/local/gcc
+(needed to rebuild mpfr also - cvs co mpfr)
+
+2)
+Grabed the RPMforge wine ( 
+<A HREF="http://packages.sw.be/wine/wine-1.1.20-1.test.src.rpm">http://packages.sw.be/wine/wine-1.1.20-1.test.src.rpm</A>)
+
+3)
+made a new wine.spec.
+Here are the diff against the wine.spec in wine-1.1.20-1.test.src.rpm:
+
+--- cut ---
+--- wine.spec   2009-04-29 03:35:28.000000000 +0200
++++ wine64.spec 2009-05-09 17:36:20.000000000 +0200
+@@ -3,6 +3,8 @@
+
+ # Tag: test
+
++%define debug_package %{nil}
++
+ %{?dtag: %{expand: %%define %dtag 1}}
+
+ %{!?dtag:%define _with_modxorg 1}
+@@ -51,7 +53,7 @@
+ Summary: Windows 16/32/64 bit emulator
+ Name: wine
+ Version: 1.1.20
+-Release: 1.test
++Release: 2.test
+ License: LGPL
+ Group: Applications/Emulators
+ URL: <A HREF="http://www.winehq.org/">http://www.winehq.org/</A>
+@@ -62,6 +64,7 @@
+ Source: <A HREF="http://dl.sf.net/wine/wine-%{version">http://dl.sf.net/wine/wine-%{version</A>}.tar.bz2
+ Patch0: wine-prefixfonts.patch
+ Patch1: wine-rpath.patch
++Patch2: wine-X11DRV_AlphaBlend.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+
+ ExclusiveArch: %{ix86} x86_64
+@@ -83,6 +86,9 @@
+ %{!?_without_libusb:BuildRequires: libusb-devel}
+ %{?_with_modxorg:BuildRequires: libXxf86dga-devel libXxf86vm-devel 
+libXrandr-devel libXrender-devel libXext-devel libXinerama-devel}
+ %{!?_with_modxorg:BuildRequires: XFree86-devel}
++BuildRequires: mesa-libGLU-devel
++BuildRequires: hal-devel
++BuildRequires: libXcomposite-devel
+
+ Requires: wine-capi = %{version}-%{release}
+ Requires: wine-cms = %{version}-%{release}
+@@ -188,6 +194,7 @@
+ %prep
+ %setup
+ %patch0
++%patch2 -p1
+
+ %{__cat} &lt;&lt;EOF &gt;wine-config.desktop
+ [Desktop Entry]
+@@ -305,15 +312,22 @@
+ echo &quot;%{_libdir}/wine/&quot; &gt;wine.ld.conf
+
+ %build
++export CC=/usr/local/gcc/bin/gcc
+ %configure \
+     --sysconfdir=&quot;%{_sysconfdir}/wine&quot; \
+-    --disable-static \
+ %ifarch x86_64
+     --enable-win64 \
+ %endif
+ %{?_without_opengl:--without-opengl}
+ %{__make} depend
+ %{__make} %{?_smp_mflags}
++%ifarch x86_64
++for makedirs in programs/winevdm dlls/w32skrnl dlls/winedos dlls/ifsmgr.vxd 
+dlls/mmdevldr.vxd dlls/monodebg.vxd dlls/vdhcp.vxd dlls/vmm.vxd 
+dlls/vnbt.vxd dlls/vnetbios.vxd dlls/vtdapi.vxd dlls/vwin32.vxd; d
+o
++ pushd ${makedirs}
++ make
++ popd
++done
++%endif
+
+ %install
+ %{__rm} -rf %{buildroot}
+@@ -358,6 +372,20 @@
+         --dir=&quot;%{buildroot}%{_datadir}/applications&quot;   \
+         wine-uninstaller.desktop
+ %endif
++%ifarch x86_64
++%{__install} -Dp -m0755 programs/winevdm/winevdm.exe.so 
+%{buildroot}%{_libdir}/%{name}/winevdm.exe.so
++%{__install} -Dp -m0755 dlls/w32skrnl/w32skrnl.dll.so 
+%{buildroot}%{_libdir}/%{name}/w32skrnl.dll.so
++%{__install} -Dp -m0755 dlls/winedos/winedos.dll.so 
+%{buildroot}%{_libdir}/%{name}/winedos.dll.so
++%{__install} -Dp -m0755 dlls/ifsmgr.vxd/ifsmgr.vxd.so 
+%{buildroot}%{_libdir}/%{name}/ifsmgr.vxd.so
++%{__install} -Dp -m0755 dlls/mmdevldr.vxd/mmdevldr.vxd.so 
+%{buildroot}%{_libdir}/%{name}/mmdevldr.vxd.so
++%{__install} -Dp -m0755 dlls/monodebg.vxd/monodebg.vxd.so 
+%{buildroot}%{_libdir}/%{name}/monodebg.vxd.so
++%{__install} -Dp -m0755 dlls/vdhcp.vxd/vdhcp.vxd.so 
+%{buildroot}%{_libdir}/%{name}/vdhcp.vxd.so
++%{__install} -Dp -m0755 dlls/vmm.vxd/vmm.vxd.so 
+%{buildroot}%{_libdir}/%{name}/vmm.vxd.so
++%{__install} -Dp -m0755 dlls/vnbt.vxd/vnbt.vxd.so 
+%{buildroot}%{_libdir}/%{name}/vnbt.vxd.so
++%{__install} -Dp -m0755 dlls/vnetbios.vxd/vnetbios.vxd.so 
+%{buildroot}%{_libdir}/%{name}/vnetbios.vxd.so
++%{__install} -Dp -m0755 dlls/vtdapi.vxd/vtdapi.vxd.so 
+%{buildroot}%{_libdir}/%{name}/vtdapi.vxd.so
++%{__install} -Dp -m0755 dlls/vwin32.vxd/vwin32.vxd.so 
+%{buildroot}%{_libdir}/%{name}/vwin32.vxd.so
++%endif
+
+ %post core
+ /sbin/ldconfig
+@@ -433,7 +461,9 @@
+ %{_bindir}/winepath
+ %{_bindir}/wineprefixcreate
+ %{_bindir}/wineserver
++%ifnarch x86_64
+ %{_bindir}/wine-preloader
++%endif
+ %{!?_without_freedesktop:%{_datadir}/applications/%{desktop_vendor}-wine.desktop} %{!?_without_freedesktop:%{_datadir}/applications/%{desktop_vendor}-wine-config.desktop} %{!?_without_freedesktop:%{_datadir}/applications/%{desktop_vendor}-wine-fileman.desktop}@@ -450,6 +480,7 @@ %{_libdir}/libwine.so.1* %dir %{_libdir}/wine/+%ifnarch x86_64 ### exe16 %{_libdir}/wine/gdi.exe16 %{_libdir}/wine/krnl386.exe16@@ -457,7 +488,7 @@ ### exe16.so %{_libdir}/wine/winhelp.exe16.so-+%endif ### cpl.so %{_libdir}/wine/appwiz.cpl.so@@ -511,6 +542,7 @@ %{_libdir}/wine/write.exe.so %{_libdir}/wine/xcopy.exe.so+%ifnarch x86_64 ### dll16 %{_libdir}/wine/commdlg.dll16 %{_libdir}/wine/ddeml.dll16@@ -552,6 +584,7 @@ %{_libdir}/wine/windebug.dll16.so %{_libdir}/wine/winnls.dll16.so %{_libdir}/wine/wintab.dll16.so+%endif ### dll.so %{_libdir}/wine/acledit.dll.so@@ -808,6 +841,7 @@ %{_libdir}/wine/gphoto2.ds.so %{_libdir}/wine/sane.ds.so+%ifnarch x86_64 ### drv16 %{_libdir}/wine/system.drv16 %{_libdir}/wine/wineps16.drv16@@ -818,6 +852,7 @@ %{_libdir}/wine/keyboard.drv16.so %{_libdir}/wine/mouse.drv16.so %{_libdir}/wine/sound.drv16.so+%endif ### drv.so %{_libdir}/wine/msacm32.drv.so@@ -856,8 +891,10 @@ %{_libdir}/wine/hhctrl.ocx.so %{_libdir}/wine/msisys.ocx.so+%ifnarch x86_64 ### mod16.so %{_libdir}/wine/winoldap.mod16.so+%endif ### sys.so %{_libdir}/wine/mountmgr.sys.so@@ -895,7 +932,9 @@ %files twain %defattr(-, root, root, 0755) %dir %{_libdir}/wine/+%ifnarch x86_64 %{_libdir}/wine/twain.dll16.so+%endif %{_libdir}/wine/twain_32.dll.so %files devel@@ -927,6 +966,9 @@ %{_libdir}/wine/*.def %changelog+* Sat May 09 2009 Bjarne Saltbaek &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">arnebjarne72 at hotmail.com</A>&gt; - 1.1.20-2+- Patches for successfull build on x86_64.+ * Tue Apr 28 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt; - 1.1.20-1 - 6743+/dag - Updated to release 1.1.20.--cut--4)Note: I also patched dlls/winex11.drv/xrender.cHere is the patch:wine-X11DRV_AlphaBlend.patch--- cut ---diff -Naur wine-1.1.20/dlls/winex11.drv/xrender.cwine-1.1.20-patched/dlls/winex11.drv/xrender.c--- wine-1.1.20/dlls/winex11.drv/xrender.c      2009-04-2418:52:04.000000000 +0200+++ wine-1.1.20-patched/dlls/winex11.drv/xrender.c      2009-05-0914:51:34.000000000 +0200@@ -1846,7 +1846,7 @@ /******************************************************************************  * AlphaBlend         (x11drv.@)  */-BOOL X11DRV_AlphaBlend(X11DRV_PDEVICE *devDst, INT xDst, INT yDst, INTwidthDst, INT heightDst,+BOOL CDECL X11DRV_AlphaBlend(X11DRV_PDEVICE *devDst, INT xDst, INT yDst,INT widthDst, INT heightDst,                        X11DRV_PDEVICE *devSrc, INT xSrc, INT ySrc, INTwidthSrc, INT heightSrc,                        BLENDFUNCTION blendfn) {--- cut ---Note  the path in wine.spec to the gcc version 4.4.I guess one way to build wine on a RH/CO 5.x would be including gcc-4.4 inthe SRPM for wine.Or wait until Redhat steps up to gcc 4.4 ? (seams like it's comming inFedora 11 =&gt; Redhat 5.4 ??)Regards,Bjarne&gt;Hi,&gt;&gt;If someone is interested to investigate why we cannot build 64bit wine&gt;packages (with 32bit support) feel free to look at that :)&gt;&gt;I know Ubuntu produces them, but I fail to see how they manage it and the&gt;wine wiki has some information on how to do it (you need 32bit libs) but I&gt;am unable to reproduce.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002730.html">[packagers] Issue with gscn2pdf
+</A></li>
+	<LI>Next message: <A HREF="002724.html">[packagers] RE: 64bit wine packages
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2723">[ date ]</a>
+              <a href="thread.html#2723">[ thread ]</a>
+              <a href="subject.html#2723">[ subject ]</a>
+              <a href="author.html#2723">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

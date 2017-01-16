@@ -1,0 +1,240 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6570 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6570%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200812012017.mB1KHs1J030018%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="005370.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6570 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6570%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200812012017.mB1KHs1J030018%40surya.karan.org%3E"
+       TITLE="[svn] r6570 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Dec  1 21:17:54 CET 2008</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="005370.html">[svn] r6571 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5369">[ date ]</a>
+              <a href="thread.html#5369">[ thread ]</a>
+              <a href="subject.html#5369">[ subject ]</a>
+              <a href="author.html#5369">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-12-01 20:17:53 +0000 (Mon, 01 Dec 2008)
+New Revision: 6570
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_net_packets.py
+   trunk/tools/dstat/plugins/dstat_vmmemctl.py
+Log:
+Added internal dstat_fs and dstat_socket plugins.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-11-29 04:15:19 UTC (rev 6569)
++++ trunk/tools/dstat/ChangeLog	2008-12-01 20:17:53 UTC (rev 6570)
+@@ -1,8 +1,10 @@
+-* 0.6.8svn - ... - release 14/09/2008
++* 0.6.8svn - ... - release 01/12/2008
+ - Input text color is now gray (again)
+ - Added external dstat_luster plugin (Brock Palen, Kilian Vavalotti)
+ - Validate integer values in /proc/swaps (Bert de Bruijn)
+ - Added VMware ESX dstat_vmmemctl plugin (Bert de Bruijn)
++- Added internal dstat_fs plugin to show number of open files/inodes
++- Added internal dstat_socket plugin to show total number of various sockets
+ 
+ * 0.6.8 - Buenos Aires - release 12/09/2008
+ - Added improved tick patch (Kelly Long)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-11-29 04:15:19 UTC (rev 6569)
++++ trunk/tools/dstat/dstat	2008-12-01 20:17:53 UTC (rev 6570)
+@@ -105,10 +105,11 @@
+         try:
+             import getopt
+             opts, args = getopt.getopt (args, 'acdfghilmno:pstTvyC:D:I:M:N:S:V',
+-                ['cpu', 'disk', 'epoch', 'int', 'ipc', 'load', 'lock', 'mem', 'net',
+-                'page', 'proc', 'raw', 'swap', 'sys', 'tcp', 'time', 'udp', 'unix',
+-                'all', 'debug', 'full', 'help', 'integer', 'mods', 'modules', 'nocolor',
+-                'noheaders', 'noupdate', 'output=', 'pidfile=', 'version', 'vmstat'])
++                ['cpu', 'disk', 'epoch', 'fs', 'filesystem', 'int', 'ipc', 'load',
++                 'lock', 'mem', 'net', 'page', 'proc', 'raw', 'socket', 'swap',
++                 'sys', 'tcp', 'time', 'udp', 'unix',
++                 'all', 'debug', 'full', 'help', 'integer', 'mods', 'modules', 'nocolor',
++                 'noheaders', 'noupdate', 'output=', 'pidfile=', 'version', 'vmstat'])
+         except getopt.error, exc:
+             print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+             sys.exit(1)
+@@ -126,6 +127,8 @@
+                 self.disklist = arg.split(',')
+             elif opt in ['--debug']:
+                 self.debug = self.debug + 1
++            elif opt in ['--fs', '--filesystem']:
++                self.modlist.append('fs')
+             elif opt in ['-g', '--page']:
+                 self.modlist.append('page')
+             elif opt in ['-i', '--int']:
+@@ -150,6 +153,8 @@
+                 self.modlist.append('proc')
+             elif opt in ['--raw']:
+                 self.modlist.append('raw')
++            elif opt in ['--socket']:
++                self.modlist.append('socket')
+             elif opt in ['-s', '--swap']:
+                 self.modlist.append('swap')
+             elif opt in ['-S']:
+@@ -168,9 +173,9 @@
+                 self.modlist.append('sys')
+ 
+             elif opt in ['-a', '--all']:
+-                self.modlist = self.modlist + [ 'cpu', 'disk', 'net', 'page', 'sys' ]
++                self.modlist = self.modlist + ( 'cpu', 'disk', 'net', 'page', 'sys' )
+             elif opt in ['-v', '--vmstat']:
+-                self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
++                self.modlist = self.modlist + ( 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' )
+             elif opt in ['-f', '--full']:
+                 self.full = True
+ 
+@@ -312,8 +317,8 @@
+             if fd:
+                 self.file.append(filename)
+                 self.fd.append(fd)
+-#            else:
+-#                raise Exception, 'Cannot open file %s.' % filename
++	if not self.fd:
++            raise Exception, 'Cannot open file %s.' % filename
+ 
+     def readlines(self):
+         for fd in self.fd:
+@@ -814,6 +819,25 @@
+ #   def show(self):
+ #       return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
+ 
++class dstat_fs(dstat):
++    def __init__(self):
++        self.name = 'filesystem'
++        self.format = ('d', 6, 1000)
++        self.nick = ('#file', '#inode')
++        self.vars = ('files', 'inodes')
++        self.init(self.vars, 1)
++
++    ### We are now using the starttime instead of the execution time of this plugin
++    def extract(self):
++        for line in dopen('/proc/sys/fs/file-nr').readlines():
++            l = line.split()
++            if len(l) &lt; 1: continue
++            self.val['files'] = float(l[0])
++        for line in dopen('/proc/sys/fs/inode-nr').readlines():
++            l = line.split()
++            if len(l) &lt; 2: continue
++            self.val['inodes'] = float(l[0]) - float(l[1])
++
+ class dstat_int(dstat):
+     def __init__(self):
+         self.name = 'interrupts'
+@@ -1179,6 +1203,21 @@
+         ### Cannot use len() on generator
+ #        self.val['sockets'] = len(self.readlines()) - 1
+ 
++class dstat_socket(dstat):
++    def __init__(self):
++        self.name = 'sockets'
++        self.format = ('d', 4, 100)
++        self.open('/proc/net/sockstat')
++        self.nick = ('unix', 'tcp', 'udp', 'raw', 'frag')
++        self.vars = ('sockets:', 'TCP:', 'UDP:', 'RAW:', 'FRAG:')
++        self.init(self.vars, 1)
++
++    def extract(self):
++        for line in self.readlines():
++            l = line.split()
++            if len(l) &lt; 3: continue
++            self.val[l[0]] = float(l[2])
++
+ class dstat_swap(dstat):
+     def __init__(self):
+         self.name = 'swap'
+
+Modified: trunk/tools/dstat/plugins/dstat_net_packets.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_net_packets.py	2008-11-29 04:15:19 UTC (rev 6569)
++++ trunk/tools/dstat/plugins/dstat_net_packets.py	2008-12-01 20:17:53 UTC (rev 6570)
+@@ -2,10 +2,10 @@
+     def __init__(self):
+         self.format = ('f', 5, 1000)
+         self.open('/proc/net/dev')
+-        self.nick = ('recv', 'send')
++        self.nick = ('#recv', '#send')
+         self.discover = self.discover()
+         self.vars = self.vars()
+-        self.name = ['net/'+name for name in self.vars]
++        self.name = ['pkt/'+name for name in self.vars]
+         self.init(self.vars + ['total',], 2)
+ 
+     def discover(self, *list):
+
+Modified: trunk/tools/dstat/plugins/dstat_vmmemctl.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vmmemctl.py	2008-11-29 04:15:19 UTC (rev 6569)
++++ trunk/tools/dstat/plugins/dstat_vmmemctl.py	2008-12-01 20:17:53 UTC (rev 6570)
+@@ -17,19 +17,17 @@
+ 		self.init(self.vars, 1)
+ 
+ 	def check(self): 
+-		ret = True
+ 		try:
+ 			os.stat('/proc/vmmemctl')
+ 		except:
+-			ret = False
+ 			raise Exception, 'Needs VMware Tools (modprobe vmmemctl)'
+-		return ret
+ 
+ 	def extract(self):
+ 		for line in self.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 3: continue
+-			if l[0] != 'target:': continue
+-			if l[2] == 'pages':
+-				self.val['balloon'] = int(l[1]) * 4096.0
++			if l[0] != 'current:': continue
++			if l[2] != 'pages': continue
++			self.val['balloon'] = int(l[1]) * 4096.0
++			break
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="005370.html">[svn] r6571 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5369">[ date ]</a>
+              <a href="thread.html#5369">[ thread ]</a>
+              <a href="subject.html#5369">[ subject ]</a>
+              <a href="author.html#5369">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

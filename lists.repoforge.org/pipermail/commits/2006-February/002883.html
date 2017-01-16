@@ -1,0 +1,300 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4083 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4083%20-%20trunk/tools/yam&In-Reply-To=%3C20060215142530.87012318217%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002882.html">
+   <LINK REL="Next"  HREF="002884.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4083 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4083%20-%20trunk/tools/yam&In-Reply-To=%3C20060215142530.87012318217%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4083 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Feb 15 15:25:30 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002882.html">[svn] r4082 - in trunk/rpms: . repoview taglib x11vnc
+</A></li>
+        <LI>Next message: <A HREF="002884.html">[svn] r4084 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2883">[ date ]</a>
+              <a href="thread.html#2883">[ thread ]</a>
+              <a href="subject.html#2883">[ subject ]</a>
+              <a href="author.html#2883">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-02-15 15:25:28 +0100 (Wed, 15 Feb 2006)
+New Revision: 4083
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Added repository generation improvements
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-02-14 09:02:58 UTC (rev 4082)
++++ trunk/tools/yam/ChangeLog	2006-02-15 14:25:28 UTC (rev 4083)
+@@ -20,6 +20,8 @@
+ - Fixed bug in lftp rate limiting (Matthew Hannigan)
+ - Improved lftp debugging output when -vvvv
+ - Added mirrordir support for ftp access
++- Added routines to check if a repository has been updated or not
++- Added -f/--force to force metadata generation
+ 
+ * 0.7.3 - released 25/03/2005
+ - Added ia64 support (Gareth Armstrong)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-02-14 09:02:58 UTC (rev 4082)
++++ trunk/tools/yam/TODO	2006-02-15 14:25:28 UTC (rev 4083)
+@@ -33,7 +33,6 @@
+ + Create anaconda-style metadata for booting an updated installation
+ + Create group information (createrepo -g comps.xml RPMS.os)   
+ + Complain when a required tool is not available
+-+ Check directory inode's mtime to force metadata generation
+ 
+ ### Reporting utility
+ + Add option to generate a report of recent additions
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-02-14 09:02:58 UTC (rev 4082)
++++ trunk/tools/yam/yam	2006-02-15 14:25:28 UTC (rev 4083)
+@@ -15,7 +15,7 @@
+ ### Copyright 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ import os, sys, glob, re, shutil, getopt, popen2
+-import ConfigParser, urlparse
++import ConfigParser, urlparse, sha
+ 
+ VERSION = '0.8.0'
+ 
+@@ -39,6 +39,7 @@
+ 		self.dist = None
+ 		self.rhnrelease = None
+ 		self.extra = False
++		self.force = False
+ 		self.generate = False
+ 		self.quiet = False
+ 		self.remount = False
+@@ -48,8 +49,8 @@
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'c:d:ghquvx',
+-				['config=', 'dist=', 'generate=', 'help', 'quiet', 'remount',
++			opts, args = getopt.getopt (args, 'c:d:fghquvx',
++				['config=', 'dist=', 'force', 'generate', 'help', 'quiet', 'remount',
+ 				'umount', 'unmount', 'update', 'verbose', 'version', 'extras'])
+ 		except getopt.error, exc:
+ 			print 'yam: %s, try yam -h for a list of all the options' % str(exc)
+@@ -60,6 +61,8 @@
+ 				self.configfile = os.path.abspath(arg)
+ 			elif opt in ['-d', '--dist']:
+ 				self.dist = arg.split(',')
++			elif opt in ['-f', '--force']:
++				self.force = True
+ 			elif opt in ['-g', '--generate']:
+ 				self.generate = True
+ 			elif opt in ['-h', '--help']:
+@@ -97,9 +100,11 @@
+ 		print
+ 		print 'platform %s/%s' % (os.name, sys.platform)
+ 		print 'python %s' % sys.version
++		print
++		print '$Rev$'
+ 
+ 	def usage(self):
+-		print 'usage: yam [-g] [-q] [-u] [-v] [-x] [-c config] [-d dist1,dist2-arch]'
++		print 'usage: yam [-f] [-g] [-q] [-u] [-v] [-x] [-c config] [-d dist1,dist2-arch]'
+ 
+ 	def help(self):
+ 		print '''Set up a distribution server from ISO files
+@@ -107,6 +112,7 @@
+ Yam options:
+   -c, --config=file     specify alternative configfile
+   -d, --dist=dist       specify distributions and/or architecture
++  -f, --force			force repository generation
+   -g, --generate        generate Yam repositories
+   -q, --quiet           minimal output
+       --remount         remount distribution ISOs
+@@ -240,6 +246,7 @@
+ 		self.iso = None
+ 		self.release = None
+ 		self.repos = {}
++		self.newrepos = []
+ 		self.rhnrelease = None
+ 		self.tag = self.dist
+ 		self.srcdir = srcdir
+@@ -343,6 +350,34 @@
+ 				info(2, '%s: Unmount ISO %s from %s' % (self.nick, os.path.basename(iso), mount))
+ 				run('%s %s' % (cf.cmd['umount'], mount))
+ 
++	def checkrepos(self):
++		&quot;Return what repositories require an update&quot;
++		self.newrepos = []
++		for repo in self.repos.keys() + ['local', ]:
++			repodir = os.path.join(self.dir, 'RPMS.' + repo)
++			if not os.path.isdir(repodir):
++				pass
++			elif op.force:
++				self.newrepos.append(repo)
++			elif os.path.isfile(repodir + '/.sha1sum'):
++				oldsha1 = open(repodir + '/.sha1sum').read()
++				newsha1 = sha1dir(repodir)
++				if oldsha1 != newsha1:
++					info(3, 'Repository %s has new packages.' % repo)
++					self.newrepos.append(repo)
++				else:
++					info(4, 'Repository %s has not changed. Skipping.' % repo)
++			else:
++				info(3, 'New repository %s detected.' % repo)
++				self.newrepos.append(repo)
++
++	def writereposha1(self):
++		&quot;Write a .sha1sum file per repository&quot;
++		for repo in self.repos.keys() + ['local', ]:
++			repodir = os.path.join(self.dir, 'RPMS.' + repo)
++			if os.path.isdir(repodir): 
++				open(repodir + '/.sha1sum', 'w').write(sha1dir(repodir))
++
+ 	def apt(self):
+ 		&quot;Create an Apt repository&quot;
+ 		if not cf.cmd['genbasedir']: return
+@@ -360,7 +395,7 @@
+ 		elif op.verbose &gt;= 4: opts = ' -vv' + opts
+ #		info(1, '%s: Create old-style Yum repository' % self.nick)
+ #		run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS'))
+-		for repo in self.repos.keys() + ['local']:
++		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+ 				info(1, '%s: Create old-style Yum repository for %s' % (self.nick, repo))
+@@ -374,7 +409,7 @@
+ 		elif op.verbose &gt;= 3: opts = ' -v' + opts
+ #		info(1, '%s: Create new-style Yum repository' % self.nick)
+ #		run('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS'))
+-		for repo in self.repos.keys() + ['local']:
++		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+ 				info(1, '%s: Create new-style Yum repository for %s' % (self.nick, repo))
+@@ -383,11 +418,24 @@
+ 	def repoindex(self):
+ 		&quot;Create a repository index&quot;
+ 		if not cf.cmd['repoindex']: return
+-		for repo in self.repos.keys() + ['local']:
++		for repo in self.newrepos:
++			table = {
++				'repo': repo,
++				'srcdir': cf.srcdir,
++				'wwwdir': cf.wwwdir,
++				'arch': self.arch,
++				'dist': self.dist,
++				'nick': self.nick,
++				'release': self.release,
++				'title': repo + ' repository for ' + self.dist + '/' + self.arch,
++			}
++			cmd = cf.cmd['repoindex']
++			for key in table.keys():
++				cmd = cmd.replace('$' + key, table[key])
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+ 				info(1, '%s: Create repository index for %s' % (self.nick, repo))
+-				run('%s %s' % (cf.cmd['repoindex'], repodir))
++				run(cmd)
+ 
+ 	def html(self):
+ 		&quot;Put html information in repository&quot;
+@@ -411,11 +459,20 @@
+ 		os.path.walk(srcdir, rpmtaglink, (self, repo))
+ 
+ 	def clean(self, repo=None):
+-		repodir = os.path.join(self.dir, 'RPMS')
+-		if repo: repodir = repodir + '.' + repo
+-		info(3, 'Removing %s' % repodir)
+-		remove(repodir)
++		if repo:
++			info(3, '%s: Removing %s' % (self.nick, repo))
++			files = glob.glob(os.path.join(self.dir, 'RPMS.' + repo, '*.rpm'))
++		else:
++			info(3, '%s: Removing RPMS' % self.nick)
++			files = glob.glob(os.path.join(self.dir, 'RPMS', '*.rpm'))
++		remove(files)
+ 
++def sha1dir(dir):
++	&quot;Return sha1sum of a directory&quot;
++	files = glob.glob(dir + '/*.rpm')
++	files.sort()
++	return sha.new('\n'.join(files)).hexdigest()
++
+ def error(level, str):
+ 	&quot;Output error message&quot;
+ 	if level &lt;= op.verbose:
+@@ -492,7 +549,7 @@
+ 		elif os.path.isdir(src):
+ 			shutil.copytree(src, dst)
+ 
+-def remove(*files):
++def remove(files):
+ 	&quot;Remove files or directories&quot;
+ 	for file in files:
+ 		if os.path.islink(file):
+@@ -905,12 +962,20 @@
+ 			writefile(dist.dir + '/yast/instorder', '/CD5\n/CD1\n/CD2\n')
+ 			writefile(dist.dir + '/yast/order', '/CD5\t/CD5\n/CD1\t/CD1\n/CD2\t/CD2\n')
+ 
++		### Check for updated repositories
++		dist.checkrepos()
++
++		### Generate repository metadata
+ 		for md in dist.metadata:
+ 			if md == 'apt': dist.apt()
+ 			elif md == 'yum': dist.yum()
+ 			elif md == 'createrepo': dist.createrepo()
+ 			else: info(1, 'The %s metadata is unknown.' % md)
+ 
++		### After generation, write a sha1sum
++		dist.writereposha1()
++
++		### Generate repository index
+ 		dist.repoindex()
+ 
+ 		### Create pxe boot
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002882.html">[svn] r4082 - in trunk/rpms: . repoview taglib x11vnc
+</A></li>
+	<LI>Next message: <A HREF="002884.html">[svn] r4084 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2883">[ date ]</a>
+              <a href="thread.html#2883">[ thread ]</a>
+              <a href="subject.html#2883">[ subject ]</a>
+              <a href="author.html#2883">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

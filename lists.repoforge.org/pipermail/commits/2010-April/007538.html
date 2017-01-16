@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8743 - /trunk/tools/perl-stuff/gen-rpmforge-rss.pl
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8743%20-%20/trunk/tools/perl-stuff/gen-rpmforge-rss.pl&In-Reply-To=%3C201004071326.o37DQUko029129%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007537.html">
+   <LINK REL="Next"  HREF="007539.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8743 - /trunk/tools/perl-stuff/gen-rpmforge-rss.pl</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8743%20-%20/trunk/tools/perl-stuff/gen-rpmforge-rss.pl&In-Reply-To=%3C201004071326.o37DQUko029129%40surya.karan.org%3E"
+       TITLE="[svn] r8743 - /trunk/tools/perl-stuff/gen-rpmforge-rss.pl">shuff at vecna.org
+       </A><BR>
+    <I>Wed Apr  7 15:26:30 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007537.html">[svn] r8742 - /trunk/rpms/perl-URI/perl-URI.spec
+</A></li>
+        <LI>Next message: <A HREF="007539.html">[svn] r8744 - /trunk/rpms/ddrescue/ddrescue.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7538">[ date ]</a>
+              <a href="thread.html#7538">[ thread ]</a>
+              <a href="subject.html#7538">[ subject ]</a>
+              <a href="author.html#7538">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: Wed Apr  7 14:26:29 2010
+New Revision: 8743
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=8743&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=8743&amp;view=rev</A>
+Log:
+initial commit of a script to generate RSS feeds from mirror directories
+
+Added:
+    trunk/tools/perl-stuff/gen-rpmforge-rss.pl   (with props)
+
+Added: trunk/tools/perl-stuff/gen-rpmforge-rss.pl
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/perl-stuff/gen-rpmforge-rss.pl?rev=8743&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/perl-stuff/gen-rpmforge-rss.pl?rev=8743&amp;view=markup</A>
+==============================================================================
+--- trunk/tools/perl-stuff/gen-rpmforge-rss.pl (added)
++++ trunk/tools/perl-stuff/gen-rpmforge-rss.pl Wed Apr  7 14:26:29 2010
+@@ -1,0 +1,67 @@
++#!/usr/bin/perl 
++
++use strict;
++use warnings;
++
++use LWP::Simple;
++use HTML::TreeBuilder;
++use XML::RSS;
++
++use Readonly;
++
++# define our feeds
++Readonly our $FEEDS =&gt; {
++                        i386    =&gt; {
++                                    title   =&gt; 'rpmforge-i386',
++                                    link    =&gt; '<A HREF="http://mirror.hmdc.harvard.edu/rpmforge/el5/i386/rpmforge/RPMS/">http://mirror.hmdc.harvard.edu/rpmforge/el5/i386/rpmforge/RPMS/</A>',
++                                    description =&gt; 'RPMforge - i386 packages',
++                                   },
++                        x86_64  =&gt; {
++                                    title   =&gt; 'rpmforge-x86_64',
++                                    link    =&gt; '<A HREF="http://mirror.hmdc.harvard.edu/rpmforge/el5/x86_64/rpmforge/RPMS/">http://mirror.hmdc.harvard.edu/rpmforge/el5/x86_64/rpmforge/RPMS/</A>',
++                                    description =&gt; 'RPMforge - x86_64 packages',
++                                   },
++                       };
++                        
++# iterate over feeds
++foreach my $feed ( keys( %{$FEEDS} ) ) {
++
++    # download the html
++    my( $feedurl ) = $FEEDS-&gt;{$feed}-&gt;{link};
++    my( $html ) = get( $feedurl . '?C=M;O=D')
++        or next;
++
++    # instantiate the RSS feed
++    my( $rss ) = XML::RSS-&gt;new( version =&gt; '1.0' );
++
++    # make a channel
++    $rss-&gt;channel( 
++                  %{$FEEDS-&gt;{$feed}},
++                  syn =&gt; {
++                      updatePeriod      =&gt; 'daily',
++                      updateFrequency   =&gt; '1',
++                      updateBase        =&gt; '2010-03-13T04:05:00-05:00',
++                  },
++                 );
++
++    # instantiate the HTML parser
++    my( $tree ) = HTML::TreeBuilder-&gt;new_from_content( $html );
++
++    # all we want is the &lt;pre&gt;
++    my( @rpms ) = $tree-&gt;look_down( '_tag', 'a',
++                                    sub { 
++                                         $_[0]-&gt;as_text =~ /\.rpm$/ 
++                                    },
++                                  );
++    while ( @rpms ) {
++    
++        my( $rpm ) = shift( @rpms );
++        my( $title ) = $rpm-&gt;as_text;
++        my( $link ) = $feedurl . $title;
++        $rss-&gt;add_item( title =&gt; $title, link =&gt; $link );
++    }
++
++    # clean up
++    $tree-&gt;delete;
++    $rss-&gt;save( $feed . '.rss' );
++}
+
+Propchange: trunk/tools/perl-stuff/gen-rpmforge-rss.pl
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/tools/perl-stuff/gen-rpmforge-rss.pl
+------------------------------------------------------------------------------
+    svn:executable = *
+
+Propchange: trunk/tools/perl-stuff/gen-rpmforge-rss.pl
+------------------------------------------------------------------------------
+    svn:mime-type = text/plain
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007537.html">[svn] r8742 - /trunk/rpms/perl-URI/perl-URI.spec
+</A></li>
+	<LI>Next message: <A HREF="007539.html">[svn] r8744 - /trunk/rpms/ddrescue/ddrescue.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7538">[ date ]</a>
+              <a href="thread.html#7538">[ thread ]</a>
+              <a href="subject.html#7538">[ subject ]</a>
+              <a href="author.html#7538">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

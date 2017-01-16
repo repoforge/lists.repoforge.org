@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3472 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3472%20-%20trunk/tools/yam&In-Reply-To=%3C20050812084333.8BB22318042%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002272.html">
+   <LINK REL="Next"  HREF="002274.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3472 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3472%20-%20trunk/tools/yam&In-Reply-To=%3C20050812084333.8BB22318042%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3472 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug 12 10:43:33 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002272.html">[svn] r3471 - trunk/rpms
+</A></li>
+        <LI>Next message: <A HREF="002274.html">[svn] r3473 - in trunk/rpms: dkftpbench gtksourceview-sharp ipe	monodevelop muttprint perl-PatchReader povray python-tdb	python-utmp python-wifi rapidsvn scponly sysprof
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2273">[ date ]</a>
+              <a href="thread.html#2273">[ thread ]</a>
+              <a href="subject.html#2273">[ subject ]</a>
+              <a href="author.html#2273">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-08-12 10:43:32 +0200 (Fri, 12 Aug 2005)
+New Revision: 3472
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-example.conf
+Log:
+Updates
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2005-08-12 03:33:33 UTC (rev 3471)
++++ trunk/tools/yam/ChangeLog	2005-08-12 08:43:32 UTC (rev 3472)
+@@ -8,6 +8,8 @@
+ - Changed default rsync options from '-aHL' to '-rtHL' (David Zambonini)
+ - Mount ISO images as read-only (David Zambonini)
+ - Options lftpoptions and rsyncoptions now overwrite the defaults
++- Added architectures ppc64pseries and ppc64iseries to ppc (Tim Verhoeven)
++- Added lftp-mirror-options config option
+ 
+ * 0.7.3 - released 25/03/2005
+ - Added ia64 support (Gareth Armstrong)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2005-08-12 03:33:33 UTC (rev 3471)
++++ trunk/tools/yam/yam	2005-08-12 08:43:32 UTC (rev 3472)
+@@ -164,7 +164,8 @@
+ 		self.lftpcleanup = not self.getoption('main', 'lftp-cleanup', 'yes') in disable
+ 		self.lftpexcldebug = not self.getoption('main', 'lftp-exclude-debug', 'yes') in disable
+ 		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in disable
+-		self.lftpoptions = self.getoption('main', 'lftp-options', '-a -P')
++		self.lftpoptions = self.getoption('main', 'lftp-options', '')
++		self.lftpmirroroptions = self.getoption('main', 'lftp-mirror-options', '-a -P')
+ 		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+@@ -544,7 +545,7 @@
+ 	if cf.lftptimeout: sets = sets + ' set net:timeout %s;' % cf.lftptimeout
+ 	if cf.lftpbwlimit: sets = sets + ' set net:limit-total-rate=%s:0;' % cf.lftpbwlimit
+ 
+-	opts = 'mirror ' + cf.lftpoptions
++	opts = 'mirror ' + cf.lftpmirroroptions
+ 	if op.verbose &lt;= 1: opts = opts + ' --verbose=0'
+ 	else: opts = '%s --verbose=%d' % (opts, op.verbose-1)
+ 	if cf.lftpcleanup: opts = opts + ' -e'
+@@ -553,7 +554,7 @@
+ 	if cf.lftpexclsrpm: opts = opts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
+ 	if cf.lftpexcldebug: opts = opts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
+ 
+-	run('%s -c \'%s %s %s %s\'' % (cf.cmd['lftp'], sets, opts, url, path))
++	run('%s %s -c \'%s %s %s %s\'' % (cf.cmd['lftp'], cf.lftpoptions, sets, opts, url, path))
+ 
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2005-08-12 03:33:33 UTC (rev 3471)
++++ trunk/tools/yam/yam-example.conf	2005-08-12 08:43:32 UTC (rev 3472)
+@@ -56,9 +56,12 @@
+ lftp-exclude-debug = yes
+ lftp-exclude-srpm = yes
+ 
+-## Add extra options to lftp
+-lftp-options = -a -P
++## Add extra options to lftp (eg. -d for debugging lftp)
++lftp-options = 
+ 
++## Add extra options to lftp mirro command
++lftp-mirror-options = -a -P
++
+ ## Set the I/O timeout in seconds
+ lftp-timeout = 
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002272.html">[svn] r3471 - trunk/rpms
+</A></li>
+	<LI>Next message: <A HREF="002274.html">[svn] r3473 - in trunk/rpms: dkftpbench gtksourceview-sharp ipe	monodevelop muttprint perl-PatchReader povray python-tdb	python-utmp python-wifi rapidsvn scponly sysprof
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2273">[ date ]</a>
+              <a href="thread.html#2273">[ thread ]</a>
+              <a href="subject.html#2273">[ subject ]</a>
+              <a href="author.html#2273">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

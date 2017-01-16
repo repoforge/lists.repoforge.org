@@ -1,0 +1,240 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3966 - in trunk/rpms: . gramps perl-Digest-SHA
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3966%20-%20in%20trunk/rpms%3A%20.%20gramps%20perl-Digest-SHA&In-Reply-To=%3C20060115033654.DB7AF944AAB%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002765.html">
+   <LINK REL="Next"  HREF="002767.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3966 - in trunk/rpms: . gramps perl-Digest-SHA</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3966%20-%20in%20trunk/rpms%3A%20.%20gramps%20perl-Digest-SHA&In-Reply-To=%3C20060115033654.DB7AF944AAB%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3966 - in trunk/rpms: . gramps perl-Digest-SHA">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jan 15 04:36:54 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002765.html">[svn] r3965 - in trunk/rpms: bnews-utils gemhunters libcmt
+</A></li>
+        <LI>Next message: <A HREF="002767.html">[svn] r3967 - in trunk/rpms: . kdirstat kwave qgo shapelib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2766">[ date ]</a>
+              <a href="thread.html#2766">[ thread ]</a>
+              <a href="subject.html#2766">[ subject ]</a>
+              <a href="author.html#2766">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-15 04:36:53 +0100 (Sun, 15 Jan 2006)
+New Revision: 3966
+
+Added:
+   trunk/rpms/perl-Digest-SHA/
+   trunk/rpms/perl-Digest-SHA/perl-Digest-SHA.spec
+Modified:
+   trunk/rpms/gramps/gramps.spec
+Log:
+Updates
+
+Modified: trunk/rpms/gramps/gramps.spec
+===================================================================
+--- trunk/rpms/gramps/gramps.spec	2006-01-14 19:32:46 UTC (rev 3965)
++++ trunk/rpms/gramps/gramps.spec	2006-01-15 03:36:53 UTC (rev 3966)
+@@ -1,14 +1,14 @@
+ # $Id$
+-
+ # Authority: dag
+ # Upstream: Laurent Protois &lt;laurent,protois$free,fr&gt;
+ 
++%define desktop_vendor rpmforge
+ %define _localstatedir /var/lib
+ 
+ Summary: Genealogical Research and Analysis Management Programming System
+ Name: gramps
+ Version: 2.0.9
+-Release: 1
++Release: 2
+ License: GPL
+ Group: Applications/Editors
+ URL: <A HREF="http://gramps.sourceforge.net/">http://gramps.sourceforge.net/</A>
+@@ -34,33 +34,38 @@
+ %setup
+ 
+ %build
+-%configure \
+-	 --disable-schemas-install
++%configure --enable-packager-mode
+ %{__make} %{?_smp_mflags}
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-export GCONF_DISABLE_MAKEFILE_SCHEMA_INSTALL=&quot;1&quot;
+ %makeinstall \
+ 	GNOME_DATADIR=&quot;%{buildroot}%{_datadir}&quot;
+ %find_lang %{name}
+ 
+ %{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
+-desktop-file-install --vendor rpmforge --delete-original \
++desktop-file-install --delete-original                   \
++	--vendor %{desktop_vendor}                       \
+ 	--add-category X-Red-Hat-Base                    \
+ 	--add-category Application                       \
+ 	--add-category Utility                           \
+ 	--dir %{buildroot}%{_datadir}/applications       \
+-	%{buildroot}%{_datadir}/applications/%{name}.desktop
++	%{buildroot}%{_datadir}/applications/gramps.desktop
+ 
+ ### Clean up buildroot
+ %{__rm} -rf %{buildroot}%{_localstatedir}/scrollkeeper/
+ 
+ %post
++export GCONF_CONFIG_SOURCE=&quot;$(gconftool-2 --get-default-source)&quot;
++gconftool-2 --makefile-install-rule %{_sysconfdir}/gconf/schemas/%{name}.schemas &amp;&gt;/dev/null
+ scrollkeeper-update -q || :
++/usr/bin/update-mime-database %{_datadir}/mime &amp;&gt;/dev/null || :
++/usr/bin/update-desktop-database -q || :
+ 
+ %postun
+ scrollkeeper-update -q || :
++/usr/bin/update-mime-database %{_datadir}/mime &amp;&gt;/dev/null || :
++/usr/bin/update-desktop-database -q || :
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+@@ -68,26 +73,21 @@
+ %files -f %{name}.lang
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS ChangeLog COPYING* FAQ INSTALL NEWS README TODO
+-%doc %{_mandir}/man?/*
+-#%doc %{_datadir}/gnome/help/gramps-manual/
+-#%doc %{_datadir}/gnome/help/extending-gramps/
+-%{_bindir}/*
+-%{_datadir}/applications/*.desktop
+-%{_datadir}/gramps/
+-%{_datadir}/omf/gramps/
++%doc %{_mandir}/man1/gramps.1*
+ %{_sysconfdir}/gconf/schemas/gramps.schemas
++%{_bindir}/gramps
+ %{_datadir}/application-registry/gramps.applications
+-%{_datadir}/icons/*/*/*/*.png
++%{_datadir}/applications/%{desktop_vendor}-gramps.desktop
++%{_datadir}/gramps/
++%{_datadir}/icons/gnome/48x48/mimetypes/*.png
+ %{_datadir}/mime-info/gramps.*
+-%{_datadir}/mime/application/*.xml
+ %{_datadir}/mime/packages/gramps.xml
+-%exclude %{_datadir}/mime/aliases
+-%exclude %{_datadir}/mime/XMLnamespaces
+-%exclude %{_datadir}/mime/globs
+-%exclude %{_datadir}/mime/magic
+-%exclude %{_datadir}/mime/subclasses
++%{_datadir}/omf/gramps/
+  
+ %changelog
++* Sun Jan 15 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.0.9-2
++- Fixed mime and desktop installation.
++
+ * Fri Dec 16 2005 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 2.0.9-1
+ - Updated to release 2.0.9.
+ 
+
+Added: trunk/rpms/perl-Digest-SHA/perl-Digest-SHA.spec
+===================================================================
+--- trunk/rpms/perl-Digest-SHA/perl-Digest-SHA.spec	2006-01-14 19:32:46 UTC (rev 3965)
++++ trunk/rpms/perl-Digest-SHA/perl-Digest-SHA.spec	2006-01-15 03:36:53 UTC (rev 3966)
+@@ -0,0 +1,56 @@
++# $Id$
++# Authority: dag
++
++%define perl_vendorlib %(eval &quot;`perl -V:installvendorlib`&quot;; echo $installvendorlib)
++%define perl_vendorarch %(eval &quot;`perl -V:installvendorarch`&quot;; echo $installvendorarch)
++
++%define real_name Digest-SHA
++
++Summary: Digest-SHA Perl module
++Name: perl-Digest-SHA
++Version: 5.32
++Release: 1
++License: distributable
++Group: Applications/CPAN
++URL: <A HREF="http://search.cpan.org/dist/Digest-SHA/">http://search.cpan.org/dist/Digest-SHA/</A>
++
++Source: <A HREF="http://www.cpan.org/modules/by-module/Digest/Digest-SHA-%{version">http://www.cpan.org/modules/by-module/Digest/Digest-SHA-%{version</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: perl &gt;= 0:5.00503
++Requires: perl &gt;= 0:5.00503
++
++%description
++Digest-SHA Perl module
++
++%prep
++%setup -n %{real_name}-%{version} 
++
++%build
++CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;
++%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;
++
++%install
++%{__rm} -rf %{buildroot}
++%makeinstall
++
++### Clean up buildroot
++%{__rm} -rf %{buildroot}%{perl_archlib} %{buildroot}%{perl_vendorarch}/auto/*{,/*{,/*}}/.packlist
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc Changes MANIFEST README
++%doc %{_mandir}/man1/shasum.1*
++%doc %{_mandir}/man3/*.3pm*
++%{_bindir}/shasum
++%dir %{perl_vendorarch}/Digest/
++%{perl_vendorarch}/Digest/SHA.pm
++%dir %{perl_vendorarch}/auto/Digest/
++%{perl_vendorarch}/auto/Digest/SHA/
++
++%changelog
++* Sun Jan 15 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 5.32-1
++- Initial package. (using DAR)
+
+
+Property changes on: trunk/rpms/perl-Digest-SHA/perl-Digest-SHA.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002765.html">[svn] r3965 - in trunk/rpms: bnews-utils gemhunters libcmt
+</A></li>
+	<LI>Next message: <A HREF="002767.html">[svn] r3967 - in trunk/rpms: . kdirstat kwave qgo shapelib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2766">[ date ]</a>
+              <a href="thread.html#2766">[ thread ]</a>
+              <a href="subject.html#2766">[ subject ]</a>
+              <a href="author.html#2766">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

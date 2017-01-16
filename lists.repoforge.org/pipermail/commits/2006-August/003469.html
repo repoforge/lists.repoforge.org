@@ -1,0 +1,486 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4669 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4669%20-%20trunk/tools/yam&In-Reply-To=%3C20060817122453.0E97D944A76%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003468.html">
+   <LINK REL="Next"  HREF="003470.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4669 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4669%20-%20trunk/tools/yam&In-Reply-To=%3C20060817122453.0E97D944A76%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4669 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Aug 17 14:24:53 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003468.html">[svn] r4668 - trunk/rpms/perl-ldap
+</A></li>
+        <LI>Next message: <A HREF="003470.html">[svn] r4670 - in trunk/rpms: . normalize python-flac retty
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3469">[ date ]</a>
+              <a href="thread.html#3469">[ thread ]</a>
+              <a href="subject.html#3469">[ subject ]</a>
+              <a href="author.html#3469">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-17 14:24:38 +0200 (Thu, 17 Aug 2006)
+New Revision: 4669
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Small updates.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-08-17 12:21:38 UTC (rev 4668)
++++ trunk/tools/yam/ChangeLog	2006-08-17 12:24:38 UTC (rev 4669)
+@@ -33,6 +33,9 @@
+ - Fixed a cornercase where a dangling symlink was not removed prior to downloading using RHN
+ - Prettify createrepo output
+ - Fixed a bug with joining <A HREF="yam://">yam://</A> references (Henning Markussen)
++- Initial attempt to comply with PEP8
++- Improved debug output to understand where Yam is looking for ISO files (Frederik Kaputa)
++- Improved finding ISO files
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-08-17 12:21:38 UTC (rev 4668)
++++ trunk/tools/yam/TODO	2006-08-17 12:24:38 UTC (rev 4669)
+@@ -68,6 +68,7 @@
+ + Add documentation about chaining Yam servers
+ + Comment the code more (pydoc strings)
+ + ZeroConf support (or documentation)
+++ Comply with PEP8: <A HREF="http://www.python.org/dev/peps/pep-0008/">http://www.python.org/dev/peps/pep-0008/</A>
+ 
+ ### Internal python
+ + Improve the copy/symlink/rename functions, using exceptions
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-08-17 12:21:38 UTC (rev 4668)
++++ trunk/tools/yam/yam	2006-08-17 12:24:38 UTC (rev 4669)
+@@ -17,6 +17,9 @@
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse, sha, types, traceback
+ 
++__version__ = &quot;$Revision$&quot;
++# $Source$
++
+ VERSION = '0.8.0svn'
+ 
+ archs = {
+@@ -279,7 +282,7 @@
+ 		self.nick = dist + '-' + arch
+ 		if arch == 'none':
+ 			self.nick = dist
+-		self.name = self.nick
++		self.name = dist
+ 		self.dir = os.path.join(wwwdir, self.nick)
+ 		self.iso = None
+ 		self.release = None
+@@ -288,10 +291,11 @@
+ 		self.rhnrelease = None
+ 		self.srcdir = srcdir
+ 		self.discs = ()
++		self.isos = []
+ 
+ #	def __repr__(self):
+ #		for key, value in vars(self).iteritems():
+-#			if type(value) == type(''):
++#			if isinstance(value, types.StringType):
+ #				print key, '-&gt;', value
+ 
+ 	def rewrite(self):
+@@ -300,37 +304,42 @@
+ 		list.update({ 'arch': self.arch, 'nick': self.nick, 'dist': self.dist,
+ 				'release': self.release, 'rhnrelease': self.rhnrelease })
+ 		for key, value in vars(self).iteritems():
+-			if type(value) == type(''):
++			if isinstance(value, types.StringType):
+ 				setattr(self, key, substitute(value, list))
+ 		for key, value in self.repos.iteritems():
+ 			list['repo'] = key
+ 			self.repos[key] = substitute(value, list)
+ 
+-	def isos(self):
++	def findisos(self):
+ 		&quot;Return a list of existing ISO files&quot;
+-		isos=[]
+-		if self.iso:
++		if not self.iso: return
++		if not self.isos:
+ 			for file in self.iso.split(' '):
+ 				absfile = file
+ 				if not os.path.isabs(file):
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, self.nick, file)))
+ 					absfile = os.path.join(cf.srcdir, self.nick, file)
+-				list = glob.glob(absfile)
++					list = glob.glob(absfile)
+ 				if not list:
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, self.name, file)))
+ 					absfile = os.path.join(cf.srcdir, self.name, file)
+ 					list = glob.glob(absfile)
+ 				if not list:
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, 'iso', file)))
+ 					absfile = os.path.join(cf.srcdir, 'iso', file)
+ 					list = glob.glob(absfile)
+ 				if not list:
++					info(6, '%s: Looking for ISO files matching %s' % (self.nick, os.path.join(cf.srcdir, file)))
+ 					absfile = os.path.join(cf.srcdir, file)
+ 					list = glob.glob(absfile)
+ 				list.sort()
+ 				for iso in list:
+-					if os.path.isfile(iso) and iso not in isos:
+-						isos.append(iso)
+-		if not isos:
++					if os.path.isfile(iso) and iso not in self.isos:
++						self.isos.append(iso)
++		if self.isos:
++			info(5, '%s: Found %d ISO files at %s' % (self.nick, len(self.isos), absfile))
++		else:
+ 			info(4, '%s: No ISO files found !' % self.nick)
+-		return isos
+ 
+ 	def mount(self):
+ 		&quot;Loopback mount all ISOs&quot;
+@@ -344,7 +353,7 @@
+ 		opts = '-o loop,ro'
+ 		if readfile('/selinux/enforce') == '1':
+ 			opts = opts + ',context=system_u:object_r:httpd_sys_content_t'
+-		for iso in self.isos():
++		for iso in self.isos:
+ 			if cf.shareiso:
+ 				symlink(iso, os.path.join(self.dir, 'iso'))
+ 			discnr = discnr + 1
+@@ -376,7 +385,7 @@
+ 		&quot;Umount all mounted ISOs&quot;
+ 		discnr = 0
+ 		regexp = re.compile('.+[_-]CD[0-9]?\..+')
+-		for iso in self.isos():
++		for iso in self.isos:
+ 			discnr = discnr + 1
+ 			discstr = 'disc'
+ 			if regexp.match(iso, 1):
+@@ -441,9 +450,11 @@
+ 
+ 	def apt(self):
+ 		&quot;Create an (old-style) apt repository&quot;
+-		if not cf.cmd['genbasedir']: return
++		if not cf.cmd['genbasedir']:
++			return
+ 		opts = ''
+-		if op.verbose &gt;= 3: opts = ' --progress' + opts
++		if op.verbose &gt;= 3:
++			opts = ' --progress' + opts
+ 		if self.newrepos:
+ 			self.oldrepos = self.repos.keys() + ['all', 'local']
+ 			self.oldrepos.sort()
+@@ -486,12 +497,17 @@
+ 
+ 	def yum(self):
+ 		&quot;Create a (old-style) yum repository&quot;
+-		if not cf.cmd['yumarch']: return
++		if not cf.cmd['yumarch']:
++			return
+ 		opts = ''
+-		if op.verbose &lt;= 2: opts = ' -q' + opts
+-		elif op.verbose == 4: opts = ' -v' + opts
+-		elif op.verbose &gt;= 5: opts = ' -vv' + opts
+-		if op.dryrun: opts = opts + ' -n'
++		if op.verbose &lt;= 2:
++			opts = ' -q' + opts
++		elif op.verbose == 4:
++			opts = ' -v' + opts
++		elif op.verbose &gt;= 5:
++			opts = ' -vv' + opts
++		if op.dryrun:
++			opts = opts + ' -n'
+ 		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+@@ -502,13 +518,16 @@
+ 
+ 	def repomd(self):
+ 		&quot;Create a repomd repository&quot;
+-		if not cf.cmd['createrepo']: return
++		if not cf.cmd['createrepo']:
++			return
+ 		if op.force:
+ 			opts = ' -p'
+ 		else:
+ 			opts = ' -p --update'
+-		if op.verbose &lt;= 2: opts = ' -q' + opts
+-		elif op.verbose &gt;= 4: opts = ' -v' + opts
++		if op.verbose &lt;= 2:
++			opts = ' -q' + opts
++		elif op.verbose &gt;= 4:
++			opts = ' -v' + opts
+ 		if cf.cachedir:
+ 			opts = opts + ' --cachedir &quot;%s&quot;' % cf.cachedir
+ 		for repo in self.newrepos:
+@@ -524,9 +543,11 @@
+ 
+ 	def repoview(self):
+ 		&quot;Create a repoview index&quot;
+-		if not cf.cmd['repoview']: return
++		if not cf.cmd['repoview']:
++			return
+ 		opts = ''
+-		if op.verbose &lt;= 2: opts = ' -q' + opts
++		if op.verbose &lt;= 2:
++			opts = ' -q' + opts
+ 		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+@@ -606,12 +627,15 @@
+ 
+ def readfile(file, len = 0):
+ 	&quot;Return content of a file&quot;
+-	if not os.path.isfile(file): return None
+-	if len: return open(file, 'r').read(len)
++	if not os.path.isfile(file):
++		return None
++	if len:
++		return open(file, 'r').read(len)
+ 	return open(file, 'r').read()
+ 
+ def writefile(file, str):
+-	if op.dryrun: return
++	if op.dryrun:
++		return
+ 	fd = open(file, 'w')
+ 	fd.write(str)
+ 	fd.close()
+@@ -759,20 +783,32 @@
+ 	mkdir(path)
+ 
+ 	opts = cf.rsyncoptions
+-	if op.verbose &lt;= 2: opts = opts + ' -q'
+-	elif op.verbose == 3: opts = opts + ' -v'
+-	elif op.verbose == 4: opts = opts + ' -v --progress'
+-	elif op.verbose == 5: opts = opts + ' -vv --progress'
+-	elif op.verbose &gt;= 6: opts = opts + ' -vvv --progress'
+-	if op.dryrun: opts = opts + ' --dry-run'
+-	if cf.rsynctimeout: opts = opts + ' --timeout=%s' % cf.rsynctimeout
+-	if cf.rsynccleanup: opts = opts + ' --delete-after --delete-excluded'
+-	if cf.rsyncbwlimit: opts = opts + ' --bwlimit=%s' % cf.rsyncbwlimit
++	if op.verbose &lt;= 2:
++		opts = opts + ' -q'
++	elif op.verbose == 3:
++		opts = opts + ' -v'
++	elif op.verbose == 4:
++		opts = opts + ' -v --progress'
++	elif op.verbose == 5:
++		opts = opts + ' -vv --progress'
++	elif op.verbose &gt;= 6:
++		opts = opts + ' -vvv --progress'
++	if op.dryrun:
++		opts = opts + ' --dry-run'
++	if cf.rsynctimeout:
++		opts = opts + ' --timeout=%s' % cf.rsynctimeout
++	if cf.rsynccleanup:
++		opts = opts + ' --delete-after --delete-excluded'
++	if cf.rsyncbwlimit:
++		opts = opts + ' --bwlimit=%s' % cf.rsyncbwlimit
+ 	opts = opts + ' --exclude=\&quot;/headers/\&quot; --exclude=\&quot;/repodata/\&quot;'
+-	if cf.rsyncexclsrpm: opts = opts + ' --exclude=\&quot;*.src.rpm\&quot; --exclude=\&quot;/SRPMS/\&quot;'
+-	if cf.rsyncexcldebug: opts = opts + ' --exclude=\&quot;*-debuginfo-*.rpm\&quot; --exclude=\&quot;/debug/\&quot;'
++	if cf.rsyncexclsrpm:
++		opts = opts + ' --exclude=\&quot;*.src.rpm\&quot; --exclude=\&quot;/SRPMS/\&quot;'
++	if cf.rsyncexcldebug:
++		opts = opts + ' --exclude=\&quot;*-debuginfo-*.rpm\&quot; --exclude=\&quot;/debug/\&quot;'
+ 	opts = opts + ' --include=\&quot;*.rpm\&quot;'
+-	if cf.rsyncexclsrpm or cf.rsyncexcldebug: opts = opts + ' --exclude=\&quot;*.*\&quot;'
++	if cf.rsyncexclsrpm or cf.rsyncexcldebug:
++		opts = opts + ' --exclude=\&quot;*.*\&quot;'
+ 
+ 	ret = run('%s %s %s %s' % (cf.cmd['rsync'], opts, url, path), dryrun=True)
+ 	if ret:
+@@ -786,14 +822,19 @@
+ 	mkdir(path)
+ 
+ 	opts = cf.mirrordiroptions
+-	if op.verbose &gt;= 3: opts = opts + ' -v' * (op.verbose - 3)	
+-	if op.dryrun: opts = opts + ' --dry-run'
+-	if cf.mirrordircleanup: opts = opts + ' -k'
++	if op.verbose &gt;= 3:
++		opts = opts + ' -v' * (op.verbose - 3)	
++	if op.dryrun:
++		opts = opts + ' --dry-run'
++	if cf.mirrordircleanup:
++		opts = opts + ' -k'
+ 
+ #	opts = opts + ' -I \&quot;*.rpm\&quot;'
+ 	opts = opts + ' -G \&quot;headers\&quot; -G \&quot;repodata\&quot;'
+-	if cf.mirrordirexclsrpm: opts = opts + ' -G \&quot;*.src.rpm\&quot; -G \&quot;SRPMS\&quot;'
+-	if cf.mirrordirexcldebug: opts = opts + ' -G \&quot;*-debuginfo-*.rpm\&quot; -G \&quot;debug\&quot;'
++	if cf.mirrordirexclsrpm:
++		opts = opts + ' -G \&quot;*.src.rpm\&quot; -G \&quot;SRPMS\&quot;'
++	if cf.mirrordirexcldebug:
++		opts = opts + ' -G \&quot;*-debuginfo-*.rpm\&quot; -G \&quot;debug\&quot;'
+ 
+ 	ret = run(&quot;%s %s '%s' '%s'&quot; % (cf.cmd['mirrordir'], opts, url, path), dryrun=True)
+ 	if ret:
+@@ -809,19 +850,27 @@
+ 
+ 	cmds = cf.lftpcommands + ';'
+ #	cmds = 'set dns:fatal-timeout 5;'
+-	if cf.lftptimeout: cmds = cmds + ' set net:timeout %s;' % cf.lftptimeout
+-	if cf.lftpbwlimit: cmds = cmds + ' set net:limit-total-rate %s:0;' % cf.lftpbwlimit
++	if cf.lftptimeout:
++		cmds = cmds + ' set net:timeout %s;' % cf.lftptimeout
++	if cf.lftpbwlimit:
++		cmds = cmds + ' set net:limit-total-rate %s:0;' % cf.lftpbwlimit
+ 
+ 	opts = cf.lftpoptions
+-	if op.verbose &gt;= 6: opts = opts + ' -d'
++	if op.verbose &gt;= 6:
++		opts = opts + ' -d'
+ 
+ 	mirroropts = cf.lftpmirroroptions
+-	if op.verbose &gt;= 3: mirroropts = mirroropts + ' -v' * (op.verbose - 2)
+-	if op.dryrun: mirroropts = mirroropts + ' --dry-run'
+-	if cf.lftpcleanup: mirroropts = mirroropts + ' -e'
++	if op.verbose &gt;= 3:
++		mirroropts = mirroropts + ' -v' * (op.verbose - 2)
++	if op.dryrun:
++		mirroropts = mirroropts + ' --dry-run'
++	if cf.lftpcleanup:
++		mirroropts = mirroropts + ' -e'
+ 	mirroropts = mirroropts + ' -I *.rpm -X \&quot;/headers/\&quot; -X \&quot;/repodata/\&quot;'
+-	if cf.lftpexclsrpm: mirroropts = mirroropts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
+-	if cf.lftpexcldebug: mirroropts = mirroropts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
++	if cf.lftpexclsrpm:
++		mirroropts = mirroropts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
++	if cf.lftpexcldebug:
++		mirroropts = mirroropts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
+ 
+ 	ret = run('%s %s -c \'%s mirror %s %s %s\'' % (cf.cmd['lftp'], opts, cmds, mirroropts, url, path), dryrun=True)
+ 	if ret:
+@@ -971,7 +1020,8 @@
+ 
+ 	### Log on to RHN
+ 	systemid = rhnlogin(url, path, dist)
+-	if not systemid: return
++	if not systemid:
++		return
+ 
+ 	mkdir(cfg['storageDir'])
+ 
+@@ -986,7 +1036,8 @@
+ 			except rpclib.Fault, f:
+ 				raise(YamMirrorException('Error subscribing %s to channel %s, skipping.%s' % (dist.nick, label, f.faultString)))
+ 			systemid = rhnlogin(url, path, dist, force=True)
+-			if not systemid: return
++			if not systemid:
++				return
+ 			info(6, '\nAFTER SUBSC: logininfo: %s\n' % loginInfo)
+ 			channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
+ 			if not channel:
+@@ -1043,11 +1094,14 @@
+ 	info(1, 'Hardlinking duplicate packages in %s.' % srcdir)
+ 	opts = ''
+ 	if cf.cmd['hardlink++']:
+-		if op.verbose &lt;= 2: opts = '&gt;/dev/null'
++		if op.verbose &lt;= 2:
++			opts = '&gt;/dev/null'
+ 		run('%s %s %s' % (cf.cmd['hardlink++'], os.path.join(srcdir, ''), opts))
+ 	elif cf.cmd['hardlink']:
+-		if op.verbose: opts = opts + ' -' + ('v' * (op.verbose - 2))
+-		if op.dryrun: opts = opts + ' -n'
++		if op.verbose:
++			opts = opts + ' -' + ('v' * (op.verbose - 2))
++		if op.dryrun:
++			opts = opts + ' -n'
+ 		run('%s -c %s %s' % (cf.cmd['hardlink'], opts, os.path.join(srcdir, '')), dryrun=True)
+ 	else:
+ 		info(1, 'hardlink was not found, hardlink support is therefor disabled.')
+@@ -1085,7 +1139,8 @@
+ def main():
+ 	### Check availability of commands
+ 	for cmd in cf.cmd.keys():
+-		if not cf.cmd[cmd]: continue
++		if not cf.cmd[cmd]:
++			continue
+ 		list = cf.cmd[cmd].split()
+ 		if not os.path.isfile(list[0]):
+ 			list[0] = which(list[0])
+@@ -1114,9 +1169,9 @@
+ 	### Mounting and mirroring available distributions/repositories
+ 	for dist in dists:
+ 
++		dist.findisos()
+ 		### Mount ISOs
+-		if dist.isos():
+-			info(5, '%s: Found %d ISO files for %s' % (dist.nick, len(dist.isos()), dist.name))
++		if dist.isos:
+ 			if op.umount or op.remount:
+ 				dist.umount()
+ 			if not op.umount or op.remount:
+@@ -1136,7 +1191,7 @@
+ 			for repo in repos:
+ 				srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 				if repo in ('os', 'core'):
+-					if not dist.isos():
++					if not dist.isos:
+ 						mirror(dist.repos[repo], srcdir, dist)
+ 				elif repo in dist.repos.keys():
+ 					mirror(dist.repos[repo], srcdir, dist)
+@@ -1151,7 +1206,8 @@
+ 	### Generating metadata for available distributions/repositories
+ 	for dist in dists:
+ 		repos = dist.repos.keys() + ['local']
+-		if dist.isos(): repos = repos + ['os']
++		if dist.isos:
++			repos = repos + ['os']
+ 		repos.sort()
+ 
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+@@ -1162,7 +1218,7 @@
+ 
+ 		for repo in repos:
+ 			dist.clean(repo)
+-			if repo in ('os', 'core') and dist.isos():
++			if repo in ('os', 'core') and dist.isos:
+ 				dist.repos[repo] = None
+ 				for disc in dist.discs:
+ 					dist.link(os.path.join(dist.dir, disc), 'os')
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003468.html">[svn] r4668 - trunk/rpms/perl-ldap
+</A></li>
+	<LI>Next message: <A HREF="003470.html">[svn] r4670 - in trunk/rpms: . normalize python-flac retty
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3469">[ date ]</a>
+              <a href="thread.html#3469">[ thread ]</a>
+              <a href="subject.html#3469">[ subject ]</a>
+              <a href="author.html#3469">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

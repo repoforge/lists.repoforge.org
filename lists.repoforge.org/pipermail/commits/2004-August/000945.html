@@ -1,0 +1,392 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2139 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2139%20-%20trunk/tools/yam&In-Reply-To=%3C20040831035028.0F78D17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000944.html">
+   <LINK REL="Next"  HREF="000946.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2139 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2139%20-%20trunk/tools/yam&In-Reply-To=%3C20040831035028.0F78D17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2139 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Aug 31 05:50:28 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000944.html">[SVN] r2138 - in trunk/rpms: ccal devhelp irssi jamboree liferea	revelation
+</A></li>
+        <LI>Next message: <A HREF="000946.html">[SVN] r2140 - trunk/rpms/alsaplayer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#945">[ date ]</a>
+              <a href="thread.html#945">[ thread ]</a>
+              <a href="subject.html#945">[ subject ]</a>
+              <a href="author.html#945">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-31 05:50:26 +0200 (Tue, 31 Aug 2004)
+New Revision: 2139
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-dag.conf
+   trunk/tools/yam/yam-example.conf
+   trunk/tools/yam/yam.conf
+Log:
+small batch of changes
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-30 22:11:09 UTC (rev 2138)
++++ trunk/tools/yam/ChangeLog	2004-08-31 03:50:26 UTC (rev 2139)
+@@ -1,3 +1,8 @@
++* 0.7
++- Added shareiso config option (enabled by default)
++- Allow empty (URL-less) repositories (useful for placeholder repositories)
++- Added support for hardlinking duplicate RPMs (disabled by default)
++
+ * 0.6.1
+ - Removed a silly debug message :)
+ - Fixed an unknown variable in Dist.taglink()
+@@ -4,7 +9,7 @@
+ - Fixed a bug in handling tags
+ - Made [dist] the default tag
+ - Fixed a bug in handling [repos]
+-- Now each repo can hold a list of URLs
++- Now each repo can hold a list of URLs (useful to list a local and a remote repo, or merge 2 repos)
+ 
+ * 0.6
+ - Fixed the default example httpd config file
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-30 22:11:09 UTC (rev 2138)
++++ trunk/tools/yam/TODO	2004-08-31 03:50:26 UTC (rev 2139)
+@@ -22,7 +22,6 @@
+ + Improve SHTML output (more condensed and useful information)
+ + Think of a way to get rid of older/obsolete updates
+ + Generate sample yum.conf and apt .list files for people to use
+-+ Maybe add the hardlink utility at the very end to weed out duplicate packages
+ 
+ ### Documentation
+ + Add integration/documentation with ISC dhcpd
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-30 22:11:09 UTC (rev 2138)
++++ trunk/tools/yam/yam	2004-08-31 03:50:26 UTC (rev 2139)
+@@ -122,9 +122,12 @@
+ 		self.repo['createrepo'] = not self.getoption('main', 'createrepo', 'yes') in ('no', 'off', 'false')
+ 		self.repo['yum'] = not self.getoption('main', 'yum', 'yes') in ('no', 'off', 'false')
+ 
++		self.hardlink = not self.getoption('main', 'hardlink', 'no') in ('no', 'off', 'false')
++
+ 		self.cmd = {}
+ 		self.cmd['createrepo'] = self.getoption('main', 'createrepocmd', '/usr/bin/createrepo')
+ 		self.cmd['genbasedir'] = self.getoption('main', 'genbasedircmd', '/usr/bin/genbasedir')
++		self.cmd['hardlink'] = self.getoption('main', 'hardlinkrcmd', '/usr/sbin/hardlink')
+ 		self.cmd['lftp'] = self.getoption('main', 'lftpcmd', '/usr/bin/lftp')
+ 		self.cmd['mount'] = self.getoption('main', 'mountcmd', '/bin/mount')
+ 		self.cmd['rsync'] = self.getoption('main', 'rsynccmd', '/usr/bin/rsync')
+@@ -138,6 +141,8 @@
+ 		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in ('no', 'off', 'false')
+ 		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in ('no', 'off', 'false')
+ 
++		self.shareiso = not self.getoption('main', 'shareiso', 'yes') in ('no', 'off', 'false')
++
+ 		self.repos = self.getrepos()
+ 		self.dists = []
+ 
+@@ -174,8 +179,7 @@
+ 		repos={}
+ 		if self.cfg.has_section('repos'):
+ 			for repo in self.cfg.options('repos'):
+-				url=self.getoption('repos', repo, None)
+-				if url: repos[repo]=url
++				repos[repo]=self.getoption('repos', repo, None)
+ 		return repos
+ 
+ class Dist:
+@@ -225,9 +229,13 @@
+ 		&quot;Loopback mount all ISOs&quot;
+ 		discs = []
+ 		discnr = 0
+-		mkdir(os.path.join(self.dir, 'iso'))
++		if cf.shareiso:
++			mkdir(os.path.join(self.dir, 'iso'))
++		else:
++			remove(os.path.join(self.dir, 'iso'))
+ 		for iso in self.isos():
+-			symlink(iso, os.path.join(self.dir, 'iso'))
++			if cf.shareiso:
++				symlink(iso, os.path.join(self.dir, 'iso'))
+ 			try:
+ 				discnr = re.compile('disc([0-9])').search(iso).group(1)
+ 			except AttributeError, e:
+@@ -410,7 +418,7 @@
+ 	for file in files:
+ 		if os.path.isdir(file):
+ 			try:
+-				rmdir(file)
++				os.rmdir(file)
+ 			except:
+ 				os.path.walk(file, removedir, ())
+ 		elif os.path.islink(file):
+@@ -453,6 +461,7 @@
+ 	&quot;Mirror everything from an <A HREF="rsync://">rsync://</A> URL&quot;
+ 	if not cf.cmd['rsync']:
+ 		info(1, 'rsync was not found, rsync support is therefor disabled.')
++		return
+ 	mkdir(path)
+ 	opts = ''
+ 	if cf.rsyncexclsrpm: opts = ' --exclude=\&quot;*.src.rpm\&quot; --exclude=\&quot;/SRPMS/\&quot;' + opts
+@@ -471,6 +480,7 @@
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+ 	if not cf.cmd['lftp']:
+ 		info(1, 'lftp was not found, fish, ftp, http and sftp support is therefor disabled.')
++		return
+ 	mkdir(path)
+ 	opts = ''
+ 	if op.verbose &lt;= 1: opts = '--verbose=0'
+@@ -483,6 +493,15 @@
+ 	dir=url.replace('<A HREF="file://">file://</A>','')
+ 	symlink(dir, path)
+ 
++def hardlink(srcdir):
++	if not cf.cmd['hardlink']:
++		info(1, 'hardlink was not found, hardlink support is therefor disabled.')
++		return
++	info(1, 'Hardlinking duplicate packages in %s.' % srcdir)
++	opts = ''
++	if op.verbose: opts = opts + '-' + ('v' * (op.verbose - 2))
++	run('%s -c %s %s/*' % (cf.cmd['hardlink'], opts, srcdir))
++
+ def rpmlink((dist, repo), dirpath, filelist):
+ 	if archs.has_key(dist.arch): as=archs[dist.arch] + ['noarch']
+ 	else: as=[dist.arch, 'noarch']
+@@ -527,7 +546,7 @@
+ 	for dist in cf.dists:
+ 		if op.dist:
+ 			if dist.dist not in op.dist and dist.nick not in op.dist:
+-				info(3, '%s: Ignored, not requested' % dist.nick)
++				info(3, '%s: %s ignored, not requested' % (dist.nick, dist.name))
+ 				continue
+ 
+ 		### Mount ISOs
+@@ -568,7 +587,6 @@
+ 	for dist in cf.dists:
+ 		if op.dist:
+ 			if dist.dist not in op.dist and dist.nick not in op.dist:
+-				info(3, '%s: %s ignored, not requested' % (dist.nick, dist.name))
+ 				continue
+ 
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+@@ -592,7 +610,10 @@
+ 				dist.link(srcdir, repo)
+ 
+ 		if dist.isos():
++			print dist.isos()
++			print discs
+ 			for disc in discs:
++				print disc, dist.dir, 'os'
+ 				dist.link(os.path.join(dist.dir, disc), 'os')
+ 				dist.repos['os'] = None
+ 
+@@ -605,7 +626,7 @@
+ 		if os.path.exists(srcdir):
+ 			dist.link(srcdir, 'local')
+ 
+-		srcdir = os.path.join(cf.srcdir, 'all/local')
++		srcdir = os.path.join(cf.srcdir, 'all', 'local')
+ 		if os.path.exists(srcdir):
+ 			dist.link(srcdir, 'local')
+ 
+@@ -635,6 +656,10 @@
+ 			if cf.pxelinux:
+ 				copy(cf.pxelinux, tftpdir)
+ 
++	if cf.hardlink:
++		hardlink(cf.srcdir)
++		
++
+ ### Workaround for python &lt;= 2.2.1
+ try:
+      True, False
+
+Modified: trunk/tools/yam/yam-dag.conf
+===================================================================
+--- trunk/tools/yam/yam-dag.conf	2004-08-30 22:11:09 UTC (rev 2138)
++++ trunk/tools/yam/yam-dag.conf	2004-08-31 03:50:26 UTC (rev 2139)
+@@ -2,8 +2,12 @@
+ 
+ [main]
+ wwwdir=/var/www/yam
+-srcdir=/var/yam
++#srcdir=/var/yam
++srcdir=/mnt/data/yam
+ arch=i386
++createrepo=no
++hardlink=yes
++shareiso=no
+ 
+ #[repos]
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/">rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/</A>
+@@ -18,14 +22,13 @@
+ iso=FC2-$arch-disc?.iso
+ core=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-dag=<A HREF="rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/</A>
++dag=<A HREF="rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/</A> <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
+ dries=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ 
+ [tao1]
+ name=Tao Linux $release ($arch)
+ release=1.0
+-tag=el3 rhel3
+ iso=mooch-$arch-disc?.iso
+ os=<A HREF="rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/</A>
+ updates=<A HREF="rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/</A>
+@@ -33,61 +36,52 @@
+ [rhas3]
+ name=Red Hat Advanced Server $release ($arch)
+ release=3
+-tag=el3 rhel3
+-arch=ppc
+-iso=rhel-$release-U1-$arch-as-disc?.iso rhel-$release-$arch-disc?.iso
++arch=i386 x86_64 ppc
++iso=rhel-$release-U[12]-$arch-as-disc?.iso rhel-$release-U[12]-$arch-disc?.iso
++updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ #updates=<A HREF="file:///var/spool/up2date">file:///var/spool/up2date</A>
+-##updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ 
+-[rhas3]
+-name=Red Hat Advanced Server $release ($arch)
+-release=3
+-tag=el3 rhel3
+-arch=i386 x86_64
+-iso=rhel-$release-U2-$arch-as-disc?.iso rhel-$release-U2-$arch-disc?.iso
+-#updates=<A HREF="file:///var/spool/up2date">file:///var/spool/up2date</A>
+-##updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+-
+ [rhes3]
+ name=Red Hat Enterprise Server $release ($arch)
+ release=3
+-tag=el3 rhel3
+ arch=i386
+ iso=rhel-$release-U2-$arch-es-disc?.iso rhel-$release-U2-$arch-disc?.iso
++dag=<A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A> <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ #updates=<A HREF="file:///var/spool/up2date">file:///var/spool/up2date</A>
+-##updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+-dag=<A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ [rhws3]
+ name=Red Hat Workstation $release ($arch)
+ release=3
+-tag=el3 rhel3
+ arch=i386
+ iso=rhel-$release-U2-$arch-ws-disc?.iso rhel-$release-U2-$arch-disc?.iso
++updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ #updates=<A HREF="file:///var/spool/up2date">file:///var/spool/up2date</A>
+-##updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ 
+ [rh73]
+ name=Red Hat $release ($arch)
+ release=7.3
+-tag=rh7 rh73
+ iso=valhalla-$arch-disc?.iso
+ os=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
+ updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
+-dag=<A HREF="rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/</A>
++dag=<A HREF="rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/</A> <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/</A>
+ 
+ [rhas21]
+ name=Red Hat Advanced Server $release ($arch)
+ release=2.1
+-tag=el2 rhel2.1
+-iso=RHEL$releaseAS-U4-re0427.$release-$arch-disc?.iso rhel-21-u2-$arch-disc?.iso
++iso=RHEL$releaseAS-U5-re0810.RC.0-i386-disc?.iso
++dag=<A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A> <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ #updates=<A HREF="file:///var/spool/up2date">file:///var/spool/up2date</A>
+-##updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+-dag=<A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
++[sles9]
++name=SuSE Linux Enterprise Server $release ($arch)
++release=9
++iso=SLES-$release-$arch-RC5-CD[1-4].iso
++#you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
++
+ [sles8]
+ name=SuSE Linux Enterprise Server $release ($arch)
+ release=8
+-tag=sles8
+-iso=SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
+-maintweb=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
++iso=SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD[1-2].iso UnitedLinux-1.0-SP-3-$arch-RC4-CD1.iso
++#you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2004-08-30 22:11:09 UTC (rev 2138)
++++ trunk/tools/yam/yam-example.conf	2004-08-31 03:50:26 UTC (rev 2139)
+@@ -26,6 +26,9 @@
+ createrepo = no
+ yum = yes
+ 
++hardlink = no
++shareiso = yes
++
+ lftp-exclude-srpm = yes
+ 
+ rsync-bandwidth-limit = None
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-08-30 22:11:09 UTC (rev 2138)
++++ trunk/tools/yam/yam.conf	2004-08-31 03:50:26 UTC (rev 2139)
+@@ -82,7 +82,7 @@
+ #[sles9]
+ #name=SuSE Linux Enterprise Server $release ($arch)
+ #release=9
+-#iso=SLES-$release-$arch-CD?.iso
++#iso=SLES-$release-$arch-CD[1-4].iso
+ #you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+ 
+ #[sles8]
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000944.html">[SVN] r2138 - in trunk/rpms: ccal devhelp irssi jamboree liferea	revelation
+</A></li>
+	<LI>Next message: <A HREF="000946.html">[SVN] r2140 - trunk/rpms/alsaplayer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#945">[ date ]</a>
+              <a href="thread.html#945">[ thread ]</a>
+              <a href="subject.html#945">[ subject ]</a>
+              <a href="author.html#945">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

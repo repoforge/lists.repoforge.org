@@ -1,0 +1,1680 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2057 - in trunk/tools: . rpmdep rpmdep/import
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2057%20-%20in%20trunk/tools%3A%20.%20rpmdep%20rpmdep/import&In-Reply-To=%3C20040821201138.D0F0218110%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000862.html">
+   <LINK REL="Next"  HREF="000864.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2057 - in trunk/tools: . rpmdep rpmdep/import</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2057%20-%20in%20trunk/tools%3A%20.%20rpmdep%20rpmdep/import&In-Reply-To=%3C20040821201138.D0F0218110%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2057 - in trunk/tools: . rpmdep rpmdep/import">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Aug 21 22:11:38 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000862.html">[SVN] r2056 - in trunk/rpms: . rpmdep
+</A></li>
+        <LI>Next message: <A HREF="000864.html">[SVN] r2058 - trunk/rpms/gift-openft
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#863">[ date ]</a>
+              <a href="thread.html#863">[ thread ]</a>
+              <a href="subject.html#863">[ subject ]</a>
+              <a href="author.html#863">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-08-21 22:11:37 +0200 (Sat, 21 Aug 2004)
+New Revision: 2057
+
+Added:
+   trunk/tools/rpmdep/
+   trunk/tools/rpmdep/Makefile
+   trunk/tools/rpmdep/import/
+   trunk/tools/rpmdep/import/__init__.py
+   trunk/tools/rpmdep/import/dep.py
+   trunk/tools/rpmdep/import/importmetadata.py
+   trunk/tools/rpmdep/import/mdErrors.py
+   trunk/tools/rpmdep/import/mdUtils.py
+   trunk/tools/rpmdep/import/packageObject.py
+   trunk/tools/rpmdep/import/packageSack.py
+   trunk/tools/rpmdep/import/repoMDObject.py
+   trunk/tools/rpmdep/import/test.py
+   trunk/tools/rpmdep/rpmdep
+Log:
+add
+
+Added: trunk/tools/rpmdep/Makefile
+===================================================================
+--- trunk/tools/rpmdep/Makefile	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/Makefile	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,15 @@
++
++bindir=/usr/bin
++datadir=/usr/share
++
++
++rpmdep:
++	echo nothing to do
++
++install:
++	mkdir -p $(bindir)
++	mkdir -p $(datadir)/rpmdep
++	mv rpmdep $(bindir)
++	mv import $(datadir)/rpmdep/
++
++	
+\ No newline at end of file
+
+Added: trunk/tools/rpmdep/import/__init__.py
+===================================================================
+
+Added: trunk/tools/rpmdep/import/dep.py
+===================================================================
+--- trunk/tools/rpmdep/import/dep.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/dep.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,131 @@
++
++from log4py import Logger
++import sys
++import os
++import time
++import rpm
++import packageSack
++import packageObject
++import repoMDObject
++import mdUtils
++import mdErrors
++
++
++class UnresolvedDep:
++    def __init__(self, pkg, reqstr):
++        self.cat = Logger().get_instance(self)
++        self.cat.debug(&quot;start&quot;)
++        self.pkg = pkg
++        self.reqstr = reqstr
++
++class Dep:
++    def __init__(self):
++        self.cat = Logger().get_instance(self)
++        self.cat.debug(&quot;start&quot;)
++        self.pkgSack = packageSack.XMLPackageSack(packageObject.RpmXMLPackageObject)
++
++    def addBaseRepo(self, location, process):
++        self.cat.debug(&quot;location is &quot; + location)
++        repomdxmlfile = os.path.join(location, 'repodata/repomd.xml')
++        try:
++            repodata = repoMDObject.RepoMD(location, repomdxmlfile)
++        except mdErrors.RepoMDError, e:
++            print &gt;&gt; sys.stderr, e
++            sys.exit(1)
++    
++        (pbase, phref) = repodata.primaryLocation()
++        (fbase, fhref) = repodata.filelistsLocation()
++        (obase, ohref) = repodata.otherLocation()
++    
++        # now add every primary and every filelist file
++        processlist = [phref, fhref]
++        for file in processlist:
++            self.cat.debug('importing ' + str(file) + ' from ' + str(location))
++            complete = location + '/' + file
++            try:
++                self.pkgSack.addFile(location, complete, process)
++            except mdErrors.PackageSackError, e:
++                print &gt;&gt; sys.stderr, e
++                sys.exit(1)
++
++    def checkPackageByName(self, pkgName):
++        self.cat.debug('start, pkgName: ' + pkgName)
++        retval = []
++        for pkg in self.pkgSack.searchNevra(pkgName):
++            retval = retval + self.checkPackage(pkg)
++        return retval
++            
++            
++    def checkPackage(self, pkg):
++        self.cat.debug('start, pkg: ' + str(pkg))
++        retval = []
++        for reqtup in pkg.returnPrco('requires'):
++            (reqn, reqf, (reqe,reqv,reqr)) = reqtup
++            reqstr = 'reqn: ' + str(reqn) + ', reqf: ' + str(reqf) + ', reqe: ' + str(reqe) + ', reqv: ' + str(reqv) + ', reqr: ' + str(reqr)
++            self.cat.debug('reqstr: ' + reqstr)
++            # rpmlib deps should be handled on their own
++            if reqn[:6] == 'rpmlib':
++                continue
++            # kill self providers, too
++            if pkg.checkPrco('provides', reqtup):
++                continue
++          
++            # get a list of all pkgs that match the reqn
++            providers = self.pkgSack.searchProvides(reqn)
++            if len(providers) == 0:
++                self.cat.debug('unresolved dependency: ' + reqstr)
++                retval.append(UnresolvedDep(pkg,reqstr))
++        return retval
++                    
++    def checkAllPackages(self, repoid=None):
++        self.cat.debug('start, repoid=' + repoid)
++        # some checks
++        #for temprepoid in self.getRepoids():
++        #    self.cat.debug('check, temprepoid=&quot;' + temprepoid + '&quot; len=' + str(len(self.pkgSack.simplePkgList(temprepoid))))
++        retval = []
++        if repoid == None:
++            for pkg in self.pkgSack.returnPackages():
++                retval = retval + self.checkPackage(pkg)
++        else:
++            for pkg in self.pkgSack.returnPackages(repoid):
++                retval = retval + self.checkPackage(pkg)
++        return retval
++
++    def getRepoids(self):
++        return self.pkgSack.pkgsByRepo.keys()
++            
++
++# because this class will be used within a larger program 
++# without console output: no fancy progress bar
++def process(current, total):
++    return
++
++#mydep = Dep()
++# fc2os, fc2dag and fc2dries are directories which contain a repodata
++# directory with all the xml files
++#mydep.addBaseRepo('fc2os', process)
++#mydep.addBaseRepo('fc2dag', process)
++#mydep.addBaseRepo('fc2dries', process)
++# print mydep.getRepoids()
++# mydep.checkPackage('gambas')
++# liquidwar needs allegro which is in newrpms
++# mydep.checkPackage('liquidwar')
++# mydep.checkAllPackages()
++
++
++if len(sys.argv) &lt; 2:
++    print 'rpmdep /path/to/repo /path/to/repo ..'
++    print 'Each dir should contain a repodata dir with a repomd.xml file'
++    print 'The dependencies of the last repo are checked.'
++    sys.exit(1)
++
++
++mydep = Dep();
++repodirs = sys.argv[1:]
++lastrepo = &quot;&quot;
++for repo in repodirs:
++    mydep.addBaseRepo(repo,process)
++    lastrepo = repo
++unrdeplist = mydep.checkAllPackages(lastrepo)
++for unrdep in unrdeplist:
++    print &quot;package &quot; + str(unrdep.pkg) + &quot; needs &quot; + str(unrdep.reqstr)
+
+Added: trunk/tools/rpmdep/import/importmetadata.py
+===================================================================
+--- trunk/tools/rpmdep/import/importmetadata.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/importmetadata.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,39 @@
++#!/usr/bin/python -t
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2003 Duke University
++
++# classes for parsing the metadata files for the new metadata format
++
++import sys
++import packageSack
++import packageObject
++ 
++ 
++def main(file, repoid):
++    pkgSack = packageSack.XMLPackageSack(packageObject.RpmObject)
++    pkgSack.addFile(repoid, file)
++    print len(pkgSack.nevra.keys())
++
++        
++    
++if __name__ == '__main__':
++    if sys.argv[1] == 'profile':
++        import profile
++        profile.run('main(sys.argv[2], sys.argv[3])')
++    else:
++        main(sys.argv[1], sys.argv[2])
++        
++    
++    
+
+
+Property changes on: trunk/tools/rpmdep/import/importmetadata.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/rpmdep/import/mdErrors.py
+===================================================================
+--- trunk/tools/rpmdep/import/mdErrors.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/mdErrors.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,29 @@
++#!/usr/bin/python -tt
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2003 Duke University
++
++
++import exceptions
++
++class RepoMDError(exceptions.Exception):
++    def __init__(self, args=None):
++        exceptions.Exception.__init__(self)    
++        self.args = args
++        
++
++class PackageSackError(exceptions.Exception):
++    def __init__(self, args=None):
++        exceptions.Exception.__init__(self)
++        self.args = args
+
+Added: trunk/tools/rpmdep/import/mdUtils.py
+===================================================================
+--- trunk/tools/rpmdep/import/mdUtils.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/mdUtils.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,115 @@
++#!/usr/bin/python -tt
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2003 Duke University
++
++import rpm
++import types
++
++def rpmOutToStr(arg):
++    if type(arg) != types.StringType:
++    # and arg is not None:
++        arg = str(arg)
++        
++    return arg
++    
++
++def compareEVR((e1, v1, r1), (e2, v2, r2)):
++    # return 1: a is newer than b
++    # 0: a and b are the same version
++    # -1: b is newer than a
++    e1 = rpmOutToStr(e1)
++    v1 = rpmOutToStr(v1)
++    r1 = rpmOutToStr(r1)
++    e2 = rpmOutToStr(e2)
++    v2 = rpmOutToStr(v2)
++    r2 = rpmOutToStr(r2)
++    #print '%s, %s, %s vs %s, %s, %s' % (e1, v1, r1, e2, v2, r2)
++    rc = rpm.labelCompare((e1, v1, r1), (e2, v2, r2))
++    #print '%s, %s, %s vs %s, %s, %s = %s' % (e1, v1, r1, e2, v2, r2, rc)
++    return rc
++
++###########
++# Title: Remove duplicates from a sequence
++# Submitter: Tim Peters 
++# From: <A HREF="http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/52560">http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/52560</A>                      
++    
++def unique(s):
++    &quot;&quot;&quot;Return a list of the elements in s, but without duplicates.
++
++    For example, unique([1,2,3,1,2,3]) is some permutation of [1,2,3],
++    unique(&quot;abcabc&quot;) some permutation of [&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], and
++    unique(([1, 2], [2, 3], [1, 2])) some permutation of
++    [[2, 3], [1, 2]].
++
++    For best speed, all sequence elements should be hashable.  Then
++    unique() will usually work in linear time.
++
++    If not possible, the sequence elements should enjoy a total
++    ordering, and if list(s).sort() doesn't raise TypeError it's
++    assumed that they do enjoy a total ordering.  Then unique() will
++    usually work in O(N*log2(N)) time.
++
++    If that's not possible either, the sequence elements must support
++    equality-testing.  Then unique() will usually work in quadratic
++    time.
++    &quot;&quot;&quot;
++
++    n = len(s)
++    if n == 0:
++        return []
++
++    # Try using a dict first, as that's the fastest and will usually
++    # work.  If it doesn't work, it will usually fail quickly, so it
++    # usually doesn't cost much to *try* it.  It requires that all the
++    # sequence elements be hashable, and support equality comparison.
++    u = {}
++    try:
++        for x in s:
++            u[x] = 1
++    except TypeError:
++        del u  # move on to the next method
++    else:
++        return u.keys()
++
++    # We can't hash all the elements.  Second fastest is to sort,
++    # which brings the equal elements together; then duplicates are
++    # easy to weed out in a single pass.
++    # NOTE:  Python's list.sort() was designed to be efficient in the
++    # presence of many duplicate elements.  This isn't true of all
++    # sort functions in all languages or libraries, so this approach
++    # is more effective in Python than it may be elsewhere.
++    try:
++        t = list(s)
++        t.sort()
++    except TypeError:
++        del t  # move on to the next method
++    else:
++        assert n &gt; 0
++        last = t[0]
++        lasti = i = 1
++        while i &lt; n:
++            if t[i] != last:
++                t[lasti] = last = t[i]
++                lasti += 1
++            i += 1
++        return t[:lasti]
++
++    # Brute force is all that's left.
++    u = []
++    for x in s:
++        if x not in u:
++            u.append(x)
++    return u
+
+Added: trunk/tools/rpmdep/import/packageObject.py
+===================================================================
+--- trunk/tools/rpmdep/import/packageObject.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/packageObject.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,446 @@
++#!/usr/bin/python -tt
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2003 Duke University
++
++import mdUtils
++
++# consider making an XMLPackageObject
++# BasePackageObject - with just methods and the init'd storage dicts
++# XMLPackageobject will be used to build the rpmXMLPAckageObject - which is 
++# formatnode stuff for rpm.
++
++
++class PackageObject:
++    &quot;&quot;&quot;Base Package Object - sets up the default storage dicts and the
++       most common returns&quot;&quot;&quot;
++       
++    def __init__(self):
++        self.simple = {} # simple things, name, arch, e,v,r, size, etc
++        self.checksums = [] # (type, checksum, id(0,1)
++
++    def __str__(self):
++        return self.returnNevraPrintable()
++
++    def returnSimple(self, varname):
++        return self.simple[varname]
++
++    def simpleItems(self):
++        return self.simple.keys()            
++
++    def returnID(self):
++        return self.returnSimple('id')
++
++    def returnNevraTuple(self):
++        return (self.returnSimple('name'), self.returnSimple('epoch'), 
++                self.returnSimple('version'),self.returnSimple('release'), 
++                self.returnSimple('arch'))
++    
++    def returnNevraPrintable(self):
++        &quot;&quot;&quot;return printable string for the pkgname/object
++           name - epoch:ver-rel.arch&quot;&quot;&quot;
++        if self.returnSimple('epoch') == '0':
++            string = '%s - %s-%s.%s' % (self.returnSimple('name'), 
++                                        self.returnSimple('version'),
++                                        self.returnSimple('release'), 
++                                        self.returnSimple('arch'))
++        else:
++            string = '%s - %s:%s-%s.%s' % (self.returnSimple('name'), 
++                                           self.returnSimple('epoch'), 
++                                           self.returnSimple('version'), 
++                                           self.returnSimple('release'), 
++                                           self.returnSimple('arch'))
++        return string                                           
++
++    def returnEVR(self):
++        &quot;&quot;&quot;returns a tuple of epoch, ver, rel&quot;&quot;&quot;
++        return (self.returnSimple('epoch'), self.returnSimple('version'), self.returnSimple('release'))
++        
++        return                            
++
++
++
++class XMLPackageObject(PackageObject):
++    &quot;&quot;&quot;inherits from PackageObject, does the functions to parse an xml package format
++       file to pull packages in&quot;&quot;&quot;
++
++    def __init__(self):
++        PackageObject.__init__(self)
++        
++    def parseVersion(self, node):
++        &quot;&quot;&quot;takes a version element, returns a tuple of (epoch, ver, rel)&quot;&quot;&quot;
++        epoch = node.GetAttribute('epoch')
++        ver = node.GetAttribute('ver')
++        rel = node.GetAttribute('rel')
++        return (epoch, ver, rel)
++        
++    def parseChecksum(self, node):
++        &quot;&quot;&quot;takes a checksum element, returns a tuple of (type, checksum, 
++           if it is the checksum to be used for the the package id)&quot;&quot;&quot;
++           
++        csumtype = node.GetAttribute('type')
++        csumid = node.GetAttribute('pkgid')
++        if csumid is None or csumid.upper() == 'NO':
++            csumid = 0
++        elif csumid.upper() == 'YES':
++            csumid = 1
++        else:
++            #FIXME - raise an exception
++            print 'broken csumid - invalid document'
++            csumid = 0
++        node.Read()
++        csum = node.Value()
++        return (csumtype, csum, csumid)
++        
++    def parseSize(self, node):
++        &quot;&quot;&quot;takes a size element, returns  package, 
++           installed and archive size&quot;&quot;&quot;
++           
++        pkg = node.GetAttribute('package')
++        installed = node.GetAttribute('installed')
++        archive = node.GetAttribute('archive')
++        return pkg, installed, archive
++
++    def parseTime(self, node):
++        &quot;&quot;&quot;takes a time element, returns buildtime, filetime(mtime)&quot;&quot;&quot;
++         
++        build = node.GetAttribute('build')
++        mtime = node.GetAttribute('file')
++        return build, mtime
++
++    def parseLocation(self, node):
++        &quot;&quot;&quot;takes a location element, returnsbase url path, relative path to package&quot;&quot;&quot;
++        
++        base = node.GetAttribute('base')
++        relative = node.GetAttribute('href')    
++        return base, relative
++        
++    def parseSimple(self, node):
++        &quot;&quot;&quot;takes a simple unattributed CDATA element and returns its value&quot;&quot;&quot;
++        node.Read() # get the next node
++        return node.Value()
++        
++    def readPkgNode(self, reader):
++        &quot;&quot;&quot;primary package node reading and dumping&quot;&quot;&quot;
++        
++        mydepth = reader.Depth()
++        ret = reader.Read()        
++        while ret:
++            if reader.NodeType() == 14:
++                ret = reader.Read()
++                continue
++
++            if reader.NodeType() == 15 and reader.Depth() == mydepth:
++                return
++                
++            if reader.NodeType() == 1:
++                if reader.Depth() == mydepth:
++                    #print 'oh crap - we are outside - how did that happen??'
++                    return
++
++                nodeName = reader.LocalName()
++
++                if nodeName in ['name', 'arch', 'summary', 'description', 
++                                'url', 'packager', 'buildtime', 'filetime']:
++                                     
++                    self.simple[nodeName] = self.parseSimple(reader)
++
++                elif nodeName == 'version': 
++                    (self.simple['epoch'], self.simple['version'], 
++                     self.simple['release']) = self.parseVersion(reader)
++            
++                elif nodeName == 'size':
++                    self.simple['packagesize'], self.simple['installedsize'], \
++                     self.simple['archivesize'] = self.parseSize(reader)
++            
++                elif nodeName == 'time':
++                    self.simple['buildtime'], self.simple['filetime'], = \
++                     self.parseTime(reader)
++                     
++                
++                elif nodeName == 'location':
++                    self.simple['basepath'], self.simple['relativepath'] = \
++                     self.parseLocation(reader)
++    
++                elif nodeName == 'checksum':
++                    (sumtype, sumdata, sumid) = self.parseChecksum(reader)
++                    self.checksums.append((sumtype, sumdata, sumid))
++                    if sumid:
++                        self.simple['id'] = sumdata
++                    
++                elif nodeName == 'format':
++                    try:
++                        self.readFormatNode(reader)
++                    except AttributeError:
++                        # FIXME - should raise an exception
++                        print 'No method to handle format element'
++                else:
++                    pass
++                    # FIXME - should raise an exception
++                    print 'unknown element in package: %s' % nodeName
++    
++            ret = reader.Read()
++            continue
++    
++
++class RpmBase:
++    &quot;&quot;&quot;return functions and storage for rpm-specific data&quot;&quot;&quot;
++
++    def __init__(self):
++        self.prco = {}
++        self.prco['obsoletes'] = [] # (name, flag, (e,v,r))
++        self.prco['conflicts'] = [] # (name, flag, (e,v,r))
++        self.prco['requires'] = [] # (name, flag, (e,v,r))
++        self.prco['provides'] = [] # (name, flag, (e,v,r))
++        self.files = {}
++        self.files['file'] = []
++        self.files['dir'] = []
++        self.files['ghost'] = []
++        self.changelog = [] # (ctime, cname, ctext)
++        self.licenses = []
++    
++    def returnPrco(self, prcotype):
++        &quot;&quot;&quot;return list of provides, requires, conflicts or obsoletes&quot;&quot;&quot;
++        if self.prco.has_key(prcotype):
++            return self.prco[prcotype]
++        else:
++            return []
++
++    def checkPrco(self, prcotype, prcotuple):
++        &quot;&quot;&quot;returns 1 or 0 if the pkg contains the requested tuple/tuple range&quot;&quot;&quot;
++        # get rid of simple cases - nothing
++        if not self.prco.has_key(prcotype):
++            return 0
++        # exact match    
++        if prcotuple in self.prco[prcotype]:
++            return 1
++        else:
++            # make us look it up and compare
++            (reqn, reqf, (reqe, reqv ,reqr)) = prcotuple
++            if reqf is not None:
++                if self.inPrcoRange(prcotype, prcotuple):
++                    return 1
++                else:
++                    return 0
++            else:
++                for (n, f, (e, v, r)) in self.returnPrco(prcotype):
++                    if reqn == n:
++                        return 1
++
++        return 0
++                
++    def inPrcoRange(self, prcotype, reqtuple):
++        &quot;&quot;&quot;returns true if the package has a the prco that satisfies 
++           the reqtuple range, assume false.
++           Takes: prcotype, requested prco tuple&quot;&quot;&quot;
++        # we only ever get here if we have a versioned prco
++        # nameonly shouldn't ever raise it
++        (reqn, reqf, (reqe, reqv, reqr)) = reqtuple
++        # find the named entry in pkgobj, do the comparsion
++        for (n, f, (e, v, r)) in self.returnPrco(prcotype):
++            if reqn == n:
++                # found it
++                if f != 'EQ':
++                    # isn't this odd, it's not 'EQ' - it really should be
++                    # use the pkgobj's evr for the comparison
++                    (e, v, r) = self.returnEVR()
++                # and you thought we were done having fun
++                # if the requested release is left out then we have
++                # to remove release from the package prco to make sure the match
++                # is a success - ie: if the request is EQ foo 1:3.0.0 and we have 
++                # foo 1:3.0.0-15 then we have to drop the 15 so we can match
++                if reqr is None:
++                    r = None
++                if reqe is None:
++                    e = None
++                if reqv is None: # just for the record if ver is None then we're going to segfault
++                    v = None
++                rc = mdUtils.compareEVR((e, v, r), (reqe, reqv, reqr))
++                
++                if rc &gt;= 1:
++                    if reqf in ['GT', 'GE']:
++                        return 1
++                if rc == 0:
++                    if reqf in ['GE', 'LE', 'EQ']:
++                        return 1
++                if rc &lt;= -1:
++                    if reqf in ['LT', 'LE']:
++                        return 1
++        return 0
++        
++        
++    def returnFileEntries(self, ftype='file'):
++        &quot;&quot;&quot;return list of files based on type&quot;&quot;&quot;
++        if self.files.has_key(ftype):
++            return self.files[ftype]
++        else:
++            return []
++            
++    def returnFileTypes(self):
++        &quot;&quot;&quot;return list of types of files in the package&quot;&quot;&quot;
++        return self.files.keys()
++    
++    
++    
++class RpmXMLPackageObject(XMLPackageObject, RpmBase):
++    &quot;&quot;&quot;used class - inherits from XMLPackageObject, which inherits from 
++       Package Object also inherits from RpmBase for return functions&quot;&quot;&quot;
++       
++    def __init__(self, node, repoid):
++        XMLPackageObject.__init__(self)
++        RpmBase.__init__(self)
++
++        self.simple['repoid'] = repoid
++
++        self.readPkgNode(node)
++        # quick defs for commonly used things
++        self.name = self.returnSimple('name')
++        self.epoch = self.returnSimple('epoch')
++        self.version = self.returnSimple('version')
++        self.release = self.returnSimple('release')
++        self.arch = self.returnSimple('arch')
++        
++        
++    def dumpPkg(self):
++        fconv = { 'EQ':'=', 'LT':'&lt;', 'LE':'&lt;=',
++                  'GT':'&gt;', 'GE':'&gt;='} 
++        for item in self.simpleItems():
++            print '%s = %s' % (item, self.returnSimple(item))
++        for csum in self.checksums:
++            print csum
++        for thing in ['requires', 'provides', 'obsoletes', 'conflicts']:
++            if len(self.prco[thing]) &gt; 0:
++                print '%s:' % thing
++                for (n,f,(e,v,r)) in self.prco[thing]:
++                    if f is None:
++                        print '\t%s ' % n
++                    else:
++                        print '\t',
++                        print n,
++                        print fconv[f],
++                        print '%s:%s-%s' %(e,v,r)
++                print ''
++                    
++                    
++    
++    def readFormatNode(self, reader):
++        &quot;&quot;&quot;reads the &lt;format&gt; element and hands off the elements to be 
++           parsed elsewhere&quot;&quot;&quot;
++           
++        mydepth = reader.Depth()
++        ret = reader.Read()        
++        while ret:
++            if reader.NodeType() == 14:
++                ret = reader.Read()
++                continue
++
++            if reader.NodeType() == 15 and reader.Depth() == mydepth:
++                return
++                
++            if reader.NodeType() == 1:
++                if reader.Depth() == mydepth:
++                    #print 'oh crap - we are outside - how did that happen??'
++                    return
++
++                nodeName = reader.LocalName()
++
++                if nodeName in ['vendor', 'group', 'buildhost', 'sourcerpm']:
++                    self.simple[nodeName] = self.parseSimple(reader)
++                    
++                elif nodeName == 'license':
++                    self.licenses.append(self.parseSimple(reader))
++                
++                elif nodeName == 'header-range':
++                    self.simple['hdrstart'], self.simple['hdrend'] = \
++                     self.parseHdrRange(reader)
++                
++                elif nodeName in ['obsoletes', 'provides', 'requires', 'conflicts']:
++                    objlist = self.parsePrco(reader)
++                    self.prco[nodeName].extend(objlist)
++                    
++                elif nodeName == 'file':
++                    self.loadFileEntry(reader)
++                    
++                    
++                else:
++                    # FIXME - should raise an exception
++                    print 'unknown element in format: %s' % nodeName
++                    #pass
++
++            ret = reader.Read()
++            continue
++
++    
++    def parseHdrRange(self, node):
++        &quot;&quot;&quot;parse header-range, returns (start, end) tuple&quot;&quot;&quot;
++        
++        start = node.GetAttribute('start')
++        end = node.GetAttribute('end')
++        return start, end
++        
++    def parsePrco(self, reader):
++        &quot;&quot;&quot;parse a provides,requires,obsoletes,conflicts element&quot;&quot;&quot;
++        objlist = []
++        mydepth = reader.Depth()
++        ret = reader.Read()        
++        while ret:
++            if reader.NodeType() == 14:
++                ret = reader.Read()
++                continue
++
++            if reader.NodeType() == 15 and reader.Depth() == mydepth:
++                return objlist
++                
++            if reader.NodeType() == 1:
++                if reader.Depth() == mydepth:
++                    #print 'oh crap - we are outside - how did that happen??'
++                    return objlist
++
++                prcoName = reader.LocalName()
++                
++                if prcoName == 'entry':
++                    name = reader.GetAttribute('name')
++                    flag = reader.GetAttribute('flags')
++                    e = reader.GetAttribute('epoch')
++                    v = reader.GetAttribute('ver')
++                    r = reader.GetAttribute('rel')
++                    objlist.append((name, flag, (e, v, r)))
++
++            ret = reader.Read()
++            continue
++            
++        return objlist
++
++    def loadFileEntry(self, node):
++        &quot;&quot;&quot;load a file/dir entry&quot;&quot;&quot;
++        ftype = node.GetAttribute('type')
++        node.Read() # content is file
++        file = node.Value()
++        if not ftype:
++            ftype = 'file'
++        if not self.files.has_key(ftype):
++            self.files[ftype] = []
++        #if file not in self.files[ftype]:
++        self.files[ftype].append(file)
++
++        return (ftype, file)
++            
++    def loadChangeLogEntry(self, node):
++        &quot;&quot;&quot;load changelog data&quot;&quot;&quot;
++        time = node.GetAttribute('date')
++        author = node.GetAttribute('author')
++        node.Read()
++        content = node.Value()
++        self.changelog.append((time, author, content))
++        
+
+Added: trunk/tools/rpmdep/import/packageSack.py
+===================================================================
+--- trunk/tools/rpmdep/import/packageSack.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/packageSack.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,441 @@
++#!/usr/bin/python -tt
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2003 Duke University
++
++import libxml2
++from mdErrors import PackageSackError
++import mdUtils
++
++class PackageSack:
++    &quot;&quot;&quot;represents sets (sacks) of Package Objects&quot;&quot;&quot;
++    def __init__(self):
++        self.nevra = {} #nevra[(Name, Epoch, Version, Release, Arch)] = []
++        self.obsoletes = {} #obs[obsoletename] = [pkg1, pkg2, pkg3] 
++                 #the package lists are packages that obsolete the key name
++        self.requires = {} #req[reqname] = [pkg1, pkg2, pkg3]
++                 #the package lists are packages that require the key name
++        self.provides = {} #ditto of above but for provides
++        self.conflicts = {} #ditto of above but for conflicts
++        self.filenames = {} # duh
++        self.pkgsByRepo = {} #pkgsByRepo['repoid']= [pkg1, pkg2, pkg3]
++        self.pkgsByID = {} #pkgsById[pkgid] = [pkg1, pkg2] (should really only ever be one value but
++                           #you might have repos with the same package in them
++    def __len__(self):
++        return len(self.simplePkgList())
++        
++    def searchNevra(self, name=None, epoch=None, ver=None, rel=None, arch=None):
++        &quot;&quot;&quot;return list of pkgobjects matching the nevra requested&quot;&quot;&quot;
++        if self.nevra.has_key((name, epoch, ver, rel, arch)):
++            return self.nevra[(name, epoch, ver, rel, arch)]
++        else:
++            return []
++           
++        
++    def searchID(self, pkgid):
++        &quot;&quot;&quot;return list of packages based on pkgid&quot;&quot;&quot;
++        if self.pkgsByID.has_key(pkgid):
++            return self.pkgsByID[pkgid]
++        else:
++            return []
++            
++    def searchRequires(self, name):
++        &quot;&quot;&quot;return list of package requiring the name (any evr and flag)&quot;&quot;&quot;
++        if self.requires.has_key(name):
++            return self.requires[name]
++        else:
++            return []
++
++    def searchProvides(self, name):
++        &quot;&quot;&quot;return list of package providing the name (any evr and flag)&quot;&quot;&quot;
++        # FIXME - should this do a pkgobj.checkPrco((name, flag, (e,v,r,))??
++        # has to do a searchFiles and a searchProvides for things starting with /
++        returnList = []
++        if name[0] == '/':
++             returnList.extend(self.searchFiles(name))
++        if self.provides.has_key(name):
++            returnList.extend(self.provides[name])
++        return returnList
++
++    def searchConflicts(self, name):
++        &quot;&quot;&quot;return list of package conflicting with the name (any evr and flag)&quot;&quot;&quot;
++        if self.conflicts.has_key(name):
++            return self.conflicts[name]
++        else:
++            return []
++
++    def searchObsoletes(self, name):
++        &quot;&quot;&quot;return list of package obsoleting the name (any evr and flag)&quot;&quot;&quot;
++        if self.obsoletes.has_key(name):
++            return self.obsoletes[name]
++        else:
++            return []
++
++    def searchFiles(self, file):
++        &quot;&quot;&quot;return list of packages by filename
++           FIXME - need to add regex match against keys in file list
++        &quot;&quot;&quot;
++        if self.filenames.has_key(file):
++            return self.filenames[file]
++        else:
++            return []
++
++    def _addToDictAsList(self, dict, key, data, mydebug=None):
++#        if mydebug != None:
++#            print &quot;DD: &quot; + &quot;dict is: &quot; + str(dict) + &quot; key=&quot; + str(key) + &quot; data=&quot; + str(data);
++#            print &quot;DD: &quot; + &quot;dict keys is: &quot; + str(dict.keys())
++#            print &quot;DD: &quot; + &quot;dict.has_key(key) is &quot; + str(dict.has_key(key))
++        if not dict.has_key(key):
++            dict[key] = []
++        #if data not in dict[key]: - if I enable this the whole world grinds to a halt
++        # need a faster way of looking for the object in any particular list
++        dict[key].append(data)
++
++    def _delFromListOfDict(self, dict, key, data):
++        if not dict.has_key(key):
++            dict[key] = []
++        try:
++            dict[key].remove(data)
++        except ValueError:
++            pass
++            
++        if len(dict[key]) == 0: # if it's an empty list of the dict, then kill it
++            del dict[key]
++            
++            
++    def addPackage(self, obj):
++        &quot;&quot;&quot;add a pkgobject to the packageSack&quot;&quot;&quot;
++        (name, epoch, ver, rel, arch) = obj.returnNevraTuple()
++        self._addToDictAsList(self.nevra, (name, epoch, ver, rel, arch), obj)
++        self._addToDictAsList(self.nevra, (name, None, None, None, None), obj)
++        
++        # store the things provided just on name, not the whole require+version
++        # this lets us reduce the set of pkgs to search when we're trying to depSolve
++        for (n, fl, (e,v,r)) in obj.returnPrco('obsoletes'):
++            self._addToDictAsList(self.obsoletes, n, obj)
++        for (n, fl, (e,v,r)) in obj.returnPrco('requires'):
++            self._addToDictAsList(self.requires, n, obj)
++        for (n, fl, (e,v,r)) in obj.returnPrco('provides'):
++            self._addToDictAsList(self.provides, n, obj)
++        for (n, fl, (e,v,r)) in obj.returnPrco('conflicts'):
++            self._addToDictAsList(self.conflicts, n, obj)
++        for ftype in obj.returnFileTypes():
++            for file in obj.returnFileEntries(ftype):
++                self._addToDictAsList(self.filenames, file, obj)
++        self._addToDictAsList(self.pkgsByID, obj.returnSimple('id'), obj)
++        self._addToDictAsList(self.pkgsByRepo, obj.returnSimple('repoid'), obj)
++        repoid = str(obj.returnSimple('repoid'))
++#        for temprepoid in self.pkgsByRepo.keys():
++#            print &quot;DD: temprepoid=&quot; + temprepoid + &quot; len=&quot; + str(len(self.pkgsByRepo[temprepoid]))
++#        print &quot;DD: package added, repoid=&quot; + repoid + &quot; len=&quot; + str(len(self.pkgsByRepo[repoid]))
++        return        
++        
++    def delPackage(self, obj):
++        &quot;&quot;&quot;delete a pkgobject&quot;&quot;&quot;
++        # reverse addPackage
++        # remove it from all the dicts
++        (name, epoch, ver, rel, arch) = obj.returnNevraTuple()
++        self._delFromListOfDict(self.nevra, (name, epoch, ver, rel, arch), obj)
++        self._delFromListOfDict(self.nevra, (name, None, None, None, None), obj)
++
++        for (n, fl, (e,v,r)) in obj.returnPrco('obsoletes'):
++            self._delFromListOfDict(self.obsoletes, n, obj)
++        for (n, fl, (e,v,r)) in obj.returnPrco('requires'):
++            self._delFromListOfDict(self.requires, n, obj)
++        for (n, fl, (e,v,r)) in obj.returnPrco('provides'):
++            self._delFromListOfDict(self.provides, n, obj)
++        for (n, fl, (e,v,r)) in obj.returnPrco('conflicts'):
++            self._delFromListOfDict(self.conflicts, n, obj)
++        for ftype in obj.returnFileTypes():
++            for file in obj.returnFileEntries(ftype):
++                self._delFromListOfDict(self.filenames, file, obj)
++        self._delFromListOfDict(self.pkgsByID, obj.returnSimple('id'), obj)
++        self._delFromListOfDict(self.pkgsByRepo, obj.returnSimple('repoid'), obj)
++        return
++        
++    def returnPackages(self, repoid=None):
++        &quot;&quot;&quot;return list of all packages, takes optional repoid&quot;&quot;&quot;
++#        for temprepoid in self.pkgsByRepo.keys():
++#            print &quot;DD: returnpackages temprepoid=&quot; + temprepoid + &quot; len=&quot; + str(len(self.pkgsByRepo[temprepoid]))
++#        print &quot;DD: returnpackages repoid=&quot; + repoid + &quot; len=&quot; + str(len(self.pkgsByRepo[repoid]))
++
++        returnList = []
++        if repoid is None:
++#            print &quot;DD: repoid is none&quot;
++            for repo in self.pkgsByRepo.keys():
++                returnList.extend(self.pkgsByRepo[repo])
++        else:
++#            print &quot;DD: repoid is not none&quot;
++            returnList = self.pkgsByRepo[repoid]
++#        print &quot;DD: len of result is &quot; + str(len(returnList))
++        return returnList
++
++    def returnNewestByNameArch(self):
++        &quot;&quot;&quot;return list of newest packages based on name, arch matching
++           this means(in name.arch form): foo.i386 and foo.noarch are not 
++           compared to each other for highest version only foo.i386 and 
++           foo.i386 will be compared&quot;&quot;&quot;
++        highdict = {}
++        for pkg in self.returnPackages():
++            (n, e, v ,r, a) = pkg.returnNevraTuple()
++            if not highdict.has_key((n, a)):
++                highdict[(n, a)] = pkg
++            else:
++                pkg2 = highdict[(n, a)]
++                (e2, v2, r2) = pkg2.returnEVR()
++                rc = mdUtils.compareEVR((e,v,r), (e2, v2, r2))
++                if rc &gt; 0:
++                    highdict[(n, a)] = pkg
++                                    
++        return highdict.values()
++        
++    def returnNewestByName(self):
++        &quot;&quot;&quot;return list of newest packages based on name matching
++           this means(in name.arch form): foo.i386 and foo.noarch will
++           be compared to each other for highest version&quot;&quot;&quot;
++        highdict = {}
++        for pkg in self.returnPackages():
++            (n, e, v ,r, a) = pkg.returnNevraTuple()
++            if not highdict.has_key(n):
++                highdict[n] = pkg
++            else:
++                pkg2 = highdict[n]
++                (e2, v2, r2) = pkg2.returnEVR()
++                rc = mdUtils.compareEVR((e,v,r), (e2, v2, r2))
++                if rc &gt; 0:
++                    highdict[n] = pkg
++                #elif rc == 0: FIXME  - this should do something to determine the best arch, I guess
++                
++                    
++                                    
++        return highdict.values()
++           
++    def simplePkgList(self, repoid=None):
++        &quot;&quot;&quot;returns a list of pkg tuples (n, a, e, v, r) optionally from a single repoid&quot;&quot;&quot;
++        simplelist = []
++        for pkg in self.returnPackages(repoid):
++            (n, e, v, r, a) = pkg.returnNevraTuple()
++            simplelist.append((n, a, e, v, r))
++        return simplelist
++                       
++    def printPackages(self):
++        for pkg in self.returnPackages():
++            print pkg.returnNevraPrintable()
++
++        
++
++# packageSack should be a base class
++# two derived classes could be DBPackageSack and XMLPackageSack
++# one for importing this data from the localdb 
++# another from XML metadata files
++
++class XMLPackageSack(PackageSack):
++    &quot;&quot;&quot;Derived class from PackageSack to build list from XML metadata file. 
++       Needs the Package Object Class passed to it for the Sack&quot;&quot;&quot;
++    def __init__(self, pkgObjectClass):
++        PackageSack.__init__(self)
++        self.repoStatus = {} #[repoid]= [primary, filelist, other] (so you can tell 
++                             #what things have been loaded or not - b/c w/o primary, 
++                             #filelist and other really can't be loaded
++        self.pkgObjectClass = pkgObjectClass                           
++
++                
++    def addFile(self, repoid, file, callback=None):
++        &quot;&quot;&quot;takes a repository id and an xml file. It populates whatever it can, 
++           if you try to populate with a filelist or other metadata file 
++           before the primary metadata you'll not like the results&quot;&quot;&quot;
++        try:
++            reader = libxml2.newTextReaderFilename(file)
++        except libxml2.treeError:
++            raise PackageSackError, &quot;Invalid or non-existent file: %s&quot; % (file)
++
++        else:
++            reader.Read()
++            xmlfiletype=reader.Name() # - first node should be the type
++            if xmlfiletype == 'metadata':
++                self.loadPrimaryMD(reader, repoid, callback)
++
++            elif xmlfiletype == 'filelists':
++                if self._checkRepoStatus(repoid):
++                    self.loadFileMD(reader, repoid, callback)
++
++            elif xmlfiletype == 'otherdata':
++                if self._checkRepoStatus(repoid):
++                    self.loadOtherMD(reader, repoid, callback)
++
++            else:
++                print 'Error: other unknown root element %s' % xmlfiletype 
++
++
++    def _checkRepoStatus(self, repoid, itemcheck='primary'):
++        &quot;&quot;&quot;return 1 if itemcheck is in repo&quot;&quot;&quot;
++        if self.repoStatus.has_key(repoid):
++            if itemcheck in self.repoStatus[repoid]:
++                return 1
++        return 0
++            
++    def loadPrimaryMD(self, reader, repoid, callback=None):
++        &quot;&quot;&quot;load all the data from the primary metadata xml file&quot;&quot;&quot;
++        
++        pkgcount = 9999 # big number
++        current = 0
++        if reader.HasAttributes():
++            pkgcount = int(reader.GetAttribute('packages'))
++            
++
++        
++        ret = reader.Read()
++        while ret:
++            if reader.NodeType() == 14:
++                ret = reader.Read()
++                continue
++            
++            if reader.NodeType() == 1 and reader.Name() == 'package':
++                if reader.HasAttributes():
++                    if reader.GetAttribute('type') == 'rpm':
++                        current+=1
++                        po = self.pkgObjectClass(reader, repoid)
++                        self.addPackage(po)
++            callback(current, pkgcount)
++            ret = reader.Read()
++            continue
++
++        # update the repoStatus                
++        if not self.repoStatus.has_key(repoid):
++            self.repoStatus[repoid] = []
++        if not 'primary' in self.repoStatus[repoid]:
++            self.repoStatus[repoid].append('primary')
++
++
++    def loadFileMD(self, reader, repoid, callback=None):
++        &quot;&quot;&quot;load all the filelist metadata from the file&quot;&quot;&quot;
++
++        pkgcount = 9999 # big number
++        current = 0
++        if reader.HasAttributes():
++            pkgcount = int(reader.GetAttribute('packages'))
++
++        ret = reader.Read()
++        while ret:
++            if reader.NodeType() == 14:
++                ret = reader.Read()
++                continue
++            
++            if reader.NodeType() == 1 and reader.Name() == 'package':
++                if reader.HasAttributes():
++                    pkgid = reader.GetAttribute('pkgid')
++                    pkgs = self.searchID(pkgid)
++                    pkgmatch = 0
++                    mydepth = reader.Depth()
++
++                    for pkg in pkgs:
++                        if pkg.returnSimple('repoid') == repoid: # check for matching repo
++                            pkgmatch+=1
++                            current+=1
++                            reader.Read()
++                            while 1:
++                                if reader.NodeType() == 15 and reader.Depth() == mydepth:
++                                    break
++                                    
++                                elif reader.NodeType() == 14:
++                                    ret = reader.Read()                                                        
++                                    continue
++
++                                elif reader.NodeType() == 1:
++                                    if reader.LocalName() == 'file':
++                                        (ftype, file) = pkg.loadFileEntry(reader)
++                                        #self._addToDictAsList(self.filenames, file, pkg)
++
++                                ret = reader.Read()
++                                continue        
++
++                    if pkgmatch &lt; 1:
++                        # FIXME - raise a warning? Emit error? bitch? moan?
++                        pass
++
++                               
++            ret = reader.Read()
++            callback(current, pkgcount) # give us some pretty output
++            continue
++
++        # update the repostatus
++        if not 'filelist' in self.repoStatus[repoid]:
++            self.repoStatus[repoid].append('filelist')
++            
++    def loadOtherMD(self, reader, repoid, callback=None):
++        &quot;&quot;&quot;load the changelog, etc data from the other.xml file&quot;&quot;&quot;
++
++        pkgcount = 9999 # big number
++        current = 0
++        if reader.HasAttributes():
++            pkgcount = int(reader.GetAttribute('packages'))
++
++        ret = reader.Read()
++        while ret:
++            if reader.NodeType() == 14:
++                ret = reader.Read()
++                continue
++            
++            if reader.NodeType() == 1 and reader.Name() == 'package':
++                if reader.HasAttributes():
++                    pkgid = reader.GetAttribute('pkgid')
++                    pkgs = self.searchID(pkgid)
++                    pkgmatch = 0
++                    mydepth = reader.Depth()
++
++                    for pkg in pkgs:
++                        if pkg.returnSimple('repoid') == repoid: # check for matching repo
++                            pkgmatch+=1
++                            current+=1
++                            reader.Read()
++                            while 1:
++                                if reader.NodeType() == 15 and reader.Depth() == mydepth:
++                                    break
++                                    
++                                elif reader.NodeType() == 14:
++                                    ret = reader.Read()                                                        
++                                    continue
++
++                                elif reader.NodeType() == 1:
++                                    if reader.LocalName() == 'changelog':
++                                        pkg.loadChangeLogEntry(reader)
++
++                                ret = reader.Read()
++                                continue        
++
++                    if pkgmatch &lt; 1:
++                        # FIXME - raise a warning? Emit error? bitch? moan?
++                        pass
++            callback(current, pkgcount)
++            ret = reader.Read()
++            continue
++                                        
++        if not 'other' in self.repoStatus[repoid]:
++            self.repoStatus[repoid].append('other')
++        
++
++class ListPackageSack(PackageSack):
++    &quot;&quot;&quot;Derived class from PackageSack to build new Sack from list of
++       pkgObjects - like one returned from self.returnNewestByNameArch()
++       or self.returnNewestByName()&quot;&quot;&quot;
++       
++    def __init__(self, Objlist=None):
++        PackageSack.__init__(self)
++        if Objlist is not None:
++            self.addList(Objlist)
++    
++    def addList(self, ObjList):
++        for pkgobj in ObjList:
++            self.addPackage(pkgobj)
++            
+
+Added: trunk/tools/rpmdep/import/repoMDObject.py
+===================================================================
+--- trunk/tools/rpmdep/import/repoMDObject.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/repoMDObject.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,186 @@
++#!/usr/bin/python -tt
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2003 Duke University
++
++
++import libxml2
++from mdErrors import RepoMDError
++
++
++class RepoMD:
++    &quot;&quot;&quot;represents the repomd xml file&quot;&quot;&quot;
++    def __init__(self, repoid, file):
++        &quot;&quot;&quot;takes a repoid and a filename for the repomd.xml&quot;&quot;&quot;
++        
++        self.repoid = repoid
++        self.repoData = {}
++        try:
++            doc = libxml2.parseFile(file)
++        except libxml2.parserError:
++            raise RepoMDError, 'Error: could not parse file %s' % file
++        root = doc.getRootElement()
++        xmlfiletype = root.name
++        node = root.children
++        if xmlfiletype == 'repomd':
++            self.loadRepoMD(node)
++        else:
++            raise RepoMDError, 'Error: other unknown root element %s' % xmlfiletype 
++        doc.freeDoc()
++
++    def _returnData(self, mdtype, request):
++        &quot;&quot;&quot; return the data from the repository Data&quot;&quot;&quot;
++        if self.repoData.has_key(mdtype):
++            ds = self.repoData[mdtype]
++            if ds.has_key(request):
++                return ds[request]
++            else:
++                raise RepoMDError, &quot;Error: request %s not in %s data&quot; % (request, mdtype)
++        else:
++            raise RepoMDError, &quot;Error: odd MDtype requested: %s&quot; % mdtype
++            
++            
++            
++    
++    def _storeRepoData(self, mdtype, dataname, data):
++        &quot;&quot;&quot;stores repository data
++           mdtype = primary, filelists, other, group
++           dataname = checksum, timestamp, basepath, relativepath
++        &quot;&quot;&quot;
++        if self.repoData.has_key(mdtype):
++            ds = self.repoData[mdtype]
++            if not ds.has_key(dataname):
++                ds[dataname] = data
++            else:
++                raise RepoMDError, &quot;Warning: duplicate data of %s description inputted&quot; % dataname
++        else:
++            raise RepoMDError, &quot;Warning: odd mdtype being put in %s&quot; % mdtype
++            
++                
++                
++                
++    def loadRepoDataNode(self, node):
++        &quot;&quot;&quot;loads a repository data node into the class&quot;&quot;&quot;
++        mdtype = node.prop('type') # get the 'type' property for the datanode
++        if not self.repoData.has_key(mdtype):
++            self.repoData[mdtype] = {}
++            
++        datanode = node.children            
++        while datanode is not None:
++            if datanode.type != 'element':
++                datanode = datanode.next
++                continue
++            
++            if datanode.name  == 'location':
++                base = datanode.prop('base')
++                relative = datanode.prop('href')    
++                self._storeRepoData(mdtype, 'basepath', base)
++                self._storeRepoData(mdtype, 'relativepath', relative)
++            elif datanode.name == 'checksum':
++                csumType = datanode.prop('type')
++                csum = datanode.content
++                self._storeRepoData(mdtype, 'checksum', (csumType, csum))
++            elif datanode.name == 'timestamp':
++                timestamp = datanode.content
++                self._storeRepoData(mdtype, 'timestamp', timestamp)
++            elif datanode.name == 'open-checksum':
++                opencsumType = datanode.prop('type')
++                opencsum = datanode.content
++                self._storeRepoData(mdtype, 'openchecksum', (opencsumType, opencsum))
++                
++            datanode = datanode.next    
++            continue
++
++    def loadRepoMD(self, node):
++        &quot;&quot;&quot;iterates through the data nodes and populates some simple data areas&quot;&quot;&quot;
++                
++        while node is not None:
++            if node.type != 'element':
++                node = node.next
++                continue
++            
++            if node.name == 'data':
++                self.loadRepoDataNode(node)
++                    
++            node = node.next
++            continue
++                
++    def _checksum(self, mdtype):
++        &quot;&quot;&quot;returns a tuple of (checksum type, checksum) for the specified Metadata
++           file&quot;&quot;&quot;
++        return self._returnData(mdtype, 'checksum')
++        
++        
++    def _location(self, mdtype):
++        &quot;&quot;&quot;returns location to specified metadata file, (base, relative)&quot;&quot;&quot;
++        base = self._returnData(mdtype, 'basepath')
++        relative = self._returnData(mdtype, 'relativepath')
++        
++        return (base, relative)
++        
++    def _timestamp(self, mdtype):
++        &quot;&quot;&quot;returns timestamp for specified metadata file&quot;&quot;&quot;
++        return self._returnData(mdtype, 'timestamp')
++        
++    def otherChecksum(self):
++        &quot;&quot;&quot;returns a tuple of (checksum type, checksum) for the other Metadata file&quot;&quot;&quot;
++        return self._checksum('other')
++        
++    def otherLocation(self):
++        &quot;&quot;&quot;returns location to other metadata file, (base, relative)&quot;&quot;&quot;
++        return self._location('other')
++        
++    def otherTimestamp(self):
++        &quot;&quot;&quot;returns timestamp for other metadata file&quot;&quot;&quot;
++        return self._timestamp('other')
++        
++    def primaryChecksum(self):
++        &quot;&quot;&quot;returns a tuple of (checksum type, checksum) for the primary Metadata file&quot;&quot;&quot;
++        return self._checksum('primary')
++        
++    def primaryLocation(self):
++        &quot;&quot;&quot;returns location to primary metadata file, (base, relative)&quot;&quot;&quot;
++        return self._location('primary')
++        
++    def primaryTimestamp(self):
++        &quot;&quot;&quot;returns timestamp for primary metadata file&quot;&quot;&quot;
++        return self._timestamp('primary')
++
++    def filelistsChecksum(self):
++        &quot;&quot;&quot;returns a tuple of (checksum type, checksum) for the filelists Metadata file&quot;&quot;&quot;
++        return self._checksum('filelists')
++        
++    def filelistsLocation(self):
++        &quot;&quot;&quot;returns location to filelists metadata file, (base, relative)&quot;&quot;&quot;
++        return self._location('filelists')
++        
++    def filelistsTimestamp(self):
++        &quot;&quot;&quot;returns timestamp for filelists metadata file&quot;&quot;&quot;
++        return self._timestamp('filelists')
++
++    def groupChecksum(self):
++        &quot;&quot;&quot;returns a tuple of (checksum type, checksum) for the group Metadata file&quot;&quot;&quot;
++        return self._checksum('group')
++        
++    def groupLocation(self):
++        &quot;&quot;&quot;returns location to group metadata file, (base, relative)&quot;&quot;&quot;
++        return self._location('group')
++        
++    def groupTimestamp(self):
++        &quot;&quot;&quot;returns timestamp for group metadata file&quot;&quot;&quot;
++        return self._timestamp('group')
++
++    def fileTypes(self):
++        &quot;&quot;&quot;return list of metadata file types available&quot;&quot;&quot;
++        return self.repoData.keys()
+
+Added: trunk/tools/rpmdep/import/test.py
+===================================================================
+--- trunk/tools/rpmdep/import/test.py	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/import/test.py	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,116 @@
++#!/usr/bin/python -tt
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2003 Duke University
++
++# classes for parsing the metadata files for the new metadata format
++
++
++# used with python -i :)
++import sys
++import os
++import time
++import rpm
++import packageSack
++import packageObject
++import repoMDObject
++import mdUtils
++import mdErrors
++
++
++def process(current, total):
++    sys.stdout.write('\r' + ' ' * 80)
++    sys.stdout.write('\rNode %d of %d' % (current, total))
++    sys.stdout.flush()
++
++if len(sys.argv) &lt; 4:
++    print 'test.py: /path/to/repo /other/repo somepackagename'
++    sys.exit(1)
++   
++print time.time()
++repos = sys.argv[1:3]
++pkgSack = packageSack.XMLPackageSack(packageObject.RpmXMLPackageObject)
++numid = 0
++for repo in repos:
++    numid+=1
++    basepath = repo
++    repomdxmlfile = os.path.join(basepath, 'repodata/repomd.xml')
++    repoid = repo
++
++    try:
++        repodata = repoMDObject.RepoMD(repoid, repomdxmlfile)
++    except mdErrors.RepoMDError, e:
++        print &gt;&gt; sys.stderr, e
++        sys.exit(1)
++    
++    (pbase, phref) = repodata.primaryLocation()
++    (fbase, fhref) = repodata.filelistsLocation()
++    (obase, ohref) = repodata.otherLocation()
++    
++    
++    processlist = [phref, fhref]
++    for file in processlist:
++        print time.time()
++        print 'importing %s from %s' % (file, repoid)
++        complete = basepath + '/' + file
++        try:
++            pkgSack.addFile(repoid, complete, process)
++        except mdErrors.PackageSackError, e:
++            print &gt;&gt; sys.stderr, e
++            sys.exit(1)
++            
++    print ' '
++    print time.time()
++
++for pkg in pkgSack.searchNevra(sys.argv[3]):
++    print pkg
++    for reqtup in pkg.returnPrco('requires'):
++        (reqn, reqf, (reqe,reqv,reqr)) = reqtup
++        # rpmlib deps should be handled on their own
++        if reqn[:6] == 'rpmlib':
++            continue
++        # kill self providers, too
++        if pkg.checkPrco('provides', reqtup):
++            continue
++            
++        # get a list of all pkgs that match the reqn
++        providers = pkgSack.searchProvides(reqn)
++        if len(providers) == 0:
++            print 'unresolved: %s  %s %s:%s-%s' % (reqn, reqf, reqe, reqv, reqr)
++            continue
++
++        if len(providers) == 1:
++            if reqf is None:
++                print '%s: %s from %s' % (reqn, providers[0], providers[0].returnSimple('relativepath'))
++                continue
++
++            # only one entry but we need to match out it out
++            if providers[0].checkPrco('provides', reqtup):
++                print '%s: %s from %s' % (reqn, providers[0], providers[0].returnSimple('relativepath'))
++                continue
++
++        
++        output = '%s:' % reqn
++        for prov in providers:
++            if reqf is not None:
++                if prov.checkPrco('provides', reqtup):
++                    output = output + '||' + prov.__str__()
++                else:
++                    print '%s does not provide %s %s %s %s %s' % (prov, reqn, reqf, reqe, reqv, reqr)                
++            else:
++                output = output + '||' + prov.__str__()
++                
++        print output
++print time.time()
++
+
+
+Property changes on: trunk/tools/rpmdep/import/test.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/rpmdep/rpmdep
+===================================================================
+--- trunk/tools/rpmdep/rpmdep	2004-08-21 20:10:40 UTC (rev 2056)
++++ trunk/tools/rpmdep/rpmdep	2004-08-21 20:11:37 UTC (rev 2057)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++
++python /usr/share/rpmdep/import/dep.py $@
+
+
+Property changes on: trunk/tools/rpmdep/rpmdep
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000862.html">[SVN] r2056 - in trunk/rpms: . rpmdep
+</A></li>
+	<LI>Next message: <A HREF="000864.html">[SVN] r2058 - trunk/rpms/gift-openft
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#863">[ date ]</a>
+              <a href="thread.html#863">[ thread ]</a>
+              <a href="subject.html#863">[ subject ]</a>
+              <a href="author.html#863">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

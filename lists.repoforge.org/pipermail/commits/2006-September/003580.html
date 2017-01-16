@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4780 - in trunk/rpms: . sdlmame
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4780%20-%20in%20trunk/rpms%3A%20.%20sdlmame&In-Reply-To=%3C20060929152159.9CE8F31812C%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003579.html">
+   <LINK REL="Next"  HREF="003581.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4780 - in trunk/rpms: . sdlmame</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4780%20-%20in%20trunk/rpms%3A%20.%20sdlmame&In-Reply-To=%3C20060929152159.9CE8F31812C%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4780 - in trunk/rpms: . sdlmame">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Sep 29 17:21:59 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003579.html">[svn] r4779 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="003581.html">[svn] r4781 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3580">[ date ]</a>
+              <a href="thread.html#3580">[ thread ]</a>
+              <a href="subject.html#3580">[ subject ]</a>
+              <a href="author.html#3580">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-09-29 17:21:44 +0200 (Fri, 29 Sep 2006)
+New Revision: 4780
+
+Added:
+   trunk/rpms/sdlmame/
+   trunk/rpms/sdlmame/sdlmame.spec
+   trunk/rpms/sdlmame/sdlmame0109-genericbuild.patch
+Log:
+Add sdlmame.
+
+
+Added: trunk/rpms/sdlmame/sdlmame.spec
+===================================================================
+--- trunk/rpms/sdlmame/sdlmame.spec	                        (rev 0)
++++ trunk/rpms/sdlmame/sdlmame.spec	2006-09-29 15:21:44 UTC (rev 4780)
+@@ -0,0 +1,72 @@
++# $Id$
++# Authority: matthias
++
++%define mamever 109
++
++Summary: SDL MAME
++Name: sdlmame
++Version: 0.%{mamever}
++Release: 1
++License: MAME
++Group: Applications/Emulators
++URL: <A HREF="http://rbelmont.mameworld.info/">http://rbelmont.mameworld.info/</A>
++# Get with wget --user-agent=&quot;&quot; ...
++Source: <A HREF="http://rbelmont.mameworld.info/sdlmame0%{mamever">http://rbelmont.mameworld.info/sdlmame0%{mamever</A>}.zip
++Patch0: sdlmame0109-genericbuild.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildRequires: SDL-devel, expat-devel, zlib-devel
++
++%description
++SDL MAME.
++
++
++%prep
++%setup -n sdlmame0%{mamever}
++%patch0 -p1 -b .genericbuild
++# Create the required set of empty directories in &quot;dirs&quot; to be included as doc
++# (we don't want 'obj' which is currently empty but used during the build)
++touch obj/foo
++for file in *; do
++    if rmdir $file 2&gt;/dev/null; then
++        mkdir -p dirs/$file
++    fi
++done
++
++
++%build
++# PTR64 and PPC control some optimizations and disable incompatible stuff
++%ifarch x86_64
++export PTR64=1
++%endif
++%ifarch ppc
++export PPC=1
++%endif
++# Don't use our own optflags since they make the build fail (0109)
++# SYMBOLS=1 is to get useful debuginfo packages
++%{__make} %{?_smp_mflags} \
++    SYMBOLS=1 \
++    PREFIX=&quot;sdl&quot;
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__mkdir_p} %{buildroot}%{_bindir}
++%{__install} -m 0755 chdman romcmp sdlmame %{buildroot}%{_bindir}/
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc docs/*.txt *.txt dirs/
++%{_bindir}/chdman
++%{_bindir}/romcmp
++%{_bindir}/sdlmame
++
++
++%changelog
++* Thu Sep 28 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.109-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/sdlmame/sdlmame.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/sdlmame/sdlmame0109-genericbuild.patch
+===================================================================
+--- trunk/rpms/sdlmame/sdlmame0109-genericbuild.patch	                        (rev 0)
++++ trunk/rpms/sdlmame/sdlmame0109-genericbuild.patch	2006-09-29 15:21:44 UTC (rev 4780)
+@@ -0,0 +1,12 @@
++diff -Naupr sdlmame0109.orig/makefile sdlmame0109/makefile
++--- sdlmame0109.orig/makefile	2006-09-26 03:38:10.000000000 +0200
+++++ sdlmame0109/makefile	2006-09-29 15:30:01.000000000 +0200
++@@ -76,7 +76,7 @@ X86_PPC_DRC = 1
++ # ATHLON = 1
++ # I686 = 1
++ # P4 = 1
++-PM = 1
+++# PM = 1
++ # AMD64 = 1
++ # G4 = 1
++ # G5 = 1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003579.html">[svn] r4779 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="003581.html">[svn] r4781 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3580">[ date ]</a>
+              <a href="thread.html#3580">[ thread ]</a>
+              <a href="subject.html#3580">[ subject ]</a>
+              <a href="author.html#3580">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

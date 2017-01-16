@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4683 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4683%20-%20trunk/tools/yam&In-Reply-To=%3C20060821145455.AFB43664042%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003482.html">
+   <LINK REL="Next"  HREF="003484.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4683 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4683%20-%20trunk/tools/yam&In-Reply-To=%3C20060821145455.AFB43664042%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4683 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Aug 21 16:54:55 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003482.html">[svn] r4682 - in trunk/tools/yam: . config
+</A></li>
+        <LI>Next message: <A HREF="003484.html">[svn] r4684 - trunk/rpms/texmacs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3483">[ date ]</a>
+              <a href="thread.html#3483">[ thread ]</a>
+              <a href="subject.html#3483">[ subject ]</a>
+              <a href="author.html#3483">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-21 16:54:48 +0200 (Mon, 21 Aug 2006)
+New Revision: 4683
+
+Modified:
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Move lockfiles to /var/cache/yam
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-08-21 14:29:14 UTC (rev 4682)
++++ trunk/tools/yam/TODO	2006-08-21 14:54:48 UTC (rev 4683)
+@@ -23,8 +23,8 @@
+ + Add support for other remote synchronising tools (sitecopy, wget)
+ 
+ ### RHN support
+-+ Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+ + Fix the 'cached' logininfo which causes old channel information to be present - Fixed when using unique systemids ?
+++ Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+ + Check for existence of packages on ISOs (updates vs os)
+ + Allow Yam to create new systems (register) in RHN on demand (gensystemid functionality)
+ + Allow to install all packages (repos.listAllPackages vs repos.listPackages methods) (rhn-download-all option)
+@@ -79,7 +79,6 @@
+ ### Bugs
+ + yum-arch stumbles on broken symlinks (<A HREF="https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280">https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280</A>)
+ + Correct file permissions/ownerships of packages in /var/yam (add umask option)
+-+ Lock-files are deleted by rsync or lftp
+ + Improve debugging output for pxelinux and /tftpboot/
+ 
+ ### Yamcfg tool / generate a configuration for clients (Chandan Dutta Chowdhury)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-08-21 14:29:14 UTC (rev 4682)
++++ trunk/tools/yam/yam	2006-08-21 14:54:48 UTC (rev 4683)
+@@ -144,9 +144,9 @@
+ 		self.read(op.configfile)
+ 
+ 		self.cachedir = self.getoption('main', 'cachedir', '/var/cache/yam')
++		self.lockdir = self.getoption('main', 'lockdir', '/var/cache/yam')
+ 		self.confdir = self.getoption('main', 'confdir', '/etc/yam.conf.d')
+ 		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/yam/html')
+-#		self.lockfile = self.getoption('main', 'lockfile', '/var/run/yam.pid')
+ 		self.pxelinux = self.getoption('main', 'pxelinux', '/usr/lib/syslinux/pxelinux.0')
+ 		self.srcdir = self.getoption('main', 'srcdir', '/var/yam')
+ 		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/yam')
+@@ -355,11 +355,11 @@
+ 		else:
+ 			info(4, '%s: No ISO files found !' % self.nick)
+ 
+-	def lock(self, path):
+-		mkdir(path)
+-		lockfile = os.path.join(path, '.lock')
++	def lock(self, action, repo=''):
++		lockfile = os.path.join(cf.lockdir, self.nick, action + '-' + repo + '.lock')
++		mkdir(os.path.dirname(lockfile))
+ 		try:
+-			fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
++			fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0600)
+ 			info(6, '%s: Setting lock %s' % (self.nick, lockfile))
+ 			os.write(fd, '%d' % os.getpid())
+ 			os.close(fd)
+@@ -372,14 +372,14 @@
+ 				else:
+ 					info(6, '%s: Removing stale lock %s' % (self.nick, lockfile))
+ 					os.unlink(lockfile)
+-					self.lock(path)
++					self.lock(action, repo)
+ 					return True
+ 			else:
+ 				info(1, '%s: Lockfile %s does not exist. Cannot lock. Parallel universe ?' % (self.nick, lockfile))
+ 		return False
+ 
+-	def unlock(self, path):
+-		lockfile = os.path.join(path, '.lock')
++	def unlock(self, action, repo=''):
++		lockfile = os.path.join(cf.lockdir, self.nick, action + '-' + repo + '.lock')
+ 		info(6, '%s: Removing lock %s' % (self.nick, lockfile))
+ 		if os.path.exists(lockfile):
+ 			pid = open(lockfile).read()
+@@ -388,7 +388,7 @@
+ 			else:
+ 				info(1, '%s: Existing lock %s found owned by another process with pid %s. This should NOT happen.' % (self.nick, lockfile, pid))
+ 		else:
+-				info(1, '%s: Lockfile %s does not exist. Cannot unlock. Something fishy here ?' % (self.nick, lockfile))
++			info(1, '%s: Lockfile %s does not exist. Cannot unlock. Something fishy here ?' % (self.nick, lockfile))
+ 	
+ 	def mount(self):
+ 		&quot;Loopback mount all ISOs&quot;
+@@ -1253,7 +1253,7 @@
+ 			for repo in repos:
+ 				srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 				mkdir(srcdir)
+-				if not dist.lock(srcdir):
++				if not dist.lock('update', repo):
+ 					continue
+ 				if repo in ('os', 'core'):
+ 					if not dist.isos:
+@@ -1262,7 +1262,7 @@
+ 					mirror(dist.repos[repo], srcdir, dist)
+ 				else:
+ 					info(2, '%s: Repository %s does not exist' % (dist.nick, repo))
+-				dist.unlock(srcdir)
++				dist.unlock('update', repo)
+ 
+ 	if not op.generate:
+ 		sys.exit(0)
+@@ -1277,7 +1277,7 @@
+ 		repos.sort()
+ 
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+-		if not dist.lock(dist.dir):
++		if not dist.lock('generate'):
+ 			continue
+ 
+ 		dist.html()
+@@ -1331,7 +1331,7 @@
+ 		### After generation, write a sha1sum
+ 		dist.writereposha1()
+ 
+-		dist.unlock(dist.dir)
++		dist.unlock('generate')
+ 
+ 		### Create pxe boot
+ 		tftpbootdir = os.path.dirname(cf.tftpdir)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003482.html">[svn] r4682 - in trunk/tools/yam: . config
+</A></li>
+	<LI>Next message: <A HREF="003484.html">[svn] r4684 - trunk/rpms/texmacs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3483">[ date ]</a>
+              <a href="thread.html#3483">[ thread ]</a>
+              <a href="subject.html#3483">[ subject ]</a>
+              <a href="author.html#3483">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

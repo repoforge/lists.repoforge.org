@@ -1,0 +1,202 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4470 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4470%20-%20trunk/tools/yam&In-Reply-To=%3C20060601184059.58D7494CD7E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003269.html">
+   <LINK REL="Next"  HREF="003271.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4470 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4470%20-%20trunk/tools/yam&In-Reply-To=%3C20060601184059.58D7494CD7E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4470 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jun  1 20:40:59 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003269.html">[svn] r4469 - in trunk/rpms: perl-CSS-Tiny perl-Class-Autouse	perl-Feed-Find perl-Module-Signature perl-PPI perl-Test-SimpleUnit
+</A></li>
+        <LI>Next message: <A HREF="003271.html">[svn] r4471 - in trunk/rpms: perl-Class-Autouse perl-Event-RPC
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3270">[ date ]</a>
+              <a href="thread.html#3270">[ thread ]</a>
+              <a href="subject.html#3270">[ subject ]</a>
+              <a href="author.html#3270">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-06-01 20:40:58 +0200 (Thu, 01 Jun 2006)
+New Revision: 4470
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Important improvements
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-06-01 18:25:22 UTC (rev 4469)
++++ trunk/tools/yam/ChangeLog	2006-06-01 18:40:58 UTC (rev 4470)
+@@ -20,6 +20,8 @@
+ - Fixed a recent bug where dangling symlinks were not properly removed
+ - Sort the distributions in the order provided on the commandline
+ - Added default --update option to createrepo (updates instead of rebuilding a repository)
++- Simplified clean/symlink code
++- Consider for each repo packages in $(srcdir)/all/$(repo) (like repo local used to work)
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-06-01 18:25:22 UTC (rev 4469)
++++ trunk/tools/yam/TODO	2006-06-01 18:40:58 UTC (rev 4470)
+@@ -20,8 +20,8 @@
+ + Use mirrorlist option from .repo files as a source (for http)
+ + Autocreate yum .repo files and apt .list files to be used by local clients
+ + Add support for other remote synchronising tools (sitecopy, wget)
+-+ Add curl support and (optionally?) make it the default 
+-+ NFS support (enable by default, using autofs)
+++ Add libcurl support and (optionally?) make it the default 
+++ NFS support (enable by default, using autofs), waiting for Serge Sterckx
+ 
+ ### RHN support
+ + Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-06-01 18:25:22 UTC (rev 4469)
++++ trunk/tools/yam/yam	2006-06-01 18:40:58 UTC (rev 4470)
+@@ -380,7 +380,9 @@
+ 	def checkrepos(self):
+ 		&quot;Return what repositories require an update and write .newsha1sum&quot;
+ 		self.newrepos = []
+-		for repo in self.repos.keys() + ['local', ]:
++		self.oldrepos = self.repos.keys() + ['local']
++		self.oldrepos.sort()
++		for repo in self.oldrepos:
+ 			### Skip metadata generation if required (usually repo all)
+ 			if repo in cf.skipmetadata.split():
+ 				info(4, 'Skip metadata generation for repository %s' % repo)
+@@ -490,7 +492,10 @@
+ 	def repomd(self):
+ 		&quot;Create a new-style Yum repository&quot;
+ 		if not cf.cmd['createrepo']: return
+-		opts = ' --update'
++		if op.force:
++			opts = ''
++		else:
++			opts = ' --update'
+ 		if op.verbose &lt;= 2: opts = ' -q' + opts
+ 		elif op.verbose &gt;= 4: opts = ' -v' + opts
+ 		if cf.cachedir:
+@@ -1049,11 +1054,12 @@
+ 	else:
+ 		dists = []
+ 		for name in op.dists:
++			append = False
+ 			for dist in cf.dists:
+-				if name == dist.dist or name == dist.nick:
++				if name == dist.nick or name == dist.dist:
+ 					dists.append(dist)
+-					break
+-			else:
++					append = True
++			if not append:
+ 				error(1, 'Distribution %s not found in %s' % (name, op.configfile))
+ 	
+ 	### Mounting and mirroring available distributions/repositories
+@@ -1093,49 +1099,30 @@
+ 
+ 	### Generating metadata for available distributions/repositories
+ 	for dist in dists:
+-		repos = dist.repos.keys()
++		repos = dist.repos.keys() + ['local']
+ 		repos.sort()
+ 
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+ 		dist.html()
+ 
+-		info(2, '%s: Cleaning repositories' % dist.nick)
++		info(2, '%s: Relinking repositories' % dist.nick)
+ 		dist.clean('all')
+-		if dist.isos():
+-			dist.clean('os')
++
+ 		for repo in repos:
+ 			dist.clean(repo)
+-		dist.clean('local')
++			if repo in ['os', 'core'] and dist.isos():
++				dist.repos[repo] = None
++				for disc in dist.discs:
++					dist.link(os.path.join(dist.dir, disc), 'os')
++				for file in glob.glob(os.path.join(dist.dir + '/disc1/*/base/comps.xml')):
++					copy(file, os.path.join(cf.srcdir, dist.nick, 'os-comps.xml'))
++			dist.link(os.path.join(cf.srcdir, 'all', repo), repo)
++			dist.link(os.path.join(cf.srcdir, dist.nick, repo), repo)
+ 
+-		info(2, '%s: Symlinking packages' % dist.nick)
+-		for repo in repos:
+-			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+-			if repo in ['os', 'core']:
+-				if not dist.isos():
+-					dist.link(srcdir, repo)
+-			else:
+-				dist.link(srcdir, repo)
+-
+-		if dist.isos():
+-			for disc in dist.discs:
+-				dist.link(os.path.join(dist.dir, disc), 'os')
+-				dist.repos['os'] = None
+-			for file in glob.glob(os.path.join(dist.dir + '/disc1/*/base/comps.xml')):
+-				copy(file, os.path.join(cf.srcdir, dist.nick, 'os-comps.xml'))
+-
+ 		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
+ 		### Maybe add a hardlink utility for cleaning up afterwards
+ #		os.remove(cf.srcdir + '/updates/' + dist + '/' + os.path.basename(file))
+ 
+-		### Link custom local packages
+-		srcdir = os.path.join(cf.srcdir, dist.nick, 'local')
+-		if os.path.exists(srcdir):
+-			dist.link(srcdir, 'local')
+-
+-		srcdir = os.path.join(cf.srcdir, 'all', 'local')
+-		if os.path.exists(srcdir):
+-			dist.link(srcdir, 'local')
+-
+ 		info(2, '%s: Creating metadata' % dist.nick)
+ 		### Check for updated repositories
+ 		dist.checkrepos()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003269.html">[svn] r4469 - in trunk/rpms: perl-CSS-Tiny perl-Class-Autouse	perl-Feed-Find perl-Module-Signature perl-PPI perl-Test-SimpleUnit
+</A></li>
+	<LI>Next message: <A HREF="003271.html">[svn] r4471 - in trunk/rpms: perl-Class-Autouse perl-Event-RPC
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3270">[ date ]</a>
+              <a href="thread.html#3270">[ thread ]</a>
+              <a href="subject.html#3270">[ subject ]</a>
+              <a href="author.html#3270">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

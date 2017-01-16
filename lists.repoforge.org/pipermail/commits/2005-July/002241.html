@@ -1,0 +1,210 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3439 - in trunk/tools/pydar2: pydar scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3439%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050729193950.3CA8F31802E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002240.html">
+   <LINK REL="Next"  HREF="002242.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3439 - in trunk/tools/pydar2: pydar scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3439%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050729193950.3CA8F31802E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3439 - in trunk/tools/pydar2: pydar scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jul 29 21:39:50 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002240.html">[svn] r3438 - in trunk/rpms: ktechlab smjpeg tdb x2
+</A></li>
+        <LI>Next message: <A HREF="002242.html">[svn] r3440 - in trunk/rpms: blender greenwich libgnomedb seahorse
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2241">[ date ]</a>
+              <a href="thread.html#2241">[ thread ]</a>
+              <a href="subject.html#2241">[ subject ]</a>
+              <a href="author.html#2241">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-07-29 21:39:49 +0200 (Fri, 29 Jul 2005)
+New Revision: 3439
+
+Modified:
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/scripts/rpmforgesite.py
+Log:
+fixes
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-07-29 17:32:44 UTC (rev 3438)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-07-29 19:39:49 UTC (rev 3439)
+@@ -59,11 +59,29 @@
+         self.__releaseConnection(conn)
+         return retval
+         
++    def getMostRecentSpecFiles(self, specRepoName):
++        retval = []
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        sql = &quot;select min(v.addtimestamp)::date as mintimestamp, tname.value, f.filename, f.subdir from pydar2_specfile_version v, pydar2_specfile f, pydar2_specfile_tags tname, pydar2_specrepo sr where tname.name='NAME' and tname.versionid=v.id and f.id=v.specfileid and f.specrepoid=sr.id and sr.name='&quot; + specRepoName + &quot;' group by f.id, tname.value, f.filename, f.subdir having min(v.addtimestamp) &gt; (current_date - '1 month'::interval) order by mintimestamp asc&quot;
++        cursor.execute(sql)
++        for row in cursor.fetchall():
++            temphash = {}
++            temphash['timestamp'] = row[0] # mintimestamp, first occurrence of this rpm with this version/release for this distroarchtag
++            temphash['name'] = row[1] # short name: for example aget
++            temphash['filename'] = row[2] # filename, for example:  aget.spec
++            temphash['subdir'] = row[3]
++            
++            retval.append(temphash)
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++        
+     def getMostRecentBuilds(self, targetName):
+         retval = []
+         conn = self.__getConnection()
+         cursor = conn.cursor()
+-        sql = &quot;select min(tf.addtimestamp)::date as mintimestamp, tf.filename, tf.name, tf.distroarchtag from pydar2_target_files tf, pydar2_targets targ, pydar2_specfile_version v, pydar2_specfile_tags tname, pydar2_distroarch distro where tf.version = v.version and tname.versionid=v.id and tname.name='NAME' and tname.value=tf.name and tname.distroid=distro.id and distro.distroarchtag=tf.distroarchtag and tf.targetid=targ.id and targ.name='&quot; + targetName + &quot;' group by tf.filename, tf.name, tf.distroarchtag order by mintimestamp asc, tf.name asc, tf.filename asc, tf.distroarchtag asc&quot;
++        sql = &quot;select min(tf.addtimestamp)::date as mintimestamp, tf.filename, tf.name, tf.distroarchtag from pydar2_target_files tf, pydar2_targets targ, pydar2_specfile_version v, pydar2_specfile_tags tname, pydar2_distroarch distro where tf.version = v.version and tname.versionid=v.id and tname.name='NAME' and tname.value=tf.name and tname.distroid=distro.id and distro.distroarchtag=tf.distroarchtag and tf.targetid=targ.id and targ.name='&quot; + targetName + &quot;'  group by tf.filename, tf.name, tf.distroarchtag having (min(tf.addtimestamp) &gt; (current_date - '1 month'::interval)) order by mintimestamp asc, tf.name asc, tf.filename asc, tf.distroarchtag asc&quot;
+         cursor.execute(sql)
+         for row in cursor.fetchall():
+             temphash = {}
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-07-29 17:32:44 UTC (rev 3438)
++++ trunk/tools/pydar2/pydar/target.py	2005-07-29 19:39:49 UTC (rev 3439)
+@@ -120,6 +120,10 @@
+         
+         specRepoSpecFileIdsToVersions = self.__storage.getSpecFileIdsToVersions(specRepository)
+         targetRpmsSpecFileIdsToVersions = self.__storage.getTargetRpmsSpecFileIdsToVersions(self, datag,specRepository)
++        for mykey in specRepoSpecFileIdsToVersions.keys():
++            brr.logDebugLine(&quot;specRepoSpecFileIdsToVersions, mykey: &quot; + mykey + &quot;, val: &quot; + specRepoSpecFileIdsToVersions[mykey])
++        for mykey in targetRpmsSpecFileIdsToVersions.keys():
++            brr.logDebugLine(&quot;targetRpmsSpecFileIdsToVersions, mykey: &quot; + mykey + &quot;, val: &quot; + targetRpmsSpecFileIdsToVersions[mykey])
+         k = specRepoSpecFileIdsToVersions.keys()
+         k.sort(lambda b, c: - cmp( specRepoSpecFileIdsToVersions[b], specRepoSpecFileIdsToVersions[c]))
+         for spid in k:
+
+Modified: trunk/tools/pydar2/scripts/rpmforgesite.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgesite.py	2005-07-29 17:32:44 UTC (rev 3438)
++++ trunk/tools/pydar2/scripts/rpmforgesite.py	2005-07-29 19:39:49 UTC (rev 3439)
+@@ -58,23 +58,23 @@
+         self.__storage = storagefactory.StorageFactory.getStorage()
+         self.__rpmlists = []
+         addPaths = ['redhat/el4/en/i386']
+-        #self.__rpmlists.append(DistroArchObject(&quot;el4-i386-dries&quot;, &quot;el4 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/</A>&quot;, [&quot;el4.rf&quot;], &quot;Red Hat Enterprise Linux 4 for i386&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;el4-i386-dries&quot;, &quot;el4 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/</A>&quot;, [&quot;el4.rf&quot;], &quot;Red Hat Enterprise Linux 4 for i386&quot;, addPaths))
+         addPaths = ['redhat/el3/en/i386']
+-        #self.__rpmlists.append(DistroArchObject(&quot;el3-i386-dries&quot;, &quot;el3 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/</A>&quot;, [&quot;el3.rf&quot;], &quot;Red Hat Enterprise Linux 3 for i386&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;el3-i386-dries&quot;, &quot;el3 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/</A>&quot;, [&quot;el3.rf&quot;], &quot;Red Hat Enterprise Linux 3 for i386&quot;, addPaths))
+         addPaths = ['fedora/fc3/i386']
+-        #self.__rpmlists.append(DistroArchObject(&quot;fc3-i386-dries&quot;, &quot;fc3 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/</A>&quot;, [&quot;fc3.rf&quot;, &quot;fc3.dries&quot;], &quot;Fedora Core 3 for i386&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;fc3-i386-dries&quot;, &quot;fc3 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/</A>&quot;, [&quot;fc3.rf&quot;, &quot;fc3.dries&quot;], &quot;Fedora Core 3 for i386&quot;, addPaths))
+         addPaths = ['fedora/fc2/i386']
+-        #self.__rpmlists.append(DistroArchObject(&quot;fc2-i386-dries&quot;, &quot;fc2 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/</A>&quot;, [&quot;fc2.rf&quot;, &quot;fc2.dries&quot;], &quot;Fedora Core 2 for i386&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;fc2-i386-dries&quot;, &quot;fc2 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/</A>&quot;, [&quot;fc2.rf&quot;, &quot;fc2.dries&quot;], &quot;Fedora Core 2 for i386&quot;, addPaths))
+         addPaths = ['fedora/fc1/i386']
+-        #self.__rpmlists.append(DistroArchObject(&quot;fc1-i386-dries&quot;, &quot;fc1 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/</A>&quot;, [&quot;fc1.rf&quot;, &quot;fc1.dries&quot;], &quot;Fedora Core 1 for i386&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;fc1-i386-dries&quot;, &quot;fc1 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/</A>&quot;, [&quot;fc1.rf&quot;, &quot;fc1.dries&quot;], &quot;Fedora Core 1 for i386&quot;, addPaths))
+         addPaths = ['fedora/fc4/i386']
+-        #self.__rpmlists.append(DistroArchObject(&quot;fc4-i386-dries&quot;, &quot;fc4 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for i386&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;fc4-i386-dries&quot;, &quot;fc4 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for i386&quot;, addPaths))
+         addPaths = ['fedora/fc4/x86_64']
+-        #self.__rpmlists.append(DistroArchObject(&quot;fc4-x86_64-dries&quot;, &quot;fc4 x86_64 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for x86_64&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;fc4-x86_64-dries&quot;, &quot;fc4 x86_64 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for x86_64&quot;, addPaths))
+         addPaths = ['aurora/1.92/sparc']
+-        #self.__rpmlists.append(DistroArchObject(&quot;au1.92-sparc-dries&quot;, &quot;au1.92 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/</A>&quot;, [&quot;au1.92.rf&quot;, &quot;au1.92.dries&quot;], &quot;Aurora 1.92 for sparc&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;au1.92-sparc-dries&quot;, &quot;au1.92 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/</A>&quot;, [&quot;au1.92.rf&quot;, &quot;au1.92.dries&quot;], &quot;Aurora 1.92 for sparc&quot;, addPaths))
+         addPaths = ['aurora/1.91/sparc']
+-        #self.__rpmlists.append(DistroArchObject(&quot;au1.91-sparc-dries&quot;, &quot;au1.91 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/</A>&quot;, [&quot;au1.91.rf&quot;, &quot;au1.91.dries&quot;],&quot;Aurora 1.91 for sparc&quot;, addPaths))
++        self.__rpmlists.append(DistroArchObject(&quot;au1.91-sparc-dries&quot;, &quot;au1.91 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/</A>&quot;, [&quot;au1.91.rf&quot;, &quot;au1.91.dries&quot;],&quot;Aurora 1.91 for sparc&quot;, addPaths))
+         self.__rpmNameToSpecSubDirName = {}
+         self.__completeRpmsLists()
+         self.__completeSiteValues()
+@@ -244,6 +244,26 @@
+         contents = &quot;&quot;
+         contents = &quot;&lt;h2&gt;Recent Changes&lt;/h2&gt;&quot;
+         contents = contents + &quot;&lt;p&gt;Please note that an rpm might not be available immediately on all the mirrors.&lt;/p&gt;&quot;
++        
++        arr = self.__storage.getMostRecentSpecFiles('rpmforge')
++        subcontents = &quot;&quot;
++        lastday = &quot;&quot;
++        for hash in arr:
++            day = hash['timestamp']
++            if lastday == &quot;&quot;:
++                lastday = day
++            if day != lastday:
++                subcontents = &quot;&lt;h3&gt;&quot; + day + &quot;&lt;/h3&gt;\n&quot; + subcontents
++            lastday = day
++            filename = hash['filename']
++            name = hash['name']
++            subcontents = &quot;&lt;a href=\&quot;/rpm/packages/&quot; + name + &quot;/info.html\&quot;&gt;&quot; + name + &quot;&lt;/a&gt;&lt;br /&gt;&quot; + subcontents
++        if lastday != &quot;&quot;:
++            subcontents = &quot;&lt;h3&gt;&quot; + day + &quot;&lt;/h3&gt;\n&quot; + subcontents
++        
++        
++        contents = contents + subcontents
++        
+         arr = self.__storage.getMostRecentBuilds('dries')
+         lastday = &quot;&quot;
+         alreadyseen = []
+@@ -258,11 +278,11 @@
+             filename = hash['filename']
+             name = hash['name']
+             distroarchtag = hash['distroarchtag']
+-            suffix = &quot;&quot;
+-            if name + &quot;-&quot; + distroarchtag not in alreadyseen:
+-                suffix = &quot;, new&quot;
+-                alreadyseen.append(name + &quot;-&quot; + distroarchtag)
+-            subcontents = filename + &quot; (&quot; + name + &quot; for &quot; + distroarchtag + suffix + &quot;)&lt;br /&gt;&quot; + subcontents
++            #suffix = &quot;, update&quot;
++            #if name + &quot;-&quot; + distroarchtag not in alreadyseen:
++            #    suffix = &quot;, new rpm&quot;
++            #    alreadyseen.append(name + &quot;-&quot; + distroarchtag)
++            subcontents = &quot;&lt;a href=\&quot;<A HREF="http://apt.sw.be/dries/packages/">http://apt.sw.be/dries/packages/</A>&quot; + filename + &quot;\&quot;&gt;&quot; + filename + &quot;&lt;/a&gt; (&lt;a href=\&quot;/rpm/packages/&quot; + name + &quot;/info.html\&quot;&gt;&quot; + name + &quot;&lt;/a&gt; for &quot; + distroarchtag + &quot;)&lt;br /&gt;&quot; + subcontents
+         if lastday != &quot;&quot;:
+             subcontents = &quot;&lt;h3&gt;&quot; + day + &quot;&lt;/h3&gt;\n&quot; + subcontents
+         contents = contents + subcontents
+@@ -419,7 +439,7 @@
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/packages.html\&quot;&gt;List of packages&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/RPM-GPG-KEY.dries.html\&quot;&gt;GPG key&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/mirrors.html\&quot;&gt;Mirrors&lt;/a&gt;&lt;br /&gt;&quot;
+-        menu = menu + &quot;&lt;a href=\&quot;/rpm/mirrors.html\&quot;&gt;Recent changes&lt;/a&gt;&lt;br /&gt;&quot;
++        menu = menu + &quot;&lt;a href=\&quot;/rpm/recentchanges.html\&quot;&gt;Recent changes&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/pydar2/index.html\&quot;&gt;Pydar2&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;strong&gt;Rpms:&lt;/strong&gt;&lt;br /&gt;&quot;
+         for k in self.__rpmlists:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002240.html">[svn] r3438 - in trunk/rpms: ktechlab smjpeg tdb x2
+</A></li>
+	<LI>Next message: <A HREF="002242.html">[svn] r3440 - in trunk/rpms: blender greenwich libgnomedb seahorse
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2241">[ date ]</a>
+              <a href="thread.html#2241">[ thread ]</a>
+              <a href="subject.html#2241">[ subject ]</a>
+              <a href="author.html#2241">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

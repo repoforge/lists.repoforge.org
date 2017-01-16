@@ -1,0 +1,497 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3536 - in trunk/tools/dconf: . config scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3536%20-%20in%20trunk/tools/dconf%3A%20.%20config%20scripts&In-Reply-To=%3C20050826083058.47B5D318033%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002336.html">
+   <LINK REL="Next"  HREF="002338.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3536 - in trunk/tools/dconf: . config scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3536%20-%20in%20trunk/tools/dconf%3A%20.%20config%20scripts&In-Reply-To=%3C20050826083058.47B5D318033%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3536 - in trunk/tools/dconf: . config scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug 26 10:30:58 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002336.html">[svn] r3535 - in trunk/tools/pydar2: pydar scripts
+</A></li>
+        <LI>Next message: <A HREF="002338.html">[svn] r3537 - in trunk/tools/pydar2: pydar scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2337">[ date ]</a>
+              <a href="thread.html#2337">[ thread ]</a>
+              <a href="subject.html#2337">[ subject ]</a>
+              <a href="author.html#2337">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-08-26 10:30:56 +0200 (Fri, 26 Aug 2005)
+New Revision: 3536
+
+Added:
+   trunk/tools/dconf/dconf.1.txt
+   trunk/tools/dconf/scripts/dpkg-find
+   trunk/tools/dconf/scripts/equery-find
+Removed:
+   trunk/tools/dconf/dconf.1
+Modified:
+   trunk/tools/dconf/Makefile
+   trunk/tools/dconf/TODO
+   trunk/tools/dconf/config/dconf-redhat.conf
+   trunk/tools/dconf/dconf
+   trunk/tools/dconf/scripts/rpmqc-find
+Log:
+Updates
+
+Modified: trunk/tools/dconf/Makefile
+===================================================================
+--- trunk/tools/dconf/Makefile	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/Makefile	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -13,14 +13,33 @@
+ all:
+ 	@echo &quot;Nothing to be build.&quot;
+ 
+-install:
++install: dconf.1
+ #	-[ ! -f $(DESTDIR)$(sysconfdir)/dconf.conf ] &amp;&amp; install -D -m0644 dconf.conf $(DESTDIR)$(sysconfdir)/dconf.conf
+-	install -Dp -m0644 config/dconf-redhat.conf $(DESTDIR)$(sysconfdir)/dconf.conf
+ 	-@[ ! -f $(DESTDIR)$(sysconfdir)/dconf-custom.conf ] &amp;&amp; install -D -m0644 config/dconf-custom.conf $(DESTDIR)$(sysconfdir)/dconf-custom.conf
+ 
+ 	install -Dp -m0755 dconf $(DESTDIR)$(bindir)/dconf
+ 	install -Dp -m0644 dconf.1 $(DESTDIR)$(mandir)/man1/dconf.1
+ 
+ 	install -dp -m0755 $(DESTDIR)$(logdir)
++	@echo &quot;Also do: make install-&lt;dist&gt;   (with dist: debian|redhat|suse)&quot;
+ 
+-tar:
++install-redhat:
++	install -Dp -m0644 config/dconf-redhat.conf $(DESTDIR)$(sysconfdir)/dconf.conf
++
++install-debian:
++	install -Dp -m0644 config/dconf-debian.conf $(DESTDIR)$(sysconfdir)/dconf.conf
++
++install-suse:
++	install -Dp -m0644 config/dconf-suse.conf $(DESTDIR)$(sysconfdir)/dconf.conf
++
++clean:
++	rm -f dconf.1 dconf.1.html dconf.1.xml
++
++%.html: %.txt
++	asciidoc -b xhtml11 -d manpage $&lt;
++
++%: %.xml
++	xmlto man $&lt;
++
++%.xml: %.txt
++	asciidoc -b docbook -d manpage $&lt;
+
+Modified: trunk/tools/dconf/TODO
+===================================================================
+--- trunk/tools/dconf/TODO	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/TODO	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -20,7 +20,9 @@
+ ### Restore tool (dconf-restore)
+ + Add tool to restore files from dconf log (say: dconf-restore --root /tmp /etc/sysctl.conf)
+ 
++### Sections
+++ sysctl is disabled as it performs a change. Sadly sysctl -a returns random stuff -&gt; false positive
+++ netstat is disabled since it often shows different output -&gt; false postive
++
+ ### Bugs
+ + Dconf needs a very recent python (2.3) with unified_diff support (for email-functionality only)
+-+ sysctl actually performs a change and this goes against the intent, sadly sysctl -a returns random/variable stuff -&gt; false positive
+-+ netstat is disabled since it often shows different output -&gt; false postive
+
+Modified: trunk/tools/dconf/config/dconf-redhat.conf
+===================================================================
+--- trunk/tools/dconf/config/dconf-redhat.conf	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/config/dconf-redhat.conf	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -748,6 +748,11 @@
+ [shorewall]
+ files = /etc/shorewall/*
+ 
++[slocate]
++files =
++	/etc/cron.daily/slocate.cron
++	/etc/updatedb.conf
++
+ [smbldap]
+ files =
+ 	/etc/smbldap-tools/smbldap.conf
+
+Modified: trunk/tools/dconf/dconf
+===================================================================
+--- trunk/tools/dconf/dconf	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/dconf	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -17,12 +17,11 @@
+ 		self.dist = None
+ 		self.output = None
+ 		self.quiet = False
+-		self.root = ''
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'c:ho:qr:v',
+-				['config=', 'help', 'output=', 'quiet', 'root=', 'verbose', 'version'])
++			opts, args = getopt.getopt (args, 'c:ho:q:v',
++				['config=', 'help', 'output=', 'quiet', 'verbose', 'version'])
+ 		except getopt.error, exc:
+ 			print 'dconf: %s, try dconf -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -38,8 +37,6 @@
+ 				self.output=arg
+ 			elif opt in ['-q', '--quiet']:
+ 				self.quiet = True
+-			elif opt in ['-r', '--root']:
+-				self.root = arg
+ 			elif opt in ['-v', '--verbose']:
+ 				self.verbose = self.verbose + 1
+ 			elif opt in ['--version']:
+@@ -61,7 +58,7 @@
+ 		print 'python %s' % sys.version
+ 
+ 	def usage(self):
+-		print 'usage: dconf [-q] [-v] [-c config] [-o output] [-r root]'
++		print 'usage: dconf [-q] [-v] [-c config] [-o output]'
+ 
+ 	def help(self):
+ 		print '''Create a system's hardware and software configuration snapshot
+@@ -70,7 +67,6 @@
+   -c, --config=file    specify alternative configfile
+   -o, --output=file    write output to given file
+   -q, --quiet          minimal output
+-  -r, --root=root      work on a different root directory
+   -v, --verbose        increase verbosity
+   -vv, -vvv            increase verbosity more
+ '''
+@@ -303,7 +299,7 @@
+ 		import rpm
+ 		ts = rpm.TransactionSet()
+ #		ts.setVSFlags(rpm.RPMVSF_NORSA | rpm.RPMVSF_NODSA)
+-		ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES | rpm._RPMVSF_NODIGESTS)
++		ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES | rpm.RPMVSF_NOHDRCHK | rpm._RPMVSF_NODIGESTS | rpm.RPMVSF_NEEDPAYLOAD)
+ 	except:
+ #	else:
+ 		info(2, 'Disabling RPM capability since the rpm-python bindings could not be loaded.')
+@@ -376,7 +372,7 @@
+ 				cmdline = line.split()
+ 				if not cmdline: continue
+ 
+-				cmd = which(os.path.join(op.root, cmdline[0].strip()))
++				cmd = which(cmdline[0].strip())
+ 				extra = ' '.join(cmdline[1:])
+ 				if not cmd:
+ 					info(5, 'Cmd %s not found in PATH, excluding.' % cmdline[0].strip())
+@@ -395,10 +391,7 @@
+ 				owner, group = getowner(uid, gid)
+ 				title = '--[ Cmd: %s %s ]--(%04o, %s, %s, %s)--' % (cmd, extra, stat.S_IMODE(mode), owner, group, size)
+ 				log.write(title + '-' * (80 - len(title)) + '\n')
+-				if not op.root:
+-					(o, i) = popen2.popen4('%s %s' % (cmd, extra))
+-				else:
+-					(o, i) = popen2.popen4('chroot %s %s %s' % (op.root, cmd, extra))
++				(o, i) = popen2.popen4('%s %s' % (cmd, extra))
+ 				log.write(o.read() + '\n')
+ 
+ 		if cf.sections[section].has_key('files'):
+@@ -407,7 +400,7 @@
+ 				if not flist: continue
+ 				extra = '|'.join(flist[1:])
+ 				if extra: extra = extra + ' '
+-				for file in glob.glob(op.root + flist[0].strip()):
++				for file in glob.glob(flist[0].strip()):
+ 					if not file or not os.path.isfile(file): continue
+ 
+ 					if fnmatches(file):
+
+Deleted: trunk/tools/dconf/dconf.1
+===================================================================
+--- trunk/tools/dconf/dconf.1	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/dconf.1	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -1,101 +0,0 @@
+-.\&quot; DO NOT MODIFY THIS FILE!  It was generated by help2man 1.33.
+-.TH DCONF &quot;1&quot; &quot;June 2005&quot; &quot;dconf 0.4.2&quot; &quot;User Commands&quot;
+-
+-.SH NAME
+-Dconf \- Create a system's hardware and software configuration snapshot
+-
+-.SH SYNOPSIS
+-dconf [-q] [-v] [-c config] [-o output] [-r root]
+-
+-.SH DESCRIPTION
+-Dconf is a tool to collect a system's hardware and software configuration.
+-It allows to take your system configuration with you on the road, compare
+-identical systems (like nodes in a cluster) to troubleshoot HW or SW
+-problems.
+-
+-Dconf is also useful in projects where you have to manage changes as a
+-team. Dconf can run periodically and send out system changes to a list
+-of email addresses so that they can be revised and discussed in group.
+-
+-You can customize your dconf configuration for specific needs, like making
+-a profile of your laptop's hardware or copy specific software configuration
+-files to send out or compare with other systems.
+-
+-As a sysadmin, you won't become too paranoid if less experienced people
+-have root-access. As a consultant, you won't feel isolated if you don't
+-have remote access to your systems. As a support engineer, you won't
+-become frustrated if a customer has fiddled around with some important
+-config file and you have to find which. As a performance tuner, you can
+-capture the state of the system configuration in between performance
+-tests/benchmarks.
+-
+-.SH OPTIONS
+-.TP
+-\fB\-c\fR, \fB\-\-config\fR file
+-specify alternative configfile
+-.TP
+-\fB\-o\fR, \fB\-\-output\fR file
+-write output to given file
+-.TP
+-\fB\-q\fR, \fB\-\-quiet\fR
+-minimal output
+-.TP
+-\fB\-r\fR, \fB\-\-root\fR file
+-work on a different root directory
+-.TP
+-\fB\-v\fR, \fB\-\-verbose\fR
+-increase verbosity
+-.TP
+-\fB\-vv\fR, \fB\-vvv\fR
+-increase verbosity more
+-
+-.SH ARGUMENTS
+-.TP
+-Man:
+-Ah. I'd like to have an argument, please.
+-.TP
+-Receptionist:
+-Certainly sir. Have you been here before?
+-.TP
+-Man:
+-No, I haven't, this is my first time.
+-.TP
+-Receptionist:
+-I see. Well, do you want to have just one argument, or were you thinking of taking a course?
+-.TP
+-Man:
+-Well, what is the cost?
+-.TP
+-Receptionist:
+-Well, It's one pound for a five minute argument, but only eight pounds for a course of ten.
+-.TP
+-Man:
+-Well, I think it would be best if I perhaps started off with just the one and then see how it goes.
+-.TP
+-For more arguments, see:
+-<A HREF="http://orangecow.org/pythonet/sketches/argument.htm">http://orangecow.org/pythonet/sketches/argument.htm</A>
+-
+-.SH ADDING FILES OR COMMANDS
+-You can add files and commands to /etc/dconf-custom.conf and include that from your /etc/dconf.conf, however I would appreciate if you send me any changes you make so that they can be include in the next version.
+-
+-Dconf was design so that an excessive list of configuration files or commands would not harm the execution of the program or the content of the snapshot file.
+-
+-Please send changes to: \fBDag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;\fR
+-
+-.SH BUGS
+-Please see the TODO file for known bugs and future plans.
+-
+-.SH FILES
+-/etc/dconf.conf, the main Dconf configuration file (replaced on update)
+-
+-/etc/dconf-custom.conf, the customized configuration file (customize this one)
+-
+-/var/log/dconf/, the location of the snapshot files
+-
+-.SH SEE ALSO
+-snap(8)
+-
+-.SH AUTHOR
+-Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-
+-Homepage at <A HREF="http://dag.wieers.com/home-made/dconf/">http://dag.wieers.com/home-made/dconf/</A>
+
+Added: trunk/tools/dconf/dconf.1.txt
+===================================================================
+--- trunk/tools/dconf/dconf.1.txt	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/dconf.1.txt	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -0,0 +1,101 @@
++dconf(1)
++========
++Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++v0.4.2, June 2005
++
++NAME
++----
++dconf - create a system's hardware and software configuration snapshot
++
++SYNOPSIS
++--------
++dconf [-q] [-v] [-c config] [-o output] [-r root]
++
++DESCRIPTION
++-----------
++Dconf is a tool to collect a system's hardware and software configuration.
++It allows to take your system configuration with you on the road, compare
++identical systems (like nodes in a cluster) to troubleshoot HW or SW
++problems.
++
++Dconf is also useful in projects where you have to manage changes as a
++team. Dconf can run periodically and send out system changes to a list
++of email addresses so that they can be revised and discussed in group.
++
++You can customize your dconf configuration for specific needs, like making
++a profile of your laptop's hardware or copy specific software configuration
++files to send out or compare with other systems.
++
++As a sysadmin, you won't become too paranoid if less experienced people
++have root-access. As a consultant, you won't feel isolated if you don't
++have remote access to your systems. As a support engineer, you won't
++become frustrated if a customer has fiddled around with some important
++config file and you have to find which. As a performance tuner, you can
++capture the state of the system configuration in between performance
++tests/benchmarks.
++
++OPTIONS
++-------
++-c, --config file::
++	specify alternative configfile
++
++-o, --output file::
++	write output to given file
++
++-q, --quiet::
++	minimal output
++
++-v, --verbose::
++	increase verbosity
++
++-vv, -vvv::
++	increase verbosity more
++
++ARGUMENTS
++---------
++Man:::
++	Ah. I'd like to have an argument, please.
++Receptionist:::
++	Certainly sir. Have you been here before?
++Man:::
++	No, I haven't, this is my first time.
++Receptionist:::
++	I see. Well, do you want to have just one argument, or were you thinking of taking a course?
++Man:::
++	Well, what is the cost?
++Receptionist:::
++	Well, It's one pound for a five minute argument, but only eight pounds for a course of ten.
++Man:::
++	Well, I think it would be best if I perhaps started off with just the one and then see how it goes.
++For more arguments, see:::
++	<A HREF="http://orangecow.org/pythonet/sketches/argument.htm[">http://orangecow.org/pythonet/sketches/argument.htm[</A>]
++
++ADDING FILES OR COMMANDS
++------------------------
++You can add files and commands to /etc/dconf-custom.conf and include that from your /etc/dconf.conf, however I would appreciate if you send me any changes you make so that they can be include in the next version.
++
++Dconf was design so that an excessive list of configuration files or commands would not harm the execution of the program or the content of the snapshot file.
++
++Please send changes to: Dag Wieers mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
++
++BUGS
++----
++Please see the TODO file for known bugs and future plans.
++
++FILES
++-----
++/etc/dconf.conf, the main Dconf configuration file (replaced on update)
++
++/etc/dconf-custom.conf, the customized configuration file (customize this one)
++
++/var/log/dconf/, the location of the snapshot files
++
++SEE ALSO
++--------
++snap(8)
++
++AUTHOR
++------
++Written by Dag Wieers mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
++
++Homepage at <A HREF="http://dag.wieers.com/home-made/dconf/[">http://dag.wieers.com/home-made/dconf/[</A>]
+
+Added: trunk/tools/dconf/scripts/dpkg-find
+===================================================================
+--- trunk/tools/dconf/scripts/dpkg-find	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/scripts/dpkg-find	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -0,0 +1,9 @@
++#!/bin/bash
++base='/var/lib/dpkg/info'
++for i in $(dpkg -l | grep ^ii | cut -d' ' -f3); do
++	if [ -f &quot;$base/$i.conffiles&quot; ]; then
++		echo &quot;===$i===&quot;
++		cat &quot;$base/$i.conffiles&quot;
++		echo
++	fi
++done
+
+Added: trunk/tools/dconf/scripts/equery-find
+===================================================================
+--- trunk/tools/dconf/scripts/equery-find	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/scripts/equery-find	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -0,0 +1,6 @@
++#!/bin/bash
++for pkg in $(equery list | cut -d' ' -f5 | sort); do
++	echo &quot;===${pkg%-[0-9]*}===&quot;
++	equery files --filter=conf ${pkg%-[0-9]*}
++	echo
++done
+
+
+Property changes on: trunk/tools/dconf/scripts/equery-find
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/dconf/scripts/rpmqc-find
+===================================================================
+--- trunk/tools/dconf/scripts/rpmqc-find	2005-08-25 20:15:17 UTC (rev 3535)
++++ trunk/tools/dconf/scripts/rpmqc-find	2005-08-26 08:30:56 UTC (rev 3536)
+@@ -1,3 +1,6 @@
+ #!/bin/bash
+-
+-for pkg in $(rpm -qa | sort ); do echo &quot;===$pkg===&quot;; rpm -qc $pkg; echo; done
++for pkg in $(rpm -qa | sort ); do
++	echo &quot;===$pkg===&quot;
++	rpm -qc $pkg
++	echo
++done
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002336.html">[svn] r3535 - in trunk/tools/pydar2: pydar scripts
+</A></li>
+	<LI>Next message: <A HREF="002338.html">[svn] r3537 - in trunk/tools/pydar2: pydar scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2337">[ date ]</a>
+              <a href="thread.html#2337">[ thread ]</a>
+              <a href="subject.html#2337">[ subject ]</a>
+              <a href="author.html#2337">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

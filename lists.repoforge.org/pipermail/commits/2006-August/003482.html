@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4682 - in trunk/tools/yam: . config
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4682%20-%20in%20trunk/tools/yam%3A%20.%20config&In-Reply-To=%3C20060821142915.87344944AC3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003481.html">
+   <LINK REL="Next"  HREF="003483.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4682 - in trunk/tools/yam: . config</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4682%20-%20in%20trunk/tools/yam%3A%20.%20config&In-Reply-To=%3C20060821142915.87344944AC3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4682 - in trunk/tools/yam: . config">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Aug 21 16:29:15 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003481.html">[svn] r4681 - in trunk/rpms: . reply-o-matic shake
+</A></li>
+        <LI>Next message: <A HREF="003483.html">[svn] r4683 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3482">[ date ]</a>
+              <a href="thread.html#3482">[ thread ]</a>
+              <a href="subject.html#3482">[ subject ]</a>
+              <a href="author.html#3482">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-21 16:29:14 +0200 (Mon, 21 Aug 2006)
+New Revision: 4682
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/config/yam-example.conf
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.cron
+   trunk/tools/yam/yam.sysconfig
+Log:
+Added no_proxy, ftp_proxy, http_proxy and https_proxy configuration directives
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-08-21 09:47:13 UTC (rev 4681)
++++ trunk/tools/yam/ChangeLog	2006-08-21 14:29:14 UTC (rev 4682)
+@@ -40,6 +40,7 @@
+ - Added /etc/yam.conf.d/ to allow configuration components to reside in seperate files
+ - Added distribution template config files for RHEL, CentOS and FC
+ - Make seperate createrepo cachedir for dist/repo (Craig Trader)
++- Added no_proxy, ftp_proxy, http_proxy and https_proxy configuration directives
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/config/yam-example.conf
+===================================================================
+--- trunk/tools/yam/config/yam-example.conf	2006-08-21 09:47:13 UTC (rev 4681)
++++ trunk/tools/yam/config/yam-example.conf	2006-08-21 14:29:14 UTC (rev 4682)
+@@ -35,11 +35,23 @@
+ yumarchcmd = /usr/bin/yum-arch
+ 
+ ## What repository metadata do you want to generate ?
+-metadata = apt repomd yum
++#metadata = apt repomd yum
++metadata = repomd
+ 
+ ## Your username and password for RHN channel subscriptions
+-rhnlogin = username:password
++#rhnlogin = username:password
++rhnlogin =
+ 
++## Specify the required proxy settings
++#no_proxy = localhost,lxpmgt001,yam,julio,useportal,jules,svn,webproxy
++#ftp_proxy = <A HREF="http://10.225.0.24:8000">http://10.225.0.24:8000</A>
++#http_proxy = <A HREF="http://10.225.0.24:8000">http://10.225.0.24:8000</A>
++#https_proxy = <A HREF="http://10.225.0.24:8000">http://10.225.0.24:8000</A>
++no_proxy =
++ftp_proxy =
++http_proxy =
++https_proxy =
++
+ ## Hardlink files in the srcdir before ending Yam
+ hardlink = no
+ 
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-08-21 09:47:13 UTC (rev 4681)
++++ trunk/tools/yam/yam	2006-08-21 14:29:14 UTC (rev 4682)
+@@ -163,6 +163,11 @@
+ 
+ 		self.hardlink = not self.getoption('main', 'hardlink', 'no') in disable
+ 
++		self.no_proxy = self.getoption('main', 'no_proxy', None)
++		self.ftp_proxy = self.getoption('main', 'ftp_proxy', None)
++		self.http_proxy = self.getoption('main', 'http_proxy', None)
++		self.https_proxy = self.getoption('main', 'https_proxy', None)
++
+ 		self.cmd = {}
+ 		self.cmd['createrepo'] = self.getoption('main', 'createrepocmd', '/usr/bin/createrepo')
+ 		self.cmd['genbasedir'] = self.getoption('main', 'genbasedircmd', '/usr/bin/genbasedir')
+@@ -1213,6 +1218,16 @@
+ 			if not append:
+ 				error(1, 'Distribution %s not defined' % name)
+ 
++	### Set proxy-related environment variables
++	if cf.no_proxy:
++		os.environ['no_proxy'] = cf.no_proxy
++	if cf.ftp_proxy:
++		os.environ['ftp_proxy'] = cf.ftp_proxy
++	if cf.http_proxy:
++		os.environ['http_proxy'] = cf.http_proxy
++	if cf.https_proxy:
++		os.environ['https_proxy'] = cf.https_proxy
++
+ 	### Mounting and mirroring available distributions/repositories
+ 	for dist in dists:
+ 
+
+Modified: trunk/tools/yam/yam.cron
+===================================================================
+--- trunk/tools/yam/yam.cron	2006-08-21 09:47:13 UTC (rev 4681)
++++ trunk/tools/yam/yam.cron	2006-08-21 14:29:14 UTC (rev 4682)
+@@ -6,8 +6,6 @@
+ 
+ [ -r &quot;/etc/sysconfig/yam&quot; ] &amp;&amp; source &quot;/etc/sysconfig/yam&quot;
+ 
+-export ftp_proxy http_proxy https_proxy no_proxy
+-
+ [ &quot;$DAILY_UPDATE&quot; != &quot;yes&quot; ] &amp;&amp; exit 0
+ 
+ exec /usr/bin/yam $YAM_OPTIONS
+
+Modified: trunk/tools/yam/yam.sysconfig
+===================================================================
+--- trunk/tools/yam/yam.sysconfig	2006-08-21 09:47:13 UTC (rev 4681)
++++ trunk/tools/yam/yam.sysconfig	2006-08-21 14:29:14 UTC (rev 4682)
+@@ -1,11 +1,5 @@
+ ### Enable this if you want to run Yam daily
+ #DAILY_UPDATE=&quot;yes&quot;
+ 
+-### Define your local proxy here
+-#https_proxy=&quot;<A HREF="http://proxy:8080/">http://proxy:8080/</A>&quot;
+-#http_proxy=&quot;<A HREF="http://proxy:8080/">http://proxy:8080/</A>&quot;
+-#ftp_proxy=&quot;<A HREF="http://proxy:8080/">http://proxy:8080/</A>&quot;
+-#noproxy=&quot;localhost,yam&quot;
+-
+ ### In case you want to override the default options
+-YAM_OPTIONS=&quot;-q -ug&quot;
++#YAM_OPTIONS=&quot;-q -ug&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003481.html">[svn] r4681 - in trunk/rpms: . reply-o-matic shake
+</A></li>
+	<LI>Next message: <A HREF="003483.html">[svn] r4683 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3482">[ date ]</a>
+              <a href="thread.html#3482">[ thread ]</a>
+              <a href="subject.html#3482">[ subject ]</a>
+              <a href="author.html#3482">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

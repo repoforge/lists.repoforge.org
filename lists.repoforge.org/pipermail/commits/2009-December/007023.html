@@ -1,0 +1,158 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8228 - trunk/rpms/munin
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8228%20-%20trunk/rpms/munin&In-Reply-To=%3C200912232112.nBNLClPr029328%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007022.html">
+   <LINK REL="Next"  HREF="007024.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8228 - trunk/rpms/munin</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8228%20-%20trunk/rpms/munin&In-Reply-To=%3C200912232112.nBNLClPr029328%40surya.karan.org%3E"
+       TITLE="[svn] r8228 - trunk/rpms/munin">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Dec 23 22:12:47 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007022.html">[svn] r8227 - trunk/rpms/perl-Jifty
+</A></li>
+        <LI>Next message: <A HREF="007024.html">[svn] r8229 - in trunk/rpms: . perl-MooseX-MultiInitArg	perl-Net-Twitter perl-Net-Twitter-Lite
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7023">[ date ]</a>
+              <a href="thread.html#7023">[ thread ]</a>
+              <a href="subject.html#7023">[ subject ]</a>
+              <a href="author.html#7023">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: 2009-12-23 21:12:47 +0000 (Wed, 23 Dec 2009)
+New Revision: 8228
+
+Modified:
+   trunk/rpms/munin/munin.spec
+Log:
+working on update to v1.4.2 - builds SRPM only, but not RPM(???)
+
+
+Modified: trunk/rpms/munin/munin.spec
+===================================================================
+--- trunk/rpms/munin/munin.spec	2009-12-23 19:26:27 UTC (rev 8227)
++++ trunk/rpms/munin/munin.spec	2009-12-23 21:12:47 UTC (rev 8228)
+@@ -1,6 +1,7 @@
+ # $Id$
+ # Authority: dag
+ # Upstream: Ingvar Hagelund &lt;ingvar$linpro,no&gt;
++## Test
+ 
+ %define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)
+ %define logmsg logger -t %{name}/rpm
+@@ -13,24 +14,27 @@
+ 
+ Summary: Network-wide graphing framework (grapher/gatherer)
+ Name: munin
+-Version: 1.2.6
++Version: 1.4.2
+ Release: 1%{?dist}
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://munin.projects.linpro.no/">http://munin.projects.linpro.no/</A>
+ 
+-Source0: <A HREF="http://dl.sf.net/sourceforge/munin/munin_%{version">http://dl.sf.net/sourceforge/munin/munin_%{version</A>}.tar.gz
++Source0: <A HREF="http://downloads.sourceforge.net/sourceforge/munin/munin-%{version">http://downloads.sourceforge.net/sourceforge/munin/munin-%{version</A>}.tar.gz
+ Source1: munin-1.2.5-hddtemp_smartctl-config
+ Source2: munin-1.2.4-sendmail-config
+ Source3: munin.te
+-Patch1: munin-1.2.4-conf.patch
+-Patch2: munin-1.2.6-rrdtool-1.3.patch
++Patch1: munin-1.4.2-conf.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildArch: noarch
+-Requires: perl-Net-Server, perl-Net-SNMP
++Requires: perl(HTML::Template)
++Requires: perl(Net::Server)
++Requires: perl(Net::SNMP)
++Requires: perl(RRDs)
+ Requires: rrdtool, shadow-utils
+ BuildRequires: which
++BuildRequires: /usr/bin/javac
+ %{!?_without_selinux:BuildRequires: checkpolicy, policycoreutils}
+ 
+ %description
+@@ -47,7 +51,8 @@
+ Group: System Environment/Daemons
+ Summary: Network-wide graphing framework (node)
+ 
+-Requires: perl-Net-Server
++Requires: perl(Net::Server::Fork)
++Requires: perl(Net::SNMP)
+ Requires: procps &gt;= 2.0.7
+ Requires: shadow-utils, sysstat
+ Requires: /sbin/chkconfig
+@@ -74,7 +79,6 @@
+ %prep
+ %setup
+ %patch1 -p1
+-%patch2 -p1
+ 
+ ### htmldoc and html2text are not available for Red Hat. Quick hack with perl:
+ ### Skip the PDFs.
+@@ -142,7 +146,7 @@
+ %{__make} build CONFIG=&quot;dists/redhat/Makefile.config&quot; HTMLDIR=&quot;/var/www/munin&quot;
+ 
+ ### set up SELinux module if called for
+-%if %{!_without_selinux}
++%if %{!?_without_selinux}
+ checkmodule -M -m -o %{name}.mod %{SOURCE3}
+ semodule_package -o %{name}.pp -m %{name}.mod
+ %{__install} -d -m0755 %{buildroot}%{_datadir}/selinux/targeted/
+@@ -270,7 +274,7 @@
+ %{_datadir}/munin/munin-html
+ %{_datadir}/munin/munin-limits
+ %{_datadir}/munin/munin-update
+-%{_datadir}/munin/VeraMono.ttf
++%{_datadir}/munin/*.ttf
+ %attr(root, root, 0644) %{_datadir}/targeted/*
+ %{perl_vendorlib}/Munin.pm
+ %{perl_vendorlib}/Munin/Plugin.pm
+@@ -312,6 +316,9 @@
+ %dir %{_localstatedir}/log/munin/
+ 
+ %changelog
++* Wed Dec 23 2009 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 1.4.2-1
++- Updated to version 1.4.2.
++
+ * Thu Sep 03 2009 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 1.2.6-2
+ - add SELinux policy module to quash warnings generated by ping and
+   ifconfig
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007022.html">[svn] r8227 - trunk/rpms/perl-Jifty
+</A></li>
+	<LI>Next message: <A HREF="007024.html">[svn] r8229 - in trunk/rpms: . perl-MooseX-MultiInitArg	perl-Net-Twitter perl-Net-Twitter-Lite
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7023">[ date ]</a>
+              <a href="thread.html#7023">[ thread ]</a>
+              <a href="subject.html#7023">[ subject ]</a>
+              <a href="author.html#7023">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

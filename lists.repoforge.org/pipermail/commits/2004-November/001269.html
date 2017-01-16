@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2463 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2463%20-%20trunk/tools/dstat&In-Reply-To=%3C20041110001352.1B51E17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001268.html">
+   <LINK REL="Next"  HREF="001270.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2463 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2463%20-%20trunk/tools/dstat&In-Reply-To=%3C20041110001352.1B51E17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2463 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Nov 10 01:13:52 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001268.html">[SVN] r2462 - trunk/rpms/perl-libintl
+</A></li>
+        <LI>Next message: <A HREF="001270.html">[SVN] r2464 - in trunk/rpms: distcc gnochm libtc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1269">[ date ]</a>
+              <a href="thread.html#1269">[ thread ]</a>
+              <a href="subject.html#1269">[ subject ]</a>
+              <a href="author.html#1269">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-10 01:13:50 +0100 (Wed, 10 Nov 2004)
+New Revision: 2463
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+A few new updates.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-09 18:44:50 UTC (rev 2462)
++++ trunk/tools/dstat/ChangeLog	2004-11-10 00:13:50 UTC (rev 2463)
+@@ -2,7 +2,8 @@
+ - Changed some more int()'s into long()'s. (Pasi Pirhonen)
+ - Fixed the cpu out of index, /proc instability. (Pasi Pirhonen)
+ - Improved the rounding function
+-- Added --float, to get more detail
++- Added --abs, to get earlier 'absolute value' behaviour
++- Added --noheader option to only see header at start
+ 
+ * 0.4
+ - Added interrupt stats
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-11-09 18:44:50 UTC (rev 2462)
++++ trunk/tools/dstat/TODO	2004-11-10 00:13:50 UTC (rev 2463)
+@@ -4,7 +4,6 @@
+ + Add -o/--output option
+ + Maybe add colors to indicate units better (may become ugly)
+ + Allow to force to given magnitude
+-+ Allow to see floats (eg. 10MB -&gt; 10.1MB)
+ 
+ ### Extensions
+ + Add all stats to seperate modules and allow people to plugin their own modules
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-09 18:44:50 UTC (rev 2462)
++++ trunk/tools/dstat/dstat	2004-11-10 00:13:50 UTC (rev 2463)
+@@ -30,13 +30,14 @@
+ 		self.disklist = None
+ 		self.intlist = None
+ 		self.netlist = None
+-		self.float = False
++		self.abs = False
++		self.noheader = False
+ 
+ 		try:
+ 			opts, args = getopt.getopt (args, 'acdghilmnpsvyD:I:N:',
+ 				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net',
+ 				'page', 'proc', 'swap', 'sys', 'version', 'vm', 'vmstat',
+-				'float'])
++				'abs', 'noheader'])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -82,8 +83,10 @@
+ 			elif opt in ['--vm', '--vmstat']:
+ 				self.modlist = [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+ 				self.disklist = ('total',)
+-			elif opt in ['--float']:
+-				self.float = True
++			elif opt in ['--abs']:
++				self.abs = True
++			elif opt in ['--noheader']:
++				self.noheader = True
+ 
+ 		if not self.modlist:
+ 			self.modlist = [ 'cpu', 'disk', 'net', 'sys' ]
+@@ -124,7 +127,8 @@
+   -s, --swap         enable swap stats
+   -y, --sys          enable system stats
+ 
+-  --float            show numbers as floats (more detail)
++  --abs              show numbers as absolute values (less detail)
++  --noheader         show header only the first time
+ '''
+ 
+ class Config:
+@@ -656,9 +660,9 @@
+ 	c = 0
+ 	while True:
+ 		if len('%d' % round(var)) &lt; max:
+-			if op.float and len('%1.2f' % var) &lt; max:
++			if not op.abs and len('%1.2f' % var) &lt; max:
+ 				ret = '%1.2f' % var
+-			elif op.float and len('%1.1f' % var) &lt; max:
++			elif not op.abs and len('%1.1f' % var) &lt; max:
+ 				ret = '%1.1f' % var
+ 			else:
+ 				ret = '%d' % round(var)
+@@ -750,9 +754,8 @@
+ 	signal.signal(signal.SIGALRM, handler)
+ 	while count != op.count:
+ 		signal.alarm(op.sleep)
+-
+ 		rows = getwinsize()[0]
+-		if count % (rows-2)  == 0:
++		if count % (rows-2)  == 0 and (not op.noheader or count == 0):
+ 			for o in olist:
+ 				sys.stdout.write(o.title1)
+ 				if o != olist[-1]: sys.stdout.write(' ')
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001268.html">[SVN] r2462 - trunk/rpms/perl-libintl
+</A></li>
+	<LI>Next message: <A HREF="001270.html">[SVN] r2464 - in trunk/rpms: distcc gnochm libtc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1269">[ date ]</a>
+              <a href="thread.html#1269">[ thread ]</a>
+              <a href="subject.html#1269">[ subject ]</a>
+              <a href="author.html#1269">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,387 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8830 - in /trunk/tools/dstat: ./ plugins/
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8830%20-%20in%20/trunk/tools/dstat%3A%20./%20plugins/&In-Reply-To=%3C201005281325.o4SDPiTe018494%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007624.html">
+   <LINK REL="Next"  HREF="007626.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8830 - in /trunk/tools/dstat: ./ plugins/</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8830%20-%20in%20/trunk/tools/dstat%3A%20./%20plugins/&In-Reply-To=%3C201005281325.o4SDPiTe018494%40surya.karan.org%3E"
+       TITLE="[svn] r8830 - in /trunk/tools/dstat: ./ plugins/">dag at wieers.com
+       </A><BR>
+    <I>Fri May 28 15:25:44 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007624.html">[svn] r8829 - /trunk/rpms/clamav/clamav.init
+</A></li>
+        <LI>Next message: <A HREF="007626.html">[svn] r8831 - in /trunk/rpms/newsbeuter: ./ newsbeuter.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7625">[ date ]</a>
+              <a href="thread.html#7625">[ thread ]</a>
+              <a href="subject.html#7625">[ subject ]</a>
+              <a href="author.html#7625">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Fri May 28 14:25:44 2010
+New Revision: 8830
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=8830&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=8830&amp;view=rev</A>
+Log:
+Added external dstat_dstat_ctxt plugin to show dstat's context switches
+
+Added:
+    trunk/tools/dstat/plugins/dstat_dstat_ctxt.py
+Modified:
+    trunk/tools/dstat/ChangeLog
+    trunk/tools/dstat/dstat
+    trunk/tools/dstat/plugins/dstat_dstat.py
+    trunk/tools/dstat/plugins/dstat_dstat_cpu.py
+    trunk/tools/dstat/plugins/dstat_dstat_mem.py
+    trunk/tools/dstat/plugins/dstat_fan.py
+    trunk/tools/dstat/plugins/dstat_snooze.py
+    trunk/tools/dstat/plugins/dstat_top_bio_adv.py
+    trunk/tools/dstat/plugins/dstat_top_cpu_adv.py
+    trunk/tools/dstat/plugins/dstat_top_io_adv.py
+    trunk/tools/dstat/plugins/dstat_vmk_hba.py
+    trunk/tools/dstat/plugins/dstat_vmk_int.py
+    trunk/tools/dstat/plugins/dstat_vz_io.py
+
+Modified: trunk/tools/dstat/ChangeLog
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/ChangeLog?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/ChangeLog?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/ChangeLog (original)
++++ trunk/tools/dstat/ChangeLog Fri May 28 14:25:44 2010
+@@ -8,8 +8,9 @@
+ - Introduced cmd_readlines() to read from command output
+ - Introduced cmd_splitlines() to split lines read from command output
+ - Implement best effort /proc integer overflow handling in dstat_net (Ross Brattain)
++- Added external dstat_dstat_cpu plugin to show dstat's cpu usage
++- Added external dstat_dstat_ctxt plugin to show dstat's context switches
+ - Added external dstat_dstat_mem plugin to show dstat's memory usage
+-- Added external dstat_dstat_cpu plugin to show dstat's cpu usage
+ - Added external dstat_top_bio_adv plugin to show advanced top I/O usage
+ - Added external dstat_top_cpu_adv plugin to show advanced top cpu usage
+ - Added external dstat_top_io_adv plugin to show advanced top block I/O usage
+
+Modified: trunk/tools/dstat/dstat
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/dstat?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/dstat?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/dstat (original)
++++ trunk/tools/dstat/dstat Fri May 28 14:25:44 2010
+@@ -383,6 +383,11 @@
+ #                if not line: break
+ #                yield line
+ #                i += 1
++
++    def splitline(self, sep=None):
++        for fd in self.fd:
++            fd.seek(0)
++            return fd.read().split(sep)
+ 
+     def splitlines(self, sep=None, replace=None):
+         &quot;Return split lines from any file descriptor&quot;
+
+Modified: trunk/tools/dstat/plugins/dstat_dstat.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_dstat.py (original)
++++ trunk/tools/dstat/plugins/dstat_dstat.py Fri May 28 14:25:44 2010
+@@ -14,10 +14,10 @@
+         self.type = 'd'
+         self.width = 4
+         self.scale = 100
++        self.open('/proc/%s/schedstat' % ownpid)
+ 
+     def extract(self):
+-        ### Extract counters
+-        l = dopen('/proc/%s/schedstat' % ownpid).read().split()
++        l = self.splitline()
+ #        l = linecache.getline('/proc/%s/schedstat' % self.pid, 1).split()
+         self.set2['cputime'] = long(l[0])
+         self.set2['latency'] = long(l[1])
+
+Modified: trunk/tools/dstat/plugins/dstat_dstat_cpu.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat_cpu.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat_cpu.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_dstat_cpu.py (original)
++++ trunk/tools/dstat/plugins/dstat_dstat_cpu.py Fri May 28 14:25:44 2010
+@@ -9,19 +9,18 @@
+     usage changes of dstat over time.
+     &quot;&quot;&quot;
+     def __init__(self):
+-        self.name = 'dstat cputime'
++        self.name = 'dstat cpu'
+         self.vars = ('user', 'system', 'total')
+         self.type = 'd'
+         self.width = 4
+         self.scale = 100
+ 
+     def extract(self):
+-        ### Extract counters
+-        l = resource.getrusage(resource.RUSAGE_SELF)
++        res = resource.getrusage(resource.RUSAGE_SELF)
+ 
+-        self.set2['user'] = float(l[0])
+-        self.set2['system'] = float(l[1])
+-        self.set2['total'] = (float(l[0]) + float(l[1]))
++        self.set2['user'] = float(res.ru_utime)
++        self.set2['system'] = float(res.ru_stime)
++        self.set2['total'] = float(res.ru_utime) + float(res.ru_stime)
+ 
+         for name in self.vars:
+             self.val[name] = (self.set2[name] - self.set1[name]) * 1000.0 / elapsed
+
+Added: trunk/tools/dstat/plugins/dstat_dstat_ctxt.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat_ctxt.py?rev=8830&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat_ctxt.py?rev=8830&amp;view=markup</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_dstat_ctxt.py (added)
++++ trunk/tools/dstat/plugins/dstat_dstat_ctxt.py Fri May 28 14:25:44 2010
+@@ -1,0 +1,31 @@
++### Author: Dag Wieers &lt;dag$wieers,com&gt;
++
++class dstat_plugin(dstat):
++    &quot;&quot;&quot;
++    Provide memory information related to the dstat process.
++
++    The various values provide information about the memory usage of the
++    dstat process. This plugin gives you the possibility to follow memory
++    usage changes of dstat over time.
++    &quot;&quot;&quot;
++    def __init__(self):
++        self.name = 'contxt sw'
++        self.vars = ('voluntary', 'involuntary', 'total')
++        self.type = 'd'
++        self.width = 3
++        self.scale = 100
++
++    def extract(self):
++        res = resource.getrusage(resource.RUSAGE_SELF)
++
++        self.set2['voluntary'] = float(res.ru_nvcsw)
++        self.set2['involuntary'] = float(res.ru_nivcsw)
++        self.set2['total'] = (float(res.ru_nvcsw) + float(res.ru_nivcsw))
++
++        for name in self.vars:
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
++
++        if step == op.delay:
++            self.set1.update(self.set2)
++
++# vim:ts=4:sw=4:et
+
+Modified: trunk/tools/dstat/plugins/dstat_dstat_mem.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat_mem.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_dstat_mem.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_dstat_mem.py (original)
++++ trunk/tools/dstat/plugins/dstat_dstat_mem.py Fri May 28 14:25:44 2010
+@@ -12,10 +12,10 @@
+         self.name = 'dstat memory usage'
+         self.vars = ('virtual', 'resident', 'shared', 'data')
+         self.type = 'd'
++        self.open('/proc/%s/statm' % ownpid)
+ 
+     def extract(self):
+-        ### Extract counters
+-        l = dopen('/proc/%s/statm' % ownpid).read().split()
++        l = self.splitline()
+ #        l = linecache.getline('/proc/%s/schedstat' % self.pid, 1).split()
+         self.val['virtual'] = long(l[0]) * pagesize / 1024
+         self.val['resident'] = long(l[1]) * pagesize / 1024
+
+Modified: trunk/tools/dstat/plugins/dstat_fan.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_fan.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_fan.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_fan.py (original)
++++ trunk/tools/dstat/plugins/dstat_fan.py Fri May 28 14:25:44 2010
+@@ -10,11 +10,11 @@
+         self.type = 'd'
+         self.width = 4
+         self.scale = 500
++        self.open('/proc/acpi/ibm/fan')
+ 
+     def vars(self):
+         ret = None
+-        for line in dopen('/proc/acpi/ibm/fan'):
+-            l = line.split()
++        for l in self.splitlines():
+             if l[0] == 'speed:':
+                 ret = ('speed',)
+         return ret
+@@ -25,8 +25,7 @@
+ 
+     def extract(self):
+         if os.path.exists('/proc/acpi/ibm/fan'):
+-            for line in dopen('/proc/acpi/ibm/fan'):
+-                l = line.split()
++            for l in self.splitlines():
+                 if l[0] == 'speed:':
+                     self.val['speed'] = int(l[1])
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_snooze.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_snooze.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_snooze.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_snooze.py (original)
++++ trunk/tools/dstat/plugins/dstat_snooze.py Fri May 28 14:25:44 2010
+@@ -24,6 +24,6 @@
+         if step != op.delay:
+             color = 'gray'
+ 
+-        snoze, c = fchg(self.val['snooze'], 7, 1000)
++        snoze, c = fchg(self.val['snooze'], 6, 1000)
+ 
+         return ansi[color] + snoze
+
+Modified: trunk/tools/dstat/plugins/dstat_top_bio_adv.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_top_bio_adv.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_top_bio_adv.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_top_bio_adv.py (original)
++++ trunk/tools/dstat/plugins/dstat_top_bio_adv.py Fri May 28 14:25:44 2010
+@@ -6,7 +6,7 @@
+ class dstat_plugin(dstat):
+     def __init__(self):
+         self.name = 'most expensive block i/o process'
+-        self.vars = ('process             pid   read:write:cpu',)
++        self.vars = ('process              pid  read write cpu',)
+         self.type = 's'
+         self.width = 40
+         self.scale = 0
+@@ -69,7 +69,7 @@
+             self.pidset1 = self.pidset2
+ 
+         if self.val['usage'] != 0.0:
+-            self.output = '%-*s%s%-5s%s:%s:%s' % (self.width-16-len(pid), self.val['name'][0:self.width-16-len(pid)], ansi['darkblue'], self.val['pid'], cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024), cprint(self.val['cpu_usage'], 'f', 3, 34))
++            self.output = '%-*s%s%-5s%s%s%s%s%%' % (self.width-14-len(pid), self.val['name'][0:self.width-14-len(pid)], ansi['darkblue'], self.val['pid'], cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024), cprint(self.val['cpu_usage'], 'f', 3, 34), ansi['darkgray'])
+ 
+     def showcsv(self):
+         return self.output + 'Top: %s\t%s\t%s\t%s' % (self.val['name'][0:self.width-20], self.val['read_usage'], self.val['write_usage'], self.val['cpu_usage'])
+
+Modified: trunk/tools/dstat/plugins/dstat_top_cpu_adv.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_top_cpu_adv.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_top_cpu_adv.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_top_cpu_adv.py (original)
++++ trunk/tools/dstat/plugins/dstat_top_cpu_adv.py Fri May 28 14:25:44 2010
+@@ -67,7 +67,8 @@
+             self.pidset1 = self.pidset2
+ 
+         if self.val['cpu_usage'] != 0.0:
+-            self.output = '%-*s%s%-5s%s%s%%%s%s' % (self.width-15-len(pid), self.val['name'][0:self.width-15-len(pid)], ansi['darkblue'], self.val['pid'], cprint(self.val['cpu_usage'], 'f', 3, 34), ansi['darkgray'],cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024))
++            self.output = '%-*s%s%-5s%s%s%%%s%s' % (self.width-14-len(pid), self.val['name'][0:self.width-14-len(pid)], ansi['darkblue'], self.val['pid'], cprint(self.val['cpu_usage'], 'f', 3, 34), ansi['darkgray'],cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024))
++
+ 
+     def showcsv(self):
+         return self.output + 'Top: %s\t%s\t%s\t%s' % (self.val['name'][0:self.width-20], self.val['cpu_usage'], self.val['read_usage'], self.val['write_usage'])
+
+Modified: trunk/tools/dstat/plugins/dstat_top_io_adv.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_top_io_adv.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_top_io_adv.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_top_io_adv.py (original)
++++ trunk/tools/dstat/plugins/dstat_top_io_adv.py Fri May 28 14:25:44 2010
+@@ -69,7 +69,7 @@
+             self.pidset1 = self.pidset2
+ 
+         if self.val['usage'] != 0.0:
+-            self.output = '%-*s%s%-5s%s%s%s%s%%' % (self.width-15-len(pid), self.val['name'][0:self.width-15-len(pid)], ansi['darkblue'], self.val['pid'], cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024), cprint(self.val['cpu_usage'], 'f', 3, 34), ansi['darkgray'])
++            self.output = '%-*s%s%-5s%s%s%s%s%%' % (self.width-14-len(pid), self.val['name'][0:self.width-14-len(pid)], ansi['darkblue'], self.val['pid'], cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024), cprint(self.val['cpu_usage'], 'f', 3, 34), ansi['darkgray'])
+ 
+     def showcsv(self):
+         return self.val['i/o process'] + 'Top: %s\t%s\t%s\t%s' % (self.val['name'][0:self.width-20], self.val['read_usage'], self.val['write_usage'], self.val['cpu_usage'])
+
+Modified: trunk/tools/dstat/plugins/dstat_vmk_hba.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_vmk_hba.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_vmk_hba.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_vmk_hba.py (original)
++++ trunk/tools/dstat/plugins/dstat_vmk_hba.py Fri May 28 14:25:44 2010
+@@ -71,10 +71,12 @@
+                 self.set2['total'] = ( self.set2['total'][0] + long(l[2]), self.set2['total'][1] + long(l[4]) )
+                 if name in self.vars and name != 'total':
+                     self.set2[name] = ( long(l[2]), long(l[4]) )
++
+             for name in self.set2.keys():
+                 self.val[name] = (
+                     (self.set2[name][0] - self.set1[name][0]) * 1024.0 / elapsed,
+                     (self.set2[name][1] - self.set1[name][1]) * 1024.0 / elapsed,
+                 )
++
+         if step == op.delay:
+             self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_vmk_int.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_vmk_int.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_vmk_int.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_vmk_int.py (original)
++++ trunk/tools/dstat/plugins/dstat_vmk_int.py Fri May 28 14:25:44 2010
+@@ -88,8 +88,10 @@
+                 self.set2[name] = 0
+                 for i in l[1:1+self.vmkcpunr()]:
+                     self.set2[name] = self.set2[name] + long(i)
++
+         for name in self.set2.keys():
+             self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
++
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_vz_io.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_vz_io.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_vz_io.py?rev=8830&amp;r1=8829&amp;r2=8830&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_vz_io.py (original)
++++ trunk/tools/dstat/plugins/dstat_vz_io.py Fri May 28 14:25:44 2010
+@@ -47,11 +47,9 @@
+         return ret
+ 
+     def extract(self):
+-        global update
+         for veid in self.vars:
+             self.set2['total'] = {}
+             for line in dopen('/proc/bc/%s/ioacct' % veid).readlines():
+-#            for line in dopen('ioacct.%d' % (update % 3)).readlines():
+                 l = line.split()
+                 if len(l) != 2: continue
+                 if l[0] not in self.nick: continue
+@@ -60,8 +58,10 @@
+                 self.set2['total'][index] = self.set2['total'][index] + long(l[1])
+ #            print veid, self.val[veid], self.set2[veid][0], self.set2[veid][1]
+ #            print veid, self.val[veid], self.set1[veid][0], self.set1[veid][1]
++
+             for i in range(len(self.nick)):
+                 self.val[veid][i] = (self.set2[veid][i] - self.set1[veid][i]) / elapsed
++
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007624.html">[svn] r8829 - /trunk/rpms/clamav/clamav.init
+</A></li>
+	<LI>Next message: <A HREF="007626.html">[svn] r8831 - in /trunk/rpms/newsbeuter: ./ newsbeuter.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7625">[ date ]</a>
+              <a href="thread.html#7625">[ thread ]</a>
+              <a href="subject.html#7625">[ subject ]</a>
+              <a href="author.html#7625">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

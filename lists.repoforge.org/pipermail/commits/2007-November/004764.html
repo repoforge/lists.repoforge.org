@@ -1,0 +1,506 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5965 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5965%20-%20trunk/tools/dar&In-Reply-To=%3C20071106192528.570A0944C16%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004763.html">
+   <LINK REL="Next"  HREF="004765.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5965 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5965%20-%20trunk/tools/dar&In-Reply-To=%3C20071106192528.570A0944C16%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5965 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Nov  6 20:25:28 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004763.html">[svn] r5964 - in trunk/rpms: . perl-AAC-Pvoice perl-AI-FANN	perl-AI-Fuzzy perl-AI-NeuralNet-BackProp perl-AOL-TOC	perl-Acme-6502 perl-Acme-ProgressBar perl-Algorithm-Cluster	perl-Algorithm-Dependency perl-Algorithm-MedianSelect-XS	perl-Algorithm-RabinKarp perl-Alien-wxWidgets perl-AnyEvent	perl-Apache-AuthCookie perl-Apache-DBI perl-Apache-Session	perl-Apache-SimpleTemplate perl-App-Info perl-Archive-Tar	perl-Archive-Tar-Wrapper perl-Astro-SpaceTrack	perl-Attribute-TieClasses perl-Audio-TagLib	perl-Authen-GoogleAccount perl-BerkeleyDB perl-Bio-Trace-ABIF	perl-Boost-Graph perl-Devel-Cover perl-Email-Send	perl-Email-Simple-Creator perl-IO-AIO perl-Maypole	perl-Task-Weaken perl-Test-Compile perl-Test-Spelling	perl-Test-SubCalls perl-Workflow perl-YAML
+</A></li>
+        <LI>Next message: <A HREF="004765.html">[svn] r5966 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4764">[ date ]</a>
+              <a href="thread.html#4764">[ thread ]</a>
+              <a href="subject.html#4764">[ subject ]</a>
+              <a href="author.html#4764">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-11-06 20:25:10 +0100 (Tue, 06 Nov 2007)
+New Revision: 5965
+
+Added:
+   trunk/tools/dar/dar-list-perl.py
+Removed:
+   trunk/tools/dar/dar-perl-list.py
+Modified:
+   trunk/tools/dar/dar-perl.py
+   trunk/tools/dar/dar-sync
+Log:
+Updates
+
+Copied: trunk/tools/dar/dar-list-perl.py (from rev 5905, trunk/tools/dar/dar-perl-list.py)
+===================================================================
+--- trunk/tools/dar/dar-list-perl.py	                        (rev 0)
++++ trunk/tools/dar/dar-list-perl.py	2007-11-06 19:25:10 UTC (rev 5965)
+@@ -0,0 +1,127 @@
++#!/usr/bin/python
++
++### This python scripts lists all the available
++### Perl modules based on CPAN information.
++
++import sys, os, time, getopt, urllib2, gzip, re, yaml, tarfile, rpm, types
++import cElementTree as ElementTree
++
++tmppath = &quot;/var/tmp&quot;
++
++### FIXME: Create own version comparison instead of using RPM's
++def vercmp(v1, v2):
++    return rpm.labelCompare((None, v1, None), (None, v2, None))
++
++def download(url):
++    filename = os.path.join(tmppath, os.path.basename(url))
++    try:
++        st = os.stat(filename)
++        if st and st.st_mtime + 1800 &gt; time.time():
++#            print &gt;&gt;sys.stderr, &quot;File %s is recent, skip download.&quot; % os.path.basename(url)
++            return True
++    except:
++        try:
++            req = urllib2.Request(url)
++            fdin = urllib2.urlopen(req)
++        except:
++#            print &gt;&gt;sys.stderr, &quot;Failed to download file from %s&quot; % url
++            return False
++        fdout = open(filename, 'w')
++        fdout.write(fdin.read())
++        fdin.close()
++        fdout.close()
++    return True
++
++def check_version(module, version):
++    specfile = os.path.join('perl-'+module, 'perl-'+module+'.spec')
++    if os.path.isfile(specfile):
++        specversion = None
++        for line in open(specfile):
++            if line.startswith('Version: '):
++                specversion = line.split('Version: ')[-1].strip()
++        if not specversion:
++            print &gt;&gt;sys.stderr, &quot;Error: file %s does not contain a version ??&quot; % specfile
++        if listnew and vercmp(version, specversion) &gt; 0:
++            print 'perl-'+module, specversion, version
++    else:
++#        print &gt;&gt;sys.stderr, &quot;Error: file %s not found.&quot; % specfile
++        pass
++
++listall = False
++listnew = False
++listmissing = False
++
++args = sys.argv[1:]
++try:
++    opts, args = getopt.getopt (args, 'ahmnv',
++        ['all', 'help', 'missing', 'new', 'version'])
++except getopt.error, exc:
++    print &gt;&gt;sys.stderr, 'dar-list-perl: %s, try dar-list-perl.py -h for a list of all the options' % str(exc)
++    sys.exit(1)
++
++for opt, arg in opts:
++    if opt in ['-h', '--help']:
++        pass
++    elif opt in ['-v', '--version']:
++        pass
++    elif opt in ['-a', '--all']:
++        listall = True
++    elif opt in ['-m', '--missing']:
++        listmissing = True
++    elif opt in ['-n', '--new']:
++        listnew = True
++
++if not listall and not listnew and not listmissing:
++    print &gt;&gt;sys.stderr, 'dar-list-perl: You have to at least add a flag.'
++    sys.exit(2)
++
++### Download latest package list from CPAN
++download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>')
++
++modules = {}
++
++fd = gzip.open('/var/tmp/02packages.details.txt.gz', 'r')
++for line in fd.readlines():
++    pinfo = line.split()
++    if len(pinfo) &lt; 3: continue
++    pkgversion = pinfo[1]
++    pkglocation = pinfo[2]
++
++    file = os.path.basename(pkglocation)
++    l = file.split('-')
++
++    module = '-'.join(l[0:-1])
++
++    version = l[-1]
++    if version.endswith('.tar.gz'):
++        version = version.split(&quot;.tar.gz&quot;)[0]
++    elif version.endswith('.tgz'):
++        version = version.split(&quot;.tgz&quot;)[0]
++    elif version.endswith('.zip'):
++        version = version.split(&quot;.zip&quot;)[0]
++    if version.startswith('v'):
++        version = version[1:]
++
++    if module not in modules.keys():
++        modules[module] = version
++        if listnew:
++            check_version(module, version)
++    elif version != modules[module]:
++#        print &quot;Package %s has 2 versions. (%s != %s)&quot; % (module, modules[module], version)
++        if version &gt; modules[module]:
++            modules[module] = version
++            if listnew:
++                check_version(module, version)
++
++if listall:
++#    modules.sort()
++    for module in modules:
++        print module, modules[module]
++
++if listmissing:
++#    modules.sort()
++    for module in modules:
++        if not os.path.isfile(os.path.join('perl-'+module, 'perl-'+module+'.spec')):
++            print module, modules[module]
++
++sys.exit(0)
+
+Deleted: trunk/tools/dar/dar-perl-list.py
+===================================================================
+--- trunk/tools/dar/dar-perl-list.py	2007-11-06 19:02:48 UTC (rev 5964)
++++ trunk/tools/dar/dar-perl-list.py	2007-11-06 19:25:10 UTC (rev 5965)
+@@ -1,49 +0,0 @@
+-#!/usr/bin/python
+-
+-### This python scripts lists all the available
+-### Perl modules based on CPAN information.
+-
+-import sys, os, time, getopt, urllib2, gzip, re, yaml, tarfile, rpm, types
+-import cElementTree as ElementTree
+-
+-file = &quot;/var/tmp/dar-perl-list-02packages.details.txt.gz&quot;
+-
+-def download(url):
+-    filename = &quot;/var/tmp/dar-perl-list-%s&quot; % os.path.basename(url)
+-    ### FIXME: Check if the files on disk are older than 1 day
+-#   if not os.path.exists(filename):
+-    if True:
+-        try:
+-            req = urllib2.Request(url)
+-            fdin = urllib2.urlopen(req)
+-        except:
+-            return
+-        fdout = open(filename, 'w')
+-        fdout.write(fdin.read())
+-        fdin.close()
+-        fdout.close()
+-
+-### Download latest package list from CPAN
+-download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>')
+-
+-modules = []
+-
+-fd = gzip.open('/var/tmp/dar-perl-list-02packages.details.txt.gz', 'r')
+-for line in fd.readlines():
+-    pinfo = line.split()
+-    if len(pinfo) &lt; 3: continue
+-    version = pinfo[1]
+-    location = pinfo[2]
+-
+-    file = os.path.basename(location)
+-    l = file.split('-')
+-    module = '-'.join(l[0:-1])
+-
+-    if module not in modules:
+-        modules.append(module)
+-        print module
+-
+-#modules.sort()
+-#for module in modules:
+-
+-sys.exit(0)
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-11-06 19:02:48 UTC (rev 5964)
++++ trunk/tools/dar/dar-perl.py	2007-11-06 19:25:10 UTC (rev 5965)
+@@ -9,7 +9,7 @@
+ ###     perl-Kwiki                  tests perl Buildrequires epoch
+ 
+ ### More documentation about:
+-###     META.yml    <A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>
++###     META.yml    <A HREF="http://module-build.sourceforge.net/META-spec-current.html">http://module-build.sourceforge.net/META-spec-current.html</A>
+ 
+ import sys, os, time, getopt, urllib2, gzip, re, yaml, tarfile, rpm, types
+ import cElementTree as ElementTree
+@@ -19,6 +19,18 @@
+     logname = os.getlogin()
+ except:
+     logname = 'dag'
++
++### Chown files if possible
++try:
++    os.umask(0022)
++    import pwd
++    pw = pwd.getpwnam(logname)
++    os.setuid(pw.pw_uid)
++    os.seteuid(pw.pw_uid)
++except:
++    pass
++
++create = False
+ debug = False
+ noarch = True
+ package_make = False
+@@ -69,17 +81,19 @@
+         st = os.stat(filename)
+         if st and st.st_mtime + 1800 &gt; time.time():
+ #            print &gt;&gt;sys.stderr, &quot;File %s is recent, skip download.&quot; % os.path.basename(url)
+-            return
++            return True
+     except:
+         try:
+             req = urllib2.Request(url)
+             fdin = urllib2.urlopen(req)
+         except:
+-            return
++#            print &gt;&gt;sys.stderr, &quot;Failed to download file from %s&quot; % url
++            return False
+         fdout = open(filename, 'w')
+         fdout.write(fdin.read())
+         fdin.close()
+         fdout.close()
++    return True
+ 
+ ### FIXME: Create own version comparison instead of using RPM's
+ def vercmp(v1, v2):
+@@ -92,9 +106,31 @@
+             epoch = e
+     return '%s:%s' % (epoch, version)
+ 
++### WriteMakefile
++###    NAME =&gt; &quot;cpan2rpm&quot;,
++###    VERSION_FROM =&gt; &quot;cpan2rpm&quot;,
++###    $] &lt; 5.005 ? () : (
++###        AUTHOR =&gt; 'Erick Calder &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">ecalder at cpan.org</A>&gt;',
++###        ABSTRACT_FROM =&gt; &quot;cpan2rpm&quot;,
++###        ),
++###    EXE_FILES =&gt; [ &quot;cpan2rpm&quot; ],
++###    PREREQ_PM =&gt; { # e.g., Module::Name =&gt; 1.1
++###        'ExtUtils::MakeMaker' =&gt; 5.4302,
++###        'LWP::UserAgent' =&gt; 0,
++###        'HTTP::Request' =&gt; 0,
++###        },
++###    dist =&gt; {
++###        COMPRESS =&gt; &quot;gzip -9 -vf&quot;,
++###        },
++###    ;
++def parse_makefile(data):
++    makefile = {}
++
++    return makefile
++
+ try:
+-    opts, args = getopt.getopt (args, 'adhno:v',
+-        ['debug', 'help', 'output=', 'version'])
++    opts, args = getopt.getopt (args, 'acdhno:v',
++        ['create', 'debug', 'help', 'output=', 'version'])
+ except getopt.error, exc:
+     print &gt;&gt;sys.stderr, 'dar-perl: %s, try dar-perl.py -h for a list of all the options' % str(exc)
+     sys.exit(1)
+@@ -110,6 +146,8 @@
+         noarch = False
+     elif opt in ['-o', '--output']:
+         output = arg
++    elif opt in ['-c', '--create']:
++        create = True
+ 
+ if len(args) &lt; 1:
+     print &gt;&gt;sys.stderr, 'Error: You have to provide a package name.'
+@@ -129,26 +167,25 @@
+ module = package.replace('-', '::')
+ 
+ ### Download latest package list from CPAN
+-download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>')
++if not download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>'):
++    print &gt;&gt;sys.stderr, &quot;Error: Failed to download 02packages.details.txt.gz&quot;
++    sys.exit(1)
+ 
+ ### Download latest authors list from CPAN
+-download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml</A>')
++if not download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml</A>'):
++    print &gt;&gt;sys.stderr, &quot;Error: Failed to download 00whois.xml&quot;
++    sys.exit(1)
+ 
+ ### Find specific package in CPAN package list
+ modules = []
+ found = False
+ fd = gzip.open(os.path.join(tmppath, '02packages.details.txt.gz'), 'r')
+ for line in fd.readlines():
+-    pkginfo = line.split()
+-
+-    ### Skip incorrect lines
+-    if len(pkginfo) &lt;= 2:
++    try:
++        (pkgmodule, pkgversion, pkgpath) = line.split()
++    except:
+         continue
+ 
+-    pkgmodule = pkginfo[0]
+-    pkgversion = pkginfo[1]
+-    pkgpath = pkginfo[2]
+-
+     temp = pkgpath.split('/')
+     temp = temp[-1].split('-')
+     pkgname = '-'.join(temp[0:-1])
+@@ -160,8 +197,10 @@
+         path = pkgpath
+         modules.append(pkgmodule)
+         found = True
++        break
+     elif module == pkgmodule:
+         print &gt;&gt;sys.stderr, 'Module', module, 'found in package', pkgname
++        version = None
+         package = pkgname
+         path = pkgpath
+         modules.append(module)
+@@ -199,7 +238,10 @@
+         break
+ 
+ ### Get the correct version from the source distribution
+-sdistname = &quot;%s-%s.tar.gz&quot; % (package, version)
++if version:
++    sdistname = &quot;%s-%s.tar.gz&quot; % (package, version)
++else:
++    sdistname = None
+ cdistname = os.path.basename(location)
+ if not package_version and sdistname != cdistname:
+     realversion = version
+@@ -224,10 +266,11 @@
+ if os.path.isfile(archive):
+     os.remove(archive)
+ source = &quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], cdistname)
+-download(source)
+-if not os.path.isfile(archive):
++#if not os.path.isfile(archive):
++if not download(source):
+     source = &quot;<A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
+-    download(source)
++    if not download(source):
++        print &gt;&gt;sys.stderr, &quot;Error: Failed to download %s&quot; % (source)
+ 
+ ### Add %{version} and %{real_version} to source
+ source = source.replace(version, '%{version}')
+@@ -274,7 +317,7 @@
+         docsdirs.append(shortfile)
+         continue
+ 
+-    ### Parse META.yml (<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>)
++    ### Parse META.yml (<A HREF="http://module-build.sourceforge.net/META-spec-current.html">http://module-build.sourceforge.net/META-spec-current.html</A>)
+     if shortfile == 'META.yml':
+         member = distfd.getmember(file)
+         try:
+@@ -290,6 +333,15 @@
+     ### Check whether we need to use perl(Module::Build)
+     elif shortfile == 'Makefile.PL':
+         package_make = True
++        member = distfd.getmember(file)
++        try:
++            makefile = parse_makefile_pl(distfd.extractfile(member).read())
++            if debug:
++                print &gt;&gt;sys.stderr, 'Debug: Makefile.PL contains the following info:'
++                for key in makefile.keys():
++                    print &gt;&gt;sys.stderr, '   %s: %s' % (key, makefile[key])
++        except:
++            pass
+ 
+     elif shortfile == 'Build.PL':
+         package_build = True
+@@ -356,12 +408,12 @@
+     description = &quot;perl-%s is a Perl module.\n&quot; % package
+     print &gt;&gt;sys.stderr, 'Warning: No abstract found.'
+ 
+-if len(modules) == 1:
+-    description = description + &quot;\nThis package contains the following Perl module:\n\n    &quot; + module + &quot;\n&quot;
+-else:
+-    description = description + &quot;\nThis package contains the following Perl modules:\n\n&quot;
+-    for module in modules:
+-        description = description + '    ' + module + &quot;\n&quot;
++#if len(modules) == 1:
++#    description = description + &quot;\nThis package contains the following Perl module:\n\n    &quot; + module + &quot;\n&quot;
++#else:
++#    description = description + &quot;\nThis package contains the following Perl modules:\n\n&quot;
++#    for module in modules:
++#        description = description + '    ' + module + &quot;\n&quot;
+ 
+ if meta.has_key('build_requires') and meta['build_requires'] and meta['build_requires'].has_key('perl-Inline'):
+     noarch = False
+@@ -381,6 +433,9 @@
+     for file in distfd.getnames():
+         print &gt;&gt;sys.stderr, '  ', file
+ 
++if create:
++    output = &quot;perl-%s/perl-%s.spec&quot; % (package, package)
++
+ ### See if we have to write a file or write to stdout
+ if output:
+     if os.path.exists(output):
+@@ -390,7 +445,6 @@
+     outputdir = os.path.dirname(output)
+     if outputdir and not os.path.exists(outputdir):
+         os.mkdir(outputdir)
+-
+     try:
+         out = open(output, 'w')
+     except:
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2007-11-06 19:02:48 UTC (rev 5964)
++++ trunk/tools/dar/dar-sync	2007-11-06 19:25:10 UTC (rev 5965)
+@@ -110,6 +110,8 @@
+ find $PACKAGEDIR/ -name &quot;*.rpm&quot; -printf &quot;%P\n&quot; | sort &gt; $STATEDIR/all-packages.list
+ echo -e &quot;\t($(wc -l $STATEDIR/all-packages.list))&quot;
+ 
++echo -n &quot;$(date)&quot; &gt;$FTPDIR/TIMESTAMP
++
+ echo -n &quot;Press enter to start remote synchronisation.&quot;
+ read
+ echo &quot;Starting remote synchronisation.&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004763.html">[svn] r5964 - in trunk/rpms: . perl-AAC-Pvoice perl-AI-FANN	perl-AI-Fuzzy perl-AI-NeuralNet-BackProp perl-AOL-TOC	perl-Acme-6502 perl-Acme-ProgressBar perl-Algorithm-Cluster	perl-Algorithm-Dependency perl-Algorithm-MedianSelect-XS	perl-Algorithm-RabinKarp perl-Alien-wxWidgets perl-AnyEvent	perl-Apache-AuthCookie perl-Apache-DBI perl-Apache-Session	perl-Apache-SimpleTemplate perl-App-Info perl-Archive-Tar	perl-Archive-Tar-Wrapper perl-Astro-SpaceTrack	perl-Attribute-TieClasses perl-Audio-TagLib	perl-Authen-GoogleAccount perl-BerkeleyDB perl-Bio-Trace-ABIF	perl-Boost-Graph perl-Devel-Cover perl-Email-Send	perl-Email-Simple-Creator perl-IO-AIO perl-Maypole	perl-Task-Weaken perl-Test-Compile perl-Test-Spelling	perl-Test-SubCalls perl-Workflow perl-YAML
+</A></li>
+	<LI>Next message: <A HREF="004765.html">[svn] r5966 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4764">[ date ]</a>
+              <a href="thread.html#4764">[ thread ]</a>
+              <a href="subject.html#4764">[ subject ]</a>
+              <a href="author.html#4764">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

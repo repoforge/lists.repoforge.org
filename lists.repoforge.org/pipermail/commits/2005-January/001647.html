@@ -1,0 +1,280 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2842 - in trunk/rpms: icewm liferea
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2842%20-%20in%20trunk/rpms%3A%20icewm%20liferea&In-Reply-To=%3C20050118233216.3567F17F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001646.html">
+   <LINK REL="Next"  HREF="001648.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2842 - in trunk/rpms: icewm liferea</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2842%20-%20in%20trunk/rpms%3A%20icewm%20liferea&In-Reply-To=%3C20050118233216.3567F17F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2842 - in trunk/rpms: icewm liferea">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Jan 19 00:32:16 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001646.html">[SVN] r2841 - trunk/rpms/perl-ExtUtils-AutoInstall
+</A></li>
+        <LI>Next message: <A HREF="001648.html">[SVN] r2843 - in trunk/rpms: perl-Chart-Strip	perl-ExtUtils-CBuilder perl-GD perl-GD-Graph3d
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1647">[ date ]</a>
+              <a href="thread.html#1647">[ thread ]</a>
+              <a href="subject.html#1647">[ subject ]</a>
+              <a href="author.html#1647">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-01-19 00:32:14 +0100 (Wed, 19 Jan 2005)
+New Revision: 2842
+
+Removed:
+   trunk/rpms/liferea/liferea-0.4.8-gconf.patch
+Modified:
+   trunk/rpms/icewm/icewm.spec
+   trunk/rpms/liferea/liferea.spec
+Log:
+Updates
+
+Modified: trunk/rpms/icewm/icewm.spec
+===================================================================
+--- trunk/rpms/icewm/icewm.spec	2005-01-18 07:52:00 UTC (rev 2841)
++++ trunk/rpms/icewm/icewm.spec	2005-01-18 23:32:14 UTC (rev 2842)
+@@ -1,6 +1,9 @@
+ # $Id$
+ # Authority: dag
++# Upstream: &lt;icewm-devel$lists,sourceforge,net&gt;
+ 
++### FIXME: Building icewm adds build env. stuff inside /usr/share/icewm/menu (Jonathan Underwood)
++
+ %{?dist: %{expand: %%define %dist 1}}
+ 
+ %{?rh7:%define _without_gnome2 1}
+
+Deleted: trunk/rpms/liferea/liferea-0.4.8-gconf.patch
+===================================================================
+--- trunk/rpms/liferea/liferea-0.4.8-gconf.patch	2005-01-18 07:52:00 UTC (rev 2841)
++++ trunk/rpms/liferea/liferea-0.4.8-gconf.patch	2005-01-18 23:32:14 UTC (rev 2842)
+@@ -1,78 +0,0 @@
+---- src/conf.c.orig	2004-05-11 05:23:02.000000000 +0200
+-+++ src/conf.c	2004-05-11 05:22:40.000000000 +0200
+-@@ -106,7 +106,6 @@
+- 		ualength = strlen(&quot;Liferea/&quot;) + strlen(VERSION) + 2 + strlen(OSNAME) + 2 + strlen(&quot;<A HREF="http://liferea.sf.net/">http://liferea.sf.net/</A>&quot;) + 2;
+- 		useragent = g_malloc(ualength);
+- 		snprintf (useragent, ualength, &quot;Liferea/%s (%s; %s)&quot;, VERSION, OSNAME, HOMEPAGE);
+--		printf (&quot;%s\n&quot;, useragent);
+- 	}
+- 	
+- 	/* initialize GConf client */
+-@@ -374,18 +373,54 @@
+- 	return TRUE;
+- }
+- 
+--static void conf_feedlist_erase_gconf() {
+-+/* Older versions of GConf do not provide this function, thus we must
+-+   emulate it */
+-+
+-+static void conf_recursive_unset(gchar *path) {
+- 	GSList *list, *iter;
+- 	GError		*err = NULL;
+-+	
+-+	iter = list = gconf_client_all_dirs(client, path, &amp;err);
+- 
+--	iter = list = gconf_client_all_dirs(client, PATH, &amp;err);
+--	err=NULL;
+-+	if(is_gconf_error(&amp;err))
+-+		return;
+- 
+-+	while(!is_gconf_error(&amp;err) &amp;&amp; iter != NULL) {
+-+		conf_recursive_unset(iter-&gt;data);
+-+		is_gconf_error(&amp;err);
+-+		g_free(iter-&gt;data);
+-+		iter = iter-&gt;next;
+-+	}
+-+	g_slist_free(list);
+-+
+-+
+-+	iter = list = gconf_client_all_entries(client, path, &amp;err);
+-+
+-+	if(is_gconf_error(&amp;err))
+-+		return;
+-+	
+-+	while(!is_gconf_error(&amp;err) &amp;&amp; iter != NULL) {
+-+		gconf_client_unset(client, ((GConfEntry*)iter-&gt;data)-&gt;key, &amp;err);
+-+		is_gconf_error(&amp;err);
+-+		gconf_entry_free(iter-&gt;data);
+-+		iter = iter-&gt;next;
+-+	}
+-+	g_slist_free(list);
+-+
+-+	gconf_client_unset(client, path, &amp;err);
+-+	is_gconf_error(&amp;err);
+-+}
+-+
+-+static void conf_feedlist_erase_gconf() {
+-+	GSList *list, *iter;
+-+	GError		*err = NULL;
+-+	
+-+	iter = list = gconf_client_all_dirs(client, PATH, &amp;err);
+-+	
+- 	/* Remove all directories */
+- 	while(!is_gconf_error(&amp;err) &amp;&amp; iter != NULL) {
+- 		if (strstr(iter-&gt;data,&quot;dir&quot;) != NULL || is_number(iter-&gt;data)) {
+--			debug1(DEBUG_CONF, &quot;Deleting %s&quot;, (gchar*)iter-&gt;data);
+--			gconf_client_recursive_unset(client, (gchar*)iter-&gt;data, GCONF_UNSET_INCLUDING_SCHEMA_NAMES, &amp;err);
+-+			conf_recursive_unset(iter-&gt;data);
+- 		}
+- 		g_free(iter-&gt;data);
+- 		iter = iter-&gt;next;
+-@@ -397,6 +432,7 @@
+- 
+- 	gconf_client_unset(client, PATH &quot;/feedlist&quot;, &amp;err);
+- 	is_gconf_error(&amp;err);
+-+	gconf_client_suggest_sync(client, NULL);
+- }
+- 
+- void loadSubscriptions(void) {
+
+Modified: trunk/rpms/liferea/liferea.spec
+===================================================================
+--- trunk/rpms/liferea/liferea.spec	2005-01-18 07:52:00 UTC (rev 2841)
++++ trunk/rpms/liferea/liferea.spec	2005-01-18 23:32:14 UTC (rev 2842)
+@@ -3,10 +3,12 @@
+ # Upstream: Lars Lindner &lt;llando$gmx,de&gt;
+ # Upstream: Nathan J. Conrad &lt;t98502$users,sourceforge,net&gt;
+ 
++%define desktop_vendor rpmforge
++
+ Summary: RSS/RDF feed reader
+ Name: liferea
+ Version: 0.9.0
+-Release: 1
++Release: 2.b
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://liferea.sourceforge.net/">http://liferea.sourceforge.net/</A>
+@@ -14,11 +16,12 @@
+ Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+ 
+-Source: <A HREF="http://dl.sf.net/liferea/liferea-%{version">http://dl.sf.net/liferea/liferea-%{version</A>}.tar.gz
++Source: <A HREF="http://dl.sf.net/liferea/liferea-%{version">http://dl.sf.net/liferea/liferea-%{version</A>}b.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: GConf2-devel &gt;= 2.2, gtkhtml2-devel, libxml2-devel &gt;= 2.5.10
+ BuildRequires: gettext, gcc-c++, desktop-file-utils, gtk2 &gt;= 2.4
++Requires: GConf2
+ 
+ %description
+ Liferea (Linux Feed Reader) is an RSS/RDF feed reader. 
+@@ -28,30 +31,10 @@
+ using GtkHTML.
+ 
+ %prep
+-%setup -n liferea-%{version}
++%setup -n liferea-%{version}b
+ 
+-%{__cat} &lt;&lt;'EOF' &gt;liferea.sh
+-#!/bin/bash
+-
+-### Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-### Please send suggestions and fixes to me.
+-
+-[ -f &quot;$MOZILLA_FIVE_HOME/chrome/comm.jar&quot; ] || export MOZILLA_FIVE_HOME=&quot;%{_libdir}/mozilla-1.6&quot;
+-[ -f &quot;$MOZILLA_FIVE_HOME/chrome/comm.jar&quot; ] || export MOZILLA_FIVE_HOME=&quot;%{_libdir}/mozilla-1.7&quot;
+-[ -f &quot;$MOZILLA_FIVE_HOME/chrome/comm.jar&quot; ] || export MOZILLA_FIVE_HOME=&quot;%{_libdir}/mozilla-1.7.2&quot;
+-[ -f &quot;$MOZILLA_FIVE_HOME/chrome/comm.jar&quot; ] || export MOZILLA_FIVE_HOME=&quot;%{_libdir}/mozilla-1.7.3&quot;
+-[ -f &quot;$MOZILLA_FIVE_HOME/chrome/comm.jar&quot; ] || export MOZILLA_FIVE_HOME=&quot;%{_libdir}/mozilla-1.8&quot;
+-[ -f &quot;$MOZILLA_FIVE_HOME/chrome/comm.jar&quot; ] || export MOZILLA_FIVE_HOME=&quot;%{_libdir}/mozilla&quot;
+-
+-export LD_LIBRARY_PATH=&quot;$MOZILLA_FIVE_HOME:$LD_LIBRARY_PATH&quot;
+-export MOZ_PLUGIN_PATH=&quot;$MOZ_PLUGIN_PATH:%{_libdir}/mozilla/plugins:$MOZILLA_FIVE_HOME/plugins&quot;
+-
+-exec %{_bindir}/liferea-bin $@
+-EOF
+-
+ %build
+ %configure \
+-	--x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot; \
+ 	--disable-schemas-install
+ %{__make} %{?_smp_mflags}
+ 
+@@ -60,18 +43,21 @@
+ %makeinstall
+ %find_lang %{name}
+ 
+-%{__install} -D -m0755 liferea.sh %{buildroot}%{_bindir}/liferea
+-
+-desktop-file-install --vendor gnome --delete-original \
+-	--add-category X-Red-Hat-Base                 \
+-	--dir %{buildroot}%{_datadir}/applications    \
++desktop-file-install \
++	--vendor %{desktop_vendor}                 \
++	--delete-original                          \
++	--add-category X-Red-Hat-Base              \
++	--dir %{buildroot}%{_datadir}/applications \
+ 	%{buildroot}%{_datadir}/applications/liferea.desktop
+ 
+ %post
+-/sbin/ldconfig 2&gt;/dev/null
+ export GCONF_CONFIG_SOURCE=&quot;$(gconftool-2 --get-default-source)&quot;
+-gconftool-2 --makefile-install-rule %{_sysconfdir}/gconf/schemas/%{name}.schemas &amp;&gt;/dev/null
++gconftool-2 --makefile-install-rule %{_sysconfdir}/gconf/schemas/%{name}.schemas &amp;&gt;/dev/null || :
+ 
++%postun
++export GCONF_CONFIG_SOURCE=&quot;$(gconftool-2 --get-default-source)&quot;
++gconftool-2 --makefile-uninstall-rule %{_sysconfdir}/gconf/schemas/%{name}.schemas &amp;&gt;/dev/null || :
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+@@ -81,7 +67,7 @@
+ %doc %{_mandir}/man1/liferea.1*
+ %config %{_sysconfdir}/gconf/schemas/liferea.schemas
+ %{_bindir}/liferea*
+-%{_datadir}/applications/gnome-liferea.desktop
++%{_datadir}/applications/%{desktop_vendor}-liferea.desktop
+ %{_datadir}/liferea/
+ %{_datadir}/pixmaps/liferea.png
+ %dir %{_libdir}/liferea/
+@@ -89,6 +75,9 @@
+ %{_libdir}/liferea/*.so*
+ 
+ %changelog
++* Wed Jan 19 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.9.0-2.b
++- Updated to release 0.9.0b.
++
+ * Sat Jan 15 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.9.0-1
+ - Updated to release 0.9.0.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001646.html">[SVN] r2841 - trunk/rpms/perl-ExtUtils-AutoInstall
+</A></li>
+	<LI>Next message: <A HREF="001648.html">[SVN] r2843 - in trunk/rpms: perl-Chart-Strip	perl-ExtUtils-CBuilder perl-GD perl-GD-Graph3d
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1647">[ date ]</a>
+              <a href="thread.html#1647">[ thread ]</a>
+              <a href="subject.html#1647">[ subject ]</a>
+              <a href="author.html#1647">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

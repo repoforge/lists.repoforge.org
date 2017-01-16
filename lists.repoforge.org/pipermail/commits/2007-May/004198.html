@@ -1,0 +1,338 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5399 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5399%20-%20trunk/tools/dar&In-Reply-To=%3C20070513093613.24C38318108%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004197.html">
+   <LINK REL="Next"  HREF="004199.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5399 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5399%20-%20trunk/tools/dar&In-Reply-To=%3C20070513093613.24C38318108%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5399 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May 13 11:36:13 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004197.html">[svn] r5398 - in trunk/rpms: . cinelerra commoncpp2 fuse-clamfs	fuse-cryptofs fuse-svnfs openexr pcopy pinentry poco
+</A></li>
+        <LI>Next message: <A HREF="004199.html">[svn] r5400 - in trunk/rpms: . ffe
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4198">[ date ]</a>
+              <a href="thread.html#4198">[ thread ]</a>
+              <a href="subject.html#4198">[ subject ]</a>
+              <a href="author.html#4198">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-13 11:36:11 +0200 (Sun, 13 May 2007)
+New Revision: 5399
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Many improvements that I forgot to commit.
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-05-12 19:48:19 UTC (rev 5398)
++++ trunk/tools/dar/dar-perl.py	2007-05-13 09:36:11 UTC (rev 5399)
+@@ -1,43 +1,60 @@
+ #!/usr/bin/python
+ 
+-### This python scripts automatically generates an RPMforge SPEC files
+-### for Perl modules.
++### This python scripts automatically generates an RPMforge SPEC file
++### for Perl modules based on CPAN information.
+ 
+ ### Example modules:
+ ###	perl-Tree-Simple		tests META.yml
+ ###	perl-Tree-Simple-Visitor	tests sub-modules
++###	perl-Kwiki			tests perl Buildrequires epoch
+ 
+-### TODO:
+-###	- Improve docfiles handling (case-insensitive matching, deflates list)
++### More documentation about:
++###	META.yml			<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>
+ 
+-import sys, os, time, getopt, urllib2, gzip, re, syck
++import sys, os, time, getopt, urllib2, gzip, re, yaml, tarfile, rpm, types
+ import cElementTree as ElementTree
+-import tarfile
+ 
+ args = sys.argv[1:]
+ try:
+ 	logname = os.getlogin()
+ except:
+-	logname = 'unknown'
++	logname = 'dag'
+ debug = False
+ noarch = True
+ realversion = None
+-author = ''
++authors = []
+ email = ''
+ tmppath = '/var/tmp'
++license = ''
+ 
+-docfiles = ('Announce', 'ANNOUNCE', 'Artistic', 'ARTISTIC', 'Artistic.txt', 'AUTHORS', 'Bugs', 'BUGS', 'Changelog', 'ChangeLog', 'CHANGELOG', 'Changes', 'CHANGES', 'Changes.pod', 'CHANGES.TXT', 'Copying', 'COPYING', 'COPYRIGHT', 'Credits', 'CREDITS', 'CREDITS.txt', 'FAQ', 'GNU_GPL.txt', 'GNU_LGPL.txt', 'GNU_LICENSE', 'HACKING', 'HISTORY', 'INFO', 'INSTALL', 'INSTALLING', 'INSTALL.txt', 'LICENCE', 'LICENSE', 'MANIFEST', 'META.yml', 'NEWS', 'NOTES', 'NOTICE', 'PORTING', 'readme', 'README', 'readme.txt', 'README.txt', 'README.TXT', 'RELEASE_NOTES', 'SIGNATURE', 'THANKS', 'TODO', 'UPGRADE', 'VERSION', '.txt')
++### Files considered a document:
++### Announce ANNOUNCE Artistic ARTISTIC Artistic.txt AUTHORS Bugs BUGS
++### Changelog ChangeLog CHANGELOG Changes CHANGES Changes.pod CHANGES.TXT
++### Copying COPYING COPYRIGHT Credits CREDITS CREDITS.txt FAQ GNU_GPL.txt
++### GNU_LGPL.txt GNU_LICENSE HACKING HISTORY INFO INSTALL INSTALLING
++### INSTALL.txt LICENCE LICENSE MANIFEST META.yml NEWS NOTES NOTICE
++### PORTING readme README readme.txt README.txt README.TXT RELEASE_NOTES
++### SIGNATURE THANKS TODO UPGRADE VERSION *.txt  
+ 
++docfiles = ('^ANNOUNCE', '^Artistic', '^AUTHORS', '^BUGS', '^ChangeLog',
++	 '^Changes', '^Changes.pod', '^COPYING', '^COPYRIGHT', '^CREDITS',
++	'^FAQ', '^GNU_LICENSE', '^HACKING', '^HISTORY', '^INFO', '^INSTALL',
++	'^INSTALLING', '^LICENCE', '^LICENSE', '^MANIFEST', '^META.yml',
++	'^NEWS', '^NOTES', '^NOTICE', '^PORTING', '^README', '^RELEASE_NOTES',
++	'^SIGNATURE', '^THANKS', '^TODO', '^UPGRADE', '^VERSION', '^[^/]+.txt$')
++
+ authorities = {
+ 	'dag': 'Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;',
+ 	'dries': 'Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;',
+-	'unknown': 'Name Unknown &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">name at unknown.foo</A>&gt;',
+ }
+ 
+ licenses = {
+-	'perl': 'GPL or Artistic',
++	'perl': 'Artistic/GPL',
+ }
+ 
++### FIXME: Add proper epochs to perl-dependencies
++epochs = ( '5.0.0', '5.6.1', '5.8.0', '5.8.5', '5.8.8' )
++
+ def download(url):
+ 	filename = os.path.join(tmppath, os.path.basename(url))
+ 	if not os.path.exists(filename):
+@@ -51,11 +68,22 @@
+ 		fdin.close()
+ 		fdout.close()
+ 
++### FIXME: Create own version comparison instead of using RPM's
++def vercmp(v1, v2):
++        return rpm.labelCompare((None, v1, None), (None, v2, None))
++
++def epochify(version):
++	epoch = 0
++	for e, v in enumerate(epochs):
++		if vercmp(str(version), v) &gt;= 0:
++			epoch = e
++	return '%s:%s' % (epoch, version)
++
+ try:
+ 	opts, args = getopt.getopt (args, 'dhnv',
+ 		['debug', 'help', 'version'])
+ except getopt.error, exc:
+-	print 'dar-perl: %s, try dar-perl.py -h for a list of all the options' % str(exc)
++	print &gt;&gt;sys.stderr, 'dar-perl: %s, try dar-perl.py -h for a list of all the options' % str(exc)
+ 	sys.exit(1)
+ 
+ for opt, arg in opts:
+@@ -108,19 +136,14 @@
+ for elem in root.getiterator('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}cpanid'):
+ 	if mnemo == elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}id').text:
+ 		authorel = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}fullname')
++		emailel = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}email')
+ 		try:
+-			author = authorel.text
++			author = &quot;%s &lt;%s&gt;&quot; % (authorel.text, emailel.text.replace('@','$').replace('.',','))
+ 		except:
+-			author = ''
++			break
+ 
+-		emailel = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}email')
+-		try:
+-			email = emailel.text.replace('@','$').replace('.',',')
+-		except:
+-			email = ''
++		authors.append(author.encode('utf8', 'replace'))
+ 		break
+-if email:
+-	author = &quot;%s &lt;%s&gt;&quot; % (author, email)
+ 
+ ### Get the correct version from the source distribution
+ sdistname = &quot;%s-%s.tar.gz&quot; % (module, version)
+@@ -155,6 +178,10 @@
+ 	basedir = basedir.replace(realversion, '%{real_version}')
+ basedir = basedir.replace(module, '%{real_name}')
+ 
++if realversion == 'undef':
++	print &gt;&gt;sys.stderr, 'Version is undefined. Distribution %s is not a module.' % module
++	sys.exit(1)
++
+ ### Inspect distribution and extract information (%doc, META.yml, arch/noarch)
+ distfd = tarfile.open(archive, 'r:gz')
+ ### Remove .tar.gz from base (Name-Version)
+@@ -173,14 +200,14 @@
+ 		noarch = False
+ 
+ 	### Create %docs list
+-	for docfile in docfiles:
+-		if shortfile == docfile:
++	for docre in docfiles:
++		if re.search(docre, shortfile, re.I):
+ 			docs.append(shortfile)
+ 
+-	### Parse META.yml (<A HREF="http://module-build.sourceforge.net/META-spec-v1.2.html">http://module-build.sourceforge.net/META-spec-v1.2.html</A>)
++	### Parse META.yml (<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>)
+ 	if shortfile == 'META.yml':
+ 		member = distfd.getmember(file)
+-		meta = syck.load(distfd.extractfile(member).read())
++		meta = yaml.load(distfd.extractfile(member).read())
+ 		if debug:
+ 			print &gt;&gt;sys.stderr, 'META.yml contains the following info:'
+ 			for key in meta.keys():
+@@ -191,30 +218,51 @@
+ if os.path.isfile(archive):
+ 	os.remove(archive)
+ 
++### Compare deducted information with META.yml
+ if meta.has_key('name') and meta['name'] != module:
+ 	print &gt;&gt;sys.stderr, 'Module %s is part of distribution %s. Please us that instead.' % (module, meta['name'])
+ 	sys.exit(1)
+ 
+ if meta.has_key('version') and str(meta['version']) != version:
+ 	print &gt;&gt;sys.stderr, 'Module %s has version mismatch between archive (%s) and META.yml (%s).' % (module, version, meta['version'])
+-	print repr(version), repr(meta['version'])
+ 
+-if meta.has_key('author') and not email or not author:
+-	author = meta['author']
++if meta.has_key('type') and meta['type'] != 'module':
++	print &gt;&gt;sys.stderr, 'Distribution %s is not a module.' % module
++	sys.exit(1)
+ 
++if meta.has_key('author'):
++	authors = []
++        if isinstance(meta['author'], types.StringType):
++		author = meta['author'].replace('@','$').replace('.',',')
++		authors.append(meta['author'].encode('utf8', 'replace'))
++	elif isinstance(meta['author'], types.ListType):
++		for author in meta['author']:
++			author = author.replace('@','$').replace('.',',')
++			authors.append(author.encode('utf8', 'replace'))
++
+ if meta.has_key('license') and meta['license'] in licenses.keys():
+ 	license = licenses[meta['license']]
+ else:
+-	gpl = 'LICENSE' in docs
+-	artistic = 'Artistic' in docs
+-	if gpl and artistic:
+-		license = 'GPL or Artistic'
+-	elif gpl:
+-		license = 'GPL'
+-	elif artistic:
++	artistic = False
++	gpl = False
++	lgpl = False
++	for doc in docs:
++		if doc in ('Artistic', 'ARTISTIC', 'Artistic.txt'):
++			artistic = True
++		if doc in ('Copying', 'COPYING', 'GNU_GPL.txt', 'GNU_LICENSE'):
++			gpl = True
++		if doc in ('GNU_LGPL.txt'):
++			lgpl = True
++	if artistic:
+ 		license = 'Artistic'
+-	else:
+-		license = 'Artistic'
++	if gpl:
++		if license: license = license + '/'
++		license = license + 'GPL'
++	if lgpl:
++		if license: license = license + '/'
++		license = license + 'LGPL'
++	if not license:
++		license = 'Artistic/GPL'
+ 		print &gt;&gt;sys.stderr, 'License could not be determined.'
+ 
+ if meta.has_key('abstract'):
+@@ -224,13 +272,18 @@
+ 	summary = &quot;Perl module named %s&quot; % module
+ 	description = &quot;perl-%s is a Perl module.&quot; % module
+ 	print &gt;&gt;sys.stderr, 'No abstract found.'
+-	
++
++if meta.has_key('build_requires') and meta['build_requires'] and meta['build_requires'].has_key('perl-Inline'):
++	noarch = False
++if meta.has_key('requires') and meta['requires'] and meta['requires'].has_key('perl-Inline'):
++	noarch = False
++
+ if debug:
+ 	print &gt;&gt;sys.stderr, module, version, &quot;perl-%s/perl-%s.spec&quot; % (module, module)
+ 	if noarch:
+-		print &gt;&gt;sys.stderr, 'noarch package by %s &lt;%s&gt;' % (author, email)
++		print &gt;&gt;sys.stderr, 'noarch package'
+ 	else:
+-		print &gt;&gt;sys.stderr, 'arch package by %s &lt;%s&gt;' % (author, email)
++		print &gt;&gt;sys.stderr, 'arch package'
+ 	if realversion:
+ 		print &gt;&gt;sys.stderr, 'source has different version format than CPAN (%s vs %s)' % (version, realversion)
+ 	print &gt;&gt;sys.stderr, 'Found following docs:', ' '.join(docs)
+@@ -241,8 +294,8 @@
+ print '# $Id$'
+ print '# Authority:', logname
+ 
+-author = author.encode('utf8', 'replace') 
+-print &quot;# Upstream: %s&quot; % author
++for author in authors:
++	print &quot;# Upstream: %s&quot; % author
+ print
+ print '%define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)'
+ print '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'
+@@ -271,8 +324,8 @@
+ 	print &quot;BuildArch: noarch&quot;
+ 
+ ### FIXME: Add BuildRequires from Makefile.PL
+-if meta.has_key('requires') and meta['requires'].has_key('perl'):
+-	print &quot;BuildRequires: perl &gt;= %s &quot; % meta['requires']['perl']
++if meta.has_key('requires') and meta['requires'] and meta['requires'].has_key('perl'):
++	print &quot;BuildRequires: perl &gt;= %s &quot; % epochify(meta['requires']['perl'])
+ else:
+ 	print &quot;BuildRequires: perl&quot;
+ 
+@@ -291,6 +344,9 @@
+ 			print &quot;BuildRequires: perl(%s) &gt;= %s&quot; % (key, meta['build_requires'][key])
+ 		else:
+ 			print &quot;BuildRequires: perl(%s)&quot; % key
++if meta.has_key('conflicts'):
++	for key in meta['conflicts']:
++		print &quot;Conflict: perl(%s)&quot; % key
+ print
+ 
+ print &quot;%description&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004197.html">[svn] r5398 - in trunk/rpms: . cinelerra commoncpp2 fuse-clamfs	fuse-cryptofs fuse-svnfs openexr pcopy pinentry poco
+</A></li>
+	<LI>Next message: <A HREF="004199.html">[svn] r5400 - in trunk/rpms: . ffe
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4198">[ date ]</a>
+              <a href="thread.html#4198">[ thread ]</a>
+              <a href="subject.html#4198">[ subject ]</a>
+              <a href="author.html#4198">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

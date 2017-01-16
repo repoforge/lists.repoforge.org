@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4019 - trunk/rpms/proftpd
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4019%20-%20trunk/rpms/proftpd&In-Reply-To=%3C20060130110039.8550D31811A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002818.html">
+   <LINK REL="Next"  HREF="002820.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4019 - trunk/rpms/proftpd</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4019%20-%20trunk/rpms/proftpd&In-Reply-To=%3C20060130110039.8550D31811A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4019 - trunk/rpms/proftpd">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jan 30 12:00:39 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002818.html">[svn] r4018 - trunk/rpms/libquicktime
+</A></li>
+        <LI>Next message: <A HREF="002820.html">[svn] r4020 - trunk/rpms/xine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2819">[ date ]</a>
+              <a href="thread.html#2819">[ thread ]</a>
+              <a href="subject.html#2819">[ subject ]</a>
+              <a href="author.html#2819">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-01-30 12:00:38 +0100 (Mon, 30 Jan 2006)
+New Revision: 4019
+
+Added:
+   trunk/rpms/proftpd/proftpd-1.2.10-backport-CAN-2005-2390.patch
+   trunk/rpms/proftpd/proftpd.pam
+Modified:
+   trunk/rpms/proftpd/proftpd.spec
+Log:
+Fix proftpd with changes from Peter Bieringer.
+
+
+Added: trunk/rpms/proftpd/proftpd-1.2.10-backport-CAN-2005-2390.patch
+===================================================================
+--- trunk/rpms/proftpd/proftpd-1.2.10-backport-CAN-2005-2390.patch	2006-01-30 10:33:31 UTC (rev 4018)
++++ trunk/rpms/proftpd/proftpd-1.2.10-backport-CAN-2005-2390.patch	2006-01-30 11:00:38 UTC (rev 4019)
+@@ -0,0 +1,91 @@
++Index: mod_sql.c
++===================================================================
++RCS file: /cvsroot/proftp/proftpd/contrib/mod_sql.c,v
++retrieving revision 1.94
++retrieving revision 1.96
++diff -u -r1.94 -r1.96
++--- contrib/mod_sql.c	3 Jul 2005 18:52:01 -0000	1.94
+++++ contrib/mod_sql.c	4 Aug 2005 21:06:21 -0000	1.96
++@@ -1413,7 +1413,7 @@
++   sql_data_t *sd = NULL;
++   modret_t *mr = NULL;
++   array_header *gids = NULL, *groups = NULL;
++-  char *name = cmd-&gt;argv[0];
+++  char *name = cmd-&gt;argv[0], *username = NULL;
++   int numrows = 0;
++   register unsigned int i = 0;
++ 
++@@ -1447,11 +1447,17 @@
++    *    WHERE members LIKE '%,&lt;user&gt;,%' OR LIKE '&lt;user&gt;,%' OR LIKE '%,&lt;user&gt;';
++    */
++ 
+++  mr = _sql_dispatch(_sql_make_cmd(cmd-&gt;tmp_pool, 2, &quot;default&quot;,
+++    pr_str_strip(cmd-&gt;tmp_pool, name)), &quot;sql_escapestring&quot;);
+++  _sql_check_response(mr);
+++
+++  username = (char *) mr-&gt;data;
+++
++   grpwhere = pstrcat(cmd-&gt;tmp_pool,
++-    cmap.grpmembersfield, &quot; = '&quot;, name, &quot;' OR &quot;,
++-    cmap.grpmembersfield, &quot; LIKE '&quot;, name, &quot;,%' OR &quot;,
++-    cmap.grpmembersfield, &quot; LIKE '%,&quot;, name, &quot;' OR &quot;,
++-    cmap.grpmembersfield, &quot; LIKE '%,&quot;, name, &quot;,%'&quot;, NULL);
+++    cmap.grpmembersfield, &quot; = '&quot;, username, &quot;' OR &quot;,
+++    cmap.grpmembersfield, &quot; LIKE '&quot;, username, &quot;,%' OR &quot;,
+++    cmap.grpmembersfield, &quot; LIKE '%,&quot;, username, &quot;' OR &quot;,
+++    cmap.grpmembersfield, &quot; LIKE '%,&quot;, username, &quot;,%'&quot;, NULL);
++ 
++   where = _sql_where(cmd-&gt;tmp_pool, 2, grpwhere, cmap.groupwhere);
++   
++@@ -2179,7 +2185,7 @@
++       *outsp++ = 0;
++ 
++       /* add the response */
++-      pr_response_add( c-&gt;argv[0], outs);
+++      pr_response_add(c-&gt;argv[0], &quot;%s&quot;, outs);
++ 
++     } while((c = find_config_next(c, c-&gt;next, CONF_PARAM, name, FALSE)) != NULL);
++ 
++@@ -2253,7 +2259,7 @@
++       *outsp++ = 0;
++ 
++       /* add the response */
++-      pr_response_add( c-&gt;argv[0], outs);
+++      pr_response_add(c-&gt;argv[0], &quot;%s&quot;, outs);
++ 
++     } while((c = find_config_next(c, c-&gt;next, CONF_PARAM, name, FALSE)) != NULL);
++ 
++Index: response.c
++===================================================================
++RCS file: /cvsroot/proftp/proftpd/src/response.c,v
++retrieving revision 1.4
++retrieving revision 1.5
++diff -u -r1.4 -r1.5
++--- src/response.c	3 Jun 2003 16:25:23 -0000	1.4
+++++ src/response.c	5 Jul 2005 15:42:01 -0000	1.5
++@@ -1,6 +1,6 @@
++ /*
++  * ProFTPD - FTP server daemon
++- * Copyright (c) 2001, 2002, 2003 The ProFTPD Project team
+++ * Copyright (c) 2001-2005 The ProFTPD Project team
++  *  
++  * This program is free software; you can redistribute it and/or modify
++  * it under the terms of the GNU General Public License as published by
++@@ -23,7 +23,7 @@
++  */
++ 
++ /* Command response routines
++- * $Id: response.c,v 1.4 2003/06/03 16:25:23 castaglia Exp $
+++ * $Id: response.c,v 1.5 2005/07/05 15:42:01 castaglia Exp $
++  */
++ 
++ #include &quot;conf.h&quot;
++@@ -169,7 +169,7 @@
++   buf[sizeof(buf) - 1] = '\0';
++   sstrcat(buf, &quot;\r\n&quot;, sizeof(buf));
++ 
++-  RESPONSE_WRITE_STR_ASYNC(session.c-&gt;outstrm, buf, strlen(buf))
+++  RESPONSE_WRITE_STR_ASYNC(session.c-&gt;outstrm, &quot;%s&quot;, buf)
++ }
++ 
++ void pr_response_send(const char *resp_numeric, const char *fmt, ...) {
+
+Added: trunk/rpms/proftpd/proftpd.pam
+===================================================================
+--- trunk/rpms/proftpd/proftpd.pam	2006-01-30 10:33:31 UTC (rev 4018)
++++ trunk/rpms/proftpd/proftpd.pam	2006-01-30 11:00:38 UTC (rev 4019)
+@@ -0,0 +1,6 @@
++#%PAM-1.0
++auth       required	pam_listfile.so item=user sense=deny file=/etc/ftpusers onerr=succeed
++auth       required	pam_stack.so service=system-auth
++auth       required	pam_shells.so
++account    required	pam_stack.so service=system-auth
++session    required	pam_stack.so service=system-auth
+
+Modified: trunk/rpms/proftpd/proftpd.spec
+===================================================================
+--- trunk/rpms/proftpd/proftpd.spec	2006-01-30 10:33:31 UTC (rev 4018)
++++ trunk/rpms/proftpd/proftpd.spec	2006-01-30 11:00:38 UTC (rev 4019)
+@@ -5,7 +5,7 @@
+ Summary: Flexible, stable and highly-configurable FTP server
+ Name: proftpd
+ Version: 1.2.10
+-Release: 8%{?_with_ldap:_ldap}%{?_with_mysql:_mysql}%{?_with_postgresql:_pgsql}
++Release: 9
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://www.proftpd.org/">http://www.proftpd.org/</A>
+@@ -15,8 +15,10 @@
+ Source3: proftpd-xinetd
+ Source4: proftpd.logrotate
+ Source5: welcome.msg
++Source6: proftpd.pam
++Patch0: proftpd-1.2.10-backport-CAN-2005-2390.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-Requires: pam &gt;= 0.59, /sbin/service, /sbin/chkconfig, /etc/init.d
++Requires: pam &gt;= 0.59, /sbin/service, /sbin/chkconfig
+ BuildRequires: pam-devel, perl, ncurses-devel, pkgconfig
+ %{!?_without_tls:Requires: openssl}
+ %{!?_without_tls:BuildRequires: openssl-devel, krb5-devel}
+@@ -41,17 +43,21 @@
+ 
+ Available rpmbuild rebuild options :
+ --without : tls
+---with : ldap mysql postgresql
++--with : ldap mysql postgresql ipv6
+ 
+ 
+ %prep
+ %setup
++%patch0 -p0 -b .CAN-2005-2390
+ 
+ 
+ %build
+ # Workaround for the PostgreSQL include file
+ %{__perl} -pi -e 's|pgsql/libpq-fe.h|libpq-fe.h|g' contrib/mod_sql_postgres.c
+ 
++# Disable stripping in order to get useful debuginfo packages
++%{__perl} -pi -e 's|&quot;-s&quot;|&quot;&quot;|g' configure
++
+ # TLS includes
+ OPENSSL_INC=&quot;&quot;
+ if OPENSSL_CFLAGS=`pkg-config --cflags openssl`; then
+@@ -64,6 +70,7 @@
+ %configure \
+     --localstatedir=&quot;/var/run&quot; \
+     --with-includes=&quot;%{_includedir}%{!?_without_tls:${OPENSSL_INC}}%{?_with_mysql::%{_includedir}/mysql}&quot; \
++    %{?_with_ipv6:--enable-ipv6} \
+     %{?_with_mysql:--with-libraries=&quot;%{_libdir}/mysql&quot;} \
+     %{?_with_postgresql:--with-libraries=&quot;%{_libdir}&quot;} \
+     --with-modules=mod_readme:mod_auth_pam%{?_with_ldap::mod_ldap}%{?_with_mysql::mod_sql:mod_sql_mysql}%{?_with_postgresql::mod_sql:mod_sql_postgres}%{!?_without_tls::mod_tls}
+@@ -75,12 +82,16 @@
+ %makeinstall rundir=&quot;%{buildroot}%{_localstatedir}/run/proftpd&quot; \
+     INSTALL_USER=`id -un` \
+     INSTALL_GROUP=`id -gn`
+-%{__install} -Dp -m 644 contrib/dist/rpm/ftp.pamd %{buildroot}%{_sysconfdir}/pam.d/ftp
+-%{__install} -Dp -m 640 %{SOURCE1} %{buildroot}%{_sysconfdir}/proftpd.conf
+-%{__install} -Dp -m 755 %{SOURCE2} %{buildroot}%{_sysconfdir}/rc.d/init.d/proftpd
+-%{__install} -Dp -m 640 %{SOURCE3} %{buildroot}%{_sysconfdir}/xinetd.d/xproftpd
+-%{__install} -Dp -m 644 %{SOURCE4} %{buildroot}%{_sysconfdir}/logrotate.d/proftpd
+-%{__install} -Dp -m 644 %{SOURCE5} %{buildroot}/var/ftp/welcome.msg
++%{__install} -D -p -m 640 %{SOURCE1} \
++    %{buildroot}%{_sysconfdir}/proftpd.conf
++%{__install} -D -p -m 755 %{SOURCE2} \
++    %{buildroot}%{_sysconfdir}/rc.d/init.d/proftpd
++%{__install} -D -p -m 640 %{SOURCE3} \
++    %{buildroot}%{_sysconfdir}/xinetd.d/xproftpd
++%{__install} -D -p -m 644 %{SOURCE4} \
++    %{buildroot}%{_sysconfdir}/logrotate.d/proftpd
++%{__install} -D -p -m 644 %{SOURCE5} %{buildroot}/var/ftp/welcome.msg
++%{__install} -D -p -m 644 %{SOURCE6} %{buildroot}%{_sysconfdir}/pam.d/proftpd
+ %{__mkdir_p} %{buildroot}/var/ftp/uploads
+ %{__mkdir_p} %{buildroot}/var/ftp/pub
+ %{__mkdir_p} %{buildroot}/var/log/proftpd
+@@ -104,9 +115,9 @@
+ 
+ %preun
+ if [ $1 = 0 ]; then
+-    /sbin/service proftpd stop &gt;/dev/null 2&gt;&amp;1 || :
++    /sbin/service proftpd stop &amp;&gt;/dev/null || :
+     /sbin/chkconfig --del proftpd
+-    /sbin/service xinetd reload &gt;/dev/null 2&gt;&amp;1 || :
++    /sbin/service xinetd reload &amp;&gt;/dev/null || :
+     if [ -d /var/run/proftpd ]; then
+         rm -rf /var/run/proftpd/*
+     fi
+@@ -114,7 +125,7 @@
+ 
+ %postun
+ if [ $1 -ge 1 ]; then
+-    /sbin/service proftpd condrestart &gt;/dev/null 2&gt;&amp;1
++    /sbin/service proftpd condrestart &amp;&gt;/dev/null || :
+ fi
+ 
+ 
+@@ -122,24 +133,30 @@
+ %defattr(-, root, root, 0755)
+ %doc COPYING CREDITS ChangeLog NEWS README*
+ %doc doc/* sample-configurations/
+-%dir %{_localstatedir}/run/proftpd
++%dir %{_localstatedir}/run/proftpd/
+ %config(noreplace) %{_sysconfdir}/proftpd.conf
+ %config(noreplace) %{_sysconfdir}/xinetd.d/xproftpd
+ %config %{_sysconfdir}/ftpusers
+-%config %{_sysconfdir}/pam.d/ftp
++%config %{_sysconfdir}/pam.d/proftpd
+ %config %{_sysconfdir}/logrotate.d/proftpd
+ %{_sysconfdir}/rc.d/init.d/proftpd
+ %{_mandir}/*/*
+ %{_bindir}/*
+ %{_sbindir}/*
+-%dir /var/ftp
+-%attr(331, ftp, ftp) %dir /var/ftp/uploads
+-%dir /var/ftp/pub
++%dir /var/ftp/
++%attr(331, ftp, ftp) %dir /var/ftp/uploads/
++%dir /var/ftp/pub/
+ %config(noreplace) /var/ftp/welcome.msg
+-%attr(750, root, root) %dir /var/log/proftpd
++%attr(750, root, root) %dir /var/log/proftpd/
+ 
+ 
+ %changelog
++* Mon Jan 30 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.2.10-9
++- Sync changes from the Fedora Extras package (fixed pam file).
++- Remove extra info from the release tag that caused update problems.
++- Add conditional IPv6 support.
++- Include CAN-2005-2390 patch.
++
+ * Wed Sep 22 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.2.10-1
+ - Updated to release 1.2.10.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002818.html">[svn] r4018 - trunk/rpms/libquicktime
+</A></li>
+	<LI>Next message: <A HREF="002820.html">[svn] r4020 - trunk/rpms/xine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2819">[ date ]</a>
+              <a href="thread.html#2819">[ thread ]</a>
+              <a href="subject.html#2819">[ subject ]</a>
+              <a href="author.html#2819">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

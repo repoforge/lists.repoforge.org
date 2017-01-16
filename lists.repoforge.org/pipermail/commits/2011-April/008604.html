@@ -1,0 +1,725 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9820 - in /trunk/rpms/mtree: ./ mtree-2.7.cvs-alt-getlogin.patch mtree-3.1-owl-fixes.patch mtree-3.1-owl-linux.patch mtree.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9820%20-%20in%20/trunk/rpms/mtree%3A%20./%0A%20mtree-2.7.cvs-alt-getlogin.patch%0A%20mtree-3.1-owl-fixes.patch%20mtree-3.1-owl-linux.patch%20mtree.spec&In-Reply-To=%3C201104131257.p3DCvpjf028628%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008603.html">
+   <LINK REL="Next"  HREF="008605.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9820 - in /trunk/rpms/mtree: ./ mtree-2.7.cvs-alt-getlogin.patch mtree-3.1-owl-fixes.patch mtree-3.1-owl-linux.patch mtree.spec</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9820%20-%20in%20/trunk/rpms/mtree%3A%20./%0A%20mtree-2.7.cvs-alt-getlogin.patch%0A%20mtree-3.1-owl-fixes.patch%20mtree-3.1-owl-linux.patch%20mtree.spec&In-Reply-To=%3C201104131257.p3DCvpjf028628%40surya.karan.org%3E"
+       TITLE="[svn] r9820 - in /trunk/rpms/mtree: ./ mtree-2.7.cvs-alt-getlogin.patch mtree-3.1-owl-fixes.patch mtree-3.1-owl-linux.patch mtree.spec">dag at wieers.com
+       </A><BR>
+    <I>Wed Apr 13 14:57:51 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008603.html">[svn] r9819 - /trunk/rpms/nmon/nmon.spec
+</A></li>
+        <LI>Next message: <A HREF="008605.html">[svn] r9821 - in /trunk/rpms/perl-MIME-tools: ./	perl-MIME-tools.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8604">[ date ]</a>
+              <a href="thread.html#8604">[ thread ]</a>
+              <a href="subject.html#8604">[ subject ]</a>
+              <a href="author.html#8604">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Wed Apr 13 13:57:51 2011
+New Revision: 9820
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9820&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9820&amp;view=rev</A>
+Log:
+New mtree package imported.
+
+Added:
+    trunk/rpms/mtree/
+    trunk/rpms/mtree/mtree-2.7.cvs-alt-getlogin.patch
+    trunk/rpms/mtree/mtree-3.1-owl-fixes.patch
+    trunk/rpms/mtree/mtree-3.1-owl-linux.patch
+    trunk/rpms/mtree/mtree.spec   (with props)
+
+Added: trunk/rpms/mtree/mtree-2.7.cvs-alt-getlogin.patch
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree-2.7.cvs-alt-getlogin.patch?rev=9820&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree-2.7.cvs-alt-getlogin.patch?rev=9820&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/mtree/mtree-2.7.cvs-alt-getlogin.patch (added)
++++ trunk/rpms/mtree/mtree-2.7.cvs-alt-getlogin.patch Wed Apr 13 13:57:51 2011
+@@ -1,0 +1,41 @@
++diff -Naur mtree-2.7.cvs/usr.sbin/mtree/create.c mtree-2.7.cvs.new/usr.sbin/mtree/create.c
++--- mtree-2.7.cvs/usr.sbin/mtree/create.c	2002-06-28 16:24:31 +0400
+++++ mtree-2.7.cvs.new/usr.sbin/mtree/create.c	2002-06-28 16:26:18 +0400
++@@ -86,6 +86,28 @@
++ static int	statd(FTS *, FTSENT *, uid_t *, gid_t *, mode_t *);
++ static void	statf(int, FTSENT *);
++ 
+++char *my_getlogin(){
+++    const char *s=getlogin();
+++    if (s &amp;&amp; *s){
+++	return s;
+++    }else{
+++	struct passwd *p=getpwuid(geteuid());
+++	char *ss;
+++	if (p &amp;&amp; p-&gt;pw_name){
+++	    if (asprintf(&amp;ss,&quot;(no controlling terminal) %s&quot;,p-&gt;pw_name)&lt;0){
+++		perror(&quot;asprintf&quot;);
+++		return NULL;
+++	    }
+++	}else{
+++	    if (asprintf(&amp;ss,&quot;(no controlling terminal) #%d&quot;,geteuid())&lt;0){
+++		perror(&quot;asprintf&quot;);
+++		return NULL;
+++	    }
+++	}
+++	return ss;
+++    }
+++}
+++
++ void
++ cwalk()
++ {
++@@ -99,7 +121,7 @@
++ 	(void)gethostname(host, sizeof(host));
++ 	(void)printf(
++ 	    &quot;#\t   user: %s\n#\tmachine: %s\n#\t   tree: %s\n#\t   date: %s&quot;,
++-	    getlogin(), host, fullpath, ctime(&amp;clock));
+++	    my_getlogin(), host, fullpath, ctime(&amp;clock));
++ 
++ 	argv[0] = &quot;.&quot;;
++ 	argv[1] = NULL;
+
+Added: trunk/rpms/mtree/mtree-3.1-owl-fixes.patch
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree-3.1-owl-fixes.patch?rev=9820&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree-3.1-owl-fixes.patch?rev=9820&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/mtree/mtree-3.1-owl-fixes.patch (added)
++++ trunk/rpms/mtree/mtree-3.1-owl-fixes.patch Wed Apr 13 13:57:51 2011
+@@ -1,0 +1,11 @@
++diff -puNr mtree-3.1.orig/usr.sbin/mtree/compare.c mtree-3.1/usr.sbin/mtree/compare.c
++--- mtree-3.1.orig/usr.sbin/mtree/compare.c	Fri Jan  7 00:59:10 2005
+++++ mtree-3.1/usr.sbin/mtree/compare.c	Fri Jan  7 01:03:17 2005
++@@ -185,6 +185,7 @@ typeerr:		LABEL;
++ 			(void)printf(&quot;)\n&quot;);
++ 		tab = &quot;\t&quot;;
++ 	skip:
+++		;
++ 	}
++ 	if (s-&gt;flags &amp; F_NLINK &amp;&amp; s-&gt;type != F_DIR &amp;&amp;
++ 	    s-&gt;st_nlink != p-&gt;fts_statp-&gt;st_nlink) {
+
+Added: trunk/rpms/mtree/mtree-3.1-owl-linux.patch
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree-3.1-owl-linux.patch?rev=9820&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree-3.1-owl-linux.patch?rev=9820&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/mtree/mtree-3.1-owl-linux.patch (added)
++++ trunk/rpms/mtree/mtree-3.1-owl-linux.patch Wed Apr 13 13:57:51 2011
+@@ -1,0 +1,515 @@
++diff -urN mtree-3.1.orig/Makefile mtree-3.1/Makefile
++--- mtree-3.1.orig/Makefile	Thu Jan  1 03:00:00 1970
+++++ mtree-3.1/Makefile	Sun Jul 28 08:18:17 2002
++@@ -0,0 +1,2 @@
+++all clean:
+++	$(MAKE) -C usr.sbin/mtree $@
++diff -urN mtree-3.1.orig/lib/libc/gen/setmode.c mtree-3.1/lib/libc/gen/setmode.c
++--- mtree-3.1.orig/lib/libc/gen/setmode.c	Tue Feb 19 22:39:36 2002
+++++ mtree-3.1/lib/libc/gen/setmode.c	Sun Jul 28 08:28:03 2002
++@@ -187,6 +187,8 @@
++ 	if (!*p)
++ 		return (NULL);
++ 
+++	equalopdone = 0;
+++
++ 	/*
++ 	 * Get a copy of the mask for the permissions that are mask relative.
++ 	 * Flip the bits, we want what's not set.  Since it's possible that
++@@ -212,7 +214,7 @@
++ 	 */
++ 	if (isdigit(*p)) {
++ 		perml = strtol(p, NULL, 8);
++-		if (perml &lt; 0 || (perml &amp; ~(STANDARD_BITS|S_ISTXT))) {
+++		if (perml &lt; 0 || (perml &amp; ~(STANDARD_BITS|S_ISVTX))) {
++ 			free(saveset);
++ 			return (NULL);
++ 		}
++@@ -222,7 +224,7 @@
++ 				free(saveset);
++ 				return (NULL);
++ 			}
++-		ADDCMD('=', (STANDARD_BITS|S_ISTXT), perm, mask);
+++		ADDCMD('=', (STANDARD_BITS|S_ISVTX), perm, mask);
++ 		return (saveset);
++ 	}
++ 
++@@ -258,7 +260,7 @@
++ 		if (op == '=')
++ 			equalopdone = 0;
++ 
++-		who &amp;= ~S_ISTXT;
+++		who &amp;= ~S_ISVTX;
++ 		for (perm = 0, permXbits = 0;; ++p) {
++ 			switch (*p) {
++ 			case 'r':
++@@ -278,8 +280,8 @@
++ 				 * only &quot;other&quot; bits ignore sticky.
++ 				 */
++ 				if (who == 0 || (who &amp; ~S_IRWXO)) {
++-					who |= S_ISTXT;
++-					perm |= S_ISTXT;
+++					who |= S_ISVTX;
+++					perm |= S_ISVTX;
++ 				}
++ 				break;
++ 			case 'w':
++diff -urN mtree-3.1.orig/usr.sbin/mtree/Makefile mtree-3.1/usr.sbin/mtree/Makefile
++--- mtree-3.1.orig/usr.sbin/mtree/Makefile	Sun Sep 21 15:43:58 1997
+++++ mtree-3.1/usr.sbin/mtree/Makefile	Sun Jul 28 08:25:42 2002
++@@ -1,9 +1,33 @@
++ #	$OpenBSD: Makefile,v 1.6 1997/09/21 11:43:58 deraadt Exp $
++ 
+++CC = gcc
+++LD = gcc
+++RM = rm -f
+++ifndef CFLAGS
+++CFLAGS = -c -O2 -fomit-frame-pointer
+++endif
+++CFLAGS += -I. -I../../include
+++CFLAGS += -Wall -Dlint
+++LDFLAGS = -s -lcrypto
+++
++ PROG=	mtree
++ #CFLAGS+=-DDEBUG
++ MAN=	mtree.8
++-SRCS=	compare.c crc.c create.c misc.c mtree.c spec.c verify.c
++-.PATH:	${.CURDIR}/../../usr.bin/cksum
++ 
++-.include &lt;bsd.prog.mk&gt;
+++SRCS=	compare.c create.c misc.c mtree.c spec.c verify.c \
+++	hashfile.c \
+++	../../usr.bin/cksum/crc.c \
+++	../../lib/libc/gen/setmode.c \
+++	../../lib/libc/gen/vis.c \
+++	../../lib/libc/gen/unvis.c
+++
+++all: $(PROG)
+++
+++$(PROG): $(SRCS:.c=.o)
+++	$(LD) $(LDFLAGS) $+ -o $@
+++
+++.c.o:
+++	$(CC) $(CFLAGS) $&lt; -o $@
+++
+++clean:
+++	$(RM) $(PROG) $(SRCS:.c=.o)
++diff -urN mtree-3.1.orig/usr.sbin/mtree/compare.c mtree-3.1/usr.sbin/mtree/compare.c
++--- mtree-3.1.orig/usr.sbin/mtree/compare.c	Thu Mar 14 19:44:25 2002
+++++ mtree-3.1/usr.sbin/mtree/compare.c	Sun Jul 28 08:46:24 2002
++@@ -42,6 +42,7 @@
++ #endif
++ #endif /* not lint */
++ 
+++#define _GNU_SOURCE
++ #include &lt;sys/param.h&gt;
++ #include &lt;sys/stat.h&gt;
++ #include &lt;fcntl.h&gt;
++@@ -49,12 +50,11 @@
++ #include &lt;errno.h&gt;
++ #include &lt;stdio.h&gt;
++ #include &lt;time.h&gt;
+++#include &lt;sys/time.h&gt;
++ #include &lt;unistd.h&gt;
++-#include &lt;md5.h&gt;
++-#include &lt;sha1.h&gt;
++-#include &lt;rmd160.h&gt;
++ #include &quot;mtree.h&quot;
++ #include &quot;extern.h&quot;
+++#include &quot;hashfile.h&quot;
++ 
++ extern int lflag, tflag, uflag;
++ 
++@@ -195,7 +195,7 @@
++ 	}
++ 	if (s-&gt;flags &amp; F_SIZE &amp;&amp; s-&gt;st_size != p-&gt;fts_statp-&gt;st_size) {
++ 		LABEL;
++-		(void)printf(&quot;%ssize (%qd, %qd)\n&quot;,
+++		(void)printf(&quot;%ssize (%lu, %lu)\n&quot;,
++ 		    tab, s-&gt;st_size, p-&gt;fts_statp-&gt;st_size);
++ 		tab = &quot;\t&quot;;
++ 	}
++@@ -211,14 +211,15 @@
++ 		struct timeval tv[2];
++ 
++ 		TIMESPEC_TO_TIMEVAL(&amp;tv[0], &amp;s-&gt;st_mtimespec);
++-		TIMESPEC_TO_TIMEVAL(&amp;tv[1], &amp;p-&gt;fts_statp-&gt;st_mtimespec);
+++		tv[1].tv_sec = p-&gt;fts_statp-&gt;st_mtime;
+++		tv[1].tv_usec = 0;
++ 		if (tv[0].tv_sec != tv[1].tv_sec ||
++ 		    tv[0].tv_usec != tv[1].tv_usec) {
++ 			LABEL;
++ 			(void)printf(&quot;%smodification time (%.24s, &quot;,
++ 			    tab, ctime(&amp;s-&gt;st_mtimespec.tv_sec));
++ 			(void)printf(&quot;%.24s&quot;,
++-			    ctime(&amp;p-&gt;fts_statp-&gt;st_mtimespec.tv_sec));
+++			    ctime(&amp;p-&gt;fts_statp-&gt;st_mtime));
++ 			if (tflag) {
++ 				tv[1] = tv[0];
++ 				if (utimes(p-&gt;fts_accpath, tv))
++@@ -232,7 +233,7 @@
++ 		}
++ 	}
++ 	if (s-&gt;flags &amp; F_CKSUM) {
++-		if ((fd = open(p-&gt;fts_accpath, O_RDONLY, 0)) &lt; 0) {
+++		if ((fd = open(p-&gt;fts_accpath, MTREE_O_FLAGS, 0)) &lt; 0) {
++ 			LABEL;
++ 			(void)printf(&quot;%scksum: %s: %s\n&quot;,
++ 			    tab, p-&gt;fts_accpath, strerror(errno));
++@@ -305,6 +306,7 @@
++ 		LABEL;
++ 		(void)printf(&quot;%slink ref (%s, %s)\n&quot;, tab, cp, s-&gt;slink);
++ 	}
+++#if 0
++ 	if (s-&gt;flags &amp; F_FLAGS &amp;&amp; s-&gt;file_flags != p-&gt;fts_statp-&gt;st_flags) {
++ 		char *db_flags = NULL;
++ 		char *cur_flags = NULL;
++@@ -342,6 +344,7 @@
++ 			free(cur_flags);
++ 		}
++ 	}
+++#endif
++ 	return (label);
++ }
++ 
++diff -urN mtree-3.1.orig/usr.sbin/mtree/create.c mtree-3.1/usr.sbin/mtree/create.c
++--- mtree-3.1.orig/usr.sbin/mtree/create.c	Thu Mar 14 20:01:16 2002
+++++ mtree-3.1/usr.sbin/mtree/create.c	Sun Jul 28 09:46:08 2002
++@@ -42,6 +42,7 @@
++ #endif
++ #endif /* not lint */
++ 
+++#define _GNU_SOURCE
++ #include &lt;sys/param.h&gt;
++ #include &lt;sys/stat.h&gt;
++ #include &lt;time.h&gt;
++@@ -55,11 +56,9 @@
++ #include &lt;stdio.h&gt;
++ #include &lt;stdarg.h&gt;
++ #include &lt;vis.h&gt;
++-#include &lt;md5.h&gt;
++-#include &lt;sha1.h&gt;
++-#include &lt;rmd160.h&gt;
++ #include &quot;mtree.h&quot;
++ #include &quot;extern.h&quot;
+++#include &quot;hashfile.h&quot;
++ 
++ #define	INDENTNAMELEN	15
++ #define	MAXLINELEN	80
++@@ -75,7 +74,11 @@
++ static mode_t mode;
++ 
++ static int	dsort(const FTSENT **, const FTSENT **);
++-static void	output(int, int *, const char *, ...);
+++static void	output(int, int *, const char *, ...)
+++#ifdef __GNUC__
+++__attribute__ ((format (printf, 3, 4)))
+++#endif
+++	;
++ static int	statd(FTS *, FTSENT *, uid_t *, gid_t *, mode_t *);
++ static void	statf(int, FTSENT *);
++ 
++@@ -195,17 +198,16 @@
++ 	if (keys &amp; F_NLINK &amp;&amp; p-&gt;fts_statp-&gt;st_nlink != 1)
++ 		output(indent, &amp;offset, &quot;nlink=%u&quot;, p-&gt;fts_statp-&gt;st_nlink);
++ 	if (keys &amp; F_SIZE &amp;&amp; S_ISREG(p-&gt;fts_statp-&gt;st_mode))
++-		output(indent, &amp;offset, &quot;size=%qd&quot;, p-&gt;fts_statp-&gt;st_size);
+++		output(indent, &amp;offset, &quot;size=%lu&quot;, p-&gt;fts_statp-&gt;st_size);
++ 	if (keys &amp; F_TIME)
++-		output(indent, &amp;offset, &quot;time=%ld.%ld&quot;,
++-		    p-&gt;fts_statp-&gt;st_mtimespec.tv_sec,
++-		    p-&gt;fts_statp-&gt;st_mtimespec.tv_nsec);
+++		output(indent, &amp;offset, &quot;time=%ld.0&quot;,
+++		    p-&gt;fts_statp-&gt;st_mtime);
++ 	if (keys &amp; F_CKSUM &amp;&amp; S_ISREG(p-&gt;fts_statp-&gt;st_mode)) {
++-		if ((fd = open(p-&gt;fts_accpath, O_RDONLY, 0)) &lt; 0 ||
+++		if ((fd = open(p-&gt;fts_accpath, MTREE_O_FLAGS, 0)) &lt; 0 ||
++ 		    crc(fd, &amp;val, &amp;len))
++ 			error(&quot;%s: %s&quot;, p-&gt;fts_accpath, strerror(errno));
++ 		(void)close(fd);
++-		output(indent, &amp;offset, &quot;cksum=%lu&quot;, val);
+++		output(indent, &amp;offset, &quot;cksum=%u&quot;, val);
++ 	}
++ 	if (keys &amp; F_MD5 &amp;&amp; S_ISREG(p-&gt;fts_statp-&gt;st_mode)) {
++ 		char *md5digest, buf[33];
++@@ -244,6 +246,7 @@
++ 		output(indent, &amp;offset, &quot;link=%s&quot;, escaped_name);
++ 		free(escaped_name);
++ 	}
+++#if 0
++ 	if (keys &amp; F_FLAGS &amp;&amp; !S_ISLNK(p-&gt;fts_statp-&gt;st_mode)) {
++ 		char *file_flags;
++ 
++@@ -256,6 +259,7 @@
++ 			output(indent, &amp;offset, &quot;flags=none&quot;);
++ 		free(file_flags);
++ 	}
+++#endif
++ 	(void)putchar('\n');
++ }
++ 
++diff -urN mtree-3.1.orig/usr.sbin/mtree/extern.h mtree-3.1/usr.sbin/mtree/extern.h
++--- mtree-3.1.orig/usr.sbin/mtree/extern.h	Sun Feb 17 00:28:05 2002
+++++ mtree-3.1/usr.sbin/mtree/extern.h	Sun Jul 28 07:49:41 2002
++@@ -36,10 +36,17 @@
++  *	@(#)extern.h	8.1 (Berkeley) 6/6/93
++  */
++ 
+++#include &lt;fts.h&gt;
+++#include &quot;mtree.h&quot;
+++
++ int	 compare(char *, NODE *, FTSENT *);
++ int	 crc(int, u_int32_t *, u_int32_t *);
++ void	 cwalk(void);
++-void	 error(const char *, ...);
+++void	 error(const char *, ...)
+++#ifdef __GNUC__
+++__attribute__ ((format (printf, 1, 2)))
+++#endif
+++	;
++ char	*inotype(u_int);
++ u_int	 parsekey(char *, int *);
++ char	*rlink(char *);
++diff -urN mtree-3.1.orig/usr.sbin/mtree/hashfile.c mtree-3.1/usr.sbin/mtree/hashfile.c
++--- mtree-3.1.orig/usr.sbin/mtree/hashfile.c	Thu Jan  1 03:00:00 1970
+++++ mtree-3.1/usr.sbin/mtree/hashfile.c	Sun Jul 28 08:01:57 2002
++@@ -0,0 +1,78 @@
+++#define _GNU_SOURCE
+++#include &lt;stdio.h&gt;
+++#include &lt;fcntl.h&gt;
+++#include &lt;sys/stat.h&gt;
+++#include &lt;stdlib.h&gt;
+++#include &lt;errno.h&gt;
+++#include &lt;unistd.h&gt;
+++
+++#include &lt;openssl/md5.h&gt;
+++#include &lt;openssl/sha.h&gt;
+++#include &lt;openssl/ripemd.h&gt;
+++
+++#include &quot;hashfile.h&quot;
+++
+++#define FILE_BUFFER			0x1000
+++
+++static char hex[16] =
+++	&quot;0123456789abcdef&quot;;
+++
+++#define HASHFile(F, CTX, Init, Update, Final, N) \
+++char *F(const char *pathname, char *output) \
+++{ \
+++	CTX c; \
+++	unsigned char binary[N]; \
+++	struct stat st; \
+++	int fd, n, i; \
+++	char *buffer, *p; \
+++\
+++	if (stat(pathname, &amp;st)) return NULL; \
+++	if (!S_ISREG(st.st_mode)) { \
+++		errno = EIO; \
+++		return NULL; \
+++	} \
+++\
+++	if ((fd = open(pathname, MTREE_O_FLAGS)) &lt; 0) \
+++		return NULL; \
+++\
+++	if (fstat(fd, &amp;st)) { \
+++		close(fd); \
+++		return NULL; \
+++	} \
+++	if (!S_ISREG(st.st_mode)) { \
+++		close(fd); \
+++		errno = EIO; \
+++		return NULL; \
+++	} \
+++\
+++	if (!(buffer = malloc(FILE_BUFFER))) { \
+++		close(fd); \
+++		errno = ENOMEM; \
+++		return NULL; \
+++	} \
+++\
+++	Init(&amp;c); \
+++	while ((n = read(fd, buffer, FILE_BUFFER)) &gt; 0) \
+++		Update(&amp;c, buffer, n); \
+++\
+++	if (!n) { \
+++		Final(binary, &amp;c); \
+++		p = output; \
+++		for (i = 0; i &lt; N; i++) { \
+++			*p++ = hex[(int)binary[i] &gt;&gt; 4]; \
+++			*p++ = hex[(int)binary[i] &amp; 0x0f]; \
+++		} \
+++		*p = '\0'; \
+++	} else \
+++		output = NULL; \
+++\
+++	close(fd); \
+++	free(buffer); \
+++\
+++	return output; \
+++}
+++
+++HASHFile(MD5File, MD5_CTX, MD5_Init, MD5_Update, MD5_Final, 16)
+++HASHFile(SHA1File, SHA_CTX, SHA1_Init, SHA1_Update, SHA1_Final, 20)
+++HASHFile(RMD160File, RIPEMD160_CTX,
+++	RIPEMD160_Init, RIPEMD160_Update, RIPEMD160_Final, 20)
++diff -urN mtree-3.1.orig/usr.sbin/mtree/hashfile.h mtree-3.1/usr.sbin/mtree/hashfile.h
++--- mtree-3.1.orig/usr.sbin/mtree/hashfile.h	Thu Jan  1 03:00:00 1970
+++++ mtree-3.1/usr.sbin/mtree/hashfile.h	Sun Jul 28 07:41:19 2002
++@@ -0,0 +1,11 @@
+++#ifndef _HASHFILE_H
+++#define _HASHFILE_H
+++
+++extern char *MD5File(const char *pathname, char *output);
+++extern char *SHA1File(const char *pathname, char *output);
+++extern char *RMD160File(const char *pathname, char *output);
+++
+++#define MTREE_O_FLAGS \
+++	(O_RDONLY | O_NOCTTY | O_NONBLOCK | O_NOFOLLOW)
+++
+++#endif
++diff -urN mtree-3.1.orig/usr.sbin/mtree/misc.c mtree-3.1/usr.sbin/mtree/misc.c
++--- mtree-3.1.orig/usr.sbin/mtree/misc.c	Thu Apr  4 11:33:23 2002
+++++ mtree-3.1/usr.sbin/mtree/misc.c	Sun Jul 28 08:21:56 2002
++@@ -57,7 +57,9 @@
++ /* NB: the following table must be sorted lexically. */
++ static KEY keylist[] = {
++ 	{&quot;cksum&quot;,	F_CKSUM,	NEEDVALUE},
+++#if 0
++ 	{&quot;flags&quot;,	F_FLAGS,	NEEDVALUE},
+++#endif
++ 	{&quot;gid&quot;,		F_GID,		NEEDVALUE},
++ 	{&quot;gname&quot;,	F_GNAME,	NEEDVALUE},
++ 	{&quot;ignore&quot;,	F_IGN,		0},
++diff -urN mtree-3.1.orig/usr.sbin/mtree/mtree.8 mtree-3.1/usr.sbin/mtree/mtree.8
++--- mtree-3.1.orig/usr.sbin/mtree/mtree.8	Sat Mar  9 21:54:19 2002
+++++ mtree-3.1/usr.sbin/mtree/mtree.8	Sun Jul 28 08:50:17 2002
++@@ -34,7 +34,7 @@
++ .\&quot;
++ .\&quot;     @(#)mtree.8	8.2 (Berkeley) 12/11/93
++ .\&quot;
++-.Dd December 11, 1993
+++.Dd July 28, 2002
++ .Dt MTREE 8
++ .Os
++ .Sh NAME
++@@ -302,13 +302,16 @@
++ .Cm sha1digest
++ be run on the file systems, and a copy of the results stored on a different
++ machine, or, at least, in encrypted form.
++-The output file itself should be digested using the
++-.Xr sha1 1
++-utility.
+++The output file itself should be digested using
+++.Nm openssl
+++.Cm dgst
+++.Fl sha1 .
++ Then, periodically,
++ .Nm mtree
++ and
++-.Xr sha1 1
+++.Nm openssl
+++.Cm dgst
+++.Fl sha1
++ should be run against the on-line specifications.
++ While it is possible for the bad guys to change the on-line specifications
++ to conform to their modified binaries, it is believed to be
++@@ -332,16 +335,15 @@
++ .Sh SEE ALSO
++ .Xr chgrp 1 ,
++ .Xr chmod 1 ,
+++.Xr chown 1 ,
++ .Xr cksum 1 ,
++-.Xr md5 1 ,
++-.Xr rmd160 1 ,
++-.Xr sha1 1 ,
+++.Xr md5sum 1 ,
+++.Xr openssl 1 ,
+++.Xr stat 1 ,
++ .Xr stat 2 ,
++-.Xr fts 3 ,
++ .Xr md5 3 ,
++-.Xr rmd160 3 ,
++-.Xr sha1 3 ,
++-.Xr chown 8
+++.Xr ripemd 3 ,
+++.Xr sha 3
++ .Sh HISTORY
++ The
++ .Nm mtree
++diff -urN mtree-3.1.orig/usr.sbin/mtree/mtree.h mtree-3.1/usr.sbin/mtree/mtree.h
++--- mtree-3.1.orig/usr.sbin/mtree/mtree.h	Sat Mar  9 21:54:19 2002
+++++ mtree-3.1/usr.sbin/mtree/mtree.h	Sun Jul 28 08:22:35 2002
++@@ -36,6 +36,9 @@
++  *	@(#)mtree.h	8.1 (Berkeley) 6/6/93
++  */
++ 
+++#ifndef _MTREE_H
+++#define _MTREE_H
+++
++ #include &lt;string.h&gt;
++ #include &lt;stdlib.h&gt;
++ 
++@@ -56,7 +59,7 @@
++ 	char	*slink;				/* symbolic link reference */
++ 	uid_t	st_uid;				/* uid */
++ 	gid_t	st_gid;				/* gid */
++-#define	MBITS	(S_ISUID|S_ISGID|S_ISTXT|S_IRWXU|S_IRWXG|S_IRWXO)
+++#define	MBITS	(S_ISUID|S_ISGID|S_ISVTX|S_IRWXU|S_IRWXG|S_IRWXO)
++ 	mode_t	st_mode;			/* mode */
++ 	nlink_t	st_nlink;			/* link count */
++ 	u_int32_t file_flags;			/* file flags */
++@@ -80,7 +83,9 @@
++ #define	F_UID		0x010000		/* uid */
++ #define	F_UNAME		0x020000		/* user name */
++ #define	F_VISIT		0x040000		/* file visited */
+++#if 0
++ #define	F_FLAGS		0x080000		/* file flags */
+++#endif
++ #define	F_NOCHANGE	0x100000		/* do not change owner/mode */
++ 	u_int32_t flags;			/* items set */
++ 
++@@ -99,3 +104,5 @@
++ #define	RP(p)	\
++ 	((p)-&gt;fts_path[0] == '.' &amp;&amp; (p)-&gt;fts_path[1] == '/' ? \
++ 	    (p)-&gt;fts_path + 2 : (p)-&gt;fts_path)
+++
+++#endif
++diff -urN mtree-3.1.orig/usr.sbin/mtree/spec.c mtree-3.1/usr.sbin/mtree/spec.c
++--- mtree-3.1.orig/usr.sbin/mtree/spec.c	Thu Mar 14 20:01:16 2002
+++++ mtree-3.1/usr.sbin/mtree/spec.c	Sun Jul 28 08:24:47 2002
++@@ -55,6 +55,9 @@
++ #include &quot;mtree.h&quot;
++ #include &quot;extern.h&quot;
++ 
+++extern mode_t getmode(const void *set, mode_t mode);
+++extern void * setmode(const char *mode_str);
+++
++ int lineno;				/* Current spec line number. */
++ 
++ static void	 set(char *, NODE *);
++@@ -181,7 +184,9 @@
++ 	struct passwd *pw;
++ 	mode_t *m;
++ 	int value;
+++#if 0
++ 	u_int32_t fset, fclr;
+++#endif
++ 	char *ep;
++ 
++ 	for (; (kw = strtok(t, &quot;= \t\n&quot;)); t = NULL) {
++@@ -199,6 +204,7 @@
++ 			if (!ip-&gt;md5digest)
++ 				error(&quot;%s&quot;, strerror(errno));
++ 			break;
+++#if 0
++ 		case F_FLAGS:
++ 			if (!strcmp(val, &quot;none&quot;)) {
++ 				ip-&gt;file_flags = 0;
++@@ -208,6 +214,7 @@
++ 				error(&quot;%s&quot;, strerror(errno));
++ 			ip-&gt;file_flags = fset;
++ 			break; 
+++#endif
++ 		case F_GID:
++ 			ip-&gt;st_gid = strtoul(val, &amp;ep, 10);
++ 			if (*ep)
+
+Added: trunk/rpms/mtree/mtree.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree.spec?rev=9820&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mtree/mtree.spec?rev=9820&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/mtree/mtree.spec (added)
++++ trunk/rpms/mtree/mtree.spec Wed Apr 13 13:57:51 2011
+@@ -1,0 +1,51 @@
++# $Id$
++# Authority: dag
++
++Summary: Map a directory hierarchy
++Name: mtree
++Version: 2.7
++Release: 1%{dist}
++License: BSD
++Group: System/Base
++URL: <A HREF="http://www-db.deis.unibo.it/Mtree/">http://www-db.deis.unibo.it/Mtree/</A>
++
++Source: mtree-%{version}.cvs.tar.bz2
++Patch: mtree-3.1-owl-linux.patch
++Patch2: mtree-2.7.cvs-alt-getlogin.patch
++Patch3: mtree-3.1-owl-fixes.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: openssl-devel
++
++%description
++mtree compares the file hierarchy rooted in the current
++directory against a specification read from the standard input.
++Messages are written to the standard output for any files whose
++characteristics do not match the specification, or which are
++missing from either the file hierarchy or the specification.
++
++%prep
++%setup -n %{name}-%{version}.cvs
++%patch -p1
++%patch2 -p1
++%patch3 -p1
++
++%build
++%{__make} -C usr.sbin/mtree
++
++%install
++%{__rm} -rf %{buildroot}
++%{__install} -Dp -m0755 usr.sbin/mtree/mtree %{buildroot}%{_sbindir}/mtree
++%{__install} -Dp -m0644 usr.sbin/mtree/mtree.8 %{buildroot}%{_mandir}/man8/mtree.8
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc %{_mandir}/man8/mtree.8*
++%{_sbindir}/mtree
++
++%changelog
++* Wed Apr 13 2011 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.7-1
++- Initial package. (using DAR)
+
+Propchange: trunk/rpms/mtree/mtree.spec
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/rpms/mtree/mtree.spec
+------------------------------------------------------------------------------
+    svn:keywords = Id Revision
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008603.html">[svn] r9819 - /trunk/rpms/nmon/nmon.spec
+</A></li>
+	<LI>Next message: <A HREF="008605.html">[svn] r9821 - in /trunk/rpms/perl-MIME-tools: ./	perl-MIME-tools.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8604">[ date ]</a>
+              <a href="thread.html#8604">[ thread ]</a>
+              <a href="subject.html#8604">[ subject ]</a>
+              <a href="author.html#8604">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

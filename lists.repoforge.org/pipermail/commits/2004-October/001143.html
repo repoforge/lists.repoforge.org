@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2337 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2337%20-%20trunk/tools/dstat&In-Reply-To=%3C20041029224637.80ED6180B9%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001142.html">
+   <LINK REL="Next"  HREF="001144.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2337 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2337%20-%20trunk/tools/dstat&In-Reply-To=%3C20041029224637.80ED6180B9%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2337 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Oct 30 00:46:37 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001142.html">[SVN] r2336 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="001144.html">[SVN] r2338 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1143">[ date ]</a>
+              <a href="thread.html#1143">[ thread ]</a>
+              <a href="subject.html#1143">[ subject ]</a>
+              <a href="author.html#1143">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-10-30 00:46:35 +0200 (Sat, 30 Oct 2004)
+New Revision: 2337
+
+Modified:
+   trunk/tools/dstat/dstat
+Log:
+Some more important changes, and cosmetic ones
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-10-29 21:24:20 UTC (rev 2336)
++++ trunk/tools/dstat/dstat	2004-10-29 22:46:35 UTC (rev 2337)
+@@ -222,10 +222,8 @@
+ 				self.cn2['idle'] = int(l[4])
+ 				self.cn2['wait'] = int(l[5])
+ 				self.cn2['sum'] = self.cn2['user'] + self.cn2['sys'] + self.cn2['idle'] + self.cn2['wait']
+-
+ 		for name in self.vars:
+-			self.val[name] = round((self.cn2[name]-self.cn1[name])*100.0/(self.cn2['sum']-self.cn1['sum']))
+-
++			self.val[name] = (self.cn2[name]-self.cn1[name])*100.0/(self.cn2['sum']-self.cn1['sum'])
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_disk(dstat):
+@@ -277,17 +275,18 @@
+ 			if name in self.vars:
+ #				print mountpoint('/dev/' + name)
+ #				bsize = os.statvfs(mountpoint('/dev/' + name))[0]
+-				self.cn2[name] = ( self.cn2[name][0] + int(l[5]) * 512 / op.sleep, self.cn2[name][1] + int(l[9]) * 512 / op.sleep)
++				self.cn2[name] = ( self.cn2[name][0] + int(l[5]), self.cn2[name][1] + int(l[9]) )
+ 			for set in self.vars:
+ 				if set in self.diskset and name in self.diskset[set]:
+-					self.cn2[set] = ( self.cn2[set][0] + int(l[5]) * 512 / op.sleep, self.cn2[set][1] + int(l[9]) * 512 / op.sleep)
++					self.cn2[set] = ( self.cn2[set][0] + int(l[5]), self.cn2[set][1] + int(l[9]) )
+ 			if len(l) &gt; 10:
+-				self.cn2['total'] = ( self.cn2['total'][0] + int(l[5]) * 512 / op.sleep, self.cn2['total'][1] + int(l[9]) * 512 / op.sleep)
+-
++				self.cn2['total'] = ( self.cn2['total'][0] + int(l[5]), self.cn2['total'][1] + int(l[9]) )
+ 		if count != 0:
+ 			for name in self.cn2:
+-				self.val[name] = ( self.cn2[name][0]-self.cn1[name][0], self.cn2[name][1]-self.cn1[name][1] )
+-
++				self.val[name] = ( 
++					(self.cn2[name][0]-self.cn1[name][0]) * 512 / op.sleep,
++					(self.cn2[name][1]-self.cn1[name][1]) * 512 / op.sleep,
++				)
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_disk24(dstat_disk):
+@@ -312,7 +311,7 @@
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split()
+-			if l[0] == 'cpu0' or l[0] == 'cpu':
++			if len(l) &gt; 1 and l[0] == 'cpu0' or l[0] == 'cpu':
+ 				self.uptime2 = int(l[1]) + int(l[2]) + int(l[3]) + int(l[4]) + int(l[5]) + int(l[6]) + int(l[7])
+ #				self.uptime2 = sum(map(int, l[1-7]))
+ 
+@@ -330,21 +329,22 @@
+ 			name = l[3]
+ 			if name == 'name': continue
+ 			if name in self.vars:
+-				self.cn2[name] = ( self.cn2[name][0] + int(l[6]) / op.sleep, self.cn2[name][1] + int(l[10]))
++				self.cn2[name] = ( self.cn2[name][0] + int(l[6]), self.cn2[name][1] + int(l[10]) )
+ 			for set in self.vars:
+ 				if set in self.diskset and name in self.diskset[set]:
+-					self.cn2[set] = ( self.cn2[set][0] + int(l[6]) / op.sleep, self.cn2[set][1] + int(l[10]))
++					self.cn2[set] = ( self.cn2[set][0] + int(l[6]), self.cn2[set][1] + int(l[10]) )
+ 			if len(l) &gt; 10:
+ 				self.cn2['total'] = ( self.cn2['total'][0] + int(l[6]) / op.sleep, self.cn2['total'][1] + int(l[10]))
+-
+ 		if count != 0:
+ 			for name in self.cn2:
+-				self.val[name] = ( (self.cn2[name][0]-self.cn1[name][0]) * 1024 / itv * hz / 2, (self.cn2[name][1]-self.cn1[name][1]) * 1024 / itv * hz / 2)
++				self.val[name] = ( 
++					(self.cn2[name][0]-self.cn1[name][0]) * 1024 / itv * hz / 2 / op.sleep,
++					(self.cn2[name][1]-self.cn1[name][1]) * 1024 / itv * hz / 2 / op.sleep,
++				)
+ #		print '[rd=', self.cn2[name][0]-self.cn1[name][0], 'wr=', self.cn2[name][1]-self.cn1[name][1] , ']',
+-
+ 		self.cn1.update(self.cn2)
+ 
+-class dstat_disk24old(dstat_disk_disk24):
++class dstat_disk24old(dstat_disk24):
+ 	def check(self):
+ 		if os.path.exists('/proc/stat') and os.uname()[2] &lt; '2.4.22':
+ 			return True
+@@ -360,16 +360,17 @@
+ 					if m:
+ 						l = m.groups()
+ 						name = dev(int(l[0]), int(l[1]))
+-						self.cn2[name] = ( int(l[2]) * 512 / op.sleep, int(l[3]) * 512 / op.sleep)
++						self.cn2[name] = ( int(l[2]), int(l[3]) )
+ 						for set in self.vars:
+ 							if set in self.diskset and name in self.diskset[set]:
+-								self.cn2[set] = ( self.cn2[set][0] + int(l[2]) * 512 / op.sleep, self.cn2[set][1] + int(l[3]) * 512 / op.sleep)
+-						self.cn2['total'] = ( self.cn2['total'][0] + int(l[2]) * 512 / op.sleep, self.cn2['total'][1] + int(l[3]) * 512 / op.sleep)
+-
++								self.cn2[set] = ( self.cn2[set][0] + int(l[2]), self.cn2[set][1] + int(l[3]) )
++						self.cn2['total'] = ( self.cn2['total'][0] + int(l[2]), self.cn2['total'][1] + int(l[3]) )
+ 		if count != 0:
+ 			for name in self.cn2:
+-				self.val[name] = ( self.cn2[name][0]-self.cn1[name][0], self.cn2[name][1]-self.cn1[name][1] )
+-
++				self.val[name] = (
++					(self.cn2[name][0]-self.cn1[name][0]) * 512 / op.sleep,
++					(self.cn2[name][1]-self.cn1[name][1]) * 512 / op.sleep,
++				)
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_int(dstat):
+@@ -408,11 +409,9 @@
+ 				for hw in self.vars:
+ 					for mod in l[2+procs:]:
+ 						self.cn2[mod] = int(l[1])
+-
+ 		if count != 0:
+ 			for name in self.cn2:
+-				self.val[name] = self.cn2[name]-self.cn1[name]
+-
++				self.val[name] = (self.cn2[name]-self.cn1[name]) / op.sleep
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_load(dstat):
+@@ -503,14 +502,15 @@
+ 			else:
+ 				l = l[1:]
+ 			if iface in (self.vars) :
+-				self.cn2[iface] = ( round(float(l[0]) /op.sleep), round(float(l[8]) /op.sleep) )
++				self.cn2[iface] = ( float(l[0]), float(l[8]) )
+ 			if re.match('^(bond\d|eth\d|wifi\d)$', iface):
+-				self.cn2['total'] = ( self.cn2['total'][0] + round(float(l[0]) /op.sleep), self.cn2['total'][1] + round(float(l[8]) /op.sleep))
+-
++				self.cn2['total'] = ( self.cn2['total'][0] + float(l[0]), self.cn2['total'][1] + float(l[8]))
+ 		if count != 0:
+ 			for name in self.cn2:
+-				self.val[name] = ( self.cn2[name][0]-self.cn1[name][0], self.cn2[name][1]-self.cn1[name][1] )
+-
++				self.val[name] = ( 
++					(self.cn2[name][0]-self.cn1[name][0]) / op.sleep,
++					(self.cn2[name][1]-self.cn1[name][1]) / op.sleep
++				 )
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_page(dstat):
+@@ -531,10 +531,10 @@
+ 		for line in open('/proc/vmstat', 'r').readlines():
+ 			l = line.split(); name = l[0]
+ 			if name in self.vars:
+-				self.cn2[name] = int(l[1]) * pagesize / op.sleep
++				self.cn2[name] = int(l[1])
+ 		if count != 0:
+ 			for name in self.vars:
+-				self.val[name] = self.cn2[name]-self.cn1[name]
++				self.val[name] = (self.cn2[name]-self.cn1[name]) * pagesize / op.sleep
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_page24(dstat_page):
+@@ -547,11 +547,11 @@
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split(); name = l[0]
+ 			if name == 'swap':
+-				self.cn2['pswpin'] = int(l[1]) * pagesize / op.sleep
+-				self.cn2['pswpout'] = int(l[2]) * pagesize / op.sleep
++				self.cn2['pswpin'] = int(l[1])
++				self.cn2['pswpout'] = int(l[2])
+ 		if count != 0:
+ 			for name in self.vars:
+-				self.val[name] = self.cn2[name]-self.cn1[name]
++				self.val[name] = (self.cn2[name]-self.cn1[name]) * pagesize / op.sleep
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_proc(dstat):
+@@ -625,7 +625,6 @@
+ 			l = line.split(); name = l[0]
+ 			if l[0] in self.vars:
+ 				self.cn2[l[0]] = int(l[1]) /op.sleep
+-
+ 		if count != 0:
+ 			for name in self.vars:
+ 				self.val[name] = self.cn2[name]-self.cn1[name]
+@@ -735,26 +734,21 @@
+ 		signal.alarm(op.sleep)
+ 
+ 		rows = getwinsize()[0]
+-#		if count % (rows-2)  == 0:
+-		if count == 0 or count &gt;= (rows-2):
+-			count = 0
++		if count % (rows-2)  == 0:
+ 			for o in olist:
+ 				sys.stdout.write(o.title1)
+-				if o != olist[-1]:
+-					sys.stdout.write(' ')
++				if o != olist[-1]: sys.stdout.write(' ')
+ 			sys.stdout.write('\n')
+ 
+ 			for o in olist:
+ 				sys.stdout.write(o.title2)
+-				if o != olist[-1]:
+-					sys.stdout.write('|')
++				if o != olist[-1]: sys.stdout.write('|')
+ 			sys.stdout.write('\n')
+ 
+ 		for o in olist:
+ 			o.stats()
+ 			o.show()
+-			if o != olist[-1]:
+-				sys.stdout.write('|')
++			if o != olist[-1]: sys.stdout.write('|')
+ 		sys.stdout.write('\n')
+ 
+ 		count = count + 1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001142.html">[SVN] r2336 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="001144.html">[SVN] r2338 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1143">[ date ]</a>
+              <a href="thread.html#1143">[ thread ]</a>
+              <a href="subject.html#1143">[ subject ]</a>
+              <a href="author.html#1143">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

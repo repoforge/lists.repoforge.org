@@ -1,0 +1,1941 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4912 - in trunk/tools/depo: . config config/httpd docs html
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4912%20-%20in%20trunk/tools/depo%3A%20.%20config%20config/httpd%20docs%20html&In-Reply-To=%3C20061120030624.06E9394CDB6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003711.html">
+   <LINK REL="Next"  HREF="003713.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4912 - in trunk/tools/depo: . config config/httpd docs html</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4912%20-%20in%20trunk/tools/depo%3A%20.%20config%20config/httpd%20docs%20html&In-Reply-To=%3C20061120030624.06E9394CDB6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4912 - in trunk/tools/depo: . config config/httpd docs html">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Nov 20 04:06:24 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003711.html">[svn] r4911 - in trunk/tools/depo: . config config/httpd
+</A></li>
+        <LI>Next message: <A HREF="003713.html">[svn] r4913 - trunk/tools/depo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3712">[ date ]</a>
+              <a href="thread.html#3712">[ thread ]</a>
+              <a href="subject.html#3712">[ subject ]</a>
+              <a href="author.html#3712">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-11-20 04:06:20 +0100 (Mon, 20 Nov 2006)
+New Revision: 4912
+
+Modified:
+   trunk/tools/depo/ChangeLog
+   trunk/tools/depo/Makefile
+   trunk/tools/depo/README
+   trunk/tools/depo/TODO
+   trunk/tools/depo/config/depo
+   trunk/tools/depo/config/depo-complex.conf
+   trunk/tools/depo/config/depo-example.conf
+   trunk/tools/depo/config/depo.conf
+   trunk/tools/depo/config/depo.cron
+   trunk/tools/depo/config/depo.logrotate
+   trunk/tools/depo/config/dnsmasq-depo.conf
+   trunk/tools/depo/config/httpd/depo.conf
+   trunk/tools/depo/depo
+   trunk/tools/depo/depo.spec
+   trunk/tools/depo/docs/Makefile
+   trunk/tools/depo/docs/directories.txt
+   trunk/tools/depo/docs/dnsmasq-configuration.txt
+   trunk/tools/depo/docs/proxy-configuration.txt
+   trunk/tools/depo/docs/quickstart.txt
+   trunk/tools/depo/docs/redhat-network.txt
+   trunk/tools/depo/docs/selinux.txt
+   trunk/tools/depo/docs/suse-support.txt
+   trunk/tools/depo/docs/usage.txt
+   trunk/tools/depo/docs/verbosity.txt
+   trunk/tools/depo/docs/webserver-configuration.txt
+   trunk/tools/depo/gensystemid
+   trunk/tools/depo/html/HEADER.index.shtml
+   trunk/tools/depo/html/HEADER.repo.shtml
+   trunk/tools/depo/html/README.index.shtml
+   trunk/tools/depo/html/README.repo.shtml
+   trunk/tools/depo/rhnget
+   trunk/tools/depo/setup.py
+Log:
+Rename Yam to Depo completed.
+
+Modified: trunk/tools/depo/ChangeLog
+===================================================================
+--- trunk/tools/depo/ChangeLog	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/ChangeLog	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,4 +1,5 @@
+ * 0.8.3svn - ... - released 22/10/2006
++- Renamed Yam to Depo (Matthew Hannigan)
+ - Fix a bug in the relpath() function when common part is not a path (Jason Kim)
+ - Do not copy the comps.xml from the ISO when the target os-comps.xml exists (Jason Kim)
+ - Fixed a problem when locking during a dry-run (David Lutterkort)
+@@ -7,6 +8,7 @@
+ - Remove obsolete RHN packages (rhnget-cleanup/--delete option)
+ - Added mailfrom directive to overwrite the sender address for mail reports (Jason Kim)
+ - Hardcoded xmlrpc.rhn.redhat.com in rhnget (Matt Hyclak)
++- Fixed a problem when symlink to an existing dangling symlink
+ 
+ * 0.8.3 - Van Eyck - released 15/10/2006
+ - Fixed a problem with specific python versions (Justin B Hochstetler)
+
+Modified: trunk/tools/depo/Makefile
+===================================================================
+--- trunk/tools/depo/Makefile	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/Makefile	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,4 +1,4 @@
+-name = yam
++name = depo
+ version = $(shell awk '/^Version: / {print $$2}' $(name).spec)
+ 
+ prefix = /usr
+@@ -13,10 +13,10 @@
+ httpddir = $(sysconfdir)/httpd/conf.d
+ initrddir = $(sysconfdir)/rc.d/init.d
+ 
+-cachedir = $(localstatedir)/cache/yam
+-htmldir = $(datadir)/yam/html
+-srcdir = $(localstatedir)/yam
+-wwwdir = $(localstatedir)/www/yam
++cachedir = $(localstatedir)/cache/depo
++htmldir = $(datadir)/depo/html
++srcdir = $(localstatedir)/depo
++wwwdir = $(localstatedir)/www/depo
+ 
+ all:
+ 	@echo &quot;There is nothing to be build. Try install !&quot;
+@@ -24,11 +24,11 @@
+ install:
+ 	install -Dp -m0755 gensystemid $(DESTDIR)$(bindir)/gensystemid
+ 	install -Dp -m0755 rhnget $(DESTDIR)$(bindir)/rhnget
+-	install -Dp -m0755 yam $(DESTDIR)$(bindir)/yam
+-	[ ! -f $(DESTDIR)$(sysconfdir)/yam.conf ] &amp;&amp; install -D -m0600 config/yam.conf $(DESTDIR)$(sysconfdir)/yam.conf || :
+-	install -d -m0755 $(DESTDIR)$(sysconfdir)/yam.conf.d/
+-	install -Dp -m0644 config/httpd/yam.conf $(DESTDIR)$(httpddir)/yam.conf
+-	install -Dp -m0755 config/yam $(DESTDIR)$(initrddir)/yam
++	install -Dp -m0755 depo $(DESTDIR)$(bindir)/depo
++	[ ! -f $(DESTDIR)$(sysconfdir)/depo.conf ] &amp;&amp; install -D -m0600 config/depo.conf $(DESTDIR)$(sysconfdir)/depo.conf || :
++	install -d -m0755 $(DESTDIR)$(sysconfdir)/depo.conf.d/
++	install -Dp -m0644 config/httpd/depo.conf $(DESTDIR)$(httpddir)/depo.conf
++	install -Dp -m0755 config/depo $(DESTDIR)$(initrddir)/depo
+ 
+ 	install -d -m0755 $(DESTDIR)$(htmldir)
+ 	install -p -m0644 html/* $(DESTDIR)$(htmldir)
+@@ -37,14 +37,14 @@
+ 	install -d -m0755 $(DESTDIR)$(wwwdir)
+ 	install -d -m0755 $(DESTDIR)$(cachedir)
+ 
+-	[ &quot;$(DESTDIR)&quot; -o ! -f &quot;$(DESTDIR)$(sysconfdir)/cron.d/yam&quot; ] &amp;&amp; install -Dp -m0644 config/yam.cron $(DESTDIR)$(sysconfdir)/cron.d/yam || :
++	[ &quot;$(DESTDIR)&quot; -o ! -f &quot;$(DESTDIR)$(sysconfdir)/cron.d/depo&quot; ] &amp;&amp; install -Dp -m0644 config/depo.cron $(DESTDIR)$(sysconfdir)/cron.d/depo || :
+ 	
+-	install -Dp -m0644 config/yam.logrotate $(DESTDIR)$(sysconfdir)/logrotate.d/yam
++	install -Dp -m0644 config/depo.logrotate $(DESTDIR)$(sysconfdir)/logrotate.d/depo
+ 
+ 	@if [ -z &quot;$(DESTDIR)&quot; -a -x &quot;/sbin/chkconfig&quot; ]; then \
+-		/sbin/chkconfig --add yam; \
++		/sbin/chkconfig --add depo; \
+ 	elif [ -z &quot;$(DESTDIR)&quot; -a -x &quot;$(sbindir)/chkconfig&quot; ]; then \
+-		$(sbindir)/chkconfig --add yam; \
++		$(sbindir)/chkconfig --add depo; \
+ 	fi
+ 
+ docs:
+
+Modified: trunk/tools/depo/README
+===================================================================
+--- trunk/tools/depo/README	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/README	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,4 +1,4 @@
+-Yam builds a local APT/Yum RPM repository from local ISO files, downloaded
++Depo builds a local APT/Yum RPM repository from local ISO files, downloaded
+ updates, and extra packages from 3rd party repositories. It takes care of
+ setting up the ISO files, downloading the RPMs, configuring HTTP access
+ and providing PXE/TFTP resources for remote installations.
+@@ -8,11 +8,11 @@
+ is equally suitable for an organisation's centralized update server.
+ 
+ Doing a remote installation only requires a configured DHCP-server, the
+-TFTP service and a Webserver configured with Yam. Then boot your system
++TFTP service and a Webserver configured with Depo. Then boot your system
+ using a PXE-enabled network card.
+ 
+ For updating your local systems, configure either Apt, Yum or up2date and
+-point them to your local Yam server.
++point them to your local Depo server.
+ 
+ ---
+ Please send me improvements to this document.
+
+Modified: trunk/tools/depo/TODO
+===================================================================
+--- trunk/tools/depo/TODO	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/TODO	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -30,7 +30,7 @@
+ + Add YaST/YOU support (both for mirroring as providing metadata, seems impossible ?)
+ 
+ ### Reporting utility
+-+ Logwatch configuration for Yam
+++ Logwatch configuration for Depo
+ + Mail out new updates or removals per distribution and per repository
+ 
+ ### Configuration
+@@ -43,7 +43,7 @@
+ 	iso = <A HREF="file:///mnt/iso/*.iso">file:///mnt/iso/*.iso</A>
+ 	iso = fedora/fc$release-$arch/FC-$release-$arch-disc?.iso&quot;
+ 
+-+ Add more working distributions to /etc/yam.conf.d/
+++ Add more working distributions to /etc/depo.conf.d/
+ 
+ ### Usability
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+@@ -56,11 +56,11 @@
+ + Allow to add external html generators (repoview, repojanitor)
+ 
+ ### Documentation
+-+ Add a yam and yam.conf manpage
+-- Add a gensystemid and rhnget manpage
+++ Add a depo and depo.conf manpage
+++ Add a gensystemid and rhnget manpage
+ + Add documentation on how to configure clients
+ + Add integration/documentation with ISC dhcpd
+-+ Add documentation about chaining Yam servers
+++ Add documentation about chaining Depo servers
+ + Comment the code more (pydoc strings)
+ + ZeroConf support (or documentation)
+ + Comply with PEP8: <A HREF="http://www.python.org/dev/peps/pep-0008/">http://www.python.org/dev/peps/pep-0008/</A>
+@@ -73,7 +73,7 @@
+ 
+ ### Bugs
+ + yum-arch stumbles on broken symlinks (<A HREF="https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280">https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280</A>)
+-+ Correct file permissions/ownerships of packages in /var/yam (add umask option)
+++ Correct file permissions/ownerships of packages in /var/depo (add umask option)
+ + Improve debugging output for pxelinux and /tftpboot/
+ 
+ ### RHNget tool / RHN support
+@@ -87,13 +87,13 @@
+ + Implement better channel support (a way to use _all_ channels)
+ + Allow for listing packages instead of downloading (--dry-run ?)
+ 
+-### Yamcfg tool / generate a configuration for clients (Chandan Dutta Chowdhury)
++### Depocfg tool / generate a configuration for clients (Chandan Dutta Chowdhury)
+ + The tool should accept a URL as an argument
+ + Should have a list (-l) option to list the different distributions
+ + Should have a target (-t) option to specify the configuration output format (apt/yum/smart)
+ + It scans the URL given and looks for know repository metadata
+ 
+-### Yamgen tool / repository metadata
++### Depogen tool / repository metadata
+ + Replaces genbasedir, createrepo and yum-arch
+ + Creates rsyncable bzip2 and gzip data
+ + Uses 1 cachedir for all generation
+@@ -108,18 +108,18 @@
+     if repo is provided, create symlinks in dirname() for RPMS.repo
+ + Also see: <A HREF="http://people.redhat.com/laroche/pyrpm/">http://people.redhat.com/laroche/pyrpm/</A>
+ 
+-### Yamenu tool / remote installation
++### Depomenu tool / remote installation
+ + Create small curses tool to manage systems / MAC-addresses / profiles (kickstart)
+ + Generate remote syslinux menu to boot any of the available dists
+ + Look into providing bootsplash like SuSE
+-+ Generate a dnsmasq-yam.conf if dnsmasq is installed/running(?)
+++ Generate a dnsmasq-depo.conf if dnsmasq is installed/running(?)
+ + Add default kickstart integration (files/location)
+ + Add default AutoYast integration (help needed)
+ + Adapt to make Mandrake/SuSE work too (help needed)
+ + Add CSM support
+ 
+-### Yampxe tool
++### Depopxe tool
+ + Generates necessary PXE config-files and allow for 3rd party boot-images
+ 
+-### Yamusb tool
++### Depousb tool
+ + Create a bootable USB stick and allow for 3rd party boot-images
+
+Modified: trunk/tools/depo/config/depo
+===================================================================
+--- trunk/tools/depo/config/depo	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/depo	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,11 +1,11 @@
+ #!/bin/bash
+ #
+-# Init script for Yam distribution server.
++# Init script for Depo distribution server.
+ #
+ # Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;.
+ #
+ # chkconfig: 2345 90 10
+-# description: Yam distribution server.
++# description: Depo distribution server.
+ #
+ # processname: yam
+ # config: /etc/yam.conf
+@@ -24,12 +24,12 @@
+ [ -r &quot;$YAMCONFIG&quot; ] || exit 1
+ 
+ RETVAL=0
+-prog=&quot;yam&quot;
+-desc=&quot;Yam Distribution Server&quot;
++prog=&quot;depo&quot;
++desc=&quot;Depo Distribution Server&quot;
+ 
+ start() {
+ 	echo -n $&quot;Starting $desc ($prog): &quot;
+-	yam -q -c $YAMCONFIG
++	depo -q -c $YAMCONFIG
+ 	RETVAL=$?
+ 	[ $RETVAL -eq 0 ] &amp;&amp; success || failure
+ 	echo
+@@ -39,7 +39,7 @@
+ 
+ stop() {
+ 	echo -n $&quot;Shutting down $desc ($prog): &quot;
+-	yam -q --umount -c $YAMCONFIG
++	depo -q --umount -c $YAMCONFIG
+ 	RETVAL=$?
+ 	[ $RETVAL -eq 0 ] &amp;&amp; success || failure
+ 	echo
+
+Modified: trunk/tools/depo/config/depo-complex.conf
+===================================================================
+--- trunk/tools/depo/config/depo-complex.conf	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/depo-complex.conf	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,10 +1,10 @@
+-### Configuration file for Yam
++### Configuration file for Depo
+ 
+-### The [main] section allows to override Yam's default settings
+-### The yam-example.conf gives an overview of all the possible settings
++### The [main] section allows to override Depo's default settings
++### The depo-example.conf gives an overview of all the possible settings
+ [main]
+-srcdir = /var/yam
+-wwwdir = /var/www/yam
++srcdir = /var/depo
++wwwdir = /var/www/depo
+ arch = i386
+ #rhnlogin = username:password
+ 
+
+Modified: trunk/tools/depo/config/depo-example.conf
+===================================================================
+--- trunk/tools/depo/config/depo-example.conf	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/depo-example.conf	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,4 +1,4 @@
+-### Configuration file for Yam
++### Configuration file for Depo
+ 
+ ### These options show you the hardcoded defaults
+ ### You can leave them out if this is what you want
+@@ -11,19 +11,19 @@
+ arch = i386
+ 
+ ## The location of the example .shtml files
+-htmldir = /usr/share/yam/html
++htmldir = /usr/share/depo/html
+ 
+ ## The location of the (latest) pxelinux bootcode
+ pxelinux = /usr/lib/syslinux/pxelinux.0
+ 
+ ## The location of the ISO images and RPM files
+-srcdir = /var/yam
++srcdir = /var/depo
+ 
+ ## The location of the Yam TFTP files
+-tftpdir = /tftpboot/yam
++tftpdir = /tftpboot/depo
+ 
+ ## The location of the generated repositories
+-wwwdir = /var/www/yam
++wwwdir = /var/www/depo
+ 
+ ## The location of the different executables
+ createrepocmd = /usr/bin/createrepo
+@@ -43,7 +43,7 @@
+ rhnlogin =
+ 
+ ## Specify the required proxy settings
+-#no_proxy = localhost,yam,webserver
++#no_proxy = localhost,depo,webserver
+ #ftp_proxy = <A HREF="http://10.1.2.3:8080">http://10.1.2.3:8080</A>
+ #http_proxy = <A HREF="http://10.1.2.3:8080">http://10.1.2.3:8080</A>
+ #https_proxy = <A HREF="http://10.1.2.3:8080">http://10.1.2.3:8080</A>
+@@ -110,7 +110,7 @@
+ skip-metadata = all
+ 
+ 
+-### Example1: Using ISO files (put ISOs in /var/yam/dist1-i386), i386 is default arch
++### Example1: Using ISO files (put ISOs in /var/depo/dist1-i386), i386 is default arch
+ [dist1]
+ name = Distribution example $release ($arch)
+ release = 1
+@@ -135,7 +135,7 @@
+ metadata = apt repomd
+ iso = dist$release-$arch-disc?.iso
+ os = <A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
+-updates = <A HREF="yam://dist1-$arch/$repo/">yam://dist1-$arch/$repo/</A>
++updates = <A HREF="depo://dist1-$arch/$repo/">depo://dist1-$arch/$repo/</A>
+ contrib = <A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
+ 
+ ### Example4: Merging repositories
+@@ -145,5 +145,5 @@
+ metadata = apt repomd yum
+ contrib = <A HREF="rsync://rsync.dist4.org/dist/$release/$arch/$repo/">rsync://rsync.dist4.org/dist/$release/$arch/$repo/</A>
+ extras = <A HREF="rsync://rsync.dist4.org/dist/$release/$arch/$repo/">rsync://rsync.dist4.org/dist/$release/$arch/$repo/</A>
+-merge = <A HREF="yam://$nick/contrib/">yam://$nick/contrib/</A>
+-	<A HREF="yam://$nick/extras/">yam://$nick/extras/</A>
++merge = <A HREF="depo://$nick/contrib/">depo://$nick/contrib/</A>
++	<A HREF="depo://$nick/extras/">depo://$nick/extras/</A>
+
+Modified: trunk/tools/depo/config/depo.conf
+===================================================================
+--- trunk/tools/depo/config/depo.conf	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/depo.conf	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,11 +1,11 @@
+-### Configuration file for Yam
++### Configuration file for Depo
+ 
+-### The [main] section allows to override Yam's default settings
+-### The yam-example.conf gives an overview of all the possible settings
++### The [main] section allows to override Depo's default settings
++### The depo-example.conf gives an overview of all the possible settings
+ [main]
+-srcdir = /var/yam
+-wwwdir = /var/www/yam
+-confdir = /etc/yam.conf.d
++srcdir = /var/depo
++wwwdir = /var/www/depo
++confdir = /etc/depo.conf.d
+ arch = i386
+ 
+ mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
+@@ -14,5 +14,5 @@
+ #rhnlogin = username:password
+ 
+ ### Any other section is considered a definition for a distribution
+-### You can put distribution sections in /etc/yam.conf.d
++### You can put distribution sections in /etc/depo.conf.d
+ ### Examples can be found in the documentation.
+
+Modified: trunk/tools/depo/config/depo.cron
+===================================================================
+--- trunk/tools/depo/config/depo.cron	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/depo.cron	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,3 +1,3 @@
+-### Enable this if you want Yam to daily synchronize
++### Enable this if you want Depo to daily synchronize
+ ### your distributions and repositories at 2:30am.
+-#30 2 * * * root /usr/bin/yam -q -ug
++#30 2 * * * root /usr/bin/depo -q -ug
+
+Modified: trunk/tools/depo/config/depo.logrotate
+===================================================================
+--- trunk/tools/depo/config/depo.logrotate	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/depo.logrotate	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,4 +1,4 @@
+-/var/log/yam.log {
++/var/log/depo.log {
+     missingok
+     notifempty
+     copytruncate
+
+Modified: trunk/tools/depo/config/dnsmasq-depo.conf
+===================================================================
+--- trunk/tools/depo/config/dnsmasq-depo.conf	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/dnsmasq-depo.conf	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,5 +1,5 @@
+ ### Red Hat Enterprise 3 for x86
+-dhcp-boot=/yam/rhes3-i386/pxelinux.0,emyn,10.0.0.1
++dhcp-boot=/depo/rhel3as-i386/pxelinux.0,emyn,10.0.0.1
+ 
+ ### Fedora Core 2 for x86
+-#dhcp-boot=/yam/fc2-i386/pxelinux.0,emyn,10.0.0.1
++#dhcp-boot=/depo/fc2-i386/pxelinux.0,emyn,10.0.0.1
+
+Modified: trunk/tools/depo/config/httpd/depo.conf
+===================================================================
+--- trunk/tools/depo/config/httpd/depo.conf	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/config/httpd/depo.conf	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,7 +1,7 @@
+ ### Directory-based for the main server
+-Alias /yam /var/www/yam
++Alias /depo /var/www/depo
+ 
+-&lt;Directory /var/www/yam&gt;
++&lt;Directory /var/www/depo&gt;
+ 	Options Indexes FollowSymlinks SymLinksifOwnerMatch IncludesNOEXEC
+ 	IndexOptions NameWidth=* DescriptionWidth=*
+ 
+@@ -12,7 +12,7 @@
+ 	#allow from horsea.3ti.be
+ 	#allow from pikachu.3ti.be
+ 
+-	#AuthUserFile /var/yam/auth/.htpasswd
++	#AuthUserFile /var/depo/auth/.htpasswd
+ 	#Require user bert dag dries thias
+ 	
+ 	HeaderName HEADER.shtml
+@@ -112,18 +112,18 @@
+ 	AddDescription &quot;Yellow Dog Linux 4.0 for PPC&quot; yd4-ppc
+ &lt;/Directory&gt;
+ 
+-### Name based virtual-host named &quot;yam&quot;
+-### &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+-### The purpose of this virtual host is to provide a URL <A HREF="http://yam/">http://yam/</A>
++### Name based virtual-host named &quot;depo&quot;
++### &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++### The purpose of this virtual host is to provide a URL <A HREF="http://depo/">http://depo/</A>
+ ### as a standard on your local network and map it to the correct IP
+ ### for the different networks that have access to it.
+ #
+-#NameVirtualHost yam:80
++#NameVirtualHost depo:80
+ #
+-#&lt;VirtualHost yam:80&gt;
+-#	ServerName yam
+-#	ServerAlias yam.3ti.be yam.localdomain
+-#	DocumentRoot /var/www/yam
+-#	ErrorLog logs/yam-error_log
+-#	CustomLog logs/yam-access_log combined
++#&lt;VirtualHost depo:80&gt;
++#	ServerName depo
++#	ServerAlias depo.3ti.be depo.localdomain
++#	DocumentRoot /var/www/depo
++#	ErrorLog logs/depo-error_log
++#	CustomLog logs/depo-access_log combined
+ #&lt;/VirtualHost&gt;
+
+Modified: trunk/tools/depo/depo
+===================================================================
+--- trunk/tools/depo/depo	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/depo	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -45,7 +45,7 @@
+ 
+ class Options:
+ 	def __init__(self, args):
+-		self.configfile = '/etc/yam.conf'
++		self.configfile = '/etc/depo.conf'
+ 		self.dists = []
+ 		self.rhnrelease = None
+ 		self.force = False
+@@ -64,14 +64,14 @@
+ 				('config=', 'dist=', 'dryrun', 'force', 'generate', 'help', 'quiet', 'repo',
+ 				'remount', 'type=', 'umount', 'unmount', 'update', 'verbose', 'version', 'extras'))
+ 		except getopt.error, exc:
+-			print 'yam: %s, try yam -h for a list of all the options' % str(exc)
++			print 'depo: %s, try depo -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+ 
+ 		for opt, arg in opts:
+ 			if opt in ('-c', '--config'):
+ 				self.configfile = os.path.abspath(arg)
+ 			elif opt in ('-d', '--dist'):
+-				print 'yam: the use of -d or --dist as an option is deprecated, use the argument list'
++				print 'depo: the use of -d or --dist as an option is deprecated, use the argument list'
+ 				self.dists = self.dists + arg.split(',')
+ 			elif opt in ('-f', '--force'):
+ 				self.force = True
+@@ -102,11 +102,11 @@
+ 				self.version()
+ 				sys.exit(0)
+ 			elif opt in ('-x', '--extras'):
+-				print 'yam: the use of -x or --extras is deprecated, use -u and -r instead'
++				print 'depo: the use of -x or --extras is deprecated, use -u and -r instead'
+ 				self.update = True
+ 
+ 		if not self.types:
+-			self.types = ['file', 'fish', 'ftp', 'http', 'https', 'mc', 'rhn', 'rhns', 'rsync', 'sftp', 'yam']
++			self.types = ['file', 'fish', 'ftp', 'http', 'https', 'mc', 'rhn', 'rhns', 'rsync', 'sftp', 'depo']
+ 
+ 		for arg in args:
+ 			self.dists = self.dists + arg.split(',')
+@@ -119,7 +119,7 @@
+ 			print 'Using configfile %s' % self.configfile
+ 
+ 	def version(self):
+-		print 'yam %s' % VERSION
++		print 'depo %s' % VERSION
+ 		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
+ 		print
+ 		print 'platform %s/%s' % (os.name, sys.platform)
+@@ -128,15 +128,15 @@
+ 		print 'build revision $Rev$'
+ 
+ 	def usage(self):
+-		print 'usage: yam [options] dist1 [dist2-arch ..]'
++		print 'usage: depo [options] dist1 [dist2-arch ..]'
+ 
+ 	def help(self):
+ 		print '''Set up a distribution server from ISO files
+ 
+-Yam options:
++Depo options:
+   -c, --config=file       specify alternative configfile
+   -f, --force             force repository generation
+-  -g, --generate          generate Yam repositories
++  -g, --generate          generate Depo repositories
+   -n, --dry-run           show what would have been done
+   -q, --quiet             minimal output
+   -r, --repo=repo1,repo2  restrict action to specific repositories
+@@ -151,18 +151,18 @@
+ 	def __init__(self):
+ 		self.read(op.configfile)
+ 
+-		self.cachedir = self.getoption('main', 'cachedir', '/var/cache/yam')
+-		self.lockdir = self.getoption('main', 'lockdir', '/var/cache/yam')
+-		self.confdir = self.getoption('main', 'confdir', '/etc/yam.conf.d')
+-		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/yam/html')
++		self.cachedir = self.getoption('main', 'cachedir', '/var/cache/depo')
++		self.lockdir = self.getoption('main', 'lockdir', '/var/cache/depo')
++		self.confdir = self.getoption('main', 'confdir', '/etc/depo.conf.d')
++		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/depo/html')
+ 		self.pxelinux = self.getoption('main', 'pxelinux', '/usr/lib/syslinux/pxelinux.0')
+-		self.srcdir = self.getoption('main', 'srcdir', '/var/yam')
+-		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/yam')
+-		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/yam')
+-		self.logfile = self.getoption('main', 'logfile', '/var/log/yam.log')
++		self.srcdir = self.getoption('main', 'srcdir', '/var/depo')
++		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/depo')
++		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/depo')
++		self.logfile = self.getoption('main', 'logfile', '/var/log/depo.log')
+ 
+ 		self.mailto = self.getoption('main', 'mailto', None)
+-		self.mailfrom = self.getoption('main', 'mailfrom', 'yam@%s' % os.uname()[1])
++		self.mailfrom = self.getoption('main', 'mailfrom', 'depo@%s' % os.uname()[1])
+ 		self.smtpserver = self.getoption('main', 'smtp-server', 'localhost')
+ 
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+@@ -519,15 +519,15 @@
+ 					mirrorlftp(url, self.srcdir)
+ 				elif s in ('file', ''):
+ 					mirrorfile(url, self.srcdir)
+-				elif s in ('yam', ):
+-					mirroryam(url, self.srcdir)
++				elif s in ('depo', ):
++					mirrordepo(url, self.srcdir)
+ 				elif s in ('mc', ):
+ 					mirrormirrordir(url, self.srcdir)
+ 				elif s in ('rhn', 'rhns'):
+ 					mirrorrhnget(url, self.srcdir, self.dist)
+ 				else:
+ 					error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
+-			except YamMirrorException, e:
++			except DepoMirrorException, e:
+ 				error(0, 'Mirroring failed for %s with message:\n  %s' % (url, e.value))
+ 				exitcode = 2
+ 		if not self.url:
+@@ -681,7 +681,7 @@
+ 					self.repoview()
+ 				elif md not in metadata: 
+ 					error(0, 'The %s index is unknown.' % md)
+-		except YamGenerateException, e:
++		except DepoGenerateException, e:
+ 			error(0, 'Generating repo failed for %s with message:\n  %s' % (self.name, e.value))
+ 			exitcode = 2
+ 		
+@@ -689,7 +689,7 @@
+ 	def repomd(self):
+ 		&quot;Create a repomd repository&quot;
+ 		if not cf.cmd['createrepo']:
+-			raise YamGenerateException('Command createrepo is not found. Skipping.')
++			raise DepoGenerateException('Command createrepo is not found. Skipping.')
+ 		opts = ' ' + cf.createrepooptions
+ 		if op.force:
+ 			opts = ' --pretty'
+@@ -712,7 +712,7 @@
+ 			info(2, '%s: Create repomd repository for %s' % (self.dist.nick, self.name))
+ 			ret = run('%s %s %s' % (cf.cmd['createrepo'], repoopts, self.wwwdir))
+ 			if ret:
+-				raise(YamGenerateException('%s failed with return code: %s' % (cf.cmd['createrepo'], ret)))
++				raise(DepoGenerateException('%s failed with return code: %s' % (cf.cmd['createrepo'], ret)))
+ 
+ 	def yum(self):
+ 		&quot;Create a (old-style) yum repository&quot;
+@@ -733,7 +733,7 @@
+ 			info(2, '%s: Create (old-style) yum repository for %s' % (self.dist.nick, self.name))
+ 			ret = run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.wwwdir))
+ 			if ret:
+-				raise(YamGenerateException('%s failed with return code: %s' % (cf.cmd['yumarch'], ret)))
++				raise(DepoGenerateException('%s failed with return code: %s' % (cf.cmd['yumarch'], ret)))
+ 
+ 	def apt(self):
+ 		&quot;Create an (old-style) apt repository&quot;
+@@ -779,7 +779,7 @@
+ #		else:
+ 		ret = run('%s %s --flat --bloat --bz2only --partial %s %s' % (cf.cmd['genbasedir'], opts, self.dist.dir, self.name))
+ 		if ret:
+-			raise(YamGenerateException('%s failed with return code: %s' % (cf.cmd['genbasedir'], ret)))
++			raise(DepoGenerateException('%s failed with return code: %s' % (cf.cmd['genbasedir'], ret)))
+ 
+ 	def repoview(self):
+ 		&quot;Create a repoview index&quot;
+@@ -797,11 +797,11 @@
+ 			title = '%s repository for %s' % (self.name, self.dist.nick)
+ 			ret = run('%s %s --title=&quot;%s&quot; %s' % (cf.cmd['repoview'], opts, title, self.wwwdir))
+ 			if ret:
+-				raise(YamGenerateException('%s failed with return code: %s' % (cf.cmd['repoview'], ret)))
+-#			url = '<A HREF="http://yam/%s/RPMS.%s/">http://yam/%s/RPMS.%s/</A>' % (self.dist.nick, self.name)
++				raise(DepoGenerateException('%s failed with return code: %s' % (cf.cmd['repoview'], ret)))
++#			url = '<A HREF="http://depo/%s/RPMS.%s/">http://depo/%s/RPMS.%s/</A>' % (self.dist.nick, self.name)
+ #			ret = run('%s %s --url=&quot;%s&quot; %s' % (cf.cmd['repoview'], opts, url, self.wwwdir))
+ #			if ret:
+-#				raise(YamGenerateException('%s failed with return code: %s' % (cf.cmd['repoview'], ret)))
++#				raise(DepoGenerateException('%s failed with return code: %s' % (cf.cmd['repoview'], ret)))
+ 
+ class Set:
+ 	def __init__(self):
+@@ -831,13 +831,13 @@
+ 	def __len__(self):
+ 		return len(self.list)
+ 
+-class YamMirrorException(Exception):
++class DepoMirrorException(Exception):
+ 	def __init__(self, value):
+ 		self.value = value
+ 	def __str__(self):
+ 		return repr(self.value)
+ 
+-class YamGenerateException(Exception):
++class DepoGenerateException(Exception):
+ 	def __init__(self, value):
+ 		self.value = value
+ 	def __str__(self):
+@@ -863,7 +863,7 @@
+ def error(level, str):
+ 	&quot;Output error message&quot;
+ 	if level &lt;= op.verbose:
+-		sys.stderr.write('yam: %s\n' % str)
++		sys.stderr.write('depo: %s\n' % str)
+ 
+ def info(level, str):
+ 	&quot;Output info message&quot;
+@@ -971,10 +971,12 @@
+ 				return
+ 		else:
+ 			dst = os.path.join(dst, os.path.basename(src))
++			symlink(src, dst)
++			return
+ 	elif os.path.isfile(dst):
+ 		if os.path.samefile(src, dst):
+ 			return
+-		os.rename(dst, dst+'.yambak')
++		os.rename(dst, dst+'.depobak')
+ ### Not using filecmp increases speed with 15%
+ #	if os.path.isfile(dst) and filecmp.cmp(src, dst) == 0:
+ 
+@@ -1069,7 +1071,7 @@
+ 
+ 	ret = run('%s %s %s %s' % (cf.cmd['rsync'], opts, url, path), dryrun=True)
+ 	if ret:
+-		raise(YamMirrorException('Failed with return code: %s' % ret))
++		raise(DepoMirrorException('Failed with return code: %s' % ret))
+ 
+ def mirrormirrordir(url, path):
+ 	&quot;Mirror everything from a <A HREF="ftp://">ftp://</A> or <A HREF="mc://">mc://</A> URL&quot;
+@@ -1095,7 +1097,7 @@
+ 
+ 	ret = run(&quot;%s %s '%s' '%s'&quot; % (cf.cmd['mirrordir'], opts, url, path), dryrun=True)
+ 	if ret:
+-		raise(YamMirrorException('Failed with return code: %s' % ret))
++		raise(DepoMirrorException('Failed with return code: %s' % ret))
+ 
+ 
+ def mirrorlftp(url, path):
+@@ -1131,7 +1133,7 @@
+ 
+ 	ret = run('%s %s -c \'%s mirror %s %s %s\'' % (cf.cmd['lftp'], opts, cmds, mirroropts, url, path), dryrun=True)
+ 	if ret:
+-		raise(YamMirrorException('Failed with return code: %s' % ret))
++		raise(DepoMirrorException('Failed with return code: %s' % ret))
+ 
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+@@ -1149,9 +1151,9 @@
+ #			if os.path.isfile(iso):
+ #				print 'Please mount %s to %s' % (iso, path)
+ 
+-def mirroryam(url, path):
+-	&quot;Mirror everything from a local Yam mirror by symlinking&quot;
+-	pathname = url.replace('<A HREF="yam://">yam://</A>', '')
++def mirrordepo(url, path):
++	&quot;Mirror everything from a local Depo mirror by symlinking&quot;
++	pathname = url.replace('<A HREF="depo://">depo://</A>', '')
+ 	basename = os.path.basename(url)
+ 	symlink(os.path.join(cf.srcdir, pathname), os.path.join(path, basename))
+ 
+@@ -1195,7 +1197,7 @@
+ 
+ 	ret = run(&quot;%s %s '%s' '%s'&quot; % (cf.cmd['rhnget'], opts, url, path), dryrun=True)
+ 	if ret:
+-		raise(YamMirrorException('Failed with return code: %s' % ret))
++		raise(DepoMirrorException('Failed with return code: %s' % ret))
+ 
+ def hardlink(srcdir):
+ 	info(1, 'Hardlinking duplicate packages in %s.' % srcdir)
+@@ -1248,7 +1250,7 @@
+ 		import smtplib
+ 		smtp = smtplib.SMTP(cf.smtpserver)
+ #		server.set_debuglevel(1)
+-		msg = 'Subject: [yam] %s\n\n%s' % (subject, msg)
++		msg = 'Subject: [depo] %s\n\n%s' % (subject, msg)
+ 		for email in cf.mailto.split():
+ 			smtp.sendmail(cf.mailfrom, email, 'To: %s\n%s' % (email, msg))
+ 		smtp.quit()
+@@ -1307,7 +1309,7 @@
+ 
+ 	sumnew = 0
+ 	sumremoved = 0
+-	msg = 'The following changes to Yam\'s repositories on %s have been made:' % os.uname()[1]
++	msg = 'The following changes to Depo\'s repositories on %s have been made:' % os.uname()[1]
+ 
+ 	### Mounting and mirroring available distributions/repositories
+ 	for dist in dists:
+
+Modified: trunk/tools/depo/depo.spec
+===================================================================
+--- trunk/tools/depo/depo.spec	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/depo.spec	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,27 +1,28 @@
+-# $Id: yam.spec 2103 2004-08-26 10:38:07Z dag $
++# $Id: depo.spec 2103 2004-08-26 10:38:07Z dag $
+ # Authority: dag
+ # Upstream: Dag Wieers &lt;dag$wieers,com&gt;
+ 
+ Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, RHN, rsync, http, ftp, ...)
+-Name: yam
++Name: depo
+ Version: 0.8.3svn
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+-URL: <A HREF="http://dag.wieers.com/home-made/yam/">http://dag.wieers.com/home-made/yam/</A>
++URL: <A HREF="http://dag.wieers.com/home-made/depo/">http://dag.wieers.com/home-made/depo/</A>
+ 
+ Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+ 
+-Source: <A HREF="http://dag.wieers.com/home-made/yam/yam-%{version">http://dag.wieers.com/home-made/yam/yam-%{version</A>}.tar.bz2
++Source: <A HREF="http://dag.wieers.com/home-made/depo/depo-%{version">http://dag.wieers.com/home-made/depo/depo-%{version</A>}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildArch: noarch
+ BuildRequires: /usr/bin/python2
+ Requires: python &gt;= 2.0, createrepo &gt;= 0.4.6
++Obsoletes: yam &lt;= %{version}
+ 
+ %description
+-Yam builds a local Apt/Yum RPM repository from local ISO files,
++Depo builds a local Apt/Yum RPM repository from local ISO files,
+ downloaded updates and extra packages from RHN and 3rd party
+ repositories.
+ 
+@@ -30,32 +31,32 @@
+ the repository and creates a directory-structure for remote
+ network installations using PXE/TFTP.
+ 
+-Yam supports ftp, http, sftp, rsync, rhn and other download methods.
++Depo supports ftp, http, sftp, rsync, rhn and other download methods.
+ 
+-With Yam, you can enable your laptop or a local server to provide
++With Depo, you can enable your laptop or a local server to provide
+ updates for the whole network and provide the proper files to
+ allow installations via the network.
+ 
+ %prep
+ %setup
+ 
+-%{__perl} -pi.orig -e 's|^(VERSION)\s*=\s*.+$|$1 = &quot;%{version}&quot;|' yam
++%{__perl} -pi.orig -e 's|^(VERSION)\s*=\s*.+$|$1 = &quot;%{version}&quot;|' depo
+ 
+-%{__cat} &lt;&lt;EOF &gt;config/yam.cron
+-### Enable this if you want Yam to daily synchronize
++%{__cat} &lt;&lt;EOF &gt;config/depo.cron
++### Enable this if you want Depo to daily synchronize
+ ### your distributions and repositories at 2:30am.
+-#30 2 * * * root /usr/bin/yam -q -ug
++#30 2 * * * root /usr/bin/depo -q -ug
+ EOF
+ 
+-%{__cat} &lt;&lt;EOF &gt;config/yam.conf
+-### Configuration file for Yam
++%{__cat} &lt;&lt;EOF &gt;config/depo.conf
++### Configuration file for Depo
+ 
+-### The [main] section allows to override Yam's default settings
+-### The yam-example.conf gives an overview of all the possible settings
++### The [main] section allows to override Depo's default settings
++### The depo-example.conf gives an overview of all the possible settings
+ [main]
+-srcdir = /var/yam
+-wwwdir = /var/www/yam
+-confdir = /etc/yam.conf.d
++srcdir = /var/depo
++wwwdir = /var/www/depo
++confdir = /etc/depo.conf.d
+ arch = i386
+ 
+ mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
+@@ -64,7 +65,7 @@
+ #rhnlogin = username:password
+ 
+ ### Any other section is considered a definition for a distribution
+-### You can put distribution sections in /etc/yam.conf.d/
++### You can put distribution sections in /etc/depo.conf.d/
+ ### Examples can be found in the documentation at:
+ ###     %{_docdir}/%{name}-%{version}/dists/.
+ EOF
+@@ -77,15 +78,15 @@
+ 
+ %preun
+ if [ $1 -eq 0 ]; then
+-	/service yam stop &amp;&gt;/dev/null || :
+-        /sbin/chkconfig --del yam
++	/service depo stop &amp;&gt;/dev/null || :
++        /sbin/chkconfig --del depo
+ fi
+ 
+ %post
+-/sbin/chkconfig --add yam
++/sbin/chkconfig --add depo
+ 
+ #%postun
+-#/sbin/service yam condrestart &amp;&gt;/dev/null || :
++#/sbin/service depo condrestart &amp;&gt;/dev/null || :
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+@@ -93,19 +94,19 @@
+ %files
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS ChangeLog COPYING README THANKS TODO WISHLIST config/* docs/
+-%config(noreplace) %{_sysconfdir}/cron.d/yam
+-%config(noreplace) %{_sysconfdir}/httpd/conf.d/yam.conf
+-%config(noreplace) %{_sysconfdir}/logrotate.d/yam
+-%config(noreplace) %{_sysconfdir}/yam.conf
+-%config(noreplace) %{_sysconfdir}/yam.conf.d/
+-%config %{_initrddir}/yam
++%config(noreplace) %{_sysconfdir}/cron.d/depo
++%config(noreplace) %{_sysconfdir}/httpd/conf.d/depo.conf
++%config(noreplace) %{_sysconfdir}/logrotate.d/depo
++%config(noreplace) %{_sysconfdir}/depo.conf
++%config(noreplace) %{_sysconfdir}/depo.conf.d/
++%config %{_initrddir}/depo
+ %{_bindir}/gensystemid
+ %{_bindir}/rhnget
+-%{_bindir}/yam
+-%{_datadir}/yam/
+-%{_localstatedir}/cache/yam/
+-%{_localstatedir}/www/yam/
+-%{_localstatedir}/yam/
++%{_bindir}/depo
++%{_datadir}/depo/
++%{_localstatedir}/cache/depo/
++%{_localstatedir}/www/depo/
++%{_localstatedir}/depo/
+ 
+ %changelog
+ * Sun Oct 22 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.8.3svn-1
+
+Modified: trunk/tools/depo/docs/Makefile
+===================================================================
+--- trunk/tools/depo/docs/Makefile	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/Makefile	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -10,10 +10,10 @@
+ httpddir = $(sysconfdir)/httpd/conf.d
+ initrddir = $(sysconfdir)/rc.d/init.d
+ 
+-cachedir = $(localstatedir)/cache/yam
+-htmldir = $(datadir)/yam/html
+-srcdir = $(localstatedir)/yam
+-wwwdir = $(localstatedir)/www/yam
++cachedir = $(localstatedir)/cache/depo
++htmldir = $(datadir)/depo/html
++srcdir = $(localstatedir)/depo
++wwwdir = $(localstatedir)/www/depo
+ 
+ 
+ all: .txt
+
+Modified: trunk/tools/depo/docs/directories.txt
+===================================================================
+--- trunk/tools/depo/docs/directories.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/directories.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -3,7 +3,7 @@
+ 
+ Configuration directory
+ -----------------------
+-confdir = /etc/yam.conf.d
++confdir = /etc/depo.conf.d
+ 
+ 	$dist.conf		- Distribution configuration files
+ 	$dist-$arch.conf	- Distribution configuration files
+@@ -11,7 +11,7 @@
+ 
+ Source directory
+ ----------------
+-srcdir = /var/yam
++srcdir = /var/depo
+ 
+ 	all/		-	- Global directory
+ 		local/		- Directory for custom packages
+@@ -24,7 +24,7 @@
+ 
+ Web directory
+ -------------
+-wwwdir = /var/www/yam
++wwwdir = /var/www/depo
+ 
+ 	$dist/
+ 		disc?/		- Loop-mounted ISO images
+@@ -39,8 +39,8 @@
+ 		fc3-i386/	- Fedora Core 3 / i386
+ 
+ 	per dist-arch one directory, autogenerated
+-	you can remove everything from here and regenerated with Yam
+-	please don't add packages here, see /var/yam/all !
++	you can remove everything from here and regenerated with Depo
++	please don't add packages here, see /var/depo/all !
+ 
+ ---
+ Please send me improvements to this document.
+
+Modified: trunk/tools/depo/docs/dnsmasq-configuration.txt
+===================================================================
+--- trunk/tools/depo/docs/dnsmasq-configuration.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/dnsmasq-configuration.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,13 +1,13 @@
+-Configuring dnsmasq to work with Yam
+-====================================
++Configuring dnsmasq to work with Depo
++=====================================
+ 
+-To set up yam with dnsmasq, put the following lines in /etc/dnsmasq.conf:
++To set up depo with dnsmasq, put the following lines in /etc/dnsmasq.conf:
+ 
+ 	### Red Hat Enterprise 3 for x86
+-	dhcp-boot=/yam/rhes3-i386/pxelinux.0,emyn,10.0.0.1
++	dhcp-boot=/depo/rhel3as-i386/pxelinux.0,emyn,10.0.0.1
+ 
+ 	### Fedora Core 2 for x86
+-	#dhcp-boot=/yam/fc2-i386/pxelinux.0,emyn,10.0.0.1
++	#dhcp-boot=/depo/fc2-i386/pxelinux.0,emyn,10.0.0.1
+ 
+ The syntax is:
+ 
+@@ -19,7 +19,7 @@
+ 
+ 	/etc/hosts:
+ 	127.0.0.1	localhost
+-	10.0.0.1	yam
++	10.0.0.1	depo
+ 	10.0.0.10	host1
+ 	10.0.0.11	host2
+ 
+
+Modified: trunk/tools/depo/docs/proxy-configuration.txt
+===================================================================
+--- trunk/tools/depo/docs/proxy-configuration.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/proxy-configuration.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,7 +1,7 @@
+-Using Yam behind a proxy server
+-===============================
++Using Depo behind a proxy server
++================================
+ 
+-If you're using Yam behind a proxy-server, you're out of luck for rsync
++If you're using Depo behind a proxy-server, you're out of luck for rsync
+ support. Rsync has its own protocol that is not allowed through a normal
+ proxy.
+ 
+@@ -12,7 +12,7 @@
+ export https_proxy=&quot;<A HREF="http://proxy:8080">http://proxy:8080</A>&quot;
+ export http_proxy=&quot;<A HREF="http://proxy:8080">http://proxy:8080</A>&quot;
+ export ftp_proxy=&quot;<A HREF="http://proxy:8080">http://proxy:8080</A>&quot;
+-export no_proxy=&quot;localhost,yam,webserver&quot;
++export no_proxy=&quot;localhost,depo,webserver&quot;
+ ----
+ 
+ lftp will understand these environment variables and use them. However you
+@@ -21,15 +21,15 @@
+ or ~/.lftprc
+ 
+ 
+-Yam configuration
+------------------
+-If you prefer not to set them as environment variables or are using Yam
++Depo configuration
++------------------
++If you prefer not to set them as environment variables or are using Depo
+ in a cron-job (where these variables are not set by default), you can
+-add the configuration to /etc/yam.conf:
++add the configuration to /etc/depo.conf:
+ 
+ ----
+ [main]
+-no_proxy = localhost,yam,webserver
++no_proxy = localhost,depo,webserver
+ ftp_proxy = <A HREF="http://10.1.2.3:8080">http://10.1.2.3:8080</A>
+ http_proxy = <A HREF="http://10.1.2.3:8080">http://10.1.2.3:8080</A>
+ https_proxy = <A HREF="http://10.1.2.3:8080">http://10.1.2.3:8080</A>
+@@ -40,11 +40,11 @@
+ 
+ Picky HTTP proxies
+ ------------------
+-There have been reports of people who cannot use Yam using lftp on http
++There have been reports of people who cannot use Depo using lftp on http
+ sites using their corporate HTTP proxy. This has to do with the fact
+ that these proxies have problems with the HEAD command on <A HREF="http://">http://</A> or
+ <A HREF="ftp://">ftp://</A> URLs. You can work around that by defining the following in your
+-/etc/yam.conf:
++/etc/depo.conf:
+ 
+ 	lftp-commands = set hftp:use-head 0
+ 
+@@ -54,7 +54,7 @@
+ 
+ Other problems ?
+ ----------------
+-If you have specific requirements or can't make Yam work under certain
++If you have specific requirements or can't make Depo work under certain
+ circumstances, let me know. We can look at the use-case and see if it is
+ worthwhile to make an exception (or bugfix) for your scenario.
+ 
+
+Modified: trunk/tools/depo/docs/quickstart.txt
+===================================================================
+--- trunk/tools/depo/docs/quickstart.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/quickstart.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -33,18 +33,18 @@
+ 
+   1. Start with collecting the existing ISO files you have of the
+      different distributions you want to put into a repository.
+-     Put these into your $srcdir (normally /var/yam), eg:
++     Put these into your $srcdir (normally /var/depo), eg:
+ 
+-		/var/yam/fc3-i386/
++		/var/depo/fc3-i386/
+ 
+ 
+-  2. Edit /etc/yam.conf and add for each distribution a new section
+-     like the examples given in the default yam.conf, yam-complex.conf
+-     or yam-example.conf
++  2. Edit /etc/depo.conf and add for each distribution a new section
++     like the examples given in the default depo.conf, depo-complex.conf
++     or depo-example.conf
+ 
+-     You can add a distribution section to a new file in /etc/yam.conf.d/
++     You can add a distribution section to a new file in /etc/depo.conf.d/
+ 
+-		eg. /etc/yam.conf.d/fc3-i386.conf
++		eg. /etc/depo.conf.d/fc3-i386.conf
+ 
+      See the examples in the documentation as a reference.
+ 
+@@ -52,11 +52,11 @@
+   3. If you want to add your own custom packages to one or all of
+      the repositories, you have 2 options.
+ 
+-     a. Add them to /var/yam/&lt;distro&gt;-&lt;arch&gt;/local/
++     a. Add them to /var/depo/&lt;distro&gt;-&lt;arch&gt;/local/
+ 
+-		eg. /var/yam/fc3-i386/local/
++		eg. /var/depo/fc3-i386/local/
+ 
+-	or add them to /var/yam/all/local/ to add them to all.
++	or add them to /var/depo/all/local/ to add them to all.
+ 
+      b. Specify the directory of your choice in a new repository,
+ 	eg. called 'myrepo'
+@@ -76,49 +76,49 @@
+         repositories.
+ 
+ 
+-  4. Now run Yam with no actions to see if the ISO files are mounted
++  4. Now run Depo with no actions to see if the ISO files are mounted
+      and all your configuration options have been used:
+ 
+-	yam -vv
++	depo -vv
+ 
+-     Then run Yam to update the repositories:
++     Then run Depo to update the repositories:
+ 
+-	yam -uvv
++	depo -uvv
+ 
+-     Then generate the Yam repositories by doing:
++     Then generate the Depo repositories by doing:
+ 
+-	yam -gvv
++	depo -gvv
+ 
+-     Now look in $wwwdir (normally /var/www/yam) or surf to
+-     <A HREF="http://localhost/yam/">http://localhost/yam/</A> to see if everything is the way you wanted.
++     Now look in $wwwdir (normally /var/www/depo) or surf to
++     <A HREF="http://localhost/depo/">http://localhost/depo/</A> to see if everything is the way you wanted.
+ 
+ 
+   5. Next time you can do directly
+ 
+-	yam -ug
++	depo -ug
+      or
+-	yam -ugv
++	depo -ugv
+ 
+      and all steps will be performed in one phase.
+ 
+ 
+-  6. If you're removing distributions from the yam.conf file and
++  6. If you're removing distributions from the depo.conf file and
+      you want to remove the ISOs to gain diskspace. Remember that
+      Linux will not release diskspace for files that are still
+      accessed (like a loop-mounted ISO file). You're best bet is
+      to first unmount the ISOs:
+ 
+-	yam -vv --umount
++	depo -vv --umount
+ 
+      then remove or comment the distributions and mount again:
+ 
+-	yam -vv
++	depo -vv
+ 
+   7. When you're adding new distributions, it's sufficient to just
+-     run Yam again. It will automatically mount everything that is
++     run Depo again. It will automatically mount everything that is
+      not already mounted. You can always remount/reset by doing:
+ 
+-	yam -vv --remount
++	depo -vv --remount
+ 
+ ---
+ Please send me improvements to this document.
+
+Modified: trunk/tools/depo/docs/redhat-network.txt
+===================================================================
+--- trunk/tools/depo/docs/redhat-network.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/redhat-network.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,5 +1,5 @@
+-Using RHN support in Yam
+-========================
++Using RHN support in Depo
++=========================
+ 
+ Requirements
+ ------------
+@@ -10,24 +10,24 @@
+ 
+ RHN systemid creation
+ ---------------------
+-For each distribution you want to add to Yam, you need to have a valid
++For each distribution you want to add to Depo, you need to have a valid
+ RHN systemid. You can create a systemid (provided you have the correct
+ entitlements to do so) by using the gensystemid tool that comes with
+-yam, eg.
++depo, eg.
+ 
+ ---
+-gensystemid -r 4AS -a x86_64 /var/yam/rhel4as-x86_64
++gensystemid -r 4AS -a x86_64 /var/depo/rhel4as-x86_64
+ ----
+ 
+-The tool will create a new system called &lt;hostname&gt;-4AS-x86_64-yam,
++The tool will create a new system called &lt;hostname&gt;-4AS-x86_64-depo,
+ register this system on RHN and create a systemid file in 
+-/var/yam/rhel4as-x86_64
++/var/depo/rhel4as-x86_64
+ 
+ 
+ RHN configuration
+ -----------------
+ Having done that, you can enable multiple channels for this systemid
+-on the RHN website. And then configure yam to use these channels, eg.
++on the RHN website. And then configure depo to use these channels, eg.
+ 
+ ----
+ [rhel4as]
+@@ -43,7 +43,7 @@
+ rhds = <A HREF="rhns:///rhel-4-as-i386-rhds-2.1">rhns:///rhel-4-as-i386-rhds-2.1</A>
+ ----
+ 
+-After that, yam should be able to successfully log on and download
++After that, depo should be able to successfully log on and download
+ all packages for the configured channels.
+ 
+ 
+@@ -58,11 +58,11 @@
+ to download x86_64 or ppc packages for a system that I have entitlements
+ for but is simply not allowed to connect to the Internet.
+ 
+-The gensystemid tool that comes with Yam will help you with creating
+-valid systemids for Yam, eg.
++The gensystemid tool that comes with Depo will help you with creating
++valid systemids for Depo, eg.
+ 
+ ----
+-gensystemid -r 4AS -a x86_64 /var/yam/rhel4as-x86_64
++gensystemid -r 4AS -a x86_64 /var/depo/rhel4as-x86_64
+ ----
+ 
+ You can manage your systems on the RHN website afterwards.
+@@ -72,7 +72,7 @@
+ 
+ Downloading from unsubscribed channels
+ --------------------------------------
+-You can let Yam subscribe to the necessary channels, unfortunately this
++You can let Depo subscribe to the necessary channels, unfortunately this
+ requires your RHN username and password. You can provide these in
+ the main section, like:
+ 
+@@ -82,10 +82,10 @@
+ ----
+ 
+ Or you can supply them to rhnget at the appropriate time. Unfortunately since
+-rhnget is a seperate tool invoked by Yam, you may need to provide this
++rhnget is a seperate tool invoked by Depo, you may need to provide this
+ information several times (every time you need to subscribe to a new channel).
+ 
+-You can also choose to only provide the username in /etc/yam.conf and provide
++You can also choose to only provide the username in /etc/depo.conf and provide
+ the password interactively.
+ 
+ ----
+@@ -93,17 +93,17 @@
+ rhnlogin = username
+ ----
+ 
+-Of course if you put the password in /etc/yam.conf, you need to protect it.
++Of course if you put the password in /etc/depo.conf, you need to protect it.
+ You may want to do:
+ 
+ ----
+-chmod og= /etc/yam.conf
+-chown root.root /etc/yam.conf
++chmod og= /etc/depo.conf
++chown root.root /etc/depo.conf
+ ----
+ 
+ Since you only need the username/password to subscribe to new channels
+ (only the very first time you access them) you may wish to remove the
+-login information from yam.conf after that.
++login information from depo.conf after that.
+ 
+ You can also log on manually to the RHN website to subscribe your system
+ to the channels you require.
+@@ -114,13 +114,13 @@
+ If you encounter the following message:
+ 
+ 	Traceback (most recent call last):
+-	  File &quot;/usr/bin/yam&quot;, line 1364, in ?
++	  File &quot;/usr/bin/depo&quot;, line 1364, in ?
+ 	    main()
+-	  File &quot;/usr/bin/yam&quot;, line 1247, in main
++	  File &quot;/usr/bin/depo&quot;, line 1247, in main
+ 	    mirror(dist.repos[repo], srcdir, dist)
+-	  File &quot;/usr/bin/yam&quot;, line 819, in mirror
++	  File &quot;/usr/bin/depo&quot;, line 819, in mirror
+ 	    mirrorrhn(url, path, dist)
+-	  File &quot;/usr/bin/yam&quot;, line 1099, in mirrorrhn
++	  File &quot;/usr/bin/depo&quot;, line 1099, in mirrorrhn
+ 	    package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	  File &quot;/usr/share/rhn/up2date_client/rpcServer.py&quot;, line 316, in doCall
+ 	    ret = apply(method, args, kwargs)
+@@ -134,7 +134,7 @@
+ 	up2date default
+ 
+ Especially on a system that wasn't using RHN or on CentOS this is a manual
+-change you have to make. yam doesn't really care, but the up2date
++change you have to make. Depo doesn't really care, but the up2date
+ implementation it is using simply requires it.
+ 
+ 
+@@ -191,8 +191,8 @@
+ #!/bin/bash
+ 
+ dists=$*
+-srcdir=/var/yam
+-wwwdir=/var/www/yam
++srcdir=/var/depo
++wwwdir=/var/www/depo
+ 
+ if [ -z &quot;$dists&quot; ]; then
+         cd $srcdir
+@@ -220,15 +220,15 @@
+ ----
+ 
+ Run this script when you download new RHEL ISO files and make these available
+-in Yam, but before downloading any updates from RHN.
++in Depo, but before downloading any updates from RHN.
+ 
+ ----
+-yam --umount
++depo --umount
+ ### Download new ISO files
+-### Change /etc/yam.conf to change the iso=
+-yam -v
++### Change /etc/depo.conf to change the iso=
++depo -v
+ ./clean.sh
+-yam -uvg
++depo -uvg
+ ----
+ 
+ This will free up some space by symlinking duplicate RPM packages from the ISO
+@@ -250,7 +250,7 @@
+ Using Red Hat satellite servers
+ -------------------------------
+ You can override the hardcoded RHN server by specifying it in the URL.
+-If it is not specified, Yam will assume a default value of
++If it is not specified, Depo will assume a default value of
+ xmlrpc.rhn.redhat.com
+ 
+ So the following two lines are identical:
+@@ -298,7 +298,7 @@
+ 	RHbz 179721: [RFE] No documentation for (RHN) up2date XMLRPC API methods
+ 	<A HREF="https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=179721">https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=179721</A>
+ 
+-And how to configure Yam for RHN access:
++And how to configure Depo for RHN access:
+ 
+ 	Installing YAM 0.8.0 on Red Hat Enterprise Linux 4
+ 	<A HREF="http://wiki.garylaw.net/doku.php?id=technical:unix:linux:yam">http://wiki.garylaw.net/doku.php?id=technical:unix:linux:yam</A>
+
+Modified: trunk/tools/depo/docs/selinux.txt
+===================================================================
+--- trunk/tools/depo/docs/selinux.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/selinux.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,18 +1,18 @@
+-Configuring Yam for selinux
+----------------------------
+-The most simple way to make Yam work on selinux is to map the Yam
++Configuring Depo for selinux
++----------------------------
++The most simple way to make Depo work on selinux is to map the Depo
+ documentroot to the httpd context.
+ 
+ You can do this by doing:
+ 
+-	chcon -Rh --reference /var/www/html /var/www/yam
++	chcon -Rh --reference /var/www/html /var/www/depo
+ 
+ 
+ Another way is to create the file
+ /etc/selinux/targeted/src/policy/file_contexts/misc/local.fc,
+ with the following content:
+ 
+-	/var/yam(/.*)? system_u:object_r:httpd_sys_content_t
++	/var/depo(/.*)? system_u:object_r:httpd_sys_content_t
+ 
+ Afterwards recompile the policy by doing:
+ 
+@@ -20,17 +20,17 @@
+ 
+ And apply the context by doing:
+ 
+-	restorecon -R /var/yam
++	restorecon -R /var/depo
+ 
+ I'd like this to be done by default, either from the RPM package or by the
+-system itself. Yam could be told to do this as well but I'm not sure if
++system itself. Depo could be told to do this as well but I'm not sure if
+ this is the proper way to handle selinux.
+ 
+ 
+ Slightly more complicated selinux contribution
+ ----------------------------------------------
+ David Hampton contributed a slightly more complicated selinux configuration
+-that defines its own Yam objects and context, you can find those files in
++that defines its own Depo objects and context, you can find those files in
+ the patches/ directory. SElinux improvements are welcome (as well as
+ information on how to standardize 
+ 
+
+Modified: trunk/tools/depo/docs/suse-support.txt
+===================================================================
+--- trunk/tools/depo/docs/suse-support.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/suse-support.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -63,8 +63,8 @@
+ install SLES8 or SLES9, it's better to make use of the Yast2 functionality.
+ (Yes, this means you're once again locked into something SuSE specific)
+ 
+-Yam will not support SLES until they clean up their act or someone sends me
+-an acceptable patch for Yam. The current SLES support stays unfinished like
++Depo will not support SLES until they clean up their act or someone sends me
++an acceptable patch for Depo. The current SLES support stays unfinished like
+ it is.
+ 
+ Based on the above information, you are of course free to perform the
+
+Modified: trunk/tools/depo/docs/usage.txt
+===================================================================
+--- trunk/tools/depo/docs/usage.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/usage.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,111 +1,111 @@
+-Usage information for Yam and a description of the options and config file
+-==========================================================================
++Usage information for Depo and a description of the options and config file
++===========================================================================
+ 
+-yam is used to create a repository on your server from multiple sources.
++depo is used to create a repository on your server from multiple sources.
+ 
+ 
+ Finding help on the command line
+ --------------------------------
+-yam -h
+-usage: yam [-g] [-q] [-u] [-v] [-c config] dist1 dist2-arch
++depo -h
++usage: depo [-g] [-q] [-u] [-v] [-c config] dist1 dist2-arch
+ Set up a distribution server from ISO files
+ 
+-Yam options:
++Depo options:
+   -c, --config=file     specify alternative configfile
+-  -g, --generate        generate Yam repositories
++  -g, --generate        generate Depo repositories
+   -q, --quiet           minimal output
+   -u, --update          fetch OS updates
+-  -v, --verbose         increase verbosity (only Yam info)
++  -v, --verbose         increase verbosity (only Depo info)
+   -vv, -vvv             increase verbosity more
+       --unmount         unmount distributions
+ 
+ 
+-When you first run yam, do:
++When you first run Depo, do:
+ 
+-	yam -v
++	depo -v
+ 
+ This will show you what it is doing. You may add extra -v at any time
+-to see more of Yam's internals.
++to see more of Depo's internals.
+ 
+-	yam -vvv
++	depo -vvv
+ 
+-Now, you may want to change the default yam.conf to your needs and
++Now, you may want to change the default depo.conf to your needs and
+ add or remove distributions and/or repositories. If you have ISO
+ images of any of the distributions you want to mirror, mention them
+-too like in the examples, and copy them over to /var/yam/iso
++too like in the examples, and copy them over to /var/depo/iso
+ (You can also decide to put them per distribution/arch)
+ 
+-The default directory structure that Yam uses is explained in
++The default directory structure that Depo uses is explained in
+ README.dirs
+ 
+-Yam by default will mount as many ISO files as possible. If you
++Depo by default will mount as many ISO files as possible. If you
+ have problems with the maximum number of loop devices, please read
+ README.loop
+ 
+-Yam can also download the distribution RPM packages if you want to,
++Depo can also download the distribution RPM packages if you want to,
+ if you did not specify any ISO images it will download any os or core
+ repositories that you have specified. To do that, do
+ 
+-	yam -u
++	depo -u
+ or
+-	yam -uv
++	depo -uv
+ 
+ To finally generate a complete working repository based on the
+ repositories, you need to issues:
+ 
+-	yam -g
++	depo -g
+ or
+-	yam -gv
++	depo -gv
+ 
+-This will look for all the necessary packages in /var/yam (srcdir) and
+-symlink them to /var/www/yam (wwwdir). /var/www/yam can also be removed
++This will look for all the necessary packages in /var/depo (srcdir) and
++symlink them to /var/www/depo (wwwdir). /var/www/depo can also be removed
+ at any time and should not contain any files you have put there yourself.
+ 
+ To start off from scratch, first unmount the ISO images by doing:
+ 
+-	yam --unmount
++	depo --unmount
+ 
+-and then remove /var/www/yam completely. This should never be needed,
++and then remove /var/www/depo completely. This should never be needed,
+ but can be done after you played around or when removing components.
+ 
+ If you want to update only a part of your repository, you can select
+ the distributions by doing:
+ 
+-	yam -ugv fc2
++	depo -ugv fc2
+ or
+-	yam -ugv fc2-i386
++	depo -ugv fc2-i386
+ or even
+-	yam -ugv fc2-i386 fc1-x86_64
++	depo -ugv fc2-i386 fc1-x86_64
+ 
+-If you want to have multiple setups of Yam running on a single system
++If you want to have multiple setups of Depo running on a single system
+ (say one of your users wants its own setup), you can specify an
+ alternative config file, by doing:
+ 
+-	yam -c /home/dag/yam.conf
++	depo -c /home/dag/depo.conf
+ 
+ In that case the user may want to use another srcdir and wwwdir.
+ 
+-Finally, you can see if everything worked, by looking at /var/www/yam
+-(wwwdir) or by surfing to <A HREF="http://localhost/yam/.">http://localhost/yam/.</A> For more information
++Finally, you can see if everything worked, by looking at /var/www/depo
++(wwwdir) or by surfing to <A HREF="http://localhost/depo/.">http://localhost/depo/.</A> For more information
+ about web-access and configuration, see README.web
+ 
+ 
+-The yam.conf file
++The depo.conf file
+ -----------------
+-yam.conf file holds all the information yam uses to find the repos such
+-as distribution information and URLs to the repos.  yam.conf is essentially
++depo.conf file holds all the information depo uses to find the repos such
++as distribution information and URLs to the repos.  depo.conf is essentially
+ divided into three areas.  main, repos, and dist.
+ 
+-The main area is your main configuration for yam.
+-Example from default yam.conf:
++The main area is your main configuration for depo.
++Example from default depo.conf:
+ 
+ 	[main]
+-	srcdir=/var/yam
+-	wwwdir=/var/www/yam
++	srcdir=/var/depo
++	wwwdir=/var/www/depo
+ 	metadata=apt repomd
+ 	arch=i386
+ 
+-The srcdir is where yam will download and store the files for your repo
++The srcdir is where depo will download and store the files for your repo
+ 
+ The wwwdir is the location as to where your users for your repo will actually
+ get the files from. These are symbolic links to the srcdir.
+@@ -116,7 +116,7 @@
+ arch is a list of the default architectures, i.e.  i386, x86_64.
+ This will set it globally but can be configured per distro.
+ 
+-The distro area of yam.conf is the heart of yam.conf it is where you can
++The distro area of depo.conf is the heart of depo.conf it is where you can
+ specify the exact distribution and URLs to download from. Let me demonstrate
+ with a little example:
+ 
+@@ -140,27 +140,28 @@
+ 	arch = is set to one or more architectures available for this distribution ($arch)
+ 	iso = is set to one or more globs matching the distributions ISO images
+ 
+-Any other entries are considered to be repositories. Yam will assume that
++Any other entries are considered to be repositories. Depo will assume that
+ repositories called 'os', 'core' and 'updates' are base system repositories
+-and these will be updated with Yam option -u . os and core repositories will
++and these will be updated with Depo option -u . os and core repositories will
+ be ignored when ISO images are available.
+ 
+-Other entries are considered extra (3rd party) repositories. Yam will create
+-a separate directory for each of these in /var/yam/$dist-$arch/$repo
++Other entries are considered extra (3rd party) repositories. Depo will create
++a separate directory for each of these in /var/depo/$dist-$arch/$repo
+ The LHS part can also be used in the RHS as variable $repo
+ 
+ Other special variables include:
+ 
+-	$srcdir	is set to the srcdir variable from yam.conf
++	$srcdir	is set to the srcdir variable from depo.conf
+ 	$dist 	is set to the distribution section name (eg. fc2)
+ 	$arch	is set to the architecture within this section context
+ 	$nick 	is set to $dist-$arch within this section context
+ 	$repo 	is set to the current repo-name within this repo context
+ 
+-Yam can use several types of protocols or URL identifiers:
++Depo can use several types of protocols or URL identifiers:
+ 
+ 	&lt;empty&gt;		- use the directory in $srcdir/$dist-$arch/$repo
+-	<A HREF="file://">file://</A>		- handled by yam, symlink to other directory containing RPMS
++	<A HREF="depo://">depo://</A>		- handled by depo, equivalent to <A HREF="file://$srcdir/">file://$srcdir/</A>
++	<A HREF="file://">file://</A>		- handled by depo, symlink to other directory containing RPMS
+ 	<A HREF="fish://">fish://</A>		- handled by lftp
+ 	<A HREF="ftp://">ftp://</A>		- handled by mirrordir or lftp
+ 	<A HREF="http://">http://</A>		- handled by lftp
+@@ -170,7 +171,6 @@
+ 	<A HREF="rhns://">rhns://</A>		- handled by up2date python classes
+ 	<A HREF="rsync://">rsync://</A>	- handled by rsync
+ 	<A HREF="sftp://">sftp://</A>		- handled by lftp
+-	<A HREF="yam://">yam://</A>		- handled by yam, equivalent to <A HREF="file://$srcdir/">file://$srcdir/</A>
+ 
+ 
+ Metadata for repositories
+
+Modified: trunk/tools/depo/docs/verbosity.txt
+===================================================================
+--- trunk/tools/depo/docs/verbosity.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/verbosity.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,31 +1,31 @@
+-How to make Yam more (or less) verbose
+-======================================
++How to make Depo more (or less) verbose
++=======================================
+ 
+-Yam has 2 options to influence what it prints.
++Depo has 2 options to influence what it prints.
+ 
+   -q, --quiet           minimal output
+   -v, --verbose         increase verbosity
+   -vv, -vvv, -vvvv..    increase verbosity more
+ 
+-To make Yam only print essential messages (but be quiet when everything
++To make Depo only print essential messages (but be quiet when everything
+ is ok), use -q/--quiet
+ 
+-To make Yam report more about what it is doing, you can provide -v multiple
++To make Depo report more about what it is doing, you can provide -v multiple
+ times. Here's what it means:
+ 
+ 	options		level	description
+ 	&quot;&quot;&quot;&quot;&quot;&quot;&quot;		&quot;&quot;&quot;&quot;&quot;	&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+ 	-q		0	be quiet if no problems
+-	(no options)	1	print yam progress (normal)
+-	-v		2	print yam progress (detailed)
+-	-vv		3	print yam progress (detailed) + print helper-program output (normal)
+-	-vvv		4	print yam progress (detailed) + print helper-program output (detailed)
+-	-vvvv		5	print yam progress (debug)    + print helper-program output (detailed)
+-	-vvvvv		6	print yam progress (debug)    + print helper-program output (debug)
++	(no options)	1	print depo progress (normal)
++	-v		2	print depo progress (detailed)
++	-vv		3	print depo progress (detailed) + print helper-program output (normal)
++	-vvv		4	print depo progress (detailed) + print helper-program output (detailed)
++	-vvvv		5	print depo progress (debug)    + print helper-program output (detailed)
++	-vvvvv		6	print depo progress (debug)    + print helper-program output (debug)
+ 
+ Not all helper-programs have options to increase verbosity or enable debugging.
+ 
+-Currently it is not possible to have Yam (or its tools) print out what files
++Currently it is not possible to have Depo (or its tools) print out what files
+ are new and what files have been deleted. It's hard to do this tool-independent,
+ though there are other implementations that are possible (inotify,
+ directory-listing).
+
+Modified: trunk/tools/depo/docs/webserver-configuration.txt
+===================================================================
+--- trunk/tools/depo/docs/webserver-configuration.txt	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/docs/webserver-configuration.txt	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,32 +1,32 @@
+-How to configure you Web server for Yam
+-=======================================
++How to configure you Web server for Depo
++========================================
+ 
+ If you have apache, this package should already have done a
+-good job by installing the default Yam configuration file as:
++good job by installing the default Depo configuration file as:
+ 
+-	/etc/httpd/conf.d/yam.conf
++	/etc/httpd/conf.d/depo.conf
+ 
+ Now, you probably want to change the default to prevent people
+-from accessing your Yam website, or because you have another
++from accessing your Depo website, or because you have another
+ domain-name or simply because you don't want the generic
+-/yam/-Alias.
++/depo/-Alias.
+ 
+ The config file provided is just a default that helps to set
+ up your initial environment and it is there to be adapted.
+-It uses by default the hostname 'yam' and if you define 'yam'
++It uses by default the hostname 'depo' and if you define 'depo'
+ as a name on your local network, it may work without change.
+ 
+ For browsing and remote network installations via HTTP the
+ webserver can be accessed at:
+ 
+-	<A HREF="http://localhost/yam/">http://localhost/yam/</A>
++	<A HREF="http://localhost/depo/">http://localhost/depo/</A>
+ or
+-	<A HREF="http://yam/">http://yam/</A>
++	<A HREF="http://depo/">http://depo/</A>
+ 
+ If you want to enable HTTP authentication to prevent people
+-accessing your Yam repository, look at
++accessing your Depo repository, look at
+ 
+-	/etc/httpd/conf.d/yam.conf
++	/etc/httpd/conf.d/depo.conf
+ 
+ And adapt to your needs. More information about HTTP
+ authentication and Apache can be found at:
+
+Modified: trunk/tools/depo/gensystemid
+===================================================================
+--- trunk/tools/depo/gensystemid	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/gensystemid	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -101,7 +101,7 @@
+ 			print 'gensystemid: Architecture not supplied, using system architecture %s' % self.arch
+ 
+ 		if not self.hostname:
+-			self.hostname = '%s-%s-%s-yam' % (os.uname()[1].split('.')[0], self.rhnrelease, lowarch(self.arch))
++			self.hostname = '%s-%s-%s-depo' % (os.uname()[1].split('.')[0], self.rhnrelease, lowarch(self.arch))
+ 
+ 		try:
+ 			checkrelease(self.rhnrelease, self.arch)
+
+Modified: trunk/tools/depo/html/HEADER.index.shtml
+===================================================================
+--- trunk/tools/depo/html/HEADER.index.shtml	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/html/HEADER.index.shtml	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,6 +1,6 @@
+-&lt;h1&gt;Yam RPM Mirror on &lt;!--#echo var=&quot;SERVER_NAME&quot; --&gt; (&lt;!--#echo var=&quot;SERVER_ADDR&quot; --&gt;)&lt;/h1&gt;
++&lt;h1&gt;Depo RPM Mirror on &lt;!--#echo var=&quot;SERVER_NAME&quot; --&gt; (&lt;!--#echo var=&quot;SERVER_ADDR&quot; --&gt;)&lt;/h1&gt;
+ 
+-The subdirectories below are created and managed by &lt;b&gt;Yam&lt;/b&gt;. They contain
++The subdirectories below are created and managed by &lt;b&gt;Depo&lt;/b&gt;. They contain
+ RPM repositories for use with Smart, up2date, Apt and Yum, directories to
+ allow for remote network installs, as well as ISO files for people to
+ download and burn to disc.
+
+Modified: trunk/tools/depo/html/HEADER.repo.shtml
+===================================================================
+--- trunk/tools/depo/html/HEADER.repo.shtml	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/html/HEADER.repo.shtml	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,4 +1,4 @@
+-&lt;h2&gt;Yam RPM Mirror of &lt;!--#include virtual=&quot;.title&quot; --&gt;&lt;/h2&gt;
++&lt;h2&gt;Depo RPM Mirror of &lt;!--#include virtual=&quot;.title&quot; --&gt;&lt;/h2&gt;
+ &lt;!-- &lt;b&gt;&lt;!--#include virtual=&quot;.timestamp&quot; --&gt;&lt;/b&gt; --&gt;
+ 
+ &lt;u&gt;Network installation&lt;/u&gt;: Select &quot;HTTP installation method&quot; &amp;raquo; &quot;&lt;!--#echo var=&quot;SERVER_NAME&quot; --&gt;&quot; &amp;raquo; &quot;&lt;!--#echo var=&quot;REQUEST_URI&quot; --&gt;&quot; during installation&lt;br&gt;
+@@ -15,4 +15,4 @@
+ &lt;!-- The configuration of this Yum repository is:
+ &lt;nobr&gt;&lt;b&gt;baseurl=<A HREF="http://&lt;!--#echo">http://&lt;!--#echo</A> var=&quot;SERVER_NAME&quot; --&gt;&lt;!--#echo var=&quot;REQUEST_URI&quot; --&gt;RPMS.&lt;i&gt;&amp;lt;repo&amp;gt;&lt;/i&gt;&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt; --&gt;
+ 
+-&lt;!-- For more information see the &lt;b&gt;Yam&lt;/b&gt; documentation or the &lt;a href=&quot;<A HREF="http://dag.wieers.com/home-made/yam/">http://dag.wieers.com/home-made/yam/</A>&quot;&gt;&lt;b&gt;Yam&lt;/b&gt; website&lt;/a&gt;. --&gt;
++&lt;!-- For more information see the &lt;b&gt;Depo&lt;/b&gt; documentation or the &lt;a href=&quot;<A HREF="http://dag.wieers.com/home-made/depo/">http://dag.wieers.com/home-made/depo/</A>&quot;&gt;&lt;b&gt;Depo&lt;/b&gt; website&lt;/a&gt;. --&gt;
+
+Modified: trunk/tools/depo/html/README.index.shtml
+===================================================================
+--- trunk/tools/depo/html/README.index.shtml	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/html/README.index.shtml	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,3 +1,3 @@
+ &lt;!-- &lt;!--#echo var=&quot;SERVER_SOFTWARE&quot; --&gt; at &lt;!--#echo var=&quot;SERVER_NAME&quot; --&gt; Port &lt;!--#echo var=&quot;SERVER_PORT&quot; --&gt;&lt;br&gt; --&gt;
+-&lt;b&gt;Powered by &lt;a href=&quot;<A HREF="http://dag.wieers.com/home-made/yam/">http://dag.wieers.com/home-made/yam/</A>&quot;&gt;Yam&lt;/a&gt;.&lt;/b&gt;
++&lt;b&gt;Powered by &lt;a href=&quot;<A HREF="http://dag.wieers.com/home-made/depo/">http://dag.wieers.com/home-made/depo/</A>&quot;&gt;Depo&lt;/a&gt;.&lt;/b&gt;
+ Written by &lt;a href=&quot;<A HREF="http://dag.wieers.com/">http://dag.wieers.com/</A>&quot;&gt;Dag Wieers&lt;/a&gt;.
+
+Modified: trunk/tools/depo/html/README.repo.shtml
+===================================================================
+--- trunk/tools/depo/html/README.repo.shtml	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/html/README.repo.shtml	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -1,4 +1,4 @@
+ &lt;!-- &lt;!--#echo var=&quot;SERVER_SOFTWARE&quot; --&gt; at &lt;!--#echo var=&quot;SERVER_NAME&quot; --&gt; Port &lt;!--#echo var=&quot;SERVER_PORT&quot; --&gt;&lt;br&gt; --&gt;
+-&lt;b&gt;Powered by &lt;a href=&quot;<A HREF="http://dag.wieers.com/home-made/yam/">http://dag.wieers.com/home-made/yam/</A>&quot;&gt;Yam&lt;/a&gt;.&lt;/b&gt;
++&lt;b&gt;Powered by &lt;a href=&quot;<A HREF="http://dag.wieers.com/home-made/depo/">http://dag.wieers.com/home-made/depo/</A>&quot;&gt;Depo&lt;/a&gt;.&lt;/b&gt;
+ Written by &lt;a href=&quot;<A HREF="http://dag.wieers.com/">http://dag.wieers.com/</A>&quot;&gt;Dag Wieers&lt;/a&gt;.
+ Repository updated on &lt;!--#flastmod file=&quot;.title&quot; --&gt;
+
+Modified: trunk/tools/depo/rhnget
+===================================================================
+--- trunk/tools/depo/rhnget	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/rhnget	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -249,7 +249,7 @@
+ 	cfg['proxyPassword'] = ''
+ 	cfg[&quot;sslCACert&quot;] = '/usr/share/rhn/RHNS-CA-CERT'
+ 
+-	### Override the version if forced in Yam configuration (to allow single systemid usage)
++	### Override the version if forced in Depo configuration (to allow single systemid usage)
+ 	if op.rhnrelease:
+ 		cfg['versionOverride'] = op.rhnrelease
+ 	else:
+
+Modified: trunk/tools/depo/setup.py
+===================================================================
+--- trunk/tools/depo/setup.py	2006-11-20 02:06:53 UTC (rev 4911)
++++ trunk/tools/depo/setup.py	2006-11-20 03:06:20 UTC (rev 4912)
+@@ -30,23 +30,23 @@
+ 	from distutils.core import setup
+ 
+ setup(
+-	name = 'yam',
+-	version = '0.8.1svn',
++	name = 'depo',
++	version = '0.8.4svn',
+ 	description = 'RPM repository mirroring tool',
+ 	author = 'Dag Wieers',
+ 	author_email ='<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>',
+-	url = &quot;<A HREF="http://dag.wieers.com/home-made/yam/">http://dag.wieers.com/home-made/yam/</A>&quot;,
+-	scripts=['yam', 'gensystemid'],
++	url = &quot;<A HREF="http://dag.wieers.com/home-made/depo/">http://dag.wieers.com/home-made/depo/</A>&quot;,
++	scripts=['depo', 'gensystemid'],
+ 	data_files=[
+-		('/etc', ['config/yam.conf']),
+-		('/etc/init.d', ['config/yam']),
+-		('/etc/httpd/conf.d', ['config/httpd/yam.conf']),
+-		('/var/cache/yam', []),
+-		('/var/www/yam', []),
+-		('/var/yam/all/local', []),
+-		('/usr/share/yam/html', ['html/HEADER.index.shtml', 'html/HEADER.repo.shtml', 'html/README.index.shtml', 'html/README.repo.shtml']),
++		('/etc', ['config/depo.conf']),
++		('/etc/init.d', ['config/depo']),
++		('/etc/httpd/conf.d', ['config/httpd/depo.conf']),
++		('/var/cache/depo', []),
++		('/var/www/depo', []),
++		('/var/depo/all/local', []),
++		('/usr/share/depo/html', ['html/HEADER.index.shtml', 'html/HEADER.repo.shtml', 'html/README.index.shtml', 'html/README.repo.shtml']),
+ 	],
+-	download_url = '<A HREF="http://dag.wieers.com/home-made/yam/yam-0.8.1.tar.gz">http://dag.wieers.com/home-made/yam/yam-0.8.1.tar.gz</A>',
++	download_url = '<A HREF="http://dag.wieers.com/home-made/depo/depo-0.8.1.tar.gz">http://dag.wieers.com/home-made/depo/depo-0.8.1.tar.gz</A>',
+ 	license = 'GPL',
+ 	platforms = 'Posix',
+ 	classifiers = [
+@@ -59,7 +59,7 @@
+ 		'System :: Systems Administration',
+ 	],
+ 	long_description = '''
+-Yam builds a local APT/Yum RPM repository from local ISO files, downloaded
++Depo builds a local APT/Yum RPM repository from local ISO files, downloaded
+ updates, and extra packages from RHN (Red Hat Network) and 3rd party
+ repositories. It takes care of setting up the ISO files, downloading the
+ RPMs, configuring HTTP access, and providing PXE/TFTP resources for remote
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003711.html">[svn] r4911 - in trunk/tools/depo: . config config/httpd
+</A></li>
+	<LI>Next message: <A HREF="003713.html">[svn] r4913 - trunk/tools/depo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3712">[ date ]</a>
+              <a href="thread.html#3712">[ thread ]</a>
+              <a href="subject.html#3712">[ subject ]</a>
+              <a href="author.html#3712">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

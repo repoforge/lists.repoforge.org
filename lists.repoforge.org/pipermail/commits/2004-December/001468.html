@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2663 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2663%20-%20trunk/tools/dstat&In-Reply-To=%3C20041212212046.2B42517F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001467.html">
+   <LINK REL="Next"  HREF="001469.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2663 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2663%20-%20trunk/tools/dstat&In-Reply-To=%3C20041212212046.2B42517F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2663 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Dec 12 22:20:46 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001467.html">[SVN] r2662 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="001469.html">[SVN] r2664 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1468">[ date ]</a>
+              <a href="thread.html#1468">[ thread ]</a>
+              <a href="subject.html#1468">[ subject ]</a>
+              <a href="author.html#1468">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-12 22:20:44 +0100 (Sun, 12 Dec 2004)
+New Revision: 2663
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+Fix disk discovery
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-12-12 17:02:37 UTC (rev 2662)
++++ trunk/tools/dstat/ChangeLog	2004-12-12 21:20:44 UTC (rev 2663)
+@@ -12,6 +12,7 @@
+ - Important changes to header-model
+ - Added smp support (Bert de Bruijn)
+ - proc stats now show averages
++- Check if output is a tty, else disable colors and updates
+ 
+ * 0.5.5
+ - In fact, round() was not the problem, use str() instead. (Anton Blanchard)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-12-12 17:02:37 UTC (rev 2662)
++++ trunk/tools/dstat/TODO	2004-12-12 21:20:44 UTC (rev 2663)
+@@ -25,6 +25,7 @@
+ + If you have 2 devices with the same name, -I will only work on the first one
+ + When using -D foo, -I 99, -N eth9 dstat should fail when it does not exist 
+ + Timer is not accurate on 2.6 kernel, every second there's a 1ms deviation (every 17mins -&gt; 1sec)
+++ Find a way to use curses without the flickering and clearing tty in screen
+ 
+ ### Stat bugs
+ + tcp stat is very slow and generates lots of siq (on some systems)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-12 17:02:37 UTC (rev 2662)
++++ trunk/tools/dstat/dstat	2004-12-12 21:20:44 UTC (rev 2663)
+@@ -15,9 +15,10 @@
+ # Copyright 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ from __future__ import generators
+-import fcntl, struct, termios, types
+-import os, sys, re, getopt, time
++import fcntl, struct, types
++import os, sys, re, getopt, time, termios
+ import ConfigParser, urlparse, signal, resource
++#import curses
+ 
+ VERSION = '0.5.6'
+ 
+@@ -420,7 +421,7 @@
+ 				name = l[2]
+ 				if not re.match('^(ram\d+|loop\d+)$', name):
+ 					ret.append(name)
+-			ret.sort()
++#			ret.sort()
+ 			for item in list: ret.append(item)
+ 		return ret
+ 
+@@ -431,6 +432,7 @@
+ 		else:
+ 			list = self.discover()
+ 			if not op.full and len(list) &gt; 2: list = list[0:2]
++			list.sort()
+ 		for name in list:
+ 			if name in self.discover('total') + self.diskset.keys():
+ 				ret.append(name)
+@@ -572,7 +574,7 @@
+ 				l = line.split()
+ 				if len(l) &lt; 1: continue
+ 				name = l[0].split(':')[0]
+-				if len(l) &gt; 1 and l[1] != '0':
++				if name != '0' and len(l) &gt; 1 and int(l[1]) &gt; 10:
+ 					ret.append(name)
+ 		return ret
+ 
+@@ -882,8 +884,8 @@
+ 		self.format = '%10d'
+ 		self.len = 10
+ 		### Nice for debugging timer
+-#		self.format = '%13.3f'
+-#		self.len = 14
++		self.format = '%13.3f'
++		self.len = 14
+ 		self.nick = ('epoch',)
+ 		self.vars = ('epoch',)
+ 		self.init()
+@@ -1033,15 +1035,17 @@
+ 	sys.exit(ret)
+ 
+ def getwinsize():
++#	curses.wrapper(lambda s:curses.setupterm())
++#	return curses.wrapper(lambda s:curses.tigetnum('lines')), curses.wrapper(lambda s:curses.tigetnum('cols'))
+ 	try:
+-		s = struct.pack(&quot;HHHH&quot;, 0, 0, 0, 0)
++		s = struct.pack('HHHH', 0, 0, 0, 0)
+ 		x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+-		return struct.unpack(&quot;HHHH&quot;, x)[:2]
++		return struct.unpack('HHHH', x)[:2]
+ 	except:
+ 		try:
+-			return (int(os.environ['LINES']), int(os.environ['COLUMNS']))
++			return int(os.environ['LINES']), int(os.environ['COLUMNS'])
+ 		except:
+-			return (25, 80)
++			return 25, 80
+ 
+ def getcpunr():
+ 	procs = 0
+@@ -1092,6 +1096,12 @@
+ 	if not op.update:
+ 		interval = op.delay
+ 
++	### Check terminal capabilities
++#	if not sys.stdout.isatty() or not curses.wrapper(lambda s:curses.has_colors()):
++	if not sys.stdout.isatty() or os.environ.get('TERM',None) not in ('ansi', 'linux', 'rxvt', 'screen', 'xterm'):
++		op.color = False
++		op.update = False
++
+ 	### Empty ansi database if no colors are requested
+ 	if not op.color:
+ 		op.update = False
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001467.html">[SVN] r2662 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="001469.html">[SVN] r2664 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1468">[ date ]</a>
+              <a href="thread.html#1468">[ thread ]</a>
+              <a href="subject.html#1468">[ subject ]</a>
+              <a href="author.html#1468">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

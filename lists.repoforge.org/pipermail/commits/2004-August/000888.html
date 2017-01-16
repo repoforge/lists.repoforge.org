@@ -1,0 +1,435 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2082 - in trunk/rpms: gaim transcode
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2082%20-%20in%20trunk/rpms%3A%20gaim%20transcode&In-Reply-To=%3C20040824112159.CB8EF17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000887.html">
+   <LINK REL="Next"  HREF="000889.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2082 - in trunk/rpms: gaim transcode</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2082%20-%20in%20trunk/rpms%3A%20gaim%20transcode&In-Reply-To=%3C20040824112159.CB8EF17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2082 - in trunk/rpms: gaim transcode">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Aug 24 13:21:59 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000887.html">[SVN] r2081 - trunk/rpms/gkrellm
+</A></li>
+        <LI>Next message: <A HREF="000889.html">[SVN] r2083 - trunk/rpms/scons
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#888">[ date ]</a>
+              <a href="thread.html#888">[ thread ]</a>
+              <a href="subject.html#888">[ subject ]</a>
+              <a href="author.html#888">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-24 13:21:58 +0200 (Tue, 24 Aug 2004)
+New Revision: 2082
+
+Added:
+   trunk/rpms/gaim/gaim-0.76-xinput.patch
+   trunk/rpms/gaim/gaim-0.79-cached_buddy_icons.patch
+   trunk/rpms/gaim/gaim-0.80-desktop.patch
+   trunk/rpms/transcode/transcode-0.6.12-gcc296.patch
+Removed:
+   trunk/rpms/transcode/transcode-dag.spec
+Log:
+Ok, some of the fixes that dries pointed us at.
+
+Added: trunk/rpms/gaim/gaim-0.76-xinput.patch
+===================================================================
+--- trunk/rpms/gaim/gaim-0.76-xinput.patch	2004-08-24 11:01:06 UTC (rev 2081)
++++ trunk/rpms/gaim/gaim-0.76-xinput.patch	2004-08-24 11:21:58 UTC (rev 2082)
+@@ -0,0 +1,15 @@
++diff -urN gaim-0.75.99-20040318cvs.orig/src/gtkconv.c gaim-0.75.99-20040318cvs/src/gtkconv.c
++--- gaim-0.75.99-20040318cvs.orig/src/gtkconv.c	2004-03-16 10:31:48.000000000 -1000
+++++ gaim-0.75.99-20040318cvs/src/gtkconv.c	2004-03-16 12:50:59.689509499 -1000
++@@ -1390,6 +1390,11 @@
++ 				if (!(event-&gt;state &amp; (GDK_SHIFT_MASK | GDK_CONTROL_MASK)) &amp;&amp;
++ 					gaim_prefs_get_bool(&quot;/gaim/gtk/conversations/enter_sends&quot;))
++ 				{
+++					if (gtk_im_context_filter_keypress (GTK_TEXT_VIEW (entry)-&gt;im_context, event))
+++					{
+++						GTK_TEXT_VIEW (entry)-&gt;need_im_reset = TRUE;
+++						return TRUE;
+++					}
++ 					send_cb(NULL, conv);
++ 					return TRUE;
++ 				}
+
+Added: trunk/rpms/gaim/gaim-0.79-cached_buddy_icons.patch
+===================================================================
+--- trunk/rpms/gaim/gaim-0.79-cached_buddy_icons.patch	2004-08-24 11:01:06 UTC (rev 2081)
++++ trunk/rpms/gaim/gaim-0.79-cached_buddy_icons.patch	2004-08-24 11:21:58 UTC (rev 2082)
+@@ -0,0 +1,168 @@
++<A HREF="http://cvs.sourceforge.net/viewcvs.py/gaim/gaim/src/buddyicon.c?r1=1.12&amp;r2=1.13">http://cvs.sourceforge.net/viewcvs.py/gaim/gaim/src/buddyicon.c?r1=1.12&amp;r2=1.13</A>
++<A HREF="http://cvs.sourceforge.net/viewcvs.py/gaim/gaim/src/buddyicon.h?r1=1.5&amp;r2=1.6">http://cvs.sourceforge.net/viewcvs.py/gaim/gaim/src/buddyicon.h?r1=1.5&amp;r2=1.6</A>
++<A HREF="http://cvs.sourceforge.net/viewcvs.py/gaim/gaim/src/gtkblist.c?r1=1.127&amp;r2=1.128">http://cvs.sourceforge.net/viewcvs.py/gaim/gaim/src/gtkblist.c?r1=1.127&amp;r2=1.128</A>
++cached buddy icons not displaying in convos if you don't use the big buddy list bug
++
++--- src/buddyicon.c	20 Jun 2004 08:02:39 -0000	1.12
+++++ src/buddyicon.c	25 Jun 2004 05:30:10 -0000	1.13
++@@ -32,6 +32,31 @@ static GHashTable *account_cache = NULL;
++ static char       *cache_dir     = NULL;
++ static gboolean    icon_caching  = TRUE;
++ 
+++static GaimBuddyIcon *
+++gaim_buddy_icon_create(GaimAccount *account, const char *username)
+++{
+++	GaimBuddyIcon *icon;
+++	GHashTable *icon_cache;
+++
+++	icon = g_new0(GaimBuddyIcon, 1);
+++
+++	gaim_buddy_icon_set_account(icon,  account);
+++	gaim_buddy_icon_set_username(icon, username);
+++
+++	icon_cache = g_hash_table_lookup(account_cache, account);
+++
+++	if (icon_cache == NULL)
+++	{
+++		icon_cache = g_hash_table_new(g_str_hash, g_str_equal);
+++
+++		g_hash_table_insert(account_cache, account, icon_cache);
+++	}
+++
+++	g_hash_table_insert(icon_cache,
+++	                   (char *)gaim_buddy_icon_get_username(icon), icon);
+++	return icon;
+++}
+++
++ GaimBuddyIcon *
++ gaim_buddy_icon_new(GaimAccount *account, const char *username,
++ 					void *icon_data, size_t icon_len)
++@@ -46,26 +71,7 @@ gaim_buddy_icon_new(GaimAccount *account
++ 	icon = gaim_buddy_icons_find(account, username);
++ 
++ 	if (icon == NULL)
++-	{
++-		GHashTable *icon_cache;
++-
++-		icon = g_new0(GaimBuddyIcon, 1);
++-
++-		gaim_buddy_icon_set_account(icon,  account);
++-		gaim_buddy_icon_set_username(icon, username);
++-
++-		icon_cache = g_hash_table_lookup(account_cache, account);
++-
++-		if (icon_cache == NULL)
++-		{
++-			icon_cache = g_hash_table_new(g_str_hash, g_str_equal);
++-
++-			g_hash_table_insert(account_cache, account, icon_cache);
++-		}
++-
++-		g_hash_table_insert(icon_cache,
++-							(char *)gaim_buddy_icon_get_username(icon), icon);
++-	}
+++		icon = gaim_buddy_icon_create(account, username);
++ 
++ 	gaim_buddy_icon_ref(icon);
++ 	gaim_buddy_icon_set_data(icon, icon_data, icon_len);
++@@ -335,19 +341,44 @@ gaim_buddy_icons_set_for_user(GaimAccoun
++ }
++ 
++ GaimBuddyIcon *
++-gaim_buddy_icons_find(const GaimAccount *account, const char *username)
+++gaim_buddy_icons_find(GaimAccount *account, const char *username)
++ {
++ 	GHashTable *icon_cache;
+++	GaimBuddyIcon *ret = NULL;
++ 
++ 	g_return_val_if_fail(account  != NULL, NULL);
++ 	g_return_val_if_fail(username != NULL, NULL);
++ 
++ 	icon_cache = g_hash_table_lookup(account_cache, account);
++ 
++-	if (icon_cache == NULL)
++-		return NULL;
+++	if ((icon_cache == NULL) || ((ret = g_hash_table_lookup(icon_cache, username)) == NULL)) {
+++		const char *file;
+++		struct stat st;
+++		GaimBuddy *b = gaim_find_buddy(account, username);
++ 
++-	return g_hash_table_lookup(icon_cache, username);
+++		if (!b)
+++			return NULL;
+++
+++		if ((file = gaim_blist_node_get_string((GaimBlistNode*)b, &quot;buddy_icon&quot;)) == NULL)
+++			return NULL;
+++
+++		if (!stat(file, &amp;st)) {
+++			FILE *f = fopen(file, &quot;rb&quot;);
+++			if (f) {
+++				char *data = g_malloc(st.st_size);
+++				fread(data, 1, st.st_size, f);
+++				fclose(f);
+++				ret = gaim_buddy_icon_create(account, username);
+++				gaim_buddy_icon_ref(ret);
+++				gaim_buddy_icon_set_data(ret, data, st.st_size);
+++				gaim_buddy_icon_unref(ret);
+++				g_free(data);
+++				return ret;
+++			}
+++		}
+++	}
+++
+++	return ret;
++ }
++ 
++ void
++--- src/buddyicon.h	10 Jan 2004 04:04:55 -0000	1.5
+++++ src/buddyicon.h	25 Jun 2004 05:30:10 -0000	1.6
++@@ -182,7 +182,7 @@ void gaim_buddy_icons_set_for_user(GaimA
++  *
++  * @return The icon data if found, or @c NULL if not found.
++  */
++-GaimBuddyIcon *gaim_buddy_icons_find(const GaimAccount *account,
+++GaimBuddyIcon *gaim_buddy_icons_find(GaimAccount *account,
++ 									 const char *username);
++ 
++ /**
++--- src/gtkblist.c	22 Jun 2004 01:05:42 -0000	1.127
+++++ src/gtkblist.c	25 Jun 2004 05:30:10 -0000	1.128
++@@ -2623,36 +2623,19 @@ GdkPixbuf *gaim_gtk_blist_get_status_ico
++ 
++ static GdkPixbuf *gaim_gtk_blist_get_buddy_icon(GaimBuddy *b)
++ {
++-	const char *file;
++ 	GdkPixbuf *buf, *ret;
++ 	GdkPixbufLoader *loader;
++ 	GaimBuddyIcon *icon;
++ 	const char *data;
++ 	size_t len;
++-	struct stat st;
++ 
++ 	if (!gaim_prefs_get_bool(&quot;/gaim/gtk/blist/show_buddy_icons&quot;))
++ 		return NULL;
++ 
++-	if (!(icon = gaim_buddy_get_icon(b))) {
++-		if ((file = gaim_blist_node_get_string((GaimBlistNode*)b, &quot;buddy_icon&quot;)) == NULL)
+++	if (!(icon = gaim_buddy_get_icon(b)))
+++		if (!(icon = gaim_buddy_icons_find(b-&gt;account, b-&gt;name))) /* Not sure I like this...*/
++ 			return NULL;
++ 
++-		/* This is a hack, we should be loading up the GaimBuddyIcon's somewhere
++-		 * else, like the core, like when we parse the blist.xml file. */
++-		if (!stat(file, &amp;st)) {
++-			FILE *f = fopen(file, &quot;rb&quot;);
++-			if (f) {
++-				char *data = g_malloc(st.st_size);
++-				fread(data, 1, st.st_size, f);
++-				fclose(f);
++-				gaim_buddy_icons_set_for_user(b-&gt;account, b-&gt;name, data, st.st_size);
++-				g_free(data);
++-			}
++-		}
++-
++-		return NULL; /* Either no icon, or we just set one and so this will get called again */
++-	}
++ 
++ 	loader = gdk_pixbuf_loader_new();
++ 	data = gaim_buddy_icon_get_data(icon, &amp;len);
+
+Added: trunk/rpms/gaim/gaim-0.80-desktop.patch
+===================================================================
+--- trunk/rpms/gaim/gaim-0.80-desktop.patch	2004-08-24 11:01:06 UTC (rev 2081)
++++ trunk/rpms/gaim/gaim-0.80-desktop.patch	2004-08-24 11:21:58 UTC (rev 2082)
+@@ -0,0 +1,9 @@
++--- gaim.desktop.orig	2004-07-19 07:43:04.209833816 +0200
+++++ gaim.desktop	2004-07-19 07:44:17.731656800 +0200
++@@ -27,5 +27,5 @@
++ Icon=gaim.png
++ Terminal=false
++ Type=Application
++-Categories=Application;Network;
+++Categories=Application;Network;X-Red-Hat-Base;
++ StartupNotify=true
+
+Added: trunk/rpms/transcode/transcode-0.6.12-gcc296.patch
+===================================================================
+--- trunk/rpms/transcode/transcode-0.6.12-gcc296.patch	2004-08-24 11:01:06 UTC (rev 2081)
++++ trunk/rpms/transcode/transcode-0.6.12-gcc296.patch	2004-08-24 11:21:58 UTC (rev 2082)
+@@ -0,0 +1,19 @@
++--- export/export_mov.c.orig	Thu Jan  8 09:18:28 2004
+++++ export/export_mov.c	Sat Jul 10 00:53:52 2004
++@@ -176,6 +176,7 @@
++         rawVideo = 1;    
++     }
++     else{
+++        int divx_bitrate;
++         /* check if we can encode with this codec */    
++         if (!quicktime_supported_video(qtfile, 0)){
++         fprintf(stderr,&quot;[%s] qt video codec '%s' unsupported\n&quot;,
++@@ -218,7 +219,7 @@
++ 
++         /* set codec parameters */
++         // if max bitrate &gt; bitrate  use difference for bitrate tolerance
++-        int divx_bitrate = vob-&gt;divxbitrate * 1000; // tc uses kb        
+++        divx_bitrate = vob-&gt;divxbitrate * 1000; // tc uses kb        
++         if (vob-&gt;video_max_bitrate &gt; vob-&gt;divxbitrate) div3_bitrate_tolerance = (vob-&gt;video_max_bitrate - vob-&gt;divxbitrate) * 1000; //kb again
++ 
++         /* set codec parameters */
+
+Deleted: trunk/rpms/transcode/transcode-dag.spec
+===================================================================
+--- trunk/rpms/transcode/transcode-dag.spec	2004-08-24 11:01:06 UTC (rev 2081)
++++ trunk/rpms/transcode/transcode-dag.spec	2004-08-24 11:21:58 UTC (rev 2082)
+@@ -1,124 +0,0 @@
+-# $Id$
+-# Authority: matthias
+-# Upstream: Thomas &#214;streich &lt;ostreich$theorie,physik,uni-goettingen,de&gt;
+-# Upstream: Tilmann Bitterberg &lt;transcode$tibit,org&gt;
+-
+-# Distcc: 0
+-
+-Summary: Linux video stream processing utility
+-Name: transcode
+-Version: 0.6.12
+-Release: 1
+-License: GPL
+-Group: Applications/Multimedia
+-URL: <A HREF="http://zebra.fh-weingarten.de/~transcode/">http://zebra.fh-weingarten.de/~transcode/</A>
+-
+-Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+-
+-Source: <A HREF="http://zebra.fh-weingarten.de/~transcode/pre/transcode-%{version">http://zebra.fh-weingarten.de/~transcode/pre/transcode-%{version</A>}.tar.bz2
+-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-
+-#BuildRequires: avifile-devel &gt;= 0.6.0, libpostproc
+-BuildRequires: ImageMagick-devel &gt;= 5.4.3, lame-devel &gt;= 3.89
+-BuildRequires: libogg-devel, libvorbis-devel, libdvdread-devel, libdv-devel
+-BuildRequires: libfame-devel, mjpegtools-devel, SDL-devel, xvidcore-devel
+-BuildRequires: libxml2-devel, libjpeg-devel, a52dec-devel &gt;= 0.7.3, glib-devel,
+-BuildRequires: freetype-devel &gt;= 2.0, libquicktime-devel, lzo-devel &gt;= 1.08, bzip2-devel
+-%ifarch %{ix86}
+-BuildRequires: nasm
+-%endif
+-
+-%description
+-transcode is a linux text-console utility for video stream processing,
+-running on a platform that supports shared libraries and threads.
+-Decoding and encoding is done by loading modules that are responsible
+-for feeding transcode with raw video/audio streams (import modules) and
+-encoding the frames (export modules). It supports elementary video and
+-audio frame transformations, including de-interlacing or fast resizing
+-of video frames and loading of external filters.
+-
+-%prep
+-%setup
+-
+-%build
+-%configure \
+-	--x-includes=&quot;%{_prefix}/X11R6/include/X11&quot; \
+-	--disable-dependency-tracking \
+-	--enable-v4l \
+-	--enable-text \
+-	--with-a52 \
+-	--with-avifile-mods=&quot;no&quot; \
+-	--with-dv \
+-	--with-dvdread \
+-	--with-lame \
+-	--with-libfame \
+-	--with-libjpeg-mods \
+-	--with-libmpeg3 \
+-	--with-lzo \
+-	--with-magick-mods=&quot;no&quot; \
+-	--with-ogg \
+-	--with-openqt \
+-	--with-qt \
+-	--with-vorbis \
+-	--with-x \
+-	--with-xvidcore
+-%{__make} %{?_smp_mflags}
+-
+-%install
+-%{__rm} -rf %{buildroot}
+-%makeinstall \
+-	docsdir=&quot;../rpm-doc/&quot;
+-
+-%clean
+-%{__rm} -rf %{buildroot}
+-
+-%files
+-%defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README TODO rpm-doc/*
+-%doc %{_mandir}/man?/*
+-%{_bindir}/*
+-%{_libdir}/transcode/
+-%exclude %{_libdir}/transcode/*.la
+-
+-%changelog
+-* Fri Apr 16 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.12-1
+-- Rebuild against new libdv.
+-
+-* Sat Nov 08 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.11-0
+-- Updated to release 0.6.11.
+-
+-* Sat Sep 27 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.10-0
+-- Updated to release 0.6.10.
+-
+-* Mon Sep 08 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.9-0
+-- Updated to release 0.6.9.
+-
+-* Sat Jul 12 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.8-0
+-- Updated to release 0.6.8.
+-
+-* Thu Jul 03 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.7-0
+-- Updated to release 0.6.7.
+-
+-* Fri May 02 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.4-0
+-- Updated to release 0.6.4.
+-
+-* Wed Apr 16 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.3.20030409-0
+-- Updated to release 0.6.4.20030409.
+-
+-* Thu Apr 10 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.3.20030325-3
+-- Build against new (split) libpostproc package.
+-
+-* Tue Apr 08 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.3.20030325-2
+-- Build against new (renamed) libxvidcore package.
+-
+-* Sun Mar 30 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.3.20030325-0
+-- Updated to release 0.6.4.20030325.
+-- Rebuild with explicit options.
+-- Fixed the problem with -lioaux.
+-
+-* Mon Feb 17 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.3-0
+-- Rebuild against newer libdvdread-0.9.4.
+-
+-* Sat Feb 01 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.2-0
+-- Initial package. (using DAR)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000887.html">[SVN] r2081 - trunk/rpms/gkrellm
+</A></li>
+	<LI>Next message: <A HREF="000889.html">[SVN] r2083 - trunk/rpms/scons
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#888">[ date ]</a>
+              <a href="thread.html#888">[ thread ]</a>
+              <a href="subject.html#888">[ subject ]</a>
+              <a href="author.html#888">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

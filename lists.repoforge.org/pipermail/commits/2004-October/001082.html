@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2276 - in trunk/tools/pydar2: pydar sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2276%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20041013150152.492DA180CF%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001081.html">
+   <LINK REL="Next"  HREF="001083.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2276 - in trunk/tools/pydar2: pydar sql</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2276%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20041013150152.492DA180CF%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2276 - in trunk/tools/pydar2: pydar sql">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Oct 13 17:01:52 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001081.html">[SVN] r2275 - in trunk/tools/pydar2: pydar sql tests
+</A></li>
+        <LI>Next message: <A HREF="001083.html">[SVN] r2277 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1082">[ date ]</a>
+              <a href="thread.html#1082">[ thread ]</a>
+              <a href="subject.html#1082">[ subject ]</a>
+              <a href="author.html#1082">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-10-13 17:01:48 +0200 (Wed, 13 Oct 2004)
+New Revision: 2276
+
+Modified:
+   trunk/tools/pydar2/pydar/rpmscheck.py
+   trunk/tools/pydar2/sql/svncheck.sql
+Log:
+fixes
+
+Modified: trunk/tools/pydar2/pydar/rpmscheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-13 12:26:47 UTC (rev 2275)
++++ trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-13 15:01:48 UTC (rev 2276)
+@@ -95,6 +95,17 @@
+         
+     def checkRpmFileInDb(self,locationId,fileName,rpmsDir,specRpmName,specRpmRelease,fileMd5s,svnCmtRev,specFileId):
+         self.cat.debug('start,fileName=' + fileName + &quot;,svnCmtRev=&quot; + svnCmtRev + &quot;,specFileId=&quot; + specFileId)
++        sSqlStmt = &quot;select * from pydar2_rpmfile where rpmname='&quot; + fileName + &quot;' and locationid=&quot; + locationId + &quot; and specrpmname='&quot; + specRpmName + &quot;' and specrpmrelease='&quot; + specRpmRelease + &quot;' and filemd5s='&quot; + fileMd5s + &quot;' svnCmtRev=&quot; + svnCmtRev + &quot; and specfileid=&quot; + specFileId;
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++        cursor.execute(sSqlStmt)
++        if cursor.rowcount == 0:
++                cursor.execute(&quot;insert into (locationid,rpmname,path,specrpmname,specrpmrelease,filemd5s,svncmtrev,specfileid) values (&quot; + locationId + &quot;,'&quot; + fileName + &quot;','&quot; + specRpmName + &quot;','&quot; + specRpmRelease + &quot;','&quot; + fileMd5s + &quot;',&quot; + svnCmtRev + &quot;,&quot; + specFileId + &quot;)&quot;)
++                conn.commit()
++                cursor.close()
++                conn.close()
++                
++
+         
+     def getSpecFileId(self,svnCmtRev,specRpmName,specRpmRelease):
+         sqlStr = &quot;select v.specfileid from pydar2_specfile_version v, pydar2_specfile_tags t1 where t1.name = 'NAME' and t1.specfileid=v.specfileid and t1.svncmtrev=v.svncmtrev and v.svncmtrev=&quot; + svnCmtRev + &quot; and '&quot; + specRpmName + &quot;' like t1.value || '%' order by t1.value desc&quot;
+@@ -114,8 +125,3 @@
+             cursor.close()
+             conn.close()
+             return retval
+-        
+-        
+-        
+-
+-
+
+Modified: trunk/tools/pydar2/sql/svncheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/svncheck.sql	2004-10-13 12:26:47 UTC (rev 2275)
++++ trunk/tools/pydar2/sql/svncheck.sql	2004-10-13 15:01:48 UTC (rev 2276)
+@@ -57,4 +57,10 @@
+ create index pydar2_specfile_t__did on pydar2_specfile_tags(distroid);
+ create index pydar2_specfile_t__both on pydar2_specfile_tags(specfileid,svncmtrev);
+ create index pydar2_specfile_t__three on pydar2_specfile_tags(specfileid,svncmtrev,distroid);
++create index pydar2_specfile_t_three2 on pydar2_specfile_tags(specfileid,svncmtrev,name);
++create index pydar2_specfile_t_four on pydar2_specfile_tags(specfileid,svncmtrev,name,value);
++create index pydar2_specfile_t_name on pydar2_specfile_tags(name);
++create index pydar2_specfile_t_value on pydar2_specfile_tags(value);
+ 
++
++create VIEW pydar2_specfile_lastversion AS select max(v.svncmtrev) as latestsvncmtrev, v.specfileid, s.name from pydar2_specfile_version v, pydar2_specfile s where s.id=v.specfileid group by v.specfileid, s.name;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001081.html">[SVN] r2275 - in trunk/tools/pydar2: pydar sql tests
+</A></li>
+	<LI>Next message: <A HREF="001083.html">[SVN] r2277 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1082">[ date ]</a>
+              <a href="thread.html#1082">[ thread ]</a>
+              <a href="subject.html#1082">[ subject ]</a>
+              <a href="author.html#1082">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

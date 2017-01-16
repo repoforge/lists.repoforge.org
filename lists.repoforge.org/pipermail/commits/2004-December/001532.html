@@ -1,0 +1,643 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2727 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2727%20-%20trunk/tools/dstat&In-Reply-To=%3C20041231210556.5595017F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001531.html">
+   <LINK REL="Next"  HREF="001533.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2727 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2727%20-%20trunk/tools/dstat&In-Reply-To=%3C20041231210556.5595017F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2727 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Dec 31 22:05:56 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001531.html">[SVN] r2726 - in trunk/rpms: . perl-CGI-Untaint perl-PHP-Perlinfo
+</A></li>
+        <LI>Next message: <A HREF="001533.html">[SVN] r2728 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1532">[ date ]</a>
+              <a href="thread.html#1532">[ thread ]</a>
+              <a href="subject.html#1532">[ subject ]</a>
+              <a href="author.html#1532">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-31 22:05:54 +0100 (Fri, 31 Dec 2004)
+New Revision: 2727
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1
+Log:
+Added --csv option
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-12-29 00:36:00 UTC (rev 2726)
++++ trunk/tools/dstat/ChangeLog	2004-12-31 21:05:54 UTC (rev 2727)
+@@ -1,6 +1,8 @@
+ * 0.5.7
+-- Change Makefile to not install when run without target. (Kurt Roeckx)
+-- Fixed another crash caused by /proc instability.
++- Change Makefile to not install when run without target (Kurt Roeckx)
++- Fixed another crash caused by /proc instability
++- Added --csv option to output Comma-Seperated-Value output
++- If output is not a tty, don't care about line-width
+ 
+ * 0.5.6
+ - Made sys and int stats unit-aware (so 10000 int/sec -&gt; 10.0k) (Anton Blanchard)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-12-29 00:36:00 UTC (rev 2726)
++++ trunk/tools/dstat/TODO	2004-12-31 21:05:54 UTC (rev 2727)
+@@ -2,24 +2,30 @@
+ + Add --config option and use /etc/dstat.conf to influence output
+ + Allow to force to given magnitude
+ + Look at possibilities to show deviation (on second line ?)
+-+ Improve manpage
+++ Find a way to use curses without the flickering and tty clearing in screen
+ + Detect terminal capabilities (colors, ANSI) using curses (?)
+-+ Find a way to use curses without the flickering and tty clearing in screen
+ + Re-implement -I eth0,eth1
+ 
+ ### Export/Graph
+ + Add -o/--output option to save directly to a file
+-+ Add --parse option to give parsable output (maybe CSV output ?)
+ + Interface with rrdtool
+ 
+ ### Extending statistics (help welcome!)
+ + Add all stats to seperate modules and allow people to plugin their own modules
+-+ Add application stats (-a or -A pid,cmd)
+ + Add icmp, nfs, ntp stats ?
+ + Add user stats (number of users logged on)
+++ Add application stats (-a or -A pid,cmd)
+ + Look into interfacing with apps (bind, sendmail, postfix, squid, amavisd, laus, samba)
+ + Look into interfacing with specific HW counters in /proc
+++ Look at /proc/slabinfo, /proc/meminfo, /proc/locks, /proc/mdstat, /proc/vmstat
+ 
++### Documentation (help welcome!)
+++ Improve manpage
+++ Create document on general system performance tuning
++  (explaining the different values in /proc, especially the concerning ones)
+++ Create document on general system performance tools
++  (explaining the different uses of tools like dstat, iostat, pmap, strace, tcpdump)
++
+ ### General bugs
+ + Backport all changes to dstat15
+ + Timer is not accurate on 2.6 kernel, every second there's a 1ms deviation (every 17mins -&gt; 1sec)
+@@ -28,3 +34,16 @@
+ + tcp stat is very slow and generates lots of softirqs (on some systems)
+ + Implement better (?) protection against counter rollovers
+ + Fix bug with: ./dstat -tit -I 177
++
++### Redesign (v2.0)
+++ Create modules that can contain samples of different units
++
++   CPU: (see mpstat)
++	sys, usr, idl, iow, hiq, siq (percentage)
++      	intr/sec (int)
++	
++   IO: (see iostat -x)
++	tps (int)
++	blk_read/sec, blk_wrtn/sec (kB/sec)
++
+++ Design proper object model
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-29 00:36:00 UTC (rev 2726)
++++ trunk/tools/dstat/dstat	2004-12-31 21:05:54 UTC (rev 2727)
+@@ -1,19 +1,19 @@
+ #!/usr/bin/env python
+-#
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU Library General Public License as published by
+-# the Free Software Foundation; version 2 only
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-# GNU Library General Public License for more details.
+-#
+-# You should have received a copy of the GNU Library General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-# Copyright 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
++### This program is free software; you can redistribute it and/or modify
++### it under the terms of the GNU Library General Public License as published by
++### the Free Software Foundation; version 2 only
++###
++### This program is distributed in the hope that it will be useful,
++### but WITHOUT ANY WARRANTY; without even the implied warranty of
++### MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++### GNU Library General Public License for more details.
++###
++### You should have received a copy of the GNU Library General Public License
++### along with this program; if not, write to the Free Software
++### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++### Copyright 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++
+ from __future__ import generators
+ import fcntl, struct, types
+ import os, sys, re, getopt, time, termios
+@@ -27,14 +27,17 @@
+ 
+ class Options:
+ 	def __init__(self, args):
++		self.args = args
+ 		self.count = -1
+ 		self.cpulist = None
++		self.csv = False
+ 		self.delay = 1
+ 		self.disklist = None
+ 		self.full = False
+ 		self.integer = False
+ 		self.intlist = None
+ 		self.netlist = None
++		self.nolimit = False
+ 		self.color = True
+ 		self.update = True
+ 		self.header = True
+@@ -43,7 +46,7 @@
+ 			opts, args = getopt.getopt (args, 'acdfghilmnpstvyC:D:I:M:N:',
+ 				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net', 'page',
+ 				'proc', 'swap', 'sys', 'tcp', 'time', 'udp', 'version', 'vmstat',
+-				'full', 'integer', 'mods', 'modules', 'nocolor', 'noheader', 'noupdate'])
++				'csv', 'full', 'integer', 'mods', 'modules', 'nocolor', 'noheader', 'noupdate'])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -94,6 +97,8 @@
+ 				self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+ 				self.disklist = ('total',)
+ 
++			elif opt in ['--csv']:
++				self.csv = True
+ 			elif opt in ['-f', '--full']:
+ 				self.full = True
+ 			elif opt in ['--integer']:
+@@ -128,6 +133,12 @@
+ 			print 'dstat: delay must be an integer, greater than zero'
+ 			sys.exit(1)
+ 
++		if self.csv:
++			self.color = False
++			self.header = False
++			self.nolimit = True
++			self.update = False
++
+ 	def version(self):
+ 		print 'Dstat %s' % VERSION
+ 		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
+@@ -136,6 +147,10 @@
+ 		print 'Platform %s/%s' % (os.name, sys.platform)
+ 		print 'Kernel %s' % os.uname()[2]
+ 		print 'Python %s' % sys.version
++		print
++		print 'Processors: %d' % getcpunr()
++		print 'Pagesize: %d' % resource.getpagesize()
++		print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
+ 
+ 	def usage(self):
+ 		print 'usage: dstat [-afv] [-cdgilmnpsty] [-D..] [-I..] [-N..] [delay [count]]'
+@@ -169,8 +184,9 @@
+ 
+   -a, --all          equals -cdngyl
+   -v, --vmstat       equals -pmgdsc -D total
++  -f, --full         expand -D, -I and -N discovery lists
+ 
+-  -f, --full         expand -D, -I and -N discovery lists
++  --csv              output CSV format
+   --integer          show integer values
+   --nocolor          disable colors (implies --noupdate)
+   --noheader         disable repetitive headers
+@@ -228,32 +244,58 @@
+ 			return 0
+ 
+ 	def title1(self):
+-		if isinstance(self.name, types.StringType):
+-			max = self.varwidth()
+-			return ansi['darkblue'] + self.name[0:max].center(max).replace(' ', '-') + ansi['default']
++		if op.csv:
++			if isinstance(self.name, types.StringType):
++				return '&quot;' + self.name + '&quot;' + ',' * (len(self.nick) - 1)
++			else:
++				ret = ''
++				for i, name in enumerate(self.name):
++					ret = ret + '&quot;' + name + '&quot;' + ',' * (len(self.nick) - 1)
++					if i + 1 != len(self.name): ret = ret + ','
++				return ret
+ 		else:
+-			ret = ''
+-			for i, name in enumerate(self.name):
+-				max = self.width()
+-				ret = ret + name[0:max].center(max).replace(' ', '-')
+-				if i + 1 != len(self.name): ret = ret + '-'
+-			return ansi['darkblue'] + ret
++			if isinstance(self.name, types.StringType):
++				max = self.varwidth()
++				return ansi['darkblue'] + self.name[0:max].center(max).replace(' ', '-') + ansi['default']
++			else:
++				ret = ''
++				for i, name in enumerate(self.name):
++					max = self.width()
++					ret = ret + name[0:max].center(max).replace(' ', '-')
++					if i + 1 != len(self.name): ret = ret + '-'
++				return ansi['darkblue'] + ret
+ 
+ 	def title2(self):
+-		if isinstance(self.name, types.StringType):
+-			ret = ''
+-			for i, nick in enumerate(self.nick):
+-				ret = ret + nick.center(self.len).replace(' ', '_')
+-				if i + 1 != len(self.nick): ret = ret + ' '
+-			return ansi['blue'] + ret
++		if op.csv:
++			if isinstance(self.name, types.StringType):
++				ret = ''
++				for i, nick in enumerate(self.nick):
++					ret = ret + '&quot;' + nick + '&quot;'
++					if i + 1 != len(self.nick): ret = ret + ','
++				return ret
++			else:
++				ret = ''
++				for i, name in enumerate(self.name):
++					for j, nick in enumerate(self.nick):
++						ret = ret + '&quot;' + nick + '&quot;'
++						if j + 1 != len(self.nick): ret = ret + ','
++					if i + 1 != len(self.name): ret = ret + ','
++				return ret
+ 		else:
+-			ret = ''
+-			for i, name in enumerate(self.name):
+-				for j, nick in enumerate(self.nick):
+-					ret = ret + ansi['blue'] + nick.center(self.len).replace(' ', '_')
+-					if j + 1 != len(self.nick): ret = ret + ' '
+-				if i + 1 != len(self.name): ret = ret + ' '
+-			return ansi['blue'] + ret
++			if isinstance(self.name, types.StringType):
++				ret = ''
++				for i, nick in enumerate(self.nick):
++					ret = ret + nick.center(self.len).replace(' ', '_')
++					if i + 1 != len(self.nick): ret = ret + ' '
++				return ansi['blue'] + ret
++			else:
++				ret = ''
++				for i, name in enumerate(self.name):
++					for j, nick in enumerate(self.nick):
++						ret = ret + ansi['blue'] + nick.center(self.len).replace(' ', '_')
++						if j + 1 != len(self.nick): ret = ret + ' '
++					if i + 1 != len(self.name): ret = ret + ' '
++				return ansi['blue'] + ret
+ 
+ 	def check(self):
+ 		if self.discover() and self.width():
+@@ -281,15 +323,34 @@
+ 				sys.stdout.write('%s' % conv(self.len, self.val[name], 1))
+ 			elif self.format in ('%s %s', '%s:%s', '%s-%s'):
+ 				sys.stdout.write(self.format % convlist(self.len, self.val[name]))
+-				sep = ansi['default'] + ':'
++				sep = ansi['default'] + char['colon']
+ 			elif self.format in ('%s %s %s', '%s %s %s %s %s %s'):
+ 				sys.stdout.write(self.format % convlist(self.len, self.val[name], 100))
+-				sep = ansi['default'] + ':'
++				sep = ansi['default'] + char['colon']
+ 			else:
+ 				sys.stdout.write(self.format % self.val[name])
+ 			if i + 1 != len(self.vars):
+ 				sys.stdout.write(sep)
+ 
++	def showcsv(self):
++
++		def printcsv(var):
++			if var != round(var):
++				sys.stdout.write('%.2f' % var)
++			else:
++				sys.stdout.write('%d' % round(var))
++
++		for i, name in enumerate(self.vars):
++			if isinstance(self.val[name], types.ListType) or isinstance(self.val[name], types.TupleType):
++				for j, val in enumerate(self.val[name]):
++					printcsv(val)
++					if j + 1 != len(self.val[name]):
++						sys.stdout.write(',')
++			else:
++				printcsv(self.val[name])
++			if i + 1 != len(self.vars):
++				sys.stdout.write(',')
++
+ class dstat_cpu(dstat):
+ 	def __init__(self):
+ 		self.len = 3
+@@ -411,7 +472,7 @@
+ 
+ 		for name in self.vars: self.cn1[name] = (0, 0); self.cn1['total'] = (0, 0)
+ 		for name in self.vars: self.cn2[name] = (0, 0); self.cn2['total'] = (0, 0)
+-		for name in self.vars: self.val[name] = (0, 0); self.val['total'] = (0, 0)
++		for name in self.vars: self.val[name] = [0, 0]; self.val['total'] = [0, 0]
+ 
+ 	def discover(self, *list):
+ 		ret = []
+@@ -454,8 +515,8 @@
+ 		if update:
+ 			for name in self.cn2.keys():
+ 				self.val[name] = ( 
+-					(self.cn2[name][0]-self.cn1[name][0]) * 512.0 / step,
+-					(self.cn2[name][1]-self.cn1[name][1]) * 512.0 / step,
++					(self.cn2[name][0] - self.cn1[name][0]) * 512.0 / step,
++					(self.cn2[name][1] - self.cn1[name][1]) * 512.0 / step,
+ 				)
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+@@ -503,8 +564,8 @@
+ 		if update:
+ 			for name in self.cn2.keys():
+ 				self.val[name] = ( 
+-					(self.cn2[name][0]-self.cn1[name][0]) * 512.0 / step,
+-					(self.cn2[name][1]-self.cn1[name][1]) * 512.0 / step,
++					(self.cn2[name][0] - self.cn1[name][0]) * 512.0 / step,
++					(self.cn2[name][1] - self.cn1[name][1]) * 512.0 / step,
+ 				)
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+@@ -555,8 +616,8 @@
+ 		if update:
+ 			for name in self.cn2.keys():
+ 				self.val[name] = (
+-					(self.cn2[name][0]-self.cn1[name][0]) * 512.0 / step,
+-					(self.cn2[name][1]-self.cn1[name][1]) * 512.0 / step,
++					(self.cn2[name][0] - self.cn1[name][0]) * 512.0 / step,
++					(self.cn2[name][1] - self.cn1[name][1]) * 512.0 / step,
+ 				)
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+@@ -665,7 +726,7 @@
+ #						self.cn2[mod] = long(l[1])
+ 		if update:
+ 			for name in self.cn2.keys():
+-				self.val[name] = (self.cn2[name]-self.cn1[name]) * 1.0 / step
++				self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / step
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+@@ -696,8 +757,8 @@
+ 		self.name = 'memory usage'
+ 		self.len = 5
+ 		self.format = '%s'
+-		self.vars = ('MemUsed', 'MemFree', 'Buffers', 'Cached')
+-		self.nick = ('used', 'free', 'buff', 'cach')
++		self.vars = ('MemUsed', 'Buffers', 'Cached', 'MemFree')
++		self.nick = ('used', 'buff', 'cach', 'free')
+ 		self.init()
+ 
+ 	def check(self):
+@@ -727,7 +788,7 @@
+ 
+ 		for name in self.vars: self.cn1[name] = (0, 0); self.cn1['total'] = (0, 0)
+ 		for name in self.vars: self.cn2[name] = (0, 0); self.cn2['total'] = (0, 0)
+-		for name in self.vars: self.val[name] = (0, 0); self.val['total'] = (0, 0)
++		for name in self.vars: self.val[name] = [0, 0]; self.val['total'] = [0, 0]
+ 
+ 	def discover(self, *list):
+ 		ret = []
+@@ -756,7 +817,7 @@
+ 		return ret
+ 
+ 	def stats(self):
+-		self.cn2['total'] = (0, 0)
++		self.cn2['total'] = [0, 0]
+ 		for line in open('/proc/net/dev', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 1: continue
+@@ -775,8 +836,8 @@
+ 		if update:
+ 			for name in self.cn2.keys():
+ 				self.val[name] = ( 
+-					(self.cn2[name][0]-self.cn1[name][0]) * 1.0 / step,
+-					(self.cn2[name][1]-self.cn1[name][1]) * 1.0 / step,
++					(self.cn2[name][0] - self.cn1[name][0]) * 1.0 / step,
++					(self.cn2[name][1] - self.cn1[name][1]) * 1.0 / step,
+ 				 )
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+@@ -804,7 +865,7 @@
+ 				self.cn2[name] = long(l[1])
+ 		if update:
+ 			for name in self.vars:
+-				self.val[name] = (self.cn2[name]-self.cn1[name]) * pagesize * 1.0 / step
++				self.val[name] = (self.cn2[name] - self.cn1[name]) * pagesize * 1.0 / step
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+@@ -824,7 +885,7 @@
+ 				self.cn2['pswpout'] = long(l[2])
+ 		if update:
+ 			for name in self.vars:
+-				self.val[name] = (self.cn2[name]-self.cn1[name]) * pagesize * 1.0 / step
++				self.val[name] = (self.cn2[name] - self.cn1[name]) * pagesize * 1.0 / step
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+@@ -911,7 +972,7 @@
+ 				self.cn2[name] = long(l[1])
+ 		if update:
+ 			for name in self.vars:
+-				self.val[name] = (self.cn2[name]-self.cn1[name]) * 1.0 / step
++				self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / step
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+@@ -945,8 +1006,8 @@
+ 		self.format = '%10d'
+ 		self.len = 10
+ 		### Nice for debugging timer
+-		self.format = '%13.3f'
+-		self.len = 14
++#		self.format = '%13.3f'
++#		self.len = 14
+ 		self.nick = ('epoch',)
+ 		self.vars = ('epoch',)
+ 		self.init()
+@@ -1020,6 +1081,13 @@
+ 	'default': '\033[0;0m',
+ }
+ 
++char = {
++	'pipe': '|',
++	'colon': ':',
++	'gt': '&gt;',
++	'space': ' ',
++}
++
+ def total(list):
+ 	ret = 0
+ 	for i in list:
+@@ -1091,6 +1159,8 @@
+ 	sys.exit(ret)
+ 
+ def getwinsize():
++	if op.nolimit:
++		return 1024, 1024
+ #	curses.wrapper(lambda s:curses.setupterm())
+ #	return curses.wrapper(lambda s:curses.tigetnum('lines')), curses.wrapper(lambda s:curses.tigetnum('cols'))
+ 	try:
+@@ -1151,18 +1221,6 @@
+ 	if not op.update:
+ 		interval = op.delay
+ 
+-	### Check terminal capabilities
+-#	if not sys.stdout.isatty() or not curses.wrapper(lambda s:curses.has_colors()):
+-	if not sys.stdout.isatty() or os.environ.get('TERM',None) not in ('ansi', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm'):
+-		op.color = False
+-		op.update = False
+-
+-	### Empty ansi database if no colors are requested
+-	if not op.color:
+-		op.update = False
+-		for key in ansi.keys():
+-			ansi[key] = ''
+-
+ 	### Build list of requested modules
+ 	olist = []
+ 	for mod in op.modlist:
+@@ -1191,8 +1249,25 @@
+ 		else:
+ 			info(1, 'Module \'%s\' does not exist or failed to load.' % mod)
+ 
+-	(rows, cols) = getwinsize()
++	### Check terminal capabilities
++#	if not sys.stdout.isatty() or not curses.wrapper(lambda s:curses.has_colors()):
++	if not sys.stdout.isatty() or os.environ.get('TERM',None) not in ('ansi', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm'):
++		op.color = False
++		op.nolimit = True
++		op.update = False
+ 
++	rows, cols = getwinsize()
++
++	### Empty ansi database if no colors are requested
++	if not op.color:
++		op.update = False
++		for key in ansi.keys():
++			ansi[key] = ''
++
++	if op.csv:
++		for key in char.keys():
++			char[key] = ','
++
+ 	### Remove defect objects and calculate line length
+ 	linewidth = 0
+ 	for o in olist + []:
+@@ -1201,9 +1276,18 @@
+ 		else:
+ 			olist.remove(o)
+ 
+-	if linewidth &gt; cols:
+-		print 'Screen width too small, trimming output.'
++	if not op.nolimit:
++		if linewidth &gt; cols:
++			print 'Screen width too small, trimming output.'
+ 
++	if op.csv:
++		import socket
++		print '&quot;Dstat %s CSV output&quot;' % VERSION
++		print '&quot;Author:&quot;,&quot;Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;&quot;,,,,&quot;URL:&quot;,&quot;<A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>&quot;'
++		print '&quot;Host:&quot;,&quot;%s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;' % (socket.gethostbyaddr(socket.gethostname())[0], time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime()))
++
++		print '&quot;Cmd:&quot;,&quot;dstat %s&quot;\n' % ' '.join(op.args)
++
+ 	oldplist = []
+ 
+ 	### Increase precision if we're root (does not have effect)
+@@ -1241,17 +1325,17 @@
+ 			for o in plist:
+ 				sys.stdout.write(o.title1())
+ 				if o is not plist[-1]:
+-					sys.stdout.write(ansi['darkblue'] + ' ')
++					sys.stdout.write(ansi['darkblue'] + char['space'])
+ 				elif olist != plist:
+-					sys.stdout.write(ansi['darkblue'] + '&gt;')
++					sys.stdout.write(ansi['darkblue'] + char['gt'])
+ 			sys.stdout.write('\n')
+ 
+ 			for o in plist:
+ 				sys.stdout.write(o.title2())
+ 				if o is not plist[-1]:
+-					sys.stdout.write(ansi['silver'] + '|')
++					sys.stdout.write(ansi['silver'] + char['pipe'])
+ 				elif olist != plist:
+-					sys.stdout.write(ansi['darkblue'] + '&gt;')
++					sys.stdout.write(ansi['darkblue'] + char['gt'])
+ 			sys.stdout.write('\n')
+ 
+ 		oldplist = plist
+@@ -1270,11 +1354,14 @@
+ 		for o in olist:
+ 			o.stats()
+ 			if o in plist:
+-				o.show()
++				if op.csv:
++					o.showcsv()
++				else:
++					o.show()
+ 				if o is not plist[-1]:
+-					sys.stdout.write(ansi['default'] + '|')
++					sys.stdout.write(ansi['default'] + char['pipe'])
+ 				elif o is not olist[-1]:
+-					sys.stdout.write(ansi['default'] + '&gt;')
++					sys.stdout.write(ansi['default'] + char['gt'])
+ 
+ 		### If intermediate results, update increases with 1 sec (=interval)
+ 		update = update + interval
+
+Modified: trunk/tools/dstat/dstat.1
+===================================================================
+--- trunk/tools/dstat/dstat.1	2004-12-29 00:36:00 UTC (rev 2726)
++++ trunk/tools/dstat/dstat.1	2004-12-31 21:05:54 UTC (rev 2727)
+@@ -70,6 +70,9 @@
+ \fB\-f\fR, \fB\-\-full\fR
+ expand -D, -I and -N discovery lists
+ .TP
++\fB\-\-csv\fR
++output CSV format
++.TP
+ \fB\-\-integer\fR
+ show integer values
+ .TP
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001531.html">[SVN] r2726 - in trunk/rpms: . perl-CGI-Untaint perl-PHP-Perlinfo
+</A></li>
+	<LI>Next message: <A HREF="001533.html">[SVN] r2728 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1532">[ date ]</a>
+              <a href="thread.html#1532">[ thread ]</a>
+              <a href="subject.html#1532">[ subject ]</a>
+              <a href="author.html#1532">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

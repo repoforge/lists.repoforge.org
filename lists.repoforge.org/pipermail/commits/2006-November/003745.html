@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4945 - in trunk/rpms: . dkms-ndiswrapper
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4945%20-%20in%20trunk/rpms%3A%20.%20dkms-ndiswrapper&In-Reply-To=%3C20061129122904.954C5944A79%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003744.html">
+   <LINK REL="Next"  HREF="003746.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4945 - in trunk/rpms: . dkms-ndiswrapper</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4945%20-%20in%20trunk/rpms%3A%20.%20dkms-ndiswrapper&In-Reply-To=%3C20061129122904.954C5944A79%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4945 - in trunk/rpms: . dkms-ndiswrapper">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Nov 29 13:29:04 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003744.html">[svn] r4944 - trunk/rpms/xine-lib
+</A></li>
+        <LI>Next message: <A HREF="003746.html">[svn] r4946 - trunk/rpms/x11vnc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3745">[ date ]</a>
+              <a href="thread.html#3745">[ thread ]</a>
+              <a href="subject.html#3745">[ subject ]</a>
+              <a href="author.html#3745">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-11-29 13:29:03 +0100 (Wed, 29 Nov 2006)
+New Revision: 4945
+
+Added:
+   trunk/rpms/dkms-ndiswrapper/
+   trunk/rpms/dkms-ndiswrapper/dkms-ndiswrapper.spec
+Log:
+Initial import of dkms-ndiswrapper.
+
+
+Added: trunk/rpms/dkms-ndiswrapper/dkms-ndiswrapper.spec
+===================================================================
+--- trunk/rpms/dkms-ndiswrapper/dkms-ndiswrapper.spec	                        (rev 0)
++++ trunk/rpms/dkms-ndiswrapper/dkms-ndiswrapper.spec	2006-11-29 12:29:03 UTC (rev 4945)
+@@ -0,0 +1,96 @@
++# $Id$
++# Authority: matthias
++
++Summary: Kernel module to allow the use of NDIS drivers 
++Name: dkms-ndiswrapper
++Version: 1.30
++Release: 1
++License: GPL
++Group: System Environment/Kernel
++URL: <A HREF="http://ndiswrapper.sourceforge.net/">http://ndiswrapper.sourceforge.net/</A>
++Source: <A HREF="http://dl.sf.net/ndiswrapper/ndiswrapper-%{version">http://dl.sf.net/ndiswrapper/ndiswrapper-%{version</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++Requires: gcc
++Requires(post): dkms
++Requires(preun): dkms
++Provides: ndiswrapper = %{version}-%{release}
++
++%description
++This kernel module implements the Microsoft NDIS (Network Driver Interface
++Specification) API within the linux kernel.  It allows the use of binary
++drivers written to this specification to be run natively in the Linux kernel.
++
++
++%prep
++%setup -n ndiswrapper-%{version}
++
++
++%build
++%{__make} -C utils CFLAGS=&quot;%{optflags} -I../driver&quot;
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} -C utils DESTDIR=%{buildroot} install
++%{__install} -D -m 0644 -p ndiswrapper.8 \
++    %{buildroot}%{_mandir}/man8/ndiswrapper.8
++%{__mkdir_p} %{buildroot}%{_sysconfdir}/ndiswrapper
++
++%define dkms_name ndiswrapper
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
++# Kernel module sources install for dkms
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++%{__cp} -a driver/* %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++# Configuration for dkms
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
++PACKAGE_NAME=%{dkms_name}
++PACKAGE_VERSION=%{dkms_vers}
++MAKE[0]=&quot;make KERNEL_LOCATION=${kernel_source_dir}&quot;
++CLEAN[0]=&quot;make clean&quot;
++BUILT_MODULE_NAME[0]=ndiswrapper
++DEST_MODULE_LOCATION[0]=/kernel/drivers/net/wireless/ndiswrapper
++AUTOINSTALL=&quot;YES&quot;
++EOF
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++# Add to DKMS registry
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
++
++
++%preun
++# Remove all versions from DKMS registry
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS ChangeLog INSTALL README
++%dir %{_sysconfdir}/ndiswrapper/
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++/sbin/loadndisdriver
++%{_sbindir}/ndiswrapper
++%{_sbindir}/ndiswrapper-buginfo
++%{_mandir}/man8/ndiswrapper.8*
++
++
++%changelog
++* Wed Nov 29 2006 Jon Nettleton &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.30-1
++- Update to 1.30 and minor spec file cleanup.
++- Remove noarch, since there is a binary in the package.
++- Provides plain versionned &quot;ndiswrapper&quot; too.
++- Include INSTALL file since it contains instructions on installing INF files.
++
++* Sat Oct 28 2006 Jon Nettleton &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.27-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/dkms-ndiswrapper/dkms-ndiswrapper.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003744.html">[svn] r4944 - trunk/rpms/xine-lib
+</A></li>
+	<LI>Next message: <A HREF="003746.html">[svn] r4946 - trunk/rpms/x11vnc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3745">[ date ]</a>
+              <a href="thread.html#3745">[ thread ]</a>
+              <a href="subject.html#3745">[ subject ]</a>
+              <a href="author.html#3745">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

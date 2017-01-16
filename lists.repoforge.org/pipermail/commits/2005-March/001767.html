@@ -1,0 +1,409 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2966 - in trunk/tools/dar: . scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2966%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C200503082214.j28MESar012804%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001766.html">
+   <LINK REL="Next"  HREF="001768.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2966 - in trunk/tools/dar: . scripts</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2966%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C200503082214.j28MESar012804%40lists.rpmforge.net%3E"
+       TITLE="[SVN] r2966 - in trunk/tools/dar: . scripts">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Mar  8 23:14:28 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001766.html">[SVN] r2965 - in trunk/tools/dar: . dists/el2i dists/el3a	dists/el3i dists/el4a dists/el4i dists/fc1i dists/fc2a	dists/fc2i dists/fc3a dists/fc3i dists/nodist dists/rh6i	dists/rh7i dists/rh8i dists/rh9i scripts
+</A></li>
+        <LI>Next message: <A HREF="001768.html">[SVN] r2967 - trunk/rpms/perl-Glib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1767">[ date ]</a>
+              <a href="thread.html#1767">[ thread ]</a>
+              <a href="subject.html#1767">[ subject ]</a>
+              <a href="author.html#1767">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-08 23:14:27 +0100 (Tue, 08 Mar 2005)
+New Revision: 2966
+
+Modified:
+   trunk/tools/dar/ChangeLog
+   trunk/tools/dar/Makefile
+   trunk/tools/dar/README
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-contrib
+   trunk/tools/dar/dar-dotty
+   trunk/tools/dar/dar-exec
+   trunk/tools/dar/dar-kickoff
+   trunk/tools/dar/dar-prepare
+   trunk/tools/dar/dar-repo
+   trunk/tools/dar/dar-shell
+   trunk/tools/dar/dar-sync
+   trunk/tools/dar/dar-update
+   trunk/tools/dar/scripts/pre-brand.sh
+   trunk/tools/dar/scripts/pre-disttag.sh
+Log:
+Small fixes
+
+Modified: trunk/tools/dar/ChangeLog
+===================================================================
+--- trunk/tools/dar/ChangeLog	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/ChangeLog	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -34,6 +34,7 @@
+ - dar-build: Added preprocessing scripts
+ - dar-update: Improved the handling of updates to update tools
+ - dar-build: Experimental usage of /dev/shm for building
++- dar-functions: Moved to /usr/share instead of /usr/lib
+ 
+ Version 0.6.0
+ - dar.conf: Removed DISTSMAP, added it to dists specific section
+
+Modified: trunk/tools/dar/Makefile
+===================================================================
+--- trunk/tools/dar/Makefile	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/Makefile	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -7,7 +7,6 @@
+ datadir=/usr/share
+ sysconfdir=/etc
+ localstatedir=/var
+-libdir=/usr/lib
+ sbindir=/usr/sbin
+ 
+ DIST_SCRIPTS=dar-build dar-dotty dar-exec dar-kickoff dar-new dar-prepare dar-repo dar-shell dar-sync dar-update
+@@ -27,14 +26,13 @@
+ 	install -m0755 -d $(DESTDIR)$(sysconfdir)/dar/{dists,scripts} \
+ 		$(DESTDIR)$(sysconfdir)/logrotate.d \
+ 		$(DESTDIR)$(datadir)/dar/skel \
+-		$(DESTDIR)$(libdir)/dar \
+ 		$(DESTDIR)$(sbindir)
+ 	install -m0700 -d $(DESTDIR)$(localstatedir)/log/dar
+ 
+ 	install -D -m0644 dar.conf $(DESTDIR)$(sysconfdir)/dar/dar.conf
+ 
+ 	install -m0755 $(DIST_SCRIPTS) $(DESTDIR)$(sbindir)
+-	install -m0755 $(DIST_LIBS) $(DESTDIR)$(libdir)/dar/
++	install -m0755 $(DIST_LIBS) $(DESTDIR)$(datadir)/dar/
+ #	install -m0644 dists/*/* $(DESTDIR)$(sysconfdir)/dar/dists/
+ 	cp -af dists/* $(DESTDIR)$(sysconfdir)/dar/dists/
+ 	cp -af scripts/* $(DESTDIR)$(sysconfdir)/dar/scripts/
+
+Modified: trunk/tools/dar/README
+===================================================================
+--- trunk/tools/dar/README	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/README	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -6,6 +6,7 @@
+     dar-prepare		prepare a build-environment (mount necessary dirs)
+     dar-build		build package serialized
+     dar-update		update, upgrade or install packages
++    dar-shell		work inside your chroot
+     dar-exec		execute a command in every build-environment
+     dar-sync		sync packages with a remote site
+     dar-dotty		create graphs from your build-environment (defunct pdf)
+@@ -14,8 +15,8 @@
+   Overview of paths
+   &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+     /etc/dar/dar.conf		General DAR configuration
+-    /etc/dar/config		Location for extra package information
+     /etc/dar/dists		Location for extra distribution information
++    /etc/dar/scripts		Pre-process and post-process scripts
+ 
+     /dar/build			Location for building
+     /dar/chroot			Location for build-environments
+@@ -24,16 +25,15 @@
+     /dar/rpms			Location for SPEC files and patches
+     /dar/tmp			Location for temporary files and buildroot
+ 
+-    /usr/share/dar		Location for extra files
+-    /usr/lib/dar		Location of library
++    /usr/share/dar		Location for extra files and library
+ 
+ 
+   Tool arguments
+   &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+     dar-kickoff
+     dar-prepare
+-    dar-build -a arch -d dist -s sdist -t tag -f &lt;package/spec&gt; ...
+-    dar-update &lt;package&gt; ...
+-    dar-exec &lt;cmd&gt;
+-    dar-sync
++    dar-build -a arch,arch2 -d dist,dist2 -s sdist -n -t tag -f &lt;package/spec&gt; ...
++    dar-update -d dist,dist2 &lt;package&gt; ...
++    dar-exec -d dist,dist2 &lt;cmd&gt;
++    dar-sync -d dist,dist2 -r
+     dar-dotty
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-build	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -2,7 +2,7 @@
+ 
+ ### dar-build  [ -a &lt;archs&gt; ]  [ -d &lt;dists&gt; ]  [ -s &lt;sdists&gt; ]  [ -f ]  [ -t tag ]  &lt;app&gt; ...
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ daropts &quot;:a:d:fns:t:v&quot; $@
+ PKGS=&quot;$OPTS&quot;
+@@ -167,12 +167,10 @@
+ 				done
+ 			done
+ 
+-			rm -f &quot;$NEWSPECFILE&quot;
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+ 			export NEWSPECFILE DISTTAG TAG
+ 
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+-#				echo &quot;Processing $script.&quot;
+ 				source &quot;$script&quot;
+ 			done
+ 
+@@ -406,8 +404,14 @@
+ 		for dist in $SOURCE_DISTS; do
+ 			RPMFILE=&quot;$app-$VERSION-$RELEASE.$TAG.src.rpm&quot;
+ 
+-			### Build source package (forced)
+-			cat &quot;$SPECFILE&quot; | sed -e &quot;s#\(Release: *.\+\)#\1.$TAG#&quot; &gt; &quot;$NEWSPECFILE&quot;
++			NEWSPECFILE=&quot;$TEMPDIR/$app.spec&quot;
++			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
++			export NEWSPECFILE DISTTAG TAG ARCH=&quot;src&quot;
++
++			for script in $CONFIGDIR/scripts/pre-*.sh; do
++				source &quot;$script&quot;
++			done
++
+ 			echo &quot;Building source package $app using \&quot;$SPECFILE\&quot; for $dist&quot;
+ 			chroot &quot;$CHROOTDIR/$dist&quot; /usr/bin/rpmbuild -bs \
+ 				--define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; \
+@@ -415,9 +419,10 @@
+ 				--define &quot;_sourcedir $SPECDIR&quot; \
+ 				--define &quot;$dist 1&quot; \
+ 				&quot;$NEWSPECFILE&quot;
++
++			cp -au &quot;$NEWSPECFILE&quot; &quot;$PACKAGEDIR/$app/&quot;
+ 		done
+ 
+-		cp -au &quot;$SPECFILE&quot; &quot;$PACKAGEDIR/$app/&quot;
+ 	fi
+ done
+ 
+
+Modified: trunk/tools/dar/dar-contrib
+===================================================================
+--- trunk/tools/dar/dar-contrib	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-contrib	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ upload=&quot;&quot;;
+ 
+
+Modified: trunk/tools/dar/dar-dotty
+===================================================================
+--- trunk/tools/dar/dar-dotty	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-dotty	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ echo &quot;Warning: this may take quite some time to finish.&quot; &gt;&amp;2
+ for distname in $DEFAULT_DISTS; do
+
+Modified: trunk/tools/dar/dar-exec
+===================================================================
+--- trunk/tools/dar/dar-exec	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-exec	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -2,7 +2,7 @@
+ 
+ ### dar-exec  [ -d &lt;dists&gt; ]  &lt;cmd&gt; ...
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ daropts &quot;d:&quot; $@
+ CMD=&quot;$OPTS&quot;
+
+Modified: trunk/tools/dar/dar-kickoff
+===================================================================
+--- trunk/tools/dar/dar-kickoff	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-kickoff	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -5,7 +5,7 @@
+ echo &quot;Not finished, see source for some instructions.&quot;
+ exit 1
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ if [ -d &quot;$ROOT/$DIST&quot; ]; then
+ 	echo &quot;ERROR: Dir $ROOT/$DIST already exists.&quot; &gt;&amp;2
+
+Modified: trunk/tools/dar/dar-prepare
+===================================================================
+--- trunk/tools/dar/dar-prepare	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-prepare	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ if [ -z &quot;$DEFAULT_DISTS&quot; -o -z &quot;$ROOT&quot; ]; then
+ 	echo &quot;ERROR: There's something wrong with your configuration !&quot; &gt;&amp;2
+@@ -25,6 +25,6 @@
+ 	mount -o bind /dev/shm $CHROOTDIR/$distname$ROOT/build
+ 
+ ###	Use thise when using X processes inside chroots
+-#	mount -o bind /tmp/ $CHROOTDIR/$distname/tmp/
++	mount -o bind /tmp/ $CHROOTDIR/$distname/tmp/
+ 
+ done
+
+Modified: trunk/tools/dar/dar-repo
+===================================================================
+--- trunk/tools/dar/dar-repo	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-repo	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ daropts &quot;:a:d:s:&quot; $@
+ 
+
+Modified: trunk/tools/dar/dar-shell
+===================================================================
+--- trunk/tools/dar/dar-shell	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-shell	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -2,7 +2,7 @@
+ 
+ ### dar-shell  [ -d &lt;dists&gt; ]
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ daropts &quot;d:&quot; $@
+ CMD=&quot;$OPTS&quot;
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-sync	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -1,6 +1,6 @@
+ #!/bin/bash
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ daropts &quot;:a:d:rs:&quot; $@
+ 
+
+Modified: trunk/tools/dar/dar-update
+===================================================================
+--- trunk/tools/dar/dar-update	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/dar-update	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -2,7 +2,7 @@
+ 
+ ### dar-update  [ -a &lt;archs&gt; ]  [ -d &lt;dists&gt; ]  [ -s &lt;sdists&gt; ]  &lt;app&gt; ...
+ 
+-source &quot;/usr/lib/dar/dar-functions&quot;
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+ daropts &quot;:a:d:rs:&quot; $@
+ PKGS=&quot;$OPTS&quot;
+
+Modified: trunk/tools/dar/scripts/pre-brand.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-brand.sh	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/scripts/pre-brand.sh	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -7,14 +7,14 @@
+ 
+ case &quot;$AUTHOR&quot; in
+ 	(dries)
+-		PACKAGER=&quot;Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;&quot;
++		PACKAGER=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot;
+ 		;;
+ 	(bert)
+-		PACKAGER=&quot;Bert de Bruijn &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bert at debruijn.be</A>&gt;&quot;;;
+-		
+-	(dag|thias|*)
+-		PACKAGER=&quot;Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;&quot;
++		PACKAGER=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot;
+ 		;;
++	(dag|thias|matthias|*)
++		PACKAGER=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot;
++		;;
+ esac
+ 
+ VENDOR=&quot;Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>&quot;
+
+Modified: trunk/tools/dar/scripts/pre-disttag.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-disttag.sh	2005-03-08 20:13:38 UTC (rev 2965)
++++ trunk/tools/dar/scripts/pre-disttag.sh	2005-03-08 22:14:27 UTC (rev 2966)
+@@ -1,18 +1,16 @@
+ #!/bin/bash
+ 
++#echo &quot;Specfile: $NEWSPECFILE, Disttag: $DISTTAG, Tag: $TAG&quot;
+ #set -x
+ 
+-### Processing disttag variable
+-DISTTAG=&quot;${DISTTAG// *}&quot;
++case &quot;$ARCH&quot; in
++	(src)
++		perl -pi.orig -e 's|^(Release)\s*:\s+(.+)\s*$|$1: $2.'$TAG'\n|' &quot;$NEWSPECFILE&quot;
++		;;
++	(*)
++		perl -pi.orig -e 's|^(Release)\s*:\s+(.+)\s*$|$1: $2.'${DISTTAG// *}'.'$TAG'\n|' &quot;$NEWSPECFILE&quot;
++		;;
++esac
+ 
+-#echo &quot;Specfile: $NEWSPECFILE&quot;
+-#echo &quot;Disttag: $DISTTAG&quot;
+-#echo &quot;Tag: $TAG&quot;
+-
+-### Originally in dar-build
+-#cat &quot;$SPECFILE&quot; | sed -e &quot;s|\(Release: *.\+\)|\1.${DISTTAG// *}.$TAG|&quot; &gt;&quot;$NEWSPECFILE&quot;
+-
+-perl -pi.orig -e 's|^(Release)\s*:\s+(.+)\s*$|$1: '$DISTTAG'.'$TAG'\n|' &quot;$NEWSPECFILE&quot;
+-
+ #diff -u &quot;$NEWSPECFILE&quot;.orig &quot;$NEWSPECFILE&quot;
+ #set +x
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001766.html">[SVN] r2965 - in trunk/tools/dar: . dists/el2i dists/el3a	dists/el3i dists/el4a dists/el4i dists/fc1i dists/fc2a	dists/fc2i dists/fc3a dists/fc3i dists/nodist dists/rh6i	dists/rh7i dists/rh8i dists/rh9i scripts
+</A></li>
+	<LI>Next message: <A HREF="001768.html">[SVN] r2967 - trunk/rpms/perl-Glib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1767">[ date ]</a>
+              <a href="thread.html#1767">[ thread ]</a>
+              <a href="subject.html#1767">[ subject ]</a>
+              <a href="author.html#1767">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

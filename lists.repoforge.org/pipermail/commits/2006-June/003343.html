@@ -1,0 +1,258 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4543 - in trunk/tools/dstat: . examples
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4543%20-%20in%20trunk/tools/dstat%3A%20.%20examples&In-Reply-To=%3C20060623073918.DE85A318107%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003342.html">
+   <LINK REL="Next"  HREF="003344.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4543 - in trunk/tools/dstat: . examples</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4543%20-%20in%20trunk/tools/dstat%3A%20.%20examples&In-Reply-To=%3C20060623073918.DE85A318107%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4543 - in trunk/tools/dstat: . examples">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jun 23 09:39:18 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003342.html">[svn] r4542 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="003344.html">[svn] r4544 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3343">[ date ]</a>
+              <a href="thread.html#3343">[ thread ]</a>
+              <a href="subject.html#3343">[ subject ]</a>
+              <a href="author.html#3343">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-06-23 09:39:18 +0200 (Fri, 23 Jun 2006)
+New Revision: 4543
+
+Modified:
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/examples/mstat.py
+Log:
+Fixed the memory leak in curses
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-06-23 07:12:39 UTC (rev 4542)
++++ trunk/tools/dstat/dstat	2006-06-23 07:39:18 UTC (rev 4543)
+@@ -37,24 +37,25 @@
+ 	sys.exit('error: Python 2.2 or later required, try dstat15 instead')
+ 
+ ### Workaround for python &lt; 2.3
+-if 'enumerate' not in __builtins__.__dict__.keys():
+-	if sys.version_info &lt; (2, 3) and sys.version_info &gt;= (2, 2):
+-		def enumerate(sequence):
+-			index = 0
+-			for item in sequence:
+-				yield index, item
+-				index = index + 1
+-	elif sys.version_info &lt; (2, 2):
+-		def enumerate(sequence):
+-			index = 0
+-			list = []
+-			for item in sequence:
+-				list.append((index, item))
+-				index = index + 1
+-			return list
++#if 'enumerate' not in __builtins__.__dict__.keys():
++if sys.version_info &lt; (2, 3) and sys.version_info &gt;= (2, 2):
++	def enumerate(sequence):
++		index = 0
++		for item in sequence:
++			yield index, item
++			index = index + 1
++elif sys.version_info &lt; (2, 2):
++	def enumerate(sequence):
++		index = 0
++		list = []
++		for item in sequence:
++			list.append((index, item))
++			index = index + 1
++		return list
+ 
+ ### Workaround for python &lt; 2.3
+-if 'sum' not in __builtins__.__dict__.keys():
++#if 'sum' not in __builtins__.__dict__.keys():
++if sys.version_info &lt; (2, 3):
+ 	def sum(sequence):
+ 		ret = 0
+ 		for i in sequence:
+@@ -207,8 +208,8 @@
+ 		print 'Kernel %s' % os.uname()[2]
+ 		print 'Python %s' % sys.version
+ 		print
+-		rows, cols = getwinsize()
+-		print 'Terminal type:', os.getenv('TERM') + '/' + termtype
++		rows, cols = gettermsize()
++		print 'Terminal type:', os.getenv('TERM') + '/' + termtype[0]
+ 		print 'Terminal size: %d lines, %d columns' % (rows, cols)
+ 		print
+ 		print 'Processors: %d' % getcpunr()
+@@ -1549,30 +1550,33 @@
+ 	info(0, str)
+ 	exit(ret)
+ 
+-def getwinsize():
+-	&quot;Return the terminal geometry using several methods&quot;
+-#	if op.nolimit:
+-#		return 1024, 1024
+-	global termtype
+-	termtype = 'curses'
++def initterm():
++	&quot;Return the terminal size if possible&quot;
++	global termsize
++
++	### Unbuffered sys.stdout
++	sys.stdout = os.fdopen(1, 'w', 0)
++
+ 	try:
+-		curses.setupterm()
+-		return curses.tigetnum('lines'), curses.tigetnum('cols')
++		global fcntl, struct, termios
++		import fcntl, struct, termios
+ 	except:
+-		termtype = 'fcntl'
+ 		try:
+-			import fcntl, struct, termios
+-			s = struct.pack('HHHH', 0, 0, 0, 0)
+-			x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+-			return struct.unpack('HHHH', x)[:2]
++	 		termsize = (int(os.getenv('LINES')), int(os.getenv('COLUMNS')))
+ 		except:
+-			termtype = 'env'
+-			try:
+-				return int(os.getenv('LINES')), int(os.getenv('COLUMNS'))
+-			except:
+-				termtype = 'none'
+-				return 25, 80
++			termsize = 25, 80
++	else:
++		termsize = None
+ 
++def gettermsize():
++	&quot;Return the terminal geometry&quot;
++	if termsize:
++		return termsize
++	else:
++		s = struct.pack('HHHH', 0, 0, 0, 0)
++		x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
++		return struct.unpack('HHHH', x)[:2]
++
+ def getcpunr():
+ 	&quot;Return the number of CPUs in the system&quot;
+ 	cpunr = -1
+@@ -1642,7 +1646,7 @@
+ 
+ def listmodules():
+ 	import glob
+-	rows, cols = getwinsize()
++	rows, cols = gettermsize()
+ 	remod = re.compile('.+/dstat_(.+).py$')
+ 	for path in sys.path:
+ 		list = []
+@@ -1674,7 +1678,7 @@
+ 	user = getpass.getuser()
+ 	hostname = os.uname()[1].split('.')[0]
+ 
+-	rows, cols = getwinsize()
++	rows, cols = gettermsize()
+ 
+ 	### Write term-title
+ 	term = os.getenv('TERM')
+@@ -1686,9 +1690,15 @@
+ 		op.color = False
+ 		op.nolimit = True
+ 		op.update = False
+-	elif termtype!='curses' or not hasattr(curses, 'tigetnum') or curses.tigetnum('colors') &lt; 0:
+-		op.color = False
+-
++	else:
++		try:
++			import curses
++			curses.setupterm()
++			if curses.tigetnum('colors') &gt;= 0:
++				op.color = True
++		except:
++			op.color = False
++		
+ 	if op.output:
+ 		if os.path.exists(op.output):
+ 			outputfile = open(op.output, 'a', 0)
+@@ -1789,7 +1799,7 @@
+ 		if op.debug: t1 = time.time()
+ 
+ 		### Trim object list to what is visible on screen
+-		rows, cols = getwinsize()
++		rows, cols = gettermsize()
+ 		vislist = []
+ 		curwidth = 0
+ 		for o in totlist:
+@@ -1875,15 +1885,8 @@
+ ### Main entrance
+ if __name__ == '__main__':
+ 	try:
+-		### Unbuffered sys.stdout
+-		sys.stdout = os.fdopen(1, 'w', 0)
++		initterm()
+ 
+-		try:
+-			import curses
+-			curses.setupterm()
+-		except:
+-			pass
+-
+ 		op = Options(sys.argv[1:])
+ 		main()
+ 	except KeyboardInterrupt, e:
+
+Modified: trunk/tools/dstat/examples/mstat.py
+===================================================================
+--- trunk/tools/dstat/examples/mstat.py	2006-06-23 07:12:39 UTC (rev 4542)
++++ trunk/tools/dstat/examples/mstat.py	2006-06-23 07:39:18 UTC (rev 4543)
+@@ -15,7 +15,11 @@
+ except: count = 10
+ 
+ ### Load stats
+-stats = (dstat.dstat_time(), dstat.dstat_cpu(), dstat.dstat_mem(), dstat.dstat_load(), dstat.dstat_disk(), dstat.dstat_sys())
++stats = []
++for o in (dstat.dstat_time(), dstat.dstat_cpu(), dstat.dstat_mem(), dstat.dstat_load(), dstat.dstat_disk(), dstat.dstat_sys()):
++	try: o.check()
++	except Exception, e: print e
++	else: stats.append(o)
+ 
+ ### Make time stats sub-second
+ stats[0].format = ('t', 14, 0)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003342.html">[svn] r4542 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="003344.html">[svn] r4544 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3343">[ date ]</a>
+              <a href="thread.html#3343">[ thread ]</a>
+              <a href="subject.html#3343">[ subject ]</a>
+              <a href="author.html#3343">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

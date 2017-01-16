@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6706 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6706%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903021716.n22HGju7011839%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005504.html">
+   <LINK REL="Next"  HREF="005506.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6706 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6706%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903021716.n22HGju7011839%40surya.karan.org%3E"
+       TITLE="[svn] r6706 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar  2 18:16:45 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005504.html">[svn] r6705 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="005506.html">[svn] r6707 - in trunk/tools/wiipresent: . docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5505">[ date ]</a>
+              <a href="thread.html#5505">[ thread ]</a>
+              <a href="subject.html#5505">[ subject ]</a>
+              <a href="author.html#5505">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-03-02 17:16:45 +0000 (Mon, 02 Mar 2009)
+New Revision: 6706
+
+Modified:
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Small fixes.
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-03-02 16:30:39 UTC (rev 6705)
++++ trunk/tools/wiipresent/TODO	2009-03-02 17:16:45 UTC (rev 6706)
+@@ -9,6 +9,7 @@
+ - Make the mouse buttons do the right thing
+ - Implement the power button to disconnect the device cleanly
+   (this is a bug in libwiimote)
++- Use playertoggle to switch between skip forward and next playback
+ 
+ == OpenOffice keymaps
+  - left/right: change slide/channel/tab
+@@ -16,6 +17,7 @@
+  - -/+: change workspace
+  - 1: fullscreen
+  - 2: blank screen/mute audio
++ - A: Play/Pause
+  - B: enable mouse pointer
+  - home: exit
+- - exit/A: unused
++ - exit: unavailable
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-03-02 16:30:39 UTC (rev 6705)
++++ trunk/tools/wiipresent/wiipresent.c	2009-03-02 17:16:45 UTC (rev 6706)
+@@ -312,7 +312,7 @@
+ 
+     // Disable screensaver
+     XGetScreenSaver(display, &amp;timeout_return, &amp;interval_return, &amp;prefer_blanking_return, &amp;allow_exposures_return);
+-    XSetScreenSaver(display, 0, 0, 0, 0);
++    XSetScreenSaver(display, 0, 0, 1, 0);
+ 
+     // Get the root window for the current display.
+     int revert;
+@@ -327,6 +327,7 @@
+     wiimote_ir_t *point1 = &amp;wmote.ir1, *point2 = &amp;wmote.ir2;
+     int oldbattery = 0;
+     Window oldwindow = window;
++    int playertoggle = False;
+     int fullscreentoggle = False;
+     int screensavertoggle = False;
+ 
+@@ -498,11 +499,6 @@
+                 exit_clean(0);
+             }
+ 
+-            if (wmote.keys.a) {
+-                if (verbose)
+-                    fprintf(stderr, &quot;No A-key support for application %s.\n&quot;, name);
+-            }
+-
+             // Goto to previous workspace
+             if (wmote.keys.plus) {
+                 XFakeKeycode(XK_Right, ControlMask | Mod1Mask);
+@@ -513,7 +509,20 @@
+                 XFakeKeycode(XK_Left, ControlMask | Mod1Mask);
+             }
+ 
+-            if (name == NULL) continue;
++            if (wmote.keys.a) {
++                if (strstr(name, &quot;rhythmbox&quot;) == name)
++                    XFakeKeycode(XK_space, ControlMask);
++                else if (strstr(name, &quot;mplayer&quot;) == name)
++                    XFakeKeycode(XK_p, 0);
++                else if (strstr(name, &quot;xine&quot;) == name)
++                    XFakeKeycode(XK_space, 0);
++                else {
++                    XFakeKeycode(XF86XK_AudioPlay, 0);
++                    if (verbose)
++                        fprintf(stderr, &quot;No A-key support for application %s. (Sending play/mute to X)\n&quot;, name);
++                }
++                playertoggle = ! playertoggle;
++            }
+ 
+             if (wmote.keys.one) {
+                 if (strstr(name, &quot;firefox&quot;) == name)
+@@ -553,19 +562,15 @@
+                     XFakeKeycode(XK_m, 0);
+                 if (strstr(name, &quot;xine&quot;) == name)
+                     XFakeKeycode(XK_m, ControlMask);
+-                else if (verbose) {
++                else
+                     XFakeKeycode(XF86XK_AudioMute, 0);
+-//                    fprintf(stderr, &quot;No two-key support for application %s.\n&quot;, name);
+-                }
+ 
+                 // Blank screen
+-                if (screensavertoggle) {
+-                    XSetScreenSaver(display, 0, 0, 0, 0);
++                if (screensavertoggle)
+                     XForceScreenSaver(display, ScreenSaverReset);
+-                } else {
+-                    XSetScreenSaver(display, 1, 1, 1, 1);
++                else
+                     XActivateScreenSaver(display);
+-                }
++
+                 screensavertoggle = ! screensavertoggle;
+             }
+ 
+@@ -577,7 +582,8 @@
+                 else if (strstr(name, &quot;pidgin&quot;) == name)
+                     XFakeKeycode(XK_Page_Up, 0);
+                 else if (strstr(name, &quot;rhythmbox&quot;) == name)
+-                    XFakeKeycode(XK_Up, ControlMask);           // Volume Up
++                    XFakeKeycode(XF86XK_AudioRaiseVolume, 0);   // Volume Up
++//                    XFakeKeycode(XK_Up, ControlMask);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)
+                     XFakeKeycode(XK_Up, 0);
+                 else if (strstr(name, &quot;vlc&quot;) == name)
+@@ -589,9 +595,9 @@
+                 // FIXME: This does not work
+                 else if (strstr(name, &quot;gqview&quot;) == name)        // Rotate Clockwise
+                     XFakeKeycode(XK_bracketright, 0);
+-                else if (verbose) {
++                else {
+                     XFakeKeycode(XF86XK_AudioRaiseVolume, 0);
+-                    fprintf(stderr, &quot;No up-key for application %s.\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No up-key for application %s. (Sending volume up to X)\n&quot;, name);
+                 }
+             }
+ 
+@@ -602,8 +608,9 @@
+                     XFakeKeycode(XK_Down, 0);
+                 else if (strstr(name, &quot;pidgin&quot;) == name)
+                     XFakeKeycode(XK_Page_Down, 0);
+-                else if (strstr(name, &quot;rhythmbox&quot;) == name)     // Volume Down
+-                    XFakeKeycode(XK_Down, ControlMask);
++                else if (strstr(name, &quot;rhythmbox&quot;) == name)
++                    XFakeKeycode(XF86XK_AudioLowerVolume, 0);   // Volume Down
++//                    XFakeKeycode(XK_Down, ControlMask);
+                 else if (strstr(name, &quot;tvtime&quot;) == name)
+                     XFakeKeycode(XK_Down, 0);
+                 else if (strstr(name, &quot;vlc&quot;) == name)
+@@ -615,9 +622,9 @@
+                 // FIXME: This does not work
+                 else if (strstr(name, &quot;gqview&quot;) == name)        // Rotate Counter Clockwise
+                     XFakeKeycode(XK_bracketleft, 0);
+-                else if (verbose) {
++                else {
+                     XFakeKeycode(XF86XK_AudioLowerVolume, 0);
+-                    fprintf(stderr, &quot;No down-key support for application %s.\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No down-key support for application %s. (Sending volume down to X)\n&quot;, name);
+                 }
+             }
+ 
+@@ -648,9 +655,9 @@
+                     XFakeKeycode(XK_Right, 0);
+                 else if (strstr(name, &quot;xine&quot;) == name)            // Skip Forward
+                     XFakeKeycode(XK_Right, ControlMask);
+-                else if (verbose) {
++                else {
+                     XFakeKeycode(XF86XK_AudioNext, 0);
+-                    fprintf(stderr, &quot;No right-key support for application %s.\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No right-key support for application %s. (Sending play next to X)\n&quot;, name);
+                 }
+             }
+ 
+@@ -681,9 +688,9 @@
+                     XFakeKeycode(XK_Left, 0);
+                 else if (strstr(name, &quot;xine&quot;) == name)
+                     XFakeKeycode(XK_Left, ControlMask);
+-                else if (verbose) {
++                else {
+                     XFakeKeycode(XF86XK_AudioPrev, 0);
+-                    fprintf(stderr, &quot;No left-key support for application %s.\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No left-key support for application %s. (Sending play previous to X)\n&quot;, name);
+                 }
+             }
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005504.html">[svn] r6705 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="005506.html">[svn] r6707 - in trunk/tools/wiipresent: . docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5505">[ date ]</a>
+              <a href="thread.html#5505">[ thread ]</a>
+              <a href="subject.html#5505">[ subject ]</a>
+              <a href="author.html#5505">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

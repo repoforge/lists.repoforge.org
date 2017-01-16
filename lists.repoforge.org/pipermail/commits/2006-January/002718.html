@@ -1,0 +1,292 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3918 - in trunk/tools: . sarah
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3918%20-%20in%20trunk/tools%3A%20.%20sarah&In-Reply-To=%3C20060110131037.DD30994D149%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002717.html">
+   <LINK REL="Next"  HREF="002719.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3918 - in trunk/tools: . sarah</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3918%20-%20in%20trunk/tools%3A%20.%20sarah&In-Reply-To=%3C20060110131037.DD30994D149%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3918 - in trunk/tools: . sarah">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jan 10 14:10:37 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002717.html">[svn] r3917 - trunk/tools/dar/python
+</A></li>
+        <LI>Next message: <A HREF="002719.html">[svn] r3919 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2718">[ date ]</a>
+              <a href="thread.html#2718">[ thread ]</a>
+              <a href="subject.html#2718">[ subject ]</a>
+              <a href="author.html#2718">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-10 14:10:34 +0100 (Tue, 10 Jan 2006)
+New Revision: 3918
+
+Added:
+   trunk/tools/sarah/
+   trunk/tools/sarah/advisories/
+   trunk/tools/sarah/sarahdb.py
+   trunk/tools/sarah/sarahdb/
+   trunk/tools/sarah/sarahlib.py
+   trunk/tools/sarah/sarahprint.py
+Log:
+Initial import
+
+Added: trunk/tools/sarah/sarahdb.py
+===================================================================
+--- trunk/tools/sarah/sarahdb.py	2006-01-10 00:21:47 UTC (rev 3917)
++++ trunk/tools/sarah/sarahdb.py	2006-01-10 13:10:34 UTC (rev 3918)
+@@ -0,0 +1,106 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string, shutil
++from xml.dom.ext.reader import Sax2
++from xml.dom.NodeFilter import NodeFilter
++
++import sarahlib
++
++advcon, advcur = sarahlib.opendb('adv', create=True)
++refcon, refcur = sarahlib.opendb('ref', create=True)
++rpmcon, rpmcur = sarahlib.opendb('rpm', create=True)
++procon, procur = sarahlib.opendb('pro', create=True)
++typcon, typcur = sarahlib.opendb('typ', create=True)
++
++### Unbuffered sys.stdout
++sys.stdout = os.fdopen(1, 'w', 0)
++
++reader = Sax2.Reader()
++
++filelist = glob.glob('advisories/RHSA-*.xml')
++filelist.sort()
++
++for file in filelist:
++	doc = reader.fromStream(open(file))
++	walker = doc.createTreeWalker(doc.documentElement, NodeFilter.SHOW_ELEMENT, None, 0)
++
++	next = True
++	advrec = {}; prorec ={}; typrec = {}
++	while next is not None:
++#		print walker.currentNode.tagName
++
++		if walker.currentNode.tagName == 'id':
++			advrec['advid'] = walker.currentNode.firstChild.data
++
++		elif walker.currentNode.tagName == 'advisory':
++			advrec['sender'] = walker.currentNode.getAttribute('sender')
++			advrec['version'] = walker.currentNode.getAttribute('version')
++
++		elif walker.currentNode.tagName == 'pushcount':
++			advrec['pushcount'] = int(walker.currentNode.firstChild.data)
++
++		elif walker.currentNode.tagName == 'type':
++			typrec['type'] = walker.currentNode.firstChild.data
++			advrec['typeshort'] = typrec['typeshort'] = walker.currentNode.getAttribute('short')
++			typcur.execute('select type from typ where typeshort = &quot;%(typeshort)s&quot;' % typrec)
++			typelist = [type for type, in typcur.fetchall()]
++			if not typelist:
++				sarahlib.insertdb(typcur, 'typ', typrec)
++				typcon.commit()
++			elif typrec['type'] not in typelist:
++				print &quot;ERROR: Wrong type exists (%s not in %s)&quot; % (typrec['type'], typelist)
++
++		elif walker.currentNode.tagName == 'severity':
++			if walker.currentNode.firstChild.data:
++				advrec['severitylevel'] = walker.currentNode.firstChild.data
++			elif walker.currentNode.getAttribute('level'):
++				advrec['severitylevel'] = walker.currentNode.getAttribute('level')
++			else:
++				advrec['severitylevel'] = 'error'
++
++		elif walker.currentNode.tagName == 'synopsis':
++			advrec['synopsis'] = walker.currentNode.firstChild.data
++
++		elif walker.currentNode.tagName == 'issued':
++			advrec['issuedate'] = walker.currentNode.getAttribute('date')
++
++		elif walker.currentNode.tagName == 'updated':
++			advrec['updatedate'] = walker.currentNode.getAttribute('date')
++
++		elif walker.currentNode.tagName == 'references':
++			pass
++
++		elif walker.currentNode.tagName == 'topic':
++			advrec['topic'] = walker.currentNode.firstChild.data
++
++		elif walker.currentNode.tagName == 'description':
++			advrec['description'] = walker.currentNode.firstChild.data
++
++		elif walker.currentNode.tagName == 'rpmlist':
++			pass
++
++		elif walker.currentNode.tagName == 'product':
++			prorec['product'] = ''
++			advrec['productshort'] = ''
++
++		elif walker.currentNode.tagName == 'product':
++			prorec['product'] = walker.currentNode.firstChild.data
++			advrec['productshort'] = pro['productshort'] = walker.currentNode.getAttribute('short')
++			procur.execute('select product, productshort from pro where productshort = &quot;%(productshort)s&quot;' % prorec)
++			if procur.fetchall():
++				for productshort, product in procur.fetchall():
++					if product != prorec['product']:
++						print &quot;ERROR: Wrong product exists (%s != %s)&quot; % prorec['product'], product
++			else:
++				sarahlib.insertdb(procur, 'pro', prorec)
++				procon.commit()
++		next = walker.nextNode()
++
++	if not advrec.has_key('severitylevel'):
++		advrec['severitylevel'] = 'unknown'
++
++	print advrec['advid'],
++#	print advrec
++
++	sarahlib.insertdb(advcur, 'adv', advrec)
++	advcon.commit()
+
+
+Property changes on: trunk/tools/sarah/sarahdb.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/sarah/sarahlib.py
+===================================================================
+--- trunk/tools/sarah/sarahlib.py	2006-01-10 00:21:47 UTC (rev 3917)
++++ trunk/tools/sarah/sarahlib.py	2006-01-10 13:10:34 UTC (rev 3918)
+@@ -0,0 +1,48 @@
++import os, sqlite, types
++
++dbase = {
++	'adv': 'sarahdb/Advisories.sqlite',
++	'ref': 'sarahdb/References.sqlite',
++	'rpm': 'sarahdb/RPMList.sqlite',
++	'pro': 'sarahdb/Products.sqlite',
++	'typ': 'sarahdb/Types.sqlite',
++}
++
++headers = {
++#	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'typeshort', 'synopsis', 'description', 'topic', 'sender', 'version'),
++	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'typeshort', 'synopsis', 'description', 'topic'),
++	'ref': ('advid', 'reftype', 'reference'),
++	'rpm': ('advid', 'prodshort', 'arch', 'filename', 'md5'),
++	'pro': ('productshort', 'product'),
++	'typ': ('typeshort', 'type'),
++}
++
++def sqlcreate(name):
++	'Return a database create SQL statement'
++	str = 'create table %s ( ' % name
++	for key in headers[name]: str += '%s varchar(10), ' % key
++	return str.rstrip(', ') + ' )'
++
++def sqlinsert(name):
++	'Return a database insert SQL statement'
++	str = 'insert into %s ( ' % name
++	for key in headers[name]: str += '%s, ' % key
++	str = str.rstrip(', ') + ' ) values ( '
++	for key in headers[name]: str += '&quot;%%(%s)s&quot;, ' % key
++	return str.rstrip(', ') + ' )'
++
++def opendb(name, create=False):
++	'Open a database and return references'
++	con = sqlite.connect(dbase[name])
++	cur = con.cursor()
++	if create:
++		cur.execute(sqlcreate(name))
++	return (con, cur)
++
++def insertdb(cur, name, rec):
++	'Insert a record in a database'
++	### Convert unicode to UTF-8
++	for key in rec.keys():
++		if isinstance(rec[key], types.UnicodeType):
++			rec[key] = rec[key].encode('utf-8')
++	cur.execute(sqlinsert(name) % rec)
+
+Added: trunk/tools/sarah/sarahprint.py
+===================================================================
+--- trunk/tools/sarah/sarahprint.py	2006-01-10 00:21:47 UTC (rev 3917)
++++ trunk/tools/sarah/sarahprint.py	2006-01-10 13:10:34 UTC (rev 3918)
+@@ -0,0 +1,38 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string, shutil
++from xml.dom.ext.reader import Sax2
++from xml.dom.NodeFilter import NodeFilter
++
++import sarahlib
++
++advcon, advcur = sarahlib.opendb('adv')
++refcon, refcur = sarahlib.opendb('ref')
++rpmcon, rpmcur = sarahlib.opendb('rpm')
++procon, procur = sarahlib.opendb('pro')
++typcon, typcur = sarahlib.opendb('typ')
++
++### Unbuffered sys.stdout
++sys.stdout = os.fdopen(1, 'w', 0)
++
++advcur.execute('select distinct advid from adv order by advid')
++print 'Number of advisories:', len(advcur.fetchall())
++
++advcur.execute('select distinct advid from adv where severitylevel = &quot;important&quot;')
++print '\timportant:', len(advcur.fetchall()),
++advcur.execute('select distinct advid from adv where severitylevel = &quot;moderate&quot;')
++print 'moderate:', len(advcur.fetchall()),
++advcur.execute('select distinct advid from adv where severitylevel = &quot;low&quot;')
++print 'low:', len(advcur.fetchall()),
++advcur.execute('select distinct advid from adv where severitylevel = &quot;unknown&quot;')
++print 'unknown:', len(advcur.fetchall()),
++print
++
++typcur.execute('select typeshort from typ order by typeshort')
++print 'Number of types:', len(typcur.fetchall())
++
++### Print all
++advcur.execute('select * from adv order by advid')
++for all in advcur.fetchall():
++	print all
++
+
+
+Property changes on: trunk/tools/sarah/sarahprint.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002717.html">[svn] r3917 - trunk/tools/dar/python
+</A></li>
+	<LI>Next message: <A HREF="002719.html">[svn] r3919 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2718">[ date ]</a>
+              <a href="thread.html#2718">[ thread ]</a>
+              <a href="subject.html#2718">[ subject ]</a>
+              <a href="author.html#2718">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

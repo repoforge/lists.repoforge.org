@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] Broken package: Package nagios-plugins-dhcp /	nagios-plugins-setuid
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Broken%20package%3A%20Package%20nagios-plugins-dhcp%20/%0A%09nagios-plugins-setuid&In-Reply-To=%3CCAOCN9rzedh4heJyfA5JoeS%2BLwTPQ6Zyn1FfV%2BS9HB%3DkS5dN6cw%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="028952.html">
+   <LINK REL="Next"  HREF="028954.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] Broken package: Package nagios-plugins-dhcp /	nagios-plugins-setuid</H1>
+    <B>Nico Kadel-Garcia</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Broken%20package%3A%20Package%20nagios-plugins-dhcp%20/%0A%09nagios-plugins-setuid&In-Reply-To=%3CCAOCN9rzedh4heJyfA5JoeS%2BLwTPQ6Zyn1FfV%2BS9HB%3DkS5dN6cw%40mail.gmail.com%3E"
+       TITLE="[users] Broken package: Package nagios-plugins-dhcp /	nagios-plugins-setuid">nkadel at gmail.com
+       </A><BR>
+    <I>Mon Jan 23 13:13:02 CET 2012</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="028952.html">[users] Broken package: Package nagios-plugins-dhcp /	nagios-plugins-setuid
+</A></li>
+        <LI>Next message: <A HREF="028954.html">[users] Broken package: Package nagios-plugins-dhcp /	nagios-plugins-setuid
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28953">[ date ]</a>
+              <a href="thread.html#28953">[ thread ]</a>
+              <a href="subject.html#28953">[ subject ]</a>
+              <a href="author.html#28953">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Mon, Jan 23, 2012 at 5:20 AM, Nico Schottelius
+&lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">nico-rpmforge.net at schottelius.org</A>&gt; wrote:
+&gt;<i> Hello,
+</I>&gt;<i>
+</I>&gt;<i> trying to install nagios-plugins-all results in the following error:
+</I>&gt;<i>
+</I>&gt;<i> /usr/bin/yum -d 0 -e 0 -y install nagios-plugins-all:
+</I>
+That's part of your problem, right there. nagios-plugins-all is from
+EPEL. It's a meta package, a list of the nagios plugins provided by
+EPEL. But the naming scheme of plugins is different between EPEL and
+RPMforge. RPMforge has most of them in the nagios-plugins package
+itself, and splits off a few of them into the nagios-plugins-setuid
+package, including the check_dhcp.
+
+EPEL splits more of the checks into individual packages, such as
+nagios-plugins-dhcp, and chaos is ensuing due to the obsolecence and
+merging. If you wind up mixing and matching plugins from the different
+repos, I *guarantee* chaos whenever the numbering of the basic
+'nagios-plugins' package changes, because the one from RPMforge has
+most of the plugins, and the one from EPEL has only the structure for
+the *other* packages and plugins. When the 'nagios-plugins' in EPEL
+updates ahead of Repoforge, it's going to erase a bunch of plugins
+that were in Repoforge. This isn't the case today, but it can lead to
+craziness, which I've run into in the past, and dealt with by using
+exclude options in the /etc/yum.repos.d files.
+
+In this case, I appreciate the EPEL structure, because it allows me to
+install the packages individually as needed. But it's extra work to
+maintain, and you wind up with adventures like this one. It would seem
+reasonable for the &quot;nagios-plugins-setuid&quot; package from RPMforge to
+say &quot;Provides: nagios-plugins-dhcp&quot;.
+
+The diff would be something like this:
+
+$ diff -u nagios-plugins.spec.orig  nagios-plugins.spec
+--- nagios-plugins.spec.orig    2010-11-26 11:22:13.000000000 -0500
++++ nagios-plugins.spec 2012-01-23 07:09:05.102005260 -0500
+@@ -23,7 +23,7 @@
+ Summary: Host/service/network monitoring program plugins for Nagios
+ Name: nagios-plugins
+ Version: 1.4.15
+-Release: 2%{?dist}
++Release: 3%{?dist}
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://nagiosplug.sourceforge.net/">http://nagiosplug.sourceforge.net/</A>
+@@ -87,6 +87,9 @@
+ Obsoletes: nagios-plugins-icmp &lt;= %{version}-%{release}
+ Obsoletes: nagios-plugins-dhcp &lt;= %{version}-%{release}
+
++Provides: nagios-plugins-icmp = %{version}-%{release}
++Provides: nagios-plugins-dhcpp = %{version}-%{release}
++
+ %description setuid
+ This package contains the setuid plugins necessary for use with the
+ Nagios package.
+@@ -325,6 +328,10 @@
+ %{_libdir}/nagios/plugins/check_icmp
+
+ %changelog
++* Mon Jan 23 201 Nico Kadel-Garcia &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">nkadel at gmail.com</A>&gt; - 14.15-3
++- Add Provides: nagios-plugins-dhcp and nagios-plugins-icmp for
++  obsoleted components in nagios-plugins-setuid.
++
+ * Fri Nov 26 2010 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">dag at wieers.com</A>&gt; - 14.15-2
+ - Rebuild against radiusclient-ng 0.5.6.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="028952.html">[users] Broken package: Package nagios-plugins-dhcp /	nagios-plugins-setuid
+</A></li>
+	<LI>Next message: <A HREF="028954.html">[users] Broken package: Package nagios-plugins-dhcp /	nagios-plugins-setuid
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28953">[ date ]</a>
+              <a href="thread.html#28953">[ thread ]</a>
+              <a href="subject.html#28953">[ subject ]</a>
+              <a href="author.html#28953">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

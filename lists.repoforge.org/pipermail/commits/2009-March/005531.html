@@ -1,0 +1,473 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6732 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6732%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903170101.n2H11H39003768%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005530.html">
+   <LINK REL="Next"  HREF="005532.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6732 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6732%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903170101.n2H11H39003768%40surya.karan.org%3E"
+       TITLE="[svn] r6732 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Mar 17 02:01:17 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005530.html">[svn] r6731 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="005532.html">[svn] r6733 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5531">[ date ]</a>
+              <a href="thread.html#5531">[ thread ]</a>
+              <a href="subject.html#5531">[ subject ]</a>
+              <a href="author.html#5531">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-03-17 01:01:16 +0000 (Tue, 17 Mar 2009)
+New Revision: 6732
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/README
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Implemented MOUSE mode and WINDOW mode.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-03-16 22:00:26 UTC (rev 6731)
++++ trunk/tools/wiipresent/ChangeLog	2009-03-17 01:01:16 UTC (rev 6732)
+@@ -1,6 +1,7 @@
+ * 0.7.1 - release 16/03/2009
+ - Added support for totem
+-- Pressing A+B at the same time will enable/disable mouse-mode
++- Pressing A+B at the same time will enable/disable MOUSE mode
++- Pressing B together with other keys enables WINDOW mode
+ 
+ * 0.7 - release 05/03/2009
+ - Up/Down keys loop through links instead of scrolling in Firefox/Opera
+
+Modified: trunk/tools/wiipresent/README
+===================================================================
+--- trunk/tools/wiipresent/README	2009-03-16 22:00:26 UTC (rev 6731)
++++ trunk/tools/wiipresent/README	2009-03-17 01:01:16 UTC (rev 6732)
+@@ -15,20 +15,23 @@
+  - bluez libraries and headers
+  - libcwiimote libraries and headers (build with -D_NO_BLOCKING_UPDATE)
+ 
+-
+-== Keymaps
+-- A+B: Enter mouse-mode
++== Keys in NORMAL mode
+ - left/right: change slide/channel/tab
+-- up/down: change volume
+-- -/+: change workspace
++- up/down: change volume/change link
++- -/+: change volume/zoom
+ - 1: fullscreen
+-- 2: blank screen/mute audio
+ - A: Play/Pause
+ - home: back/home
+ - exit: unavailable
+ 
+-== Keymaps in mouse-mode
+-- A+B: Leave mouse-mode
++== Keymaps in WINDOW mode (B)
++- B+A: Enable/disable mouse-mode
++- B+up/down: scroll up and down
++- B+left/right: switch between applications
++- B+minus/plus: change workspace
++- B+2: blank screen/mute audio
++
++== Keymaps in MOUSE mode
+ - left/right: switch between applications
+ - up/down: scroll up/down
+ - -/+: left and right mouse-buttons
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-03-16 22:00:26 UTC (rev 6731)
++++ trunk/tools/wiipresent/TODO	2009-03-17 01:01:16 UTC (rev 6732)
+@@ -11,12 +11,13 @@
+ - Use playertoggle to switch between skip forward and next playback
+ - On disconnect, wait for reconnect
+ - Scan for wiimotes and pick the closest nearby if more than one
+-- Implement better mouse-mode that does not need B-button pressed
+-  (both A+B could enable en disable mouse-mode, with leds indicating)
+ 
+ == Bugs
+ - Known bug where some applications are causing a BadWindow error
+   - vlc when going into fullscreen
+ - Applications loosing focus
+-  - qiv in fullscreen
++  - qiv in fullscreenA
++
++== Bugs in libwiimote
+ - Battery status updates do not seem to work ?
++- Infrared only works when we acceleration sensors are enabled
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-03-16 22:00:26 UTC (rev 6731)
++++ trunk/tools/wiipresent/wiipresent.c	2009-03-17 01:01:16 UTC (rev 6732)
+@@ -440,8 +440,60 @@
+ 
+             // Infrared method
+             } else if (infrared) {
++/*
++                if (!valid_point(point1) || (point1 == point2)) {
++                    point1 = search_newpoint(&amp;wmote, point2);
++                } else {
++                    fprintf(stderr, &quot;Point 1 is valid %4d %4d %2d\n&quot;, point1-&gt;x, point1-&gt;y, point1-&gt;size);
++                }
++ 
++                if (!valid_point(point2) || (point1 == point2)) {
++                    point2 = search_newpoint(&amp;wmote, point1);
++                } else {
++                    fprintf(stderr, &quot;Point 2 is valid %4d %4d %2d\n&quot;, point2-&gt;x, point2-&gt;y, point2-&gt;size);
++                }
+ 
++                if (valid_point(point1) &amp;&amp; ! valid_point(point2))
++                    XMovePointer(display, 1280 * (prev1x - point1-&gt;x) / 1791,
++                                         -800 * (prev1y - point1-&gt;y) / 1791, 1);
++                else if (valid_point(point1) &amp;&amp; ! valid_point(point2))
++                    XMovePointer(display, 1280 * (prev2x - point2-&gt;x) / 1791,
++                                         -800 * (prev2y - point2-&gt;y) / 1791, 1);
++                else if (point1 == point2)
++                    XMovePointer(display, 1280 * (prev1x - point1-&gt;x) / 1791,
++                                         -800 * (prev1y - point1-&gt;y) / 1791, 1);
++                else
++                    XMovePointer(display, 1280 * (prev1x - point1-&gt;x &gt; prev2x - point2-&gt;x ? prev2x - point2-&gt;x : prev1x - point1-&gt;x) / 1791,
++                                         -800 * (prev1y - point1-&gt;y &gt; prev2y - point2-&gt;y ? prev2y - point2-&gt;y : prev1y - point1-&gt;y) / 1791, 1);
++*/
++/*
++                prev1x = point1-&gt;x;
++                prev1y = point1-&gt;y;
++                prev2x = point2-&gt;x;
++                prev2y = point2-&gt;y;
++
++                dots = (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? 1 : 0) +
++                       (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? 1 : 0) +
++                       (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? 1 : 0) +
++                       (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? 1 : 0);
++                if (dots &gt; 0) {
++                    x = ( (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? wmote.ir1.x : 0) +
++                          (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? wmote.ir2.x : 0) +
++                          (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? wmote.ir3.x : 0) +
++                          (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? wmote.ir4.x : 0) ) / dots;
++                    y = ( (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? wmote.ir1.y : 0) +
++                          (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? wmote.ir2.y : 0) +
++                          (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? wmote.ir3.y : 0) +
++                          (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? wmote.ir4.y : 0) ) / dots;
++                    XMovePointer(display, 1280 * (1791 - x) / 1791, 800 * y / 1791, 0);
++                } else {
++                    x = 0;
++                    y = 0;
++                }
++*/
++
+                 if (verbose &gt;= 2) fprintf(stderr, &quot;%d: ( %4d , %4d ) - [ %4d, %4d, %4d, %4d ] [ %4d, %4d, %4d, %4d ] [%2d, %2d, %2d, %2d ]\n&quot;, dots, x, y, wmote.ir1.x, wmote.ir2.x,wmote.ir3.x, wmote.ir4.x, wmote.ir1.y, wmote.ir2.y, wmote.ir3.y, wmote.ir4.y, wmote.ir1.size, wmote.ir2.size, wmote.ir3.size, wmote.ir4.size);
++
+             }
+         }
+ 
+@@ -450,31 +502,105 @@
+             continue;
+         }
+ 
+-        if (wmote.keys.bits == (WIIMOTE_KEY_A | WIIMOTE_KEY_B)) {
+-            mousemode = ! mousemode;
+-            if (mousemode) {
+-                if (tilt) {
+-                    if (verbose &gt;= 1) fprintf(stderr, &quot;Entering mouse-mode. Tilt sensors enabled.\n&quot;);
++        // WINDOW MODE
++        if (wmote.keys.b) {
++            if (wmote.keys.a) {
++                mousemode = ! mousemode;
++                if (mousemode) {
++                    if (verbose &gt;= 1) fprintf(stderr, &quot;Entering mouse-mode. &quot;);
++                    if (tilt) {
++                        if (verbose &gt;= 1) fprintf(stderr, &quot;Tilt sensors enabled.\n&quot;);
++                    } else if (infrared) {
++                        if (verbose &gt;= 1) fprintf(stderr, &quot;Infrared camera enabled.\n&quot;);
++                        wmote.mode.ir = 1;
++                    }
++                    // Infrared only works if acceleration sensors are enabled.
+                     wmote.mode.acc = 1;
+-                } else if (infrared) {
+-                    if (verbose &gt;= 1) fprintf(stderr, &quot;Entering mouse-mode. Infrared camera enabled.\n&quot;);
+-                    wmote.mode.ir = 1;
+-                }
+-            } else {
+-                if (tilt) {
+-                    if (verbose &gt;= 1) fprintf(stderr, &quot;Leaving mouse-mode. Tilt sensors disabled.\n&quot;);
++                } else {
++                    if (verbose &gt;= 1) fprintf(stderr, &quot;Leaving mouse-mode. &quot;);
++                    if (tilt) {
++                        if (verbose &gt;= 1) fprintf(stderr, &quot;Tilt sensors disabled.\n&quot;);
++                    } else if (infrared) {
++                        if (verbose &gt;= 1) fprintf(stderr, &quot;Infrared camera disabled.\n&quot;);
++                        wmote.mode.acc = 0;
++                    }
++                    // Infrared only works if acceleration sensors are enabled.
+                     wmote.mode.acc = 0;
+-                } else if (infrared) {
+-                    if (verbose &gt;= 1) fprintf(stderr, &quot;Leaving mouse-mode. Infrared camera disabled.\n&quot;);
+-                    wmote.mode.ir = 0;
+                 }
++
+             }
+ 
++            if (wmote.keys.up) {
++                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Up
++                    XFakeKeycode(XK_Page_Up, 0);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_Page_Up, 0);
++                }
++            }
++ 
++            if (wmote.keys.down) {
++                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Up
++                    XFakeKeycode(XK_Page_Down, 0);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_Page_Down, 0);
++                }
++            }
++
++            // Page up
++            if (wmote.keys.up) {
++                XFakeKeycode(XK_Page_Up, 0);
++            }
++
++            // Page down
++            if (wmote.keys.down) {
++                XFakeKeycode(XK_Page_Down, 0);
++            }
++
++            // FIXME: We have to keep Alt pressed if we want to browse between apps
++            if (wmote.keys.left) {
++                XFakeKeycode(XK_Tab, Mod1Mask | ShiftMask);
++            }
++
++            if (wmote.keys.right) {
++                XFakeKeycode(XK_Tab, Mod1Mask);
++            }
++
++            // Previous workspace
++            if (wmote.keys.minus) {
++                XFakeKeycode(XK_Left, ControlMask | Mod1Mask);
++            }
++
++            // Next workspace
++            if (wmote.keys.plus) {
++                XFakeKeycode(XK_Right, ControlMask | Mod1Mask);
++            }
++
++            if (wmote.keys.two) {
++                // Mute audio
++                if (strcasestr(name, &quot;mplayer&quot;) == name) {
++                    XFakeKeycode(XK_m, 0);
++                } else if (strcasestr(name, &quot;xine&quot;) == name) {
++                    XFakeKeycode(XK_m, ControlMask);
++                } else {
++                    XFakeKeycode(XF86XK_AudioMute, 0);
++                }
++
++                // Blank screen
++                if (screensavertoggle) {
++                    XForceScreenSaver(display, ScreenSaverReset);
++                } else {
++                    XActivateScreenSaver(display);
++                }
++
++                screensavertoggle = ! screensavertoggle;
++            }
++
+             // Save the keys state for next run
+             keys = wmote.keys.bits;
+             continue;
+         }
+ 
++        // MOUSE MODE
+         if (mousemode) {
+             // Left mouse button events
+             if (wmote.keys.minus || wmote.keys.a) {
+@@ -506,44 +632,9 @@
+                 }
+             }
+ 
+-            if (wmote.keys.up) {
+-                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Up
+-                    XFakeKeycode(XK_Page_Up, 0);
+-                } else if (strcasestr(name, &quot;opera&quot;) == name) {
+-                    XFakeKeycode(XK_Page_Up, 0);
+-                }
+-            }
+-
+-            if (wmote.keys.down) {
+-                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Up
+-                    XFakeKeycode(XK_Page_Down, 0);
+-                } else if (strcasestr(name, &quot;opera&quot;) == name) {
+-                    XFakeKeycode(XK_Page_Down, 0);
+-                }
+-            }
+-
+-            // FIXME: We have to keep Alt pressed if we want to browse between apps
+-            if (wmote.keys.left) {
+-                XFakeKeycode(XK_Tab, Mod1Mask | ShiftMask);
+-            }
+-
+-            if (wmote.keys.right) {
+-                XFakeKeycode(XK_Tab, Mod1Mask);
+-            }
+-
+-        // Outside the mouse functionality
++        // APPLICATION MODE
+         } else {
+ 
+-            // Goto to previous workspace
+-            if (wmote.keys.plus) {
+-                XFakeKeycode(XK_Right, ControlMask | Mod1Mask);
+-            }
+-
+-            // Goto to next workspace
+-            if (wmote.keys.minus) {
+-                XFakeKeycode(XK_Left, ControlMask | Mod1Mask);
+-            }
+-
+             // Go home/back
+             if (wmote.keys.home) {
+                 if (strcasestr(name, &quot;firefox&quot;) == name) {          // Enter
+@@ -654,24 +745,11 @@
+             }
+ 
+             if (wmote.keys.two) {
+-
+-                // Mute audio
+-                if (strcasestr(name, &quot;mplayer&quot;) == name) {
+-                    XFakeKeycode(XK_m, 0);
+-                } else if (strcasestr(name, &quot;xine&quot;) == name) {
+-                    XFakeKeycode(XK_m, ControlMask);
++                if (strcasestr(name, &quot;tvtime&quot;) == name) {
++                    XFakeKeycode(XK_i, 0);
+                 } else {
+-                    XFakeKeycode(XF86XK_AudioMute, 0);
++                    if (verbose) fprintf(stderr, &quot;No two-key support for application %s.\n&quot;, name);
+                 }
+-
+-                // Blank screen
+-                if (screensavertoggle) {
+-                    XForceScreenSaver(display, ScreenSaverReset);
+-                } else {
+-                    XActivateScreenSaver(display);
+-                }
+-
+-                screensavertoggle = ! screensavertoggle;
+             }
+ 
+             if (wmote.keys.up) {
+@@ -683,6 +761,9 @@
+                     XFakeKeycode(XK_Tab, ShiftMask);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Page_Up, 0);
++                } else if (strcasestr(name, &quot;openoffice&quot;) == name ||
++                           strcasestr(name, &quot;soffice&quot;) == name) {
++                    XFakeKeycode(XK_Page_Up, Mod1Mask);
+                 } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) { // Volume Up
+                     XFakeKeycode(XF86XK_AudioRaiseVolume, 0);
+ //                    XFakeKeycode(XK_Up, ControlMask);
+@@ -719,6 +800,9 @@
+                     XFakeKeycode(XK_Tab, 0);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Page_Down, 0);
++                } else if (strcasestr(name, &quot;openoffice&quot;) == name ||
++                           strcasestr(name, &quot;soffice&quot;) == name) {
++                    XFakeKeycode(XK_Page_Down, Mod1Mask);
+                 } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) {
+                     XFakeKeycode(XF86XK_AudioLowerVolume, 0);       // Volume Down
+ //                    XFakeKeycode(XK_Down, ControlMask);
+@@ -833,6 +917,50 @@
+                 }
+             }
+ 
++            if (wmote.keys.minus) {
++                if (strcasestr(name, &quot;firefox&quot;) == name) {              // Zoom Out
++                    XFakeKeycode(XK_minus, ControlMask);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_minus, 0);
++                } else if (strcasestr(name, &quot;xterm&quot;) == name) {
++                    XFakeKeycode(XK_KP_Subtract, ShiftMask);
++                } else if (strcasestr(name, &quot;tvtime&quot;) == name) {
++                    XFakeKeycode(XK_KP_Subtract, 0);                    // Volume Down
++                } else if (strcasestr(name, &quot;totem&quot;) == name) {
++                    XFakeKeycode(XK_Down, 0);
++                } else if (strcasestr(name, &quot;vlc&quot;) == name) {
++                    XFakeKeycode(XK_Down, ControlMask);
++                } else if (strcasestr(name, &quot;xine&quot;) == name) {
++                    XFakeKeycode(XK_v, 0);
++                } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
++                    XFakeKeycode(XK_9, ShiftMask);
++                } else {
++                    XFakeKeycode(XF86XK_AudioLowerVolume, 0);
++                }
++            }
++
++            if (wmote.keys.plus) {
++                if (strcasestr(name, &quot;firefox&quot;) == name) {              // Zoom In
++                    XFakeKeycode(XK_plus, ControlMask);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_plus, 0);
++                } else if (strcasestr(name, &quot;xterm&quot;) == name) {
++                    XFakeKeycode(XK_KP_Add, ShiftMask);
++                } else if (strcasestr(name, &quot;tvtime&quot;) == name) {
++                    XFakeKeycode(XK_KP_Add, 0);                         // Volume Up
++                } else if (strcasestr(name, &quot;totem&quot;) == name) {
++                    XFakeKeycode(XK_Up, 0); 
++                } else if (strcasestr(name, &quot;vlc&quot;) == name) {
++                    XFakeKeycode(XK_Up, ControlMask);
++                } else if (strcasestr(name, &quot;xine&quot;) == name) {
++                    XFakeKeycode(XK_V, ShiftMask);
++                } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
++                    XFakeKeycode(XK_0, ShiftMask);
++                } else {
++                    XFakeKeycode(XF86XK_AudioRaiseVolume, 0);
++                }
++            }
++
+         }
+ 
+         // Save the keys state for next run
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005530.html">[svn] r6731 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="005532.html">[svn] r6733 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5531">[ date ]</a>
+              <a href="thread.html#5531">[ thread ]</a>
+              <a href="subject.html#5531">[ subject ]</a>
+              <a href="author.html#5531">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

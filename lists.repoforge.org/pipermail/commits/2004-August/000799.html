@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1993 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1993%20-%20trunk/tools/yam&In-Reply-To=%3C20040814064835.225CD1819E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000798.html">
+   <LINK REL="Next"  HREF="000800.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1993 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1993%20-%20trunk/tools/yam&In-Reply-To=%3C20040814064835.225CD1819E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1993 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Aug 14 08:48:35 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000798.html">[SVN] r1992 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="000800.html">[SVN] r1994 - in trunk/rpms: arpd glabels john metakit putty
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#799">[ date ]</a>
+              <a href="thread.html#799">[ thread ]</a>
+              <a href="subject.html#799">[ subject ]</a>
+              <a href="author.html#799">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-14 08:48:33 +0200 (Sat, 14 Aug 2004)
+New Revision: 1993
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.conf
+   trunk/tools/yam/yam.spec
+Log:
+Final changes (for the day).
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-14 05:37:50 UTC (rev 1992)
++++ trunk/tools/yam/ChangeLog	2004-08-14 06:48:33 UTC (rev 1993)
+@@ -1,3 +1,7 @@
++* 0.5
++- Skipped a 0.4 release to indicate this is an important update.
++- Rewrote most of the code to allow for smoother dist/arch configuration
++
+ * 0.4
+ - Added noarch by default to all dists
+ - Added i?86 to all x86_64 dists
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-14 05:37:50 UTC (rev 1992)
++++ trunk/tools/yam/yam	2004-08-14 06:48:33 UTC (rev 1993)
+@@ -186,7 +186,7 @@
+ 		distdir = cf.wwwdir + '/' + self.name
+ 		if not os.path.isfile(cf.createrepocmd):
+ 			info('createrepo command not found as %s' % cf.createrepocmd)
+-		os.system('%s %s' % (cf.createrepocmd, distdir + '/RPMS'))
++#		os.system('%s %s' % (cf.createrepocmd, distdir + '/RPMS'))
+ 		for repo in self.repos.keys():
+ 			if os.path.exists(distdir + '/RPMS.' + repo):
+ 				info('%s: Create new-style Yum repository for %s' % (self.name, repo))
+@@ -239,10 +239,8 @@
+ 		self.dists = []
+ 
+ 		for section in self.cfg.sections():
+-			if section in ['main']:
++			if section in ['main', 'repos']:
+ 				continue
+-			elif section in ['extras']:
+-				self.extras.append(section)
+ 			else:
+ 				archs = self.getoption(section, 'arch', op.arch).split()
+ 				for arch in archs:
+@@ -272,12 +270,13 @@
+ 	def getrepos(self):
+ 		&quot;Return all main repositories&quot;
+ 		repos={}
+-		for repo in self.cfg.options('repos'):
+-			url=self.getoption('repos', repo, None)
+-			if url:
+-###				FIXME: repo should be another list with URLs
+-				repos[repo]=url.split()
+-#				print repo, repos[repo]
++		if self.cfg.has_section('repos'):
++			for repo in self.cfg.options('repos'):
++				url=self.getoption('repos', repo, None)
++				if url:
++###					FIXME: repo should be another list with URLs
++					repos[repo]=url.split()
++#					print repo, repos[repo]
+ 		return repos
+ 
+ def info(str):
+@@ -487,6 +486,7 @@
+ 					mirror(dist.repos[repo], cf.srcdir + '/' + dist.name + '/' + repo)
+ 			else:
+ 				if op.extra:
++					print &quot;DO2:&quot;, repo
+ 					mirror(dist.repos[repo], cf.srcdir + '/' + dist.name + '/' + repo)
+ 
+ 		if not op.generate:
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-08-14 05:37:50 UTC (rev 1992)
++++ trunk/tools/yam/yam.conf	2004-08-14 06:48:33 UTC (rev 1993)
+@@ -5,24 +5,26 @@
+ createrepo=no
+ arch=i386
+ 
+-[repos]
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/">rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/</A>
+-freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/</A>
++### If you want to mirror a whole repository, packages should be tagged
++#[repos]
++#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/">rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/</A>
++#freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/</A>
+ #dries=<A HREF="http://dries.studentenweb.org/apt/packages/">http://dries.studentenweb.org/apt/packages/</A>
+ 
+ 
++### You can however also add extra repositories to you dist config
+ [fc2]
+ release=2
+ arch=i386 x86_64
+ tag=fc2 rhfc2
+ 
+ iso=FC2-$arch-disc?.iso
+-core=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/$repo/RPMS/</A>
+-updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/$repo/RPMS/</A>
++core=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ 
+ dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
+ dries=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-freshrpms=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/freshrpms/fedora/core/$release/">rsync://apt.sw.be/pub/freshrpms/pub/freshrpms/fedora/core/$release/</A>
++freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ 
+ 
+ #[tao1]
+@@ -60,6 +62,7 @@
+ #iso=rhel-3-U2-$arch-es-disc?.iso rhel-3-U2-$arch-disc?.iso
+ #updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ 
++
+ #[rhas21]
+ #release=2.1
+ #tag=el2 rhel2.1
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2004-08-14 05:37:50 UTC (rev 1992)
++++ trunk/tools/yam/yam.spec	2004-08-14 06:48:33 UTC (rev 1993)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, ftp, ...)
+ Name: yam
+-Version: 0.4
++Version: 0.5
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -64,8 +64,8 @@
+ %{_localstatedir}/www/yam/
+ 
+ %changelog
+-* Tue Aug 10 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4-1
+-- Updated to release 0.4.
++* Sat Aug 14 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5-1
++- Updated to release 0.5.
+ 
+ * Wed May 19 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.3-1
+ - Updated to release 0.3.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000798.html">[SVN] r1992 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="000800.html">[SVN] r1994 - in trunk/rpms: arpd glabels john metakit putty
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#799">[ date ]</a>
+              <a href="thread.html#799">[ thread ]</a>
+              <a href="subject.html#799">[ subject ]</a>
+              <a href="author.html#799">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

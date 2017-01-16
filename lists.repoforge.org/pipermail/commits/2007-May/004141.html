@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5342 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5342%20-%20trunk/tools/dar&In-Reply-To=%3C20070501141307.C3105944B4E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004140.html">
+   <LINK REL="Next"  HREF="004142.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5342 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5342%20-%20trunk/tools/dar&In-Reply-To=%3C20070501141307.C3105944B4E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5342 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue May  1 16:13:07 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004140.html">[svn] r5341 - trunk/tools/dar
+</A></li>
+        <LI>Next message: <A HREF="004142.html">[svn] r5343 - in trunk/rpms: . fityk irssi perl-Devel-Cycle	perl-ExtUtils-XSBuilder perl-File-BOM perl-File-BaseDir	perl-File-DesktopEntry perl-File-ExtAttr	perl-File-Find-Rule-PPI perl-File-Flat perl-File-MMagic-XS	perl-File-MimeInfo perl-File-NFSLock perl-File-Type	perl-Finance-Quote perl-Finance-YahooQuote perl-Geo-Constants	perl-Geo-Ellipsoids perl-Geo-Forward perl-Geo-Functions	perl-Geo-Inverse perl-Gnome2-GConf perl-Gnome2-Print
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4141">[ date ]</a>
+              <a href="thread.html#4141">[ thread ]</a>
+              <a href="subject.html#4141">[ subject ]</a>
+              <a href="author.html#4141">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-01 16:13:06 +0200 (Tue, 01 May 2007)
+New Revision: 5342
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Extract arch/noarch info as well.
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-05-01 13:48:55 UTC (rev 5341)
++++ trunk/tools/dar/dar-perl.py	2007-05-01 14:13:06 UTC (rev 5342)
+@@ -6,10 +6,16 @@
+ 
+ args = sys.argv[1:]
+ logname = os.getlogin()
+-noarch = False
++debug = False
++noarch = True
+ 
+ docfiles = ('Announce', 'ANNOUNCE', 'Artistic', 'ARTISTIC', 'Artistic.txt', 'AUTHORS', 'Bugs', 'BUGS', 'Changelog', 'ChangeLog', 'CHANGELOG', 'Changes', 'CHANGES', 'Changes.pod', 'CHANGES.TXT', 'Copying', 'COPYING', 'COPYRIGHT', 'Credits', 'CREDITS', 'CREDITS.txt', 'FAQ', 'GNU_GPL.txt', 'GNU_LGPL.txt', 'GNU_LICENSE', 'HACKING', 'HISTORY', 'INFO', 'INSTALL', 'INSTALLING', 'INSTALL.txt', 'LICENCE', 'LICENSE', 'MANIFEST', 'META.yml', 'NEWS', 'NOTES', 'NOTICE', 'PORTING', 'readme', 'README', 'readme.txt', 'README.txt', 'README.TXT', 'RELEASE_NOTES', 'SIGNATURE', 'THANKS', 'TODO', 'UPGRADE', 'VERSION', '.txt')
+ 
++authorities = {
++	'dag': 'Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;',
++	'dries': 'Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;',
++}
++
+ def download(url):
+ 	filename = os.path.join('/dar/tmp', os.path.basename(url))
+ 	if not os.path.exists(filename):
+@@ -20,8 +26,8 @@
+ 		fdout.close()
+ 
+ try:
+-	opts, args = getopt.getopt (args, 'hnv',
+-		['help', 'noarch', 'version'])
++	opts, args = getopt.getopt (args, 'dhnv',
++		['debug', 'help', 'version'])
+ except getopt.error, exc:
+ 	print 'dar-perl: %s, try dstat -h for a list of all the options' % str(exc)
+ 	sys.exit(1)
+@@ -31,8 +37,8 @@
+ 		pass
+ 	elif opt in ['-v', '--version']:
+ 		pass
+-	elif opt in ['-n', '--noarch']:
+-		noarch = True
++	elif opt in ['-d', '--debug']:
++		debug = True
+ 
+ if args:
+ 	module = args[0]
+@@ -81,24 +87,42 @@
+ if not email: email = ''
+ 
+ ### Try to download distribution
+-filename = os.path.basename(location)
+-archive = os.path.join('/dar/tmp', filename)
+-download(&quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], filename))
++distname = os.path.basename(location)
++archive = os.path.join('/dar/tmp', distname)
++download(&quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], distname))
+ bymodule = True
+ if not os.path.exists(archive):
+ 	download(location)
+ 	bymodule = False
+ 
+ ### Inspect distribution and extract information (%doc, META.yml, arch/noarch)
+-fd = tarfile.open(archive, 'r:gz')
++distfd = tarfile.open(archive, 'r:gz')
+ docs = []
+-for file in fd.getnames():
++for file in distfd.getnames():
++	if file.endswith('.c') or file.endswith('.h') or file.endswith('.cc'):
++		noarch = False
+ 	for docfile in docfiles:
+ 		if file.endswith(docfile):
+-			docs.append(os.path.basename(file))
++			l = file.split('/')
++			docs.append('/'.join(l[1:]))
++#	if file.endswith('META.yml'):
++#		member = distfd.getmember(file)
++#		meta = distfd.extractfile(member)
++#		for line in meta.readlines():
++#			print &gt;&gt;sys.stderr, line
+ docs.sort()
+ 
+-print &gt;&gt;sys.stderr, module, version, &quot;perl-%s/perl-%s.spec&quot; % (module, module)
++if debug:
++	print &gt;&gt;sys.stderr, module, version, &quot;perl-%s/perl-%s.spec&quot; % (module, module)
++	if noarch:
++		print &gt;&gt;sys.stderr, 'noarch package'
++	else:
++		print &gt;&gt;sys.stderr, 'arch package'
++	print &gt;&gt;sys.stderr, 'Found following docs:', ' '.join(docs)
++	print &gt;&gt;sys.stderr, 'Distribution archive %s contains:' % distname
++	for file in distfd.getnames():
++		print &gt;&gt;sys.stderr, '  ', file
++
+ #print &gt;&gt;sys.stderr, &quot;<A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+ 
+ print '# $Id$'
+@@ -176,7 +200,6 @@
+ print '%doc', ' '.join(docs)
+ print &quot;%%doc %%{_mandir}/man3/%s.3pm*&quot; % pmodule
+ print '#%doc %{_mandir}/man3/*.3pm*'
+-#print '%{_bindir}/dave'
+ 
+ if noarch:
+ 	### Print directory entries (if any)
+@@ -227,7 +250,7 @@
+ 
+ print
+ print '%changelog'
+-print '* %s Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - %s-1' % (time.strftime('%a %b %d %Y', time.localtime()), version)
++print '* %s %s - %s-1' % (time.strftime('%a %b %d %Y', time.localtime()), authorities[logname], version)
+ print '- Initial package. (using DAR)'
+ 
+ sys.exit(0)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004140.html">[svn] r5341 - trunk/tools/dar
+</A></li>
+	<LI>Next message: <A HREF="004142.html">[svn] r5343 - in trunk/rpms: . fityk irssi perl-Devel-Cycle	perl-ExtUtils-XSBuilder perl-File-BOM perl-File-BaseDir	perl-File-DesktopEntry perl-File-ExtAttr	perl-File-Find-Rule-PPI perl-File-Flat perl-File-MMagic-XS	perl-File-MimeInfo perl-File-NFSLock perl-File-Type	perl-Finance-Quote perl-Finance-YahooQuote perl-Geo-Constants	perl-Geo-Ellipsoids perl-Geo-Forward perl-Geo-Functions	perl-Geo-Inverse perl-Gnome2-GConf perl-Gnome2-Print
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4141">[ date ]</a>
+              <a href="thread.html#4141">[ thread ]</a>
+              <a href="subject.html#4141">[ subject ]</a>
+              <a href="author.html#4141">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,246 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5230 - trunk/tools/mrepo
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5230%20-%20trunk/tools/mrepo&In-Reply-To=%3C20070314105535.55F66944AA1%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004028.html">
+   <LINK REL="Next"  HREF="004030.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5230 - trunk/tools/mrepo</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5230%20-%20trunk/tools/mrepo&In-Reply-To=%3C20070314105535.55F66944AA1%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5230 - trunk/tools/mrepo">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Mar 14 11:55:35 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004028.html">[svn] r5229 - in trunk/rpms: kmymoney libuninum mathomatic msort	seismictoolkit tellico udpcast uni2ascii white_dune
+</A></li>
+        <LI>Next message: <A HREF="004030.html">[svn] r5231 - in trunk/rpms: . clamav clamtk conserver fio	fontforge fslint icewm k9copy libextractor libmrss libnxml	moin nagios-plugins nfswatch proxytunnel rdup revelation	rsstail typespeed wine xine xine-lib zvbi
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4029">[ date ]</a>
+              <a href="thread.html#4029">[ thread ]</a>
+              <a href="subject.html#4029">[ subject ]</a>
+              <a href="author.html#4029">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-03-14 11:55:34 +0100 (Wed, 14 Mar 2007)
+New Revision: 5230
+
+Modified:
+   trunk/tools/mrepo/ChangeLog
+   trunk/tools/mrepo/TODO
+   trunk/tools/mrepo/rhnget
+Log:
+Added --filter and --list options to rhnget
+
+Modified: trunk/tools/mrepo/ChangeLog
+===================================================================
+--- trunk/tools/mrepo/ChangeLog	2007-03-12 20:56:26 UTC (rev 5229)
++++ trunk/tools/mrepo/ChangeLog	2007-03-14 10:55:34 UTC (rev 5230)
+@@ -4,6 +4,7 @@
+ - Fixed a problem with the disabled directive (disabled = no was ignored)
+ - Cleaned up mrepo-example.conf (Gareth Armstrong)
+ - gensystemid now uses proxy environment variables
++- rhnget can now --list and --filter packages (useful for searching/downloading)
+ 
+ * 0.8.4 - Sint-Jacobsplein - released 13/12/2006
+ - Renamed Yam to mrepo (Matthew Hannigan)
+
+Modified: trunk/tools/mrepo/TODO
+===================================================================
+--- trunk/tools/mrepo/TODO	2007-03-12 20:56:26 UTC (rev 5229)
++++ trunk/tools/mrepo/TODO	2007-03-14 10:55:34 UTC (rev 5230)
+@@ -80,10 +80,8 @@
+ + Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+ + Allow rhnget to create new systems (register) in RHN on demand (gensystemid functionality)
+ + Reimplement using python xmlrpc instead of up2date
+-+ Allow to download packages based on a glob (--include, --exclude)
+ + Add a --source option to allow for downloading source-packages
+ + Implement better channel support (a way to use _all_ available channels)
+-+ Allow for listing packages instead of downloading (--dry-run ?)
+ 
+ ### mrepocfg tool / generate a configuration for clients (Chandan Dutta Chowdhury)
+ + The tool should accept a URL as an argument
+
+Modified: trunk/tools/mrepo/rhnget
+===================================================================
+--- trunk/tools/mrepo/rhnget	2007-03-12 20:56:26 UTC (rev 5229)
++++ trunk/tools/mrepo/rhnget	2007-03-14 10:55:34 UTC (rev 5230)
+@@ -15,7 +15,7 @@
+ ### Copyright 2004-2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ import os, sys, shutil, getopt, ConfigParser, urlparse, types
+-import signal, xmlrpclib, getpass, glob
++import signal, xmlrpclib, getpass, glob, fnmatch
+ 
+ if os.path.exists('/usr/share/rhn/') and os.path.exists('/usr/share/rhn/up2date_client/'):
+ 	sys.path.insert(0, '/usr/share/rhn/')
+@@ -42,11 +42,12 @@
+ 
+ class Options:
+ 	def __init__(self, args):
++		self.cleanup = False
++		self.downloadall = False
+ 		self.dryrun = False
++		self.filter = None
++		self.list = None
+ 		self.quiet = False
+-		self.rhngetcleanup = False
+-		self.rhngetdownloadall = False
+-		self.rhngetsource = False
+ 		self.rhnpassword = None
+ 		self.rhnrelease = None
+ 		self.rhnusername = None
+@@ -54,23 +55,29 @@
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'hnqp:r:s:u:v',
+-				('delete', 'download-all', 'dryrun', 'help', 'password=', 'quiet',
+-				 'release=', 'source', 'systemid=', 'username=', 'verbose', 'version' ))
++			opts, args = getopt.getopt (args, 'hlnqp:r:s:u:v',
++				('delete', 'download-all', 'dryrun', 'filter=', 'help', 'list', 'password=', 'quiet',
++				 'release=', 'systemid=', 'username=', 'verbose', 'version' ))
+ 		except getopt.error, exc:
+ 			print 'rhnget: %s, try rhnget -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+ 
+ 		for opt, arg in opts:
+ 			if opt in ('--delete', ):
+-				self.rhngetcleanup = True
++				self.cleanup = True
+ 			elif opt in ('--download-all', ):
+-				self.rhngetdownloadall = True
++				self.downloadall = True
++			elif opt in ('--filter', ):
++				self.filter = arg
++				self.downloadall = True
+ 			elif opt in ('-h', '--help'):
+ 				self.usage()
+ 				print
+ 				self.help()
+ 				sys.exit(0)
++			elif opt in ('-l', '--list'):
++				self.list = True
++				self.downloadall = True
+ 			elif opt in ('-n', '--dry-run'):
+ 				self.dryrun = True
+ 			elif opt in ['-p', '--password']:
+@@ -79,8 +86,6 @@
+ 				self.quiet = True
+ 			elif opt in ('-r', '--release'):
+ 				self.rhnrelease = arg
+-			elif opt in ('--source', ):
+-				self.rhngetsource = True
+ 			elif opt in ('-s', '--systemid'):
+ 				self.systemid = os.path.abspath(arg)
+ 			elif opt in ['-u', '--username']:
+@@ -91,15 +96,19 @@
+ 				self.version()
+ 				sys.exit(0)
+ 
+-		if len(args) &lt; 2:
++		if len(args) &lt; 1:
+ 			self.usage()
+ 			print
+ 			self.help()
+ 			sys.exit(1)
+ 
+ 		self.uri = args[0]
+-		self.destination = args[1]
+ 
++		if len(args) == 2:
++			self.destination = args[1]
++		else:
++			self.destination = os.getcwd()
++
+ 		if self.quiet:
+ 			self.verbose = 0
+ 
+@@ -124,6 +133,8 @@
+ rhnget options:
+       --delete            delete files that are not on the sender side
+       --download-all      download all package versions available
++      --filter            filter packages based on regexp
++  -l, --list              list the available packages
+   -n, --dry-run           show what would have been done
+   -q, --quiet             minimal output
+   -r, --release=release   specify the RHN release (if different from the systemid)
+@@ -373,8 +384,9 @@
+ 	except up2dateErrors.ServerCapabilityError, e:
+ 		raise(MirrorException('Problem negotiating capabilities for channel %s.\n%s' % (label, e)))
+ 		return
++
+ 	try:
+-		if op.rhngetdownloadall == True:
++		if op.downloadall == True:
+ 			package_list, type = rpcServer.doCall(repos.listAllPackages, channel, None, None)
+ 		else:
+ 			package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+@@ -394,6 +406,16 @@
+ 		### FIXME: Check if not already on ISO-file or repository as well
+ 		filename = '%s-%s-%s.%s.rpm' % (pkg[0], pkg[1], pkg[2], pkg[4])
+ 
++		### Filter packagelist
++		if op.filter and not fnmatch.fnmatch(filename, op.filter):
++			info(4, 'Packages %s excluded by filter' % filename)
++			continue
++
++		### List only files if requested
++		if op.list:
++			info(0, filename)
++			continue
++
+ 		### If file (or symlink target) exists
+ 		if os.path.isfile(os.path.join(path, filename)):
+ 			stat = os.stat(os.path.join(path, filename))
+@@ -411,6 +433,7 @@
+ 		if op.dryrun:
+ 			info(1, 'Not downloading package %s' % filename)
+ 			continue
++
+ 		try:
+ 			if op.verbose &lt;= 1:
+ 				rpcServer.doCall(repos.getPackage, pkg, None, None)
+@@ -424,7 +447,7 @@
+ 			error(0, 'CommunicationError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
+ 
+ 	### Remove packages on the receiver side that are not on the sender side
+-	if op.rhngetcleanup:
++	if op.cleanup:
+ 
+ 		### Collect receiver side
+ 		receiver = Set()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004028.html">[svn] r5229 - in trunk/rpms: kmymoney libuninum mathomatic msort	seismictoolkit tellico udpcast uni2ascii white_dune
+</A></li>
+	<LI>Next message: <A HREF="004030.html">[svn] r5231 - in trunk/rpms: . clamav clamtk conserver fio	fontforge fslint icewm k9copy libextractor libmrss libnxml	moin nagios-plugins nfswatch proxytunnel rdup revelation	rsstail typespeed wine xine xine-lib zvbi
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4029">[ date ]</a>
+              <a href="thread.html#4029">[ thread ]</a>
+              <a href="subject.html#4029">[ subject ]</a>
+              <a href="author.html#4029">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

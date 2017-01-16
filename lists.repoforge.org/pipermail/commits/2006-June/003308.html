@@ -1,0 +1,255 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4508 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4508%20-%20trunk/tools/yam&In-Reply-To=%3C20060614170809.E68BC3180D3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003307.html">
+   <LINK REL="Next"  HREF="003309.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4508 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4508%20-%20trunk/tools/yam&In-Reply-To=%3C20060614170809.E68BC3180D3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4508 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jun 14 19:08:09 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003307.html">[svn] r4507 - in trunk/tools/yam: . config docs
+</A></li>
+        <LI>Next message: <A HREF="003309.html">[svn] r4509 - in trunk/tools/yam: . config/httpd docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3308">[ date ]</a>
+              <a href="thread.html#3308">[ thread ]</a>
+              <a href="subject.html#3308">[ subject ]</a>
+              <a href="author.html#3308">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-06-14 19:08:08 +0200 (Wed, 14 Jun 2006)
+New Revision: 4508
+
+Modified:
+   trunk/tools/yam/Makefile
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.cron
+   trunk/tools/yam/yam.spec
+Log:
+Removal of -x/--extras option and return of -r/--repo option
+
+Modified: trunk/tools/yam/Makefile
+===================================================================
+--- trunk/tools/yam/Makefile	2006-06-14 13:27:09 UTC (rev 4507)
++++ trunk/tools/yam/Makefile	2006-06-14 17:08:08 UTC (rev 4508)
+@@ -21,7 +21,7 @@
+ install:
+ 	install -D -m0755 yam $(DESTDIR)$(bindir)/yam
+ 	install -D -m0755 gensystemid $(DESTDIR)$(bindir)/gensystemid
+-	[ ! -f $(DESTDIR)$(sysconfdir)/yam.conf ] &amp;&amp; install -D -m0644 config/yam.conf $(DESTDIR)$(sysconfdir)/yam.conf || :
++	[ ! -f $(DESTDIR)$(sysconfdir)/yam.conf ] &amp;&amp; install -D -m0600 config/yam.conf $(DESTDIR)$(sysconfdir)/yam.conf || :
+ 	install -D -m0644 config/httpd/yam.conf $(DESTDIR)$(httpddir)/yam.conf
+ 	install -D -m0755 config/yam $(DESTDIR)$(initrddir)/yam
+ 
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-06-14 13:27:09 UTC (rev 4507)
++++ trunk/tools/yam/TODO	2006-06-14 17:08:08 UTC (rev 4508)
+@@ -82,10 +82,15 @@
+ + Improve the remove and symlink stage (combine the check of existing links with creating and removing)
+ 
+ ### Bugs
+-+ genbasedir stumbles on broken symlinks (Apt already fixed upstream, thx to Panu)
+ + yum-arch stumbles on broken symlinks (<A HREF="https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280">https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280</A>)
+ + Correct file permissions/ownerships of packages in /var/yam (add umask option)
+ 
++### Yamcfg tool / generate a configuration for clients (Chandan Dutta Chowdhury)
+++ The tool should accept a URL as an argument
+++ Should have a list (-l) option to list the different distributions
+++ Should have a target (-t) option to specify the configuration output format (apt/yum/smart)
+++ It scans the URL given and looks for know repository metadata
++
+ ### Yamgen tool / repository metadata
+ + Replaces genbasedir, createrepo and yum-arch
+ + Creates rsyncable bzip2 and gzip data
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-06-14 13:27:09 UTC (rev 4507)
++++ trunk/tools/yam/yam	2006-06-14 17:08:08 UTC (rev 4508)
+@@ -41,21 +41,20 @@
+ 		self.configfile = '/etc/yam.conf'
+ 		self.dists = []
+ 		self.rhnrelease = None
+-		self.extra = False
+ 		self.force = False
+ 		self.dryrun = False
+ 		self.generate = False
+ 		self.quiet = False
+ 		self.remount = False
+-		self.repo = []
++		self.repos = []
+ 		self.umount = False
+ 		self.update = False
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'c:d:fghnquvx',
+-				['config=', 'dist=', 'dryrun', 'force', 'generate', 'help', 'quiet', 'remount',
+-				'umount', 'unmount', 'update', 'verbose', 'version', 'extras'])
++			opts, args = getopt.getopt (args, 'c:d:fghnqr:uvx',
++				['config=', 'dist=', 'dryrun', 'force', 'generate', 'help', 'quiet', 'repo',
++				'remount', 'umount', 'unmount', 'update', 'verbose', 'version', 'extras'])
+ 		except getopt.error, exc:
+ 			print 'yam: %s, try yam -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -64,7 +63,7 @@
+ 			if opt in ['-c', '--config']:
+ 				self.configfile = os.path.abspath(arg)
+ 			elif opt in ['-d', '--dist']:
+-#				print 'yam: the use of -d as an option is deprecated'
++				print 'yam: the use of -d or --dist as an option is deprecated, use the argument list'
+ 				self.dists = self.dists + arg.split(',')
+ 			elif opt in ['-f', '--force']:
+ 				self.force = True
+@@ -79,6 +78,8 @@
+ 				self.dryrun = True
+ 			elif opt in ['-q', '--quiet']:
+ 				self.quiet = True
++			elif opt in ['-r', '--repo']:
++				self.repos = self.repos + arg.split(',')
+ 			elif opt in ['--remount']:
+ 				self.remount = True
+ 			elif opt in ['-u', '--update']:
+@@ -91,7 +92,8 @@
+ 				self.version()
+ 				sys.exit(0)
+ 			elif opt in ['-x', '--extras']:
+-				self.extra = True
++				print 'yam: the use of -x or --extras is deprecated, use -u and -r instead'
++				self.update = True
+ 
+ 		for arg in args:
+ 			self.dists = self.dists + arg.split(',')
+@@ -119,17 +121,17 @@
+ 		print '''Set up a distribution server from ISO files
+ 
+ Yam options:
+-  -c, --config=file     specify alternative configfile
+-  -f, --force           force repository generation
+-  -g, --generate        generate Yam repositories
+-  -n, --dry-run         show what would have been done
+-  -q, --quiet           minimal output
+-      --remount         remount distribution ISOs
+-  -u, --update          fetch OS updates
+-  -v, --verbose         increase verbosity
+-  -vv, -vvv, -vvvv..    increase verbosity more
+-  -x, --extras          fetch extra repos
+-      --unmount         unmount distribution ISOs
++  -c, --config=file       specify alternative configfile
++  -f, --force             force repository generation
++  -g, --generate          generate Yam repositories
++  -n, --dry-run           show what would have been done
++  -q, --quiet             minimal output
++  -r, --repo=repo1,repo2  restrict download to these repos
++      --remount           remount distribution ISOs
++  -u, --update            fetch OS updates
++  -v, --verbose           increase verbosity
++  -vv, -vvv, -vvvv..      increase verbosity more
++      --unmount           unmount distribution ISOs
+ '''
+ 
+ class Config:
+@@ -1073,24 +1075,26 @@
+ 			if not op.umount or op.remount:
+ 				dist.discs = dist.mount()
+ 	
+-		if op.update or op.extra:
++		if op.update:
+ 			info(1, '%s: Updating %s' % (dist.nick, dist.name))
+ 
+-			repos = dist.repos.keys()
++			if op.repos:
++				repos = op.repos
++			else:
++				repos = dist.repos.keys()
++
+ 			repos.sort()
+ 
+ 			### Downloading things
+ 			for repo in repos:
+ 				srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 				if repo in ['os', 'core']:
+-					if op.update and not dist.isos():
++					if not dist.isos():
+ 						mirror(dist.repos[repo], srcdir, dist)
+-				elif repo in ['updates', ]:
+-					if op.update:
+-						mirror(dist.repos[repo], srcdir, dist)
++				elif repo in dist.repos.keys():
++					mirror(dist.repos[repo], srcdir, dist)
+ 				else:
+-					if op.extra:
+-						mirror(dist.repos[repo], srcdir, dist)
++					info(2, '%s: Repository %s does not exist' % (dist.nick, repo))
+ 
+ 	if not op.generate:
+ 		sys.exit(0)
+
+Modified: trunk/tools/yam/yam.cron
+===================================================================
+--- trunk/tools/yam/yam.cron	2006-06-14 13:27:09 UTC (rev 4507)
++++ trunk/tools/yam/yam.cron	2006-06-14 17:08:08 UTC (rev 4508)
+@@ -8,6 +8,6 @@
+ 
+ [ &quot;$DAILY_UPDATE&quot; != &quot;yes&quot; ] &amp;&amp; exit 0
+ 
+-export HTTP_PROXY FTP_PROXY
++export FTP_PROXY HTTP_PROXY
+ 
+ /usr/bin/yam $YAM_OPTIONS
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-06-14 13:27:09 UTC (rev 4507)
++++ trunk/tools/yam/yam.spec	2006-06-14 17:08:08 UTC (rev 4508)
+@@ -61,6 +61,8 @@
+ 
+ [ -r &quot;/etc/sysconfig/yam&quot; ] &amp;&amp; source &quot;/etc/sysconfig/yam&quot;
+ 
++export FTP_PROXY HTTP_PROXY
++
+ [ &quot;$DAILY_UPDATE&quot; != &quot;yes&quot; ] &amp;&amp; exit 0
+ 
+ yam $YAM_OPTIONS
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003307.html">[svn] r4507 - in trunk/tools/yam: . config docs
+</A></li>
+	<LI>Next message: <A HREF="003309.html">[svn] r4509 - in trunk/tools/yam: . config/httpd docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3308">[ date ]</a>
+              <a href="thread.html#3308">[ thread ]</a>
+              <a href="subject.html#3308">[ subject ]</a>
+              <a href="author.html#3308">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

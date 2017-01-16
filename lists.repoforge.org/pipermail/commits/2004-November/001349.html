@@ -1,0 +1,591 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2544 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2544%20-%20trunk/tools/dstat&In-Reply-To=%3C20041124015131.B143C18392%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001348.html">
+   <LINK REL="Next"  HREF="001350.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2544 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2544%20-%20trunk/tools/dstat&In-Reply-To=%3C20041124015131.B143C18392%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2544 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Nov 24 02:51:31 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001348.html">[SVN] r2543 - trunk/tools/dconf
+</A></li>
+        <LI>Next message: <A HREF="001350.html">[SVN] r2545 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1349">[ date ]</a>
+              <a href="thread.html#1349">[ thread ]</a>
+              <a href="subject.html#1349">[ subject ]</a>
+              <a href="author.html#1349">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-24 02:51:30 +0100 (Wed, 24 Nov 2004)
+New Revision: 2544
+
+Added:
+   trunk/tools/dstat/README.screen
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Improvements.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-24 00:14:15 UTC (rev 2543)
++++ trunk/tools/dstat/ChangeLog	2004-11-24 01:51:30 UTC (rev 2544)
+@@ -1,5 +1,8 @@
+ * 0.5.4
+ - Added a python 1.5 version of dstat (Ville Herva)
++- Fixed a problem with count
++- Improved the logic for displaying repetitive headers
++- Now --nocolor implies --noupdate (since it implies no ANSI escape sequences)
+ 
+ * 0.5.3
+ - Added -M or --mods option to allow modules
+
+Added: trunk/tools/dstat/README.screen
+===================================================================
+--- trunk/tools/dstat/README.screen	2004-11-24 00:14:15 UTC (rev 2543)
++++ trunk/tools/dstat/README.screen	2004-11-24 01:51:30 UTC (rev 2544)
+@@ -0,0 +1,37 @@
++Configuring screen to display multiple dstat for different systems
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++It saved me a lot of work after I discovered the split screen functionality
++and how it worked exactly. Here is an example of how I would monitor 5 nodes
++in a cluster with a minimum of effort:
++
++	startup_message off
++	defwrap off
++	split
++	split
++	split
++	split
++	screen -t node01 1 ssh -t 172.17.0.211 'dstat -cdnyp --tcp --udp -l -D lores,hires -N bond0,eth0,eth2,eth3 10'
++	focus down
++	screen -t node02 2 ssh -t 172.17.0.212 'dstat -cdnyp --tcp --udp -l -D lores,hires -N bond0,eth0,eth2,eth3 10'
++	focus down
++	screen -t node03 3 ssh -t 172.17.0.213 'dstat -cdnyp --tcp --udp -l -D lores,hires -N bond0,eth0,eth2,eth3 10'
++	focus down
++	screen -t node04 4 ssh -t 172.17.0.214 'dstat -cdnyp --tcp --udp -l -D lores,hires -N bond0,eth0,eth2,eth3 10'
++	focus down
++	screen -t node05 5 ssh -t 172.17.0.215 'dstat -cdnyp --tcp --udp -l -D lores,hires -N bond0,eth0,eth2,eth3 10'
++
++Put this in a file named screenrc-5nodes and then set the environment
++variable to tell screen to unly run this config-file for the next screen.
++
++	SCREENRC='screenrc-5nodes' screen
++
++If you want to get out of this screen and end all dstats, the easiest way
++is to kill first all regions and then end each dstat. You can do this by:
++
++	ctrl-a X
++
++Do that 5 times, and then quit each dstat by pressing:
++
++	ctrl-c
++
++5 times.
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-11-24 00:14:15 UTC (rev 2543)
++++ trunk/tools/dstat/TODO	2004-11-24 01:51:30 UTC (rev 2544)
+@@ -3,15 +3,14 @@
+ + Allow to force to given magnitude
+ + Look at possibilities to show deviation (on second line ?)
+ + Improve manpage
+++ I should be able to detect when ANSI sequences are not possible (anyone?)
+ 
+ ### Export/Graph
+ + Add -o/--output option to save directly to a file
+ + Add --parse option to give parsable output (maybe CSV output ?)
+ 
+-### Extensions
++### Extending statistics (help welcome!)
+ + Add all stats to seperate modules and allow people to plugin their own modules
+-
+-### Statistics (help welcome!)
+ + Add application stats (-a or -A pid,cmd)
+ + Add icmp stats ?
+ + Add ntp stats
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-24 00:14:15 UTC (rev 2543)
++++ trunk/tools/dstat/dstat	2004-11-24 01:51:30 UTC (rev 2544)
+@@ -19,7 +19,7 @@
+ import os, sys, re, getopt, time
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = &quot;0.5.3&quot;
++VERSION = &quot;0.5.4&quot;
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -38,7 +38,7 @@
+ 		self.header = True
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'acdghilmnpstvyD:I:M:N:',
++			opts, args = getopt.getopt (args, 'acdfghilmnpstvyD:I:M:N:',
+ 				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net', 'page',
+ 				'proc', 'swap', 'sys', 'tcp', 'time', 'udp', 'version', 'vmstat',
+ 				'full', 'integer', 'mods', 'modules', 'nocolor', 'noheader', 'noupdate'])
+@@ -90,12 +90,13 @@
+ 				self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+ 				self.disklist = ('total',)
+ 
+-			elif opt in ['--full']:
++			elif opt in ['-f', '--full']:
+ 				self.full = True
+ 			elif opt in ['--integer']:
+ 				self.integer = True
+ 			elif opt in ['--nocolor']:
+ 				self.color = False
++				self.update = False
+ 			elif opt in ['--noheader']:
+ 				self.header = False
+ 			elif opt in ['--noupdate']:
+@@ -162,7 +163,7 @@
+   -a, --all          equals -cdngyl
+   -v, --vmstat       equals -pmgdsc -D total
+ 
+-  --full             expand -D, -I and -N disovery lists
++  -f, --full         expand -D, -I and -N disovery lists
+   --integer          show integer values
+   --nocolor          disable colors
+   --noheader         disable repetitive headers
+@@ -350,7 +351,7 @@
+ 	def stats(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/diskstats', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 13: continue
+ 			name = l[2]
+ 			if name in self.vars:
+@@ -375,7 +376,7 @@
+ 			l = line.split()
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+-			if not re.match('^(ram[0-9]+|loop[0-9]+|name)$', name):
++			if not re.match('^(ram\d+|loop\d+|name)$', name):
+ 				retlist.append(name)
+ 		if not op.full and len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+@@ -391,14 +392,14 @@
+ 	def stats(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/partitions', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 15: continue
+ 			name = l[3]
+ 			if name == 'name': continue
+ 			if name in self.vars:
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[6]), self.cn2[name][1] + long(l[10]) )
+ 			for set in self.vars:
+-				if set in self.diskset and name in self.diskset[set]:
++				if set in self.diskset.keys() and name in self.diskset[set]:
+ 					self.cn2[set] = ( self.cn2[set][0] + long(l[6]), self.cn2[set][1] + long(l[10]) )
+ 			self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]))
+ 		if update:
+@@ -417,7 +418,7 @@
+ 			l = line.split()
+ 			if len(l) != 4 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+-			if not re.match('^(ram[0-9]+|loop[0-9]+|name)$', name):
++			if not re.match('^(ram\d+|loop\d+|name)$', name):
+ 				retlist.append(name)
+ 		if not op.full and len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+@@ -437,7 +438,7 @@
+ 	def stats(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = line.split(':');
++			l = line.split(':')
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+ 			if name == 'disk_io':
+@@ -475,7 +476,7 @@
+ 	def discover(self):
+ 		retlist = []
+ 		for line in open('/proc/interrupts', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 1: continue
+ 			name = l[0].split(':')[0]
+ 			if name in ('0', '1', '2', '8', 'NMI', 'LOC', 'MIS', 'CPU0'): continue
+@@ -491,7 +492,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/interrupts', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+ 			if name in self.vars:
+@@ -626,7 +627,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/vmstat', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+ 			if name in self.vars:
+@@ -645,7 +646,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+ 			if name == 'swap':
+@@ -676,7 +677,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+ 			if name in self.vars:
+@@ -731,7 +732,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+ 			if name in self.vars:
+@@ -765,7 +766,7 @@
+ 	def stats(self):
+ 		self.val['listen'] = self.val['established'] = self.val['syn_sent'] = self.val['time_wait'] = 0
+ 		for line in open('/proc/net/tcp', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if len(l) &lt; 12: continue
+ 			if l[3] == '0A': self.val['listen'] = self.val['listen'] + 1
+ 			elif l[3] == '01': self.val['established'] = self.val['established'] + 1
+@@ -813,7 +814,7 @@
+ 	def stats(self):
+ 		self.val['connections'] = 0
+ 		for line in open('/proc/net/udp', 'r').readlines():
+-			l = line.split();
++			l = line.split()
+ 			if l[3] == '07': self.val['connections'] = self.val['connections'] + 1
+ 
+ 	def show(self):
+@@ -927,7 +928,7 @@
+ 	procs = 0
+ 	for line in open('/proc/stat', 'r').readlines():
+ 		name = line.split()[0]
+-		if len(name) == 4and name[0:3] == 'cpu':
++		if len(name) == 4 and name[0:3] == 'cpu':
+ 			procs = procs + 1
+ 	return procs
+ 
+@@ -1027,8 +1028,11 @@
+ 	signal.signal(signal.SIGALRM, signaler)
+ 	signal.alarm(interval)
+ 
++	### Always show header the first time
++	showheader = True
++
+ 	### Let the games begin
+-	while loop != op.count:
++	while update &lt;= op.delay * op.count or op.count == -1:
+ 
+ 		### Trim object list to what is visible on screen
+ 		(rows, cols) = getwinsize()
+@@ -1040,7 +1044,14 @@
+ 				plist.append(o)
+ 
+ 		### Check when to display the header
+-		if oldplist != plist or (loop == 0 or op.header) and step == op.delay and loop % (rows - 1) == 0:
++		if op.header:
++			if oldplist != plist:
++				showheader = True
++			elif step == 1 and loop % (rows - 1) == 0:
++				showheader = True
++
++		if showheader:
++			showheader = False
+ 			for o in plist:
+ 				sys.stdout.write(o.title1)
+ 				if o != plist[-1]:
+@@ -1059,15 +1070,15 @@
+ 
+ 		oldplist = plist
+ 
+-		### Prepare the colors for intermediate updates, last step in a loop is normal
+-		if step != op.delay:
++		### Prepare the colors for intermediate updates, last step in a loop is definitive
++		if step == op.delay:
++			ansi['default'] = ansi['reset']
++		else:
+ 			ansi['default'] = ansi['gray']
+-		else:
+-			ansi['default'] = ansi['reset']
+ 		sys.stdout.write(ansi['default'])
+ 
+ 		### Debugging info
+-#		sys.stdout.write('[%d:%d:%d]' % (loop,step,update))
++#		sys.stdout.write('[%d:%d:%d]' % (loop, step, update))
+ 
+ 		### Show the stats, calculate all objects (visible, invisible)
+ 		for o in olist:
+@@ -1081,20 +1092,20 @@
+ 
+ 		### If intermediate results, update increases with 1 sec (=interval)
+ 		update = update + interval
+-		loop = update / op.delay 
+-		oldstep = step
+-		step = ((update - 1) % op.delay) + 1
+ 
+ 		### Do not pause when this is the final loop
+-		if loop != op.count:
++		if update &lt;= op.delay * op.count or op.count == -1:
+ 			signal.pause()
+ 
+ 		### The last step in a loop is to show the definitive line on a new line
+-		if oldstep == op.delay:
++		if step == op.delay:
+ 			sys.stdout.write('\n' + ansi['clearline'] + ansi['save'])
+ 		else:
+ 			sys.stdout.write(ansi['restore'] + ansi['clearline'])
+ 
++		loop = (update + op.delay - 1) / op.delay 
++		step = ((update - 1) % op.delay) + 1
++
+ ### Unbuffered sys.stdout
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+@@ -1122,9 +1133,7 @@
+ 		main()
+ 	except KeyboardInterrupt, e:
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-		print
+-		print ansi['reset'] + 'Exiting on user request'
+-		sys.exit(6)
++		print ansi['reset']
+ 	except OSError, e:
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+ #		print e.errno
+@@ -1132,5 +1141,7 @@
+ 		print ansi['reset'] + 'OSError: %s' %e
+ 		sys.exit(7)
+ 
++sys.exit(0)
+ 
++
+ # vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2004-11-24 00:14:15 UTC (rev 2543)
++++ trunk/tools/dstat/dstat.spec	2004-11-24 01:51:30 UTC (rev 2544)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Versatile vmstat, iostat and ifstat replacement
+ Name: dstat
+-Version: 0.5.3
++Version: 0.5.4
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -65,6 +65,9 @@
+ %{_bindir}/dstat
+ 
+ %changelog
++* Mon Nov 22 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.4-1
++- Updated to release 0.5.4.
++
+ * Sun Nov 21 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.3-1
+ - Updated to release 0.5.3.
+ 
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2004-11-24 00:14:15 UTC (rev 2543)
++++ trunk/tools/dstat/dstat15	2004-11-24 01:51:30 UTC (rev 2544)
+@@ -19,7 +19,7 @@
+ import os, sys, re, getopt, time, string
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = &quot;0.5.3&quot;
++VERSION = &quot;0.5.4&quot;
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -350,7 +350,7 @@
+ 	def stats(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/diskstats', 'r').readlines():
+-			l = string.split(line);
++			l = string.split(line)
+ 			if len(l) &lt; 13: continue
+ 			name = l[2]
+ 			if name in self.vars:
+@@ -375,7 +375,7 @@
+ 			l = string.split(line)
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+-			if not re.match('^(ram[0-9]+|loop[0-9]+|name)$', name):
++			if not re.match('^(ram\d+|loop\d+|name)$', name):
+ 				retlist.append(name)
+ 		if not op.full and len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+@@ -398,7 +398,7 @@
+ 			if name in self.vars:
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[6]), self.cn2[name][1] + long(l[10]) )
+ 			for set in self.vars:
+-				if set in self.diskset and name in self.diskset[set]:
++				if set in self.diskset.keys() and name in self.diskset[set]:
+ 					self.cn2[set] = ( self.cn2[set][0] + long(l[6]), self.cn2[set][1] + long(l[10]) )
+ 			self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]))
+ 		if update:
+@@ -417,7 +417,7 @@
+ 			l = string.split(line)
+ 			if len(l) != 4 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+-			if not re.match('^(ram[0-9]+|loop[0-9]+|name)$', name):
++			if not re.match('^(ram\d+|loop\d+|name)$', name):
+ 				retlist.append(name)
+ 		if not op.full and len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+@@ -437,7 +437,7 @@
+ 	def stats(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = string.split(line, ':');
++			l = string.split(line, ':')
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+ 			if name == 'disk_io':
+@@ -626,7 +626,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/vmstat', 'r').readlines():
+-			l = string.split(line);
++			l = string.split(line)
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+ 			if name in self.vars:
+@@ -645,7 +645,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = string.split(line);
++			l = string.split(line)
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+ 			if name == 'swap':
+@@ -731,7 +731,7 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = string.split(line);
++			l = string.split(line)
+ 			if len(l) &lt; 2: continue
+ 			name = l[0]
+ 			if name in self.vars:
+@@ -1028,7 +1028,7 @@
+ 	signal.alarm(interval)
+ 
+ 	### Let the games begin
+-	while loop != op.count:
++	while update &lt;= op.delay * op.count or op.count == -1:
+ 
+ 		### Trim object list to what is visible on screen
+ 		(rows, cols) = getwinsize()
+@@ -1060,14 +1060,14 @@
+ 		oldplist = plist
+ 
+ 		### Prepare the colors for intermediate updates, last step in a loop is normal
+-		if step != op.delay:
++		if step == op.delay:
++			ansi['default'] = ansi['reset']
++		else:
+ 			ansi['default'] = ansi['gray']
+-		else:
+-			ansi['default'] = ansi['reset']
+ 		sys.stdout.write(ansi['default'])
+ 
+ 		### Debugging info
+-#		sys.stdout.write('[%d:%d:%d]' % (loop,step,update))
++#		sys.stdout.write('[%d:%d:%d]' % (loop, step, update))
+ 
+ 		### Show the stats, calculate all objects (visible, invisible)
+ 		for o in olist:
+@@ -1081,20 +1081,20 @@
+ 
+ 		### If intermediate results, update increases with 1 sec (=interval)
+ 		update = update + interval
+-		loop = update / op.delay 
+-		oldstep = step
+-		step = ((update - 1) % op.delay) + 1
+ 
+ 		### Do not pause when this is the final loop
+-		if loop != op.count:
++		if update &lt;= op.delay * op.count or op.count == -1:
+ 			signal.pause()
+ 
+ 		### The last step in a loop is to show the definitive line on a new line
+-		if oldstep == op.delay:
++		if step == op.delay:
+ 			sys.stdout.write('\n' + ansi['clearline'] + ansi['save'])
+ 		else:
+ 			sys.stdout.write(ansi['restore'] + ansi['clearline'])
+ 
++		loop = update / op.delay 
++		step = ((update - 1) % op.delay) + 1
++
+ ### Unbuffered sys.stdout
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001348.html">[SVN] r2543 - trunk/tools/dconf
+</A></li>
+	<LI>Next message: <A HREF="001350.html">[SVN] r2545 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1349">[ date ]</a>
+              <a href="thread.html#1349">[ thread ]</a>
+              <a href="subject.html#1349">[ subject ]</a>
+              <a href="author.html#1349">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

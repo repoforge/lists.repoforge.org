@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4592 - in trunk/tools/dconf: . config
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4592%20-%20in%20trunk/tools/dconf%3A%20.%20config&In-Reply-To=%3C20060730175236.F0EBC94CD76%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003391.html">
+   <LINK REL="Next"  HREF="003393.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4592 - in trunk/tools/dconf: . config</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4592%20-%20in%20trunk/tools/dconf%3A%20.%20config&In-Reply-To=%3C20060730175236.F0EBC94CD76%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4592 - in trunk/tools/dconf: . config">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jul 30 19:52:36 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003391.html">[svn] r4591 - in trunk/rpms: bsc fox kile
+</A></li>
+        <LI>Next message: <A HREF="003393.html">[svn] r4593 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3392">[ date ]</a>
+              <a href="thread.html#3392">[ thread ]</a>
+              <a href="subject.html#3392">[ subject ]</a>
+              <a href="author.html#3392">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-07-30 19:52:35 +0200 (Sun, 30 Jul 2006)
+New Revision: 4592
+
+Modified:
+   trunk/tools/dconf/ChangeLog
+   trunk/tools/dconf/Makefile
+   trunk/tools/dconf/config/dconf-redhat.conf
+   trunk/tools/dconf/dconf
+   trunk/tools/dconf/dconf.spec
+Log:
+Prepare the 0.5.1 release.
+
+Modified: trunk/tools/dconf/ChangeLog
+===================================================================
+--- trunk/tools/dconf/ChangeLog	2006-07-29 22:34:54 UTC (rev 4591)
++++ trunk/tools/dconf/ChangeLog	2006-07-30 17:52:35 UTC (rev 4592)
+@@ -1,5 +1,8 @@
+-* 0.5.1 - ... - release 02/10/2005
++* 0.5.1 - Munchkin - release 30/07/2006
+ - Fixed -q option to not require argument (Stelios Bounanos)
++- Syslog now has proper tag and pid associated
++- Moved proprietary sections together
++- Added netiq and iproute2 section
+ 
+ * 0.5.0 - Return To Hasselt - released 09/09/2005
+ - Disable digests in rpmdb too. (Bert de Bruijn)
+
+Modified: trunk/tools/dconf/Makefile
+===================================================================
+--- trunk/tools/dconf/Makefile	2006-07-29 22:34:54 UTC (rev 4591)
++++ trunk/tools/dconf/Makefile	2006-07-30 17:52:35 UTC (rev 4592)
+@@ -1,3 +1,6 @@
++name = dconf
++version = $(shell awk '/^Version: / {print $$2}' $(name).spec)
++
+ prefix = /usr
+ sysconfdir = /etc
+ bindir = $(prefix)/bin
+@@ -43,3 +46,12 @@
+ 
+ %.xml: %.txt
+ 	asciidoc -b docbook -d manpage $&lt;
++
++dist: clean
++	find . ! -wholename '*/.svn*' | pax -d -w -x ustar -s ,^,$(name)-$(version)/, | bzip2 &gt;../$(name)-$(version).tar.bz2
++
++rpm: dist
++	rpmbuild -tb --clean --rmsource --rmspec --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; --define &quot;_rpmdir ../&quot; ../$(name)-$(version).tar.bz2
++
++srpm: dist
++	rpmbuild -ts --clean --rmsource --rmspec --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; --define &quot;_srcrpmdir../&quot; ../$(name)-$(version).tar.bz2
+
+Modified: trunk/tools/dconf/config/dconf-redhat.conf
+===================================================================
+--- trunk/tools/dconf/config/dconf-redhat.conf	2006-07-29 22:34:54 UTC (rev 4591)
++++ trunk/tools/dconf/config/dconf-redhat.conf	2006-07-30 17:52:35 UTC (rev 4592)
+@@ -79,6 +79,15 @@
+ 	/etc/dbus-1/system.d/hal.conf
+ 	/etc/hal/hald.conf
+ 
++[iproute2]
++files =
++	/etc/iproute2/ematch_map
++	/etc/iproute2/rt_dsfield
++	/etc/iproute2/rt_protos
++	/etc/iproute2/rt_realms
++	/etc/iproute2/rt_scopes
++	/etc/iproute2/rt_tables
++
+ [ipsec]
+ files =
+ 	/etc/ipsec.conf
+
+Modified: trunk/tools/dconf/dconf
+===================================================================
+--- trunk/tools/dconf/dconf	2006-07-29 22:34:54 UTC (rev 4591)
++++ trunk/tools/dconf/dconf	2006-07-30 17:52:35 UTC (rev 4592)
+@@ -4,7 +4,7 @@
+ import ConfigParser, urlparse, pwd, grp, stat, syslog
+ import difflib, smtplib, gzip, md5, sha
+ 
+-VERSION = '0.5.0'
++VERSION = '0.5.1'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -323,7 +323,8 @@
+ #	os.setenv('LC_ALL', 'C')
+ 	os.environ['LC_ALL'] = 'C'
+ 
+-	syslog.syslog('Dconf started.')
++	syslog.openlog('dconf[%d]' % os.getpid())
++	syslog.syslog('Dconf %s started.' % VERSION)
+ 
+ 	### Add to cron
+ 	if cf.cron and not op.output:
+@@ -434,7 +435,8 @@
+ 					log.write(o.read() + '\n')
+ 	log.close()
+ 
+-	syslog.syslog('Dconf ended succesfully.')
++	syslog.syslog('Dconf %s ended succesfully.' % VERSION)
++	syslog.closelog()
+ 
+ 	if op.output:
+ 		return
+
+Modified: trunk/tools/dconf/dconf.spec
+===================================================================
+--- trunk/tools/dconf/dconf.spec	2006-07-29 22:34:54 UTC (rev 4591)
++++ trunk/tools/dconf/dconf.spec	2006-07-30 17:52:35 UTC (rev 4592)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Create a system's hardware and software configuration snapshot
+ Name: dconf
+-Version: 0.5.0
++Version: 0.5.1
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -58,6 +58,9 @@
+ %{_localstatedir}/log/dconf/
+ 
+ %changelog
++* Sun Jul 30 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.1-1
++- Updated to release 0.5.1.
++
+ * Fri Sep 09 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.0-1
+ - Updated to release 0.5.0.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003391.html">[svn] r4591 - in trunk/rpms: bsc fox kile
+</A></li>
+	<LI>Next message: <A HREF="003393.html">[svn] r4593 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3392">[ date ]</a>
+              <a href="thread.html#3392">[ thread ]</a>
+              <a href="subject.html#3392">[ subject ]</a>
+              <a href="author.html#3392">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

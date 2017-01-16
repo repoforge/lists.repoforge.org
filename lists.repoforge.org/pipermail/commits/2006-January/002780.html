@@ -1,0 +1,320 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3980 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3980%20-%20trunk/tools/yam&In-Reply-To=%3C20060118171912.1478B3180F9%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002779.html">
+   <LINK REL="Next"  HREF="002781.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3980 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3980%20-%20trunk/tools/yam&In-Reply-To=%3C20060118171912.1478B3180F9%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3980 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jan 18 18:19:12 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002779.html">[svn] r3979 - in trunk/rpms: . comix fftv fish ipac-ng liferea	uni2ascii
+</A></li>
+        <LI>Next message: <A HREF="002781.html">[svn] r3981 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2780">[ date ]</a>
+              <a href="thread.html#2780">[ thread ]</a>
+              <a href="subject.html#2780">[ subject ]</a>
+              <a href="author.html#2780">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-18 18:19:10 +0100 (Wed, 18 Jan 2006)
+New Revision: 3980
+
+Added:
+   trunk/tools/yam/README.rhn
+Modified:
+   trunk/tools/yam/yam
+Log:
+Updates
+
+Added: trunk/tools/yam/README.rhn
+===================================================================
+--- trunk/tools/yam/README.rhn	2006-01-18 14:09:26 UTC (rev 3979)
++++ trunk/tools/yam/README.rhn	2006-01-18 17:19:10 UTC (rev 3980)
+@@ -0,0 +1,50 @@
++Using RHN support in Yam
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++For each distribution you want to add to Yam, you need to have a valid
++RHN systemid/uuid. You can create one (if you don't have one already)
++by installing a clean system and then register it using:
++
++	rhn_register
++
++For simplicity, call this one yam-$dist-$arch (eg. yam-rhel4as-i386).
++The resulting files you have the save into your yam directory, like:
++
++	cp /etc/sysconfig/rhn/systemid /var/yam/rhel4as-i386/rhn-systemid
++
++Having done that, you can enable multiple channels for this systemid
++on the RHN website. And then configure yam to use these channels, eg.
++
++	[rhel4as]
++	name = Red Hat Advanced Server $release U2 ($arch)
++	release = 4
++	arch = i386
++	iso = RHEL4-U2-i386-AS-disc?.iso
++	updates = <A HREF="rhn:///rhel-i386-as-4">rhn:///rhel-i386-as-4</A>
++	extras = <A HREF="rhn:///rhel-i386-as-4-extras">rhn:///rhel-i386-as-4-extras</A>
++	hwcert = <A HREF="rhn:///rhel-i386-as-4-hwcert">rhn:///rhel-i386-as-4-hwcert</A>
++	sdk = <A HREF="rhn:///rhel-i386-as-4-sdk">rhn:///rhel-i386-as-4-sdk</A>
++	rhaps = <A HREF="rhn:///rhel-4-as-i386-rhaps-2">rhn:///rhel-4-as-i386-rhaps-2</A>
++	rhds = <A HREF="rhn:///rhel-4-as-i386-rhds-2.1">rhn:///rhel-4-as-i386-rhds-2.1</A>
++
++After that, yam should be able to successfully log on and download
++all packages for this channel.
++
++
++Using a single systemid
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++You can experiment with using 1 systemid for multiple dists/archs using
++the rhnrelease option:
++
++	rhnrelease = 3AS
++
++This way you override the OS release that is in the systemid file. For
++this to work I have to find a way to be able to query a channel to which
++one is not subscribed (I know it is possible since up2date can do this
++as well, but I haven't figured it out yet).
++
++
++Ignore packages you already have
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++This is possible, although hard to implement currently. I could check
++wether the file exists on one of the ISOs (or in the RPMS/ directory),
++but I prefer to implement this after a redesign.
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-01-18 14:09:26 UTC (rev 3979)
++++ trunk/tools/yam/yam	2006-01-18 17:19:10 UTC (rev 3980)
+@@ -37,6 +37,7 @@
+ 	def __init__(self, args):
+ 		self.configfile = '/etc/yam.conf'
+ 		self.dist = None
++		self.rhnrelease = None
+ 		self.extra = False
+ 		self.generate = False
+ 		self.quiet = False
+@@ -46,8 +47,8 @@
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'c:d:ghquvx',
+-				['config=', 'dist=', 'generate=', 'help', 'quiet', 'remount',
++			opts, args = getopt.getopt (args, 'c:d:ghqruvx',
++				['config=', 'dist=', 'generate=', 'help', 'quiet', 'remount', 'repo=',
+ 				'umount', 'unmount', 'update', 'verbose', 'version', 'extras'])
+ 		except getopt.error, exc:
+ 			print 'yam: %s, try yam -h for a list of all the options' % str(exc)
+@@ -66,8 +67,8 @@
+ 				sys.exit(0)
+ 			elif opt in ['-q', '--quiet']:
+ 				self.quiet = True
+-#			elif opt in ['-r', '--repo']:
+-#				self.repo = arg.split(',')
++			elif opt in ['-r', '--repo']:
++				self.repo = arg.split(',')
+ 			elif opt in ['--remount']:
+ 				self.remount = True
+ 			elif opt in ['-u', '--update']:
+@@ -194,7 +195,7 @@
+ 					self.dists[-1].arch = arch
+ 					self.dists[-1].metadata = self.metadata.split()
+ 					for option in self.cfg.options(section):
+-						if option in ('iso', 'name', 'release', 'repo', 'tag'):
++						if option in ('iso', 'name', 'release', 'repo', 'tag', 'rhnrelease'):
+ 							setattr(self.dists[-1], option, self.cfg.get(section, option))
+ 						elif option in ('arch', 'dist', 'nick'):
+ 							pass
+@@ -460,11 +461,10 @@
+ 		dst = os.path.join(dst, os.path.basename(src))
+ ### Not using filecmp increases speed with 15%
+ #	if os.path.isfile(dst) and filecmp.cmp(src, dst) == 0:
+-	if os.path.isfile(dst):
+-#		copy(dst, dst+'.yambak')
++	if os.path.islink(dst):
+ 		os.unlink(dst)
+-	elif os.path.islink(dst):
+-		os.unlink(dst)
++	elif os.path.isfile(dst):
++		os.rename(dst, dst+'.yambak')
+ 	mkdir(os.path.dirname(dst))
+ 	if not os.path.exists(dst):
+ 		os.symlink(src, dst)
+@@ -586,86 +586,73 @@
+ 	dir = url.replace('<A HREF="yam://">yam://</A>', '')
+ 	symlink(os.path.join(cf.srcdir,dir), path)
+ 
++cfg = {}
++
+ def mirrorrhn(url, path, dist):
+ 	sys.path.insert(0, '/usr/share/rhn/')
+ 
+ 	t, rhnserver, label, t, t, t = urlparse.urlparse(url)
+ 	label = label.strip('/')
+ 
+-	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'rhn-config')):
+-		rhnconfig = os.path.join(cf.srcdir, dist.nick, 'rhn-config')
+-#	elif os.path.isfile('/etc/sysconfig/rhn/up2date'):
+-#		rhnconfig = '/etc/sysconfig/rhn/up2date'
+-	else:
+-		error(1, 'No RHN config found, skipping download.')
+-		return
+-	error(4, 'Using RHN config from %s' % rhnconfig)
+-
+ 	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'rhn-systemid')):
+ 		rhnsystemid = os.path.join(cf.srcdir, dist.nick, 'rhn-systemid')
+-#	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
+-#		rhnsystemid = '/etc/sysconfig/rhn/systemid'
++	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
++		rhnsystemid = '/etc/sysconfig/rhn/systemid'
+ 	else:
+ 		error(1, 'No RHN systemid found, skipping download.')
+ 		return
+ 	error(4, 'Using RHN systemid from %s' % rhnsystemid)
+ 
+-	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'rhn-uuid')):
+-		rhnuuid = os.path.join(cf.srcdir, dist.nick, 'rhn-uuid')
+-#	elif os.path.isfile('/etc/sysconfig/rhn/up2date-uuid'):
+-#		rhnuuid = '/etc/sysconfig/rhn/up2date-uuid'
+-	else:
+-		error(1, 'No RHN uuid found, skipping download.')
+-		return
+-	error(4, 'Using RHN uuid from %s' % rhnuuid)
+-
+-	### FIXME: The only way to currently work around it is to replace the uuid file :(	
+-	### FIXME: Backup existing files first !
+-	symlink(rhnconfig, '/etc/sysconfig/rhn/up2date')
+-	symlink(rhnsystemid, '/etc/sysconfig/rhn/systemid')
+-	symlink(rhnuuid, '/etc/sysconfig/rhn/up2date-uuid')
+-	### FIXME: Also take care of sources-file
+-#	print &gt;&gt;rhnsources 'rhn default'
+-
+-	from up2date_client import up2date, config, up2dateAuth, repoDirector, rpcServer, wrapperUtils, rhnChannel
++	from up2date_client import config, rpcServer, wrapperUtils, rhnChannel, repoDirector
+ 	import time, signal
+ 
+-	cfg = config.initUp2dateConfig(rhnconfig)
++	global cfg
+ 	cfg['systemIdPath'] = rhnsystemid
++	cfg = config.initUp2dateConfig()
++	cfg['systemIdPath'] = rhnsystemid
+ 	cfg['storageDir'] = path
+ 	cfg['retrieveOnly'] = 1
+ 	cfg['keepAfterInstall'] = 1
+ 	cfg['noReboot'] = 1
++	cfg['useRhn'] = 1
++	cfg['showChannels'] = 1
+ 
++	if dist.rhnrelease:
++		cfg['versionOverride'] = dist.rhnrelease
++
++	if dist.arch:
++		cfg['forceArch'] = '%s-redhat-linux' % dist.arch
++
+ 	if rhnserver:
+ 		cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
+ 		cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
+ 
+ 	if op.verbose &gt;= 2:
+-		cfg['debug'] = 1
++		cfg['debug'] = 10000
+ 
+-	### Write out configfile
+-	fd = open(rhnconfig, 'w')
+-	for key in cfg.keys(): fd.write('%s=%s\n' % (key, cfg[key]))
+-	fd.close()
++	for key in cfg.keys():
++		print key, '-&gt;', cfg[key]
+ 
+-	cfg = config.initUp2dateConfig(rhnconfig)
++	### From up2dateAuth.login()
++	error(0, 'Reading systemid from %s' % cfg['systemIdPath'])
++	server = rpcServer.getServer()
++	rpcServer.doCall(server.up2date.login, open(cfg['systemIdPath']).read())
+ 
+-	up2dateAuth.login()
+-	up2dateAuth.updateLoginInfo()
+-
+ 	mkdir(cfg['storageDir'])
+ 	repos = repoDirector.initRepoDirector()
+-	channel = repos.channels.getByLabel(label)
++	rhnChannel.updateChannels(label)
++	channel = rhnChannel.getChannels().getByLabel(label)
+ 	if not channel:
++#		from up2date_client import rhnChannel
+ #		version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
+-#		channel = rhnChannel.rhnChannel(label = label, version = version, type = 'up2date', url = cfg['serverURL'])
++#		channel = rhnChannel.rhnChannel(label = label, version = '0', type = 'up2date', url = cfg['serverURL'])
+ 		error(0, 'RHN id for %s not subscribed to channel %s, dropping.' % (dist.nick, label))
+ 		error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
+ 		return
+ 	package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	signal.signal(signal.SIGINT, signal.SIG_DFL)
+ 	for pkg in package_list:
++		### FIXME: Check if not already on ISO-file or repository
+ 		if op.verbose:
+ 			rpcServer.doCall(repos.getPackage, pkg, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
+ 		else:
+@@ -757,6 +744,8 @@
+ 
+ 		### Downloading things
+ 		for repo in dist.repos.keys():
++			if op.repo and repo not in op.repo:
++					continue
+ 			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 			if repo in ['os', 'core']:
+ 				if op.update and not dist.isos():
+@@ -793,9 +782,11 @@
+ 
+ 		dist.clean()
+ 		if dist.isos():
+-			dist.clean('os')
++			if not op.repo or 'os' in op.repo:
++				dist.clean('os')
+ 		for repo in dist.repos.keys():
+-			dist.clean(repo)
++			if not op.repo or repo in op.repo:
++				dist.clean(repo)
+ 		dist.clean('local')
+ 
+ 		for repo in dist.repos.keys():
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002779.html">[svn] r3979 - in trunk/rpms: . comix fftv fish ipac-ng liferea	uni2ascii
+</A></li>
+	<LI>Next message: <A HREF="002781.html">[svn] r3981 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2780">[ date ]</a>
+              <a href="thread.html#2780">[ thread ]</a>
+              <a href="subject.html#2780">[ subject ]</a>
+              <a href="author.html#2780">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

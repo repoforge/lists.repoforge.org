@@ -1,0 +1,651 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] sarg should be updated (current version is 2.2 !!!)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20sarg%20should%20be%20updated%20%28current%20version%20is%202.2%20%21%21%21%29&In-Reply-To=%3C1148410753.5718.31.camel%40localhost.localdomain%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025005.html">
+   <LINK REL="Next"  HREF="025008.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] sarg should be updated (current version is 2.2 !!!)</H1>
+    <B>Bernard Lheureux</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20sarg%20should%20be%20updated%20%28current%20version%20is%202.2%20%21%21%21%29&In-Reply-To=%3C1148410753.5718.31.camel%40localhost.localdomain%3E"
+       TITLE="[users] sarg should be updated (current version is 2.2 !!!)">bernard.lheureux at bbsoft4.org
+       </A><BR>
+    <I>Tue May 23 20:59:13 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025005.html">[users] synaptic on FC5?
+</A></li>
+        <LI>Next message: <A HREF="025008.html">[users] sarg should be updated (current version is 2.2 !!!)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25006">[ date ]</a>
+              <a href="thread.html#25006">[ thread ]</a>
+              <a href="subject.html#25006">[ subject ]</a>
+              <a href="author.html#25006">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Dag, or Dries, 
+
+Here are 2 specfiles I have make for sarg 2.1 and 2.2, as Arrfab told
+you lately, Dag, I've already built them and used for some of our
+customers with success...
+
+
+
+ 
+ M$-Internet Exploder est le cancer de l'Internet, voyez pourquoi ici :
+ <A HREF="http://www.aful.org/publi/articles/msie_et_la_securite/index_html/view">http://www.aful.org/publi/articles/msie_et_la_securite/index_html/view</A>
+ -----------------&gt; <A HREF="http://www.shlomifish.org/no-ie/">http://www.shlomifish.org/no-ie/</A> &lt;-----------------
+
+--
+(&#194;&#176;-   Bernard Lheureux Gestionnaire des MailingLists ML, TechML, LinuxML
+//\   <A HREF="http://www.bbsoft4.org/Mailinglists.htm">http://www.bbsoft4.org/Mailinglists.htm</A> ** MailTo:<A HREF="http://lists.repoforge.org/mailman/listinfo/users">root at bbsoft4.org</A>
+v_/_  <A HREF="http://www.bbsoft4.org/">http://www.bbsoft4.org/</A> &lt;&lt;&lt;&lt;&lt;&lt; * &gt;&gt;&gt;&gt;&gt;&gt; <A HREF="http://www.portalinux.org/">http://www.portalinux.org/</A>
+-------------- next part --------------
+%define sarg_ver      2.2
+%define sysconfdir    /etc/sarg
+%define bindir        /usr/bin
+%define mandir        /usr/share/man/man1
+%define htmloutputdir %{_localstatedir}/www/sarg
+%define debug_package %{nil}
+
+Summary: Squid usage report generator per user/ip/name
+Name: sarg
+Version: %{sarg_ver}
+Release: 1
+License: GPL
+Group: Applications/Network
+URL: <A HREF="http://sarg.sf.net/sarg.php">http://sarg.sf.net/sarg.php</A>
+
+Source0: <A HREF="http://dl.sf.net/sarg/sarg-%{version">http://dl.sf.net/sarg/sarg-%{version</A>}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}
+
+BuildRequires: perl, gd-devel
+Requires: bash, coreutils, squid, gzip, gd &gt;= 1.8
+Obsoletes: sqrmgrlog
+
+%description
+Squid Analysis Report Generator is a tool that allows you to view &quot;where&quot;
+your users are going to on the Internet. Sarg generate reports in html
+showing users, IP Addresses, bytes, sites and times.
+
+
+%prep
+%setup -q -n %{name}-%{sarg_ver}
+
+# Fix dir permissions
+chmod 755 sarg-php/locale
+
+%{__perl} -pi.orig -e '
+                s|^#(access_log) (.+)$|#$1 $2\n$1 %{_localstatedir}/log/squid/access.log|;
+                s|^#(output_dir) (.+)$|#$1 $2\n$1 %{htmloutputdir}/ONE-SHOT|;
+                s|^#(resolve_ip) (.+)$|#$1 $2\n$1 yes|;
+                s|^#(show_successful_message) (.+)$|#$1 $2\n$1 no|;
+                s|^#(mail_utility) (.+)$|#$1 $2\n$1 mail|;
+                s|^#(external_css_file) (.+)$|#$1 $2\n$1 %{htmloutputdir}/sarg.css|;
+		
+        ' sarg.conf
+
+
+%{__cat} &lt;&lt;'EOF' &gt;sarg.daily
+#!/bin/bash
+exec %{_bindir}/sarg \
+          -o %{htmloutputdir}/daily \
+          -d &quot;$(date --date &quot;1 day ago&quot; +%d/%m/%Y)&quot;  &gt; /dev/null 2&gt;&amp;1
+
+exit 0
+EOF
+
+
+%{__cat} &lt;&lt;'EOF' &gt;sarg.weekly
+#!/bin/bash
+LOG_FILES=
+if [[ -s %{_localstatedir}/log/squid/access.log.1.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.1.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log&quot;
+fi
+
+# Get yesterday's date
+YESTERDAY=$(date --date &quot;1 days ago&quot; +%d/%m/%Y)
+
+# Get one week ago date
+WEEKAGO=$(date --date &quot;7 days ago&quot; +%d/%m/%Y)
+
+exec %{_bindir}/sarg \
+	$LOG_FILES \
+        -o %{htmloutputdir}/weekly \
+	-d $WEEKAGO-$YESTERDAY &gt; /dev/null 2&gt;&amp;1
+
+exit 0
+EOF
+
+
+%{__cat} &lt;&lt;'EOF' &gt;sarg.monthly
+#!/bin/bash
+LOG_FILES=
+if [[ -s %{_localstatedir}/log/squid/access.log.4.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.4.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log.3.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.3.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log.2.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.2.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log.1.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.1.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log&quot;
+fi
+
+
+# Get yesterday's date
+YESTERDAY=$(date --date &quot;1 day ago&quot; +%d/%m/%Y)
+
+# Get 1 month ago date
+MONTHAGO=$(date --date &quot;1 month ago&quot; +%d/%m/%Y)
+
+exec %{_bindir}/sarg \
+        $LOG_FILES \
+        -o %{htmloutputdir}/monthly \
+	-d $MONTHAGO-$YESTERDAY  &gt; /dev/null 2&gt;&amp;1
+
+exit 0
+EOF
+
+
+%{__cat} &lt;&lt;EOF &gt;sarg-index.html
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;iso-8859-1&quot;?&gt;
+&lt;!DOCTYPE html PUBLIC &quot;XHTML 1.0 Strict//EN&quot; &quot;<A HREF="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd</A>&quot;&gt;
+&lt;html xmlns=&quot;<A HREF="http://www.w3.org/1999/xhtml">http://www.w3.org/1999/xhtml</A>&quot; xml:lang=&quot;en&quot; lang=&quot;en&quot;&gt;
+&lt;head&gt;
+        &lt;title&gt;Squid User's Access Report&lt;/title&gt;
+	&lt;style type=&quot;text/css&quot;&gt;
+		#content         { width:20em; margin-left:auto; margin-right:auto; }
+		h1               { color:green; font-size:1.2em; text-align:center; }
+		table#reports    { border-collapse:collapse; width:20em; margin-left:auto; margin-right:auto; font-size:0.8em; }
+		table#reports td { padding:2px; background-color:#f5f5dc; border:solid white 1px; }
+		table#reports th { background-color:#feebcd; border:solid white 1px; color:#00008b; }
+	&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+
+&lt;div id=&quot;content&quot;&gt;
+	&lt;h1&gt;Squid User's Access Report&lt;/h1&gt;
+
+	&lt;table summary=&quot;&quot; id=&quot;reports&quot;&gt;
+	&lt;tbody&gt;
+	&lt;tr&gt;
+		&lt;th&gt;DIRECTORY&lt;/th&gt;
+		&lt;th&gt;DESCRIPTION&lt;/th&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;ONE-SHOT/index.html&quot;&gt;ONE-SHOT&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;One shot reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;daily/index.html&quot;&gt;daily&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;Daily reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;weekly/index.html&quot;&gt;weekly&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;Weekly reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;monthly/index.html&quot;&gt;monthly&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;Monthly reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;/tbody&gt;
+	&lt;/table&gt;
+&lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+EOF
+
+%{__cat} &lt;&lt;EOF &gt;sarg-http.conf
+Alias /sarg %{htmloutputdir}
+
+&lt;Directory %{htmloutputdir}&gt;
+    DirectoryIndex index.html
+    Order deny,allow
+    Deny from all
+    Allow from 127.0.0.1
+    Allow from ::1
+    # Allow from your-workstation.com
+&lt;/Directory&gt;
+EOF
+
+
+
+%build
+%configure \
+	--enable-bindir=%{bindir} \
+	--enable-sysconfdir=%{sysconfdir} \
+	--enable-mandir=%{mandir} \
+	--enable-htmldir=%{htmloutputdir}
+
+%{__make} %{?_smp_mflags}
+
+
+%install
+%{__rm} -rf %{buildroot}
+%{__install} -d -m0755 %{buildroot}%{sysconfdir} \
+		    %{buildroot}%{bindir} \
+		    %{buildroot}%{mandir} \
+		    %{buildroot}%{htmloutputdir}
+
+%{__install} -d -m0755 %{buildroot}/%{htmloutputdir}/{ONE-SHOT,daily,weekly,monthly}/
+%{__install} -D -m0644 sarg-http.conf %{buildroot}%{_sysconfdir}/httpd/conf.d/sarg.conf
+%{__install} -D -m0755 sarg.daily %{buildroot}%{_sysconfdir}/cron.daily/sarg
+%{__install} -D -m0755 sarg.weekly %{buildroot}%{_sysconfdir}/cron.weekly/sarg
+%{__install} -D -m0755 sarg.monthly %{buildroot}%{_sysconfdir}/cron.monthly/sarg
+%{__install} -D -m0644 sarg-index.html %{buildroot}/%{htmloutputdir}/index.html
+%{__install} -D -m0644 css.tpl %{buildroot}/%{htmloutputdir}/sarg.css
+
+%{__install} -m0755 -d %{buildroot}/%{htmloutputdir}
+%{__install} -m0755 -d %{buildroot}%{bindir}
+%{__install} -m0755 sarg %{buildroot}%{bindir}
+%{__install} -m0755 -d %{buildroot}%{sysconfdir}
+%{__install} -m0644 sarg.conf %{buildroot}%{sysconfdir}/sarg.conf
+%{__install} -m0644 exclude_codes %{buildroot}%{sysconfdir}/exclude_codes
+%{__install} -m0644 sarg.1 %{buildroot}%{mandir}
+
+cp -r ./images %{buildroot}%{sysconfdir}/images
+cp -r ./languages %{buildroot}%{sysconfdir}/languages
+cp -r ./fonts %{buildroot}%{sysconfdir}/fonts
+rm -rf %{buildroot}%{sysconfdir}/languages/.new
+
+
+%clean
+%{__rm} -rf %{buildroot}
+
+
+%files
+%defattr(-, root, root, 0755)
+%doc ChangeLog CONTRIBUTORS COPYING README DONATIONS
+%config(noreplace) %{_sysconfdir}/sarg/sarg.conf
+%config(noreplace) %{_sysconfdir}/httpd/conf.d/sarg.conf
+%config %{_sysconfdir}/sarg/exclude_codes
+%config %{_sysconfdir}/cron.*/sarg
+
+%dir %{htmloutputdir}
+%dir %{sysconfdir}
+%dir %{sysconfdir}/fonts
+%dir %{sysconfdir}/images
+%dir %{sysconfdir}/languages
+%dir %{htmloutputdir}/ONE-SHOT
+%dir %{htmloutputdir}/daily
+%dir %{htmloutputdir}/weekly
+%dir %{htmloutputdir}/monthly
+%dir %{bindir}
+%doc %{mandir}/*
+
+%{bindir}/*
+%{sysconfdir}/fonts/*
+%{sysconfdir}/images/*
+%{sysconfdir}/languages/*
+%{htmloutputdir}/index.html
+%{htmloutputdir}/sarg.css
+
+
+
+%changelog
+* Thu May 18 2006 Bernard 'Tux' Lheureux &lt;tux at portalinux dot org&gt; 2.2.1
+- Update to 2.2.1
+- Built for RHEL4/CentOS4
+
+* Sun Mar 19 2006 Bernard 'Tux' Lheureux &lt;tux at portalinux dot org&gt; 2.1.1
+- Update to 2.1.1
+- Fix the build errors with the datafile.patch
+- Rebuilt for RHEL4/CentOS4
+
+* Tue Jun 21 2005 Petr Kri&#185;tof &lt;Petr|Kristof_CZ&gt; 2.0.8-1
+- Update to 2.0.8
+- Rebuild on FC-4
+
+* Mon Apr 04 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Misc fixes (cron scripts, sort and manpage patches) from Bronislav Bronsky &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">admin at gorefield.net</A>&gt; 
+- Applied latest patches
+
+* Mon Mar 28 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Fixed weekly and monthly scripts
+- Make the index.html file standards compliant
+
+* Tue Mar 22 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Rebuilt for 2.0.5
+
+* Mon Mar 14 2005 lonely wolf (<A HREF="http://lists.repoforge.org/mailman/listinfo/users">wolfy at pcnet.ro</A>)
+- merged spec file from dag (<A HREF="http://dag.wieers.com/packages/sarg/sarg.spec">http://dag.wieers.com/packages/sarg/sarg.spec</A>) and mack (<A HREF="http://mack.ro/linux/sarg/">http://mack.ro/linux/sarg/</A>)
+
+* Tue Mar 10 2005 lonely wolf (<A HREF="http://lists.repoforge.org/mailman/listinfo/users">wolfy at pcnet.ro</A>)
+- Compile for Centos 3.4
+
+* Tue Mar 01 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Added patch for segmentation fault
+
+* Thu Feb 24 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Rebuilt for 2.0.4
+
+* Thu Nov 4 2004 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Initial package for sarg 2, with ideas from Dag Wiers
+-------------- next part --------------
+%define sarg_ver      2.1
+%define sysconfdir    /etc/sarg
+%define bindir        /usr/bin
+%define mandir        /usr/share/man/man1
+%define htmloutputdir %{_localstatedir}/www/sarg
+%define debug_package %{nil}
+
+Summary: Squid usage report generator per user/ip/name
+Name: sarg
+Version: %{sarg_ver}
+Release: 1
+License: GPL
+Group: Applications/Network
+URL: <A HREF="http://sarg.sf.net/sarg.php">http://sarg.sf.net/sarg.php</A>
+
+Source0: <A HREF="http://dl.sf.net/sarg/sarg-%{version">http://dl.sf.net/sarg/sarg-%{version</A>}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}
+
+Patch0: datafile.patch
+
+BuildRequires: perl, gd-devel
+Requires: bash, coreutils, squid, httpd, gzip, gd &gt;= 1.8
+Obsoletes: sqrmgrlog
+
+%description
+Squid Analysis Report Generator is a tool that allows you to view &quot;where&quot;
+your users are going to on the Internet. Sarg generate reports in html
+showing users, IP Addresses, bytes, sites and times.
+
+
+%prep
+%setup -q -n %{name}-%{sarg_ver}
+
+%patch0 -p0 -b .manpage
+
+# Fix dir permissions
+chmod 755 sarg-php/locale
+
+%{__perl} -pi.orig -e '
+                s|^#(access_log) (.+)$|#$1 $2\n$1 %{_localstatedir}/log/squid/access.log|;
+                s|^#(output_dir) (.+)$|#$1 $2\n$1 %{htmloutputdir}/ONE-SHOT|;
+                s|^#(resolve_ip) (.+)$|#$1 $2\n$1 yes|;
+                s|^#(show_successful_message) (.+)$|#$1 $2\n$1 no|;
+                s|^#(mail_utility) (.+)$|#$1 $2\n$1 mail|;
+                s|^#(external_css_file) (.+)$|#$1 $2\n$1 %{htmloutputdir}/sarg.css|;
+		
+        ' sarg.conf
+
+
+%{__cat} &lt;&lt;'EOF' &gt;sarg.daily
+#!/bin/bash
+exec %{_bindir}/sarg \
+          -o %{htmloutputdir}/daily \
+          -d &quot;$(date --date &quot;1 day ago&quot; +%d/%m/%Y)&quot;  &gt; /dev/null 2&gt;&amp;1
+
+exit 0
+EOF
+
+
+%{__cat} &lt;&lt;'EOF' &gt;sarg.weekly
+#!/bin/bash
+LOG_FILES=
+if [[ -s %{_localstatedir}/log/squid/access.log.1.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.1.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log&quot;
+fi
+
+# Get yesterday's date
+YESTERDAY=$(date --date &quot;1 days ago&quot; +%d/%m/%Y)
+
+# Get one week ago date
+WEEKAGO=$(date --date &quot;7 days ago&quot; +%d/%m/%Y)
+
+exec %{_bindir}/sarg \
+	$LOG_FILES \
+        -o %{htmloutputdir}/weekly \
+	-d $WEEKAGO-$YESTERDAY &gt; /dev/null 2&gt;&amp;1
+
+exit 0
+EOF
+
+
+%{__cat} &lt;&lt;'EOF' &gt;sarg.monthly
+#!/bin/bash
+LOG_FILES=
+if [[ -s %{_localstatedir}/log/squid/access.log.4.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.4.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log.3.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.3.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log.2.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.2.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log.1.gz ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log.1.gz&quot;
+fi
+if [[ -s %{_localstatedir}/log/squid/access.log ]]; then
+    LOG_FILES=&quot;$LOG_FILES -l %{_localstatedir}/log/squid/access.log&quot;
+fi
+
+
+# Get yesterday's date
+YESTERDAY=$(date --date &quot;1 day ago&quot; +%d/%m/%Y)
+
+# Get 1 month ago date
+MONTHAGO=$(date --date &quot;1 month ago&quot; +%d/%m/%Y)
+
+exec %{_bindir}/sarg \
+        $LOG_FILES \
+        -o %{htmloutputdir}/monthly \
+	-d $MONTHAGO-$YESTERDAY  &gt; /dev/null 2&gt;&amp;1
+
+exit 0
+EOF
+
+
+%{__cat} &lt;&lt;EOF &gt;sarg-index.html
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;iso-8859-1&quot;?&gt;
+&lt;!DOCTYPE html PUBLIC &quot;XHTML 1.0 Strict//EN&quot; &quot;<A HREF="http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd</A>&quot;&gt;
+&lt;html xmlns=&quot;<A HREF="http://www.w3.org/1999/xhtml">http://www.w3.org/1999/xhtml</A>&quot; xml:lang=&quot;en&quot; lang=&quot;en&quot;&gt;
+&lt;head&gt;
+        &lt;title&gt;Squid User's Access Report&lt;/title&gt;
+	&lt;style type=&quot;text/css&quot;&gt;
+		#content         { width:20em; margin-left:auto; margin-right:auto; }
+		h1               { color:green; font-size:1.2em; text-align:center; }
+		table#reports    { border-collapse:collapse; width:20em; margin-left:auto; margin-right:auto; font-size:0.8em; }
+		table#reports td { padding:2px; background-color:#f5f5dc; border:solid white 1px; }
+		table#reports th { background-color:#feebcd; border:solid white 1px; color:#00008b; }
+	&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+
+&lt;div id=&quot;content&quot;&gt;
+	&lt;h1&gt;Squid User's Access Report&lt;/h1&gt;
+
+	&lt;table summary=&quot;&quot; id=&quot;reports&quot;&gt;
+	&lt;tbody&gt;
+	&lt;tr&gt;
+		&lt;th&gt;DIRECTORY&lt;/th&gt;
+		&lt;th&gt;DESCRIPTION&lt;/th&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;ONE-SHOT/index.html&quot;&gt;ONE-SHOT&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;One shot reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;daily/index.html&quot;&gt;daily&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;Daily reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;weekly/index.html&quot;&gt;weekly&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;Weekly reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;tr&gt;
+		&lt;td&gt;&lt;a href=&quot;monthly/index.html&quot;&gt;monthly&lt;/a&gt;&lt;/td&gt;
+		&lt;td&gt;Monthly reports&lt;/td&gt;
+	&lt;/tr&gt;
+	&lt;/tbody&gt;
+	&lt;/table&gt;
+&lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+EOF
+
+%{__cat} &lt;&lt;EOF &gt;sarg-http.conf
+Alias /sarg %{htmloutputdir}
+
+&lt;Directory %{htmloutputdir}&gt;
+    DirectoryIndex index.html
+    Order deny,allow
+    Deny from all
+    Allow from 127.0.0.1
+    Allow from ::1
+    # Allow from your-workstation.com
+&lt;/Directory&gt;
+EOF
+
+
+
+%build
+%configure \
+	--enable-bindir=%{bindir} \
+	--enable-sysconfdir=%{sysconfdir} \
+	--enable-mandir=%{mandir} \
+	--enable-htmldir=%{htmloutputdir}
+
+%{__make} %{?_smp_mflags}
+
+
+%install
+%{__rm} -rf %{buildroot}
+%{__install} -d -m0755 %{buildroot}%{sysconfdir} \
+		    %{buildroot}%{bindir} \
+		    %{buildroot}%{mandir} \
+		    %{buildroot}%{htmloutputdir}
+
+%{__install} -d -m0755 %{buildroot}/%{htmloutputdir}/{ONE-SHOT,daily,weekly,monthly}/
+%{__install} -D -m0644 sarg-http.conf %{buildroot}%{_sysconfdir}/httpd/conf.d/sarg.conf
+%{__install} -D -m0755 sarg.daily %{buildroot}%{_sysconfdir}/cron.daily/sarg
+%{__install} -D -m0755 sarg.weekly %{buildroot}%{_sysconfdir}/cron.weekly/sarg
+%{__install} -D -m0755 sarg.monthly %{buildroot}%{_sysconfdir}/cron.monthly/sarg
+%{__install} -D -m0644 sarg-index.html %{buildroot}/%{htmloutputdir}/index.html
+%{__install} -D -m0644 css.tpl %{buildroot}/%{htmloutputdir}/sarg.css
+
+%{__install} -m0755 -d %{buildroot}/%{htmloutputdir}
+%{__install} -m0755 -d %{buildroot}%{bindir}
+%{__install} -m0755 sarg %{buildroot}%{bindir}
+%{__install} -m0755 -d %{buildroot}%{sysconfdir}
+%{__install} -m0644 sarg.conf %{buildroot}%{sysconfdir}/sarg.conf
+%{__install} -m0644 exclude_codes %{buildroot}%{sysconfdir}/exclude_codes
+%{__install} -m0644 sarg.1 %{buildroot}%{mandir}
+
+cp -r ./images %{buildroot}%{sysconfdir}/images
+cp -r ./languages %{buildroot}%{sysconfdir}/languages
+cp -r ./fonts %{buildroot}%{sysconfdir}/fonts
+rm -rf %{buildroot}%{sysconfdir}/languages/.new
+
+
+%clean
+%{__rm} -rf %{buildroot}
+
+
+%files
+%defattr(-, root, root, 0755)
+%doc ChangeLog CONTRIBUTORS COPYING README DONATIONS
+%config(noreplace) %{_sysconfdir}/sarg/sarg.conf
+%config(noreplace) %{_sysconfdir}/httpd/conf.d/sarg.conf
+%config %{_sysconfdir}/sarg/exclude_codes
+%config %{_sysconfdir}/cron.*/sarg
+
+%dir %{htmloutputdir}
+%dir %{sysconfdir}
+%dir %{sysconfdir}/fonts
+%dir %{sysconfdir}/images
+%dir %{sysconfdir}/languages
+%dir %{htmloutputdir}/ONE-SHOT
+%dir %{htmloutputdir}/daily
+%dir %{htmloutputdir}/weekly
+%dir %{htmloutputdir}/monthly
+%dir %{bindir}
+%doc %{mandir}/*
+
+%{bindir}/*
+%{sysconfdir}/fonts/*
+%{sysconfdir}/images/*
+%{sysconfdir}/languages/*
+%{htmloutputdir}/index.html
+%{htmloutputdir}/sarg.css
+
+
+
+%changelog
+* Sun May 18 2006 Bernard 'Tux' Lheureux &lt;tux at portalinux dot org&gt; 2.1.1
+- Update to 2.1.1
+- Rebuilt for RHEL4/CentOS4
+
+* Tue Jun 21 2005 Petr Kri&#185;tof &lt;Petr|Kristof_CZ&gt; 2.0.8-1
+- Update to 2.0.8
+- Rebuild on FC-4
+
+* Mon Apr 04 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Misc fixes (cron scripts, sort and manpage patches) from Bronislav Bronsky &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">admin at gorefield.net</A>&gt; 
+- Applied latest patches
+
+* Mon Mar 28 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Fixed weekly and monthly scripts
+- Make the index.html file standards compliant
+
+* Tue Mar 22 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Rebuilt for 2.0.5
+
+* Mon Mar 14 2005 lonely wolf (<A HREF="http://lists.repoforge.org/mailman/listinfo/users">wolfy at pcnet.ro</A>)
+- merged spec file from dag (<A HREF="http://dag.wieers.com/packages/sarg/sarg.spec">http://dag.wieers.com/packages/sarg/sarg.spec</A>) and mack (<A HREF="http://mack.ro/linux/sarg/">http://mack.ro/linux/sarg/</A>)
+
+* Tue Mar 10 2005 lonely wolf (<A HREF="http://lists.repoforge.org/mailman/listinfo/users">wolfy at pcnet.ro</A>)
+- Compile for Centos 3.4
+
+* Tue Mar 01 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Added patch for segmentation fault
+
+* Thu Feb 24 2005 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Rebuilt for 2.0.4
+
+* Thu Nov 4 2004 Neculai Macarie &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mack at mack.ro</A>&gt;
+- Initial package for sarg 2, with ideas from Dag Wiers
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025005.html">[users] synaptic on FC5?
+</A></li>
+	<LI>Next message: <A HREF="025008.html">[users] sarg should be updated (current version is 2.2 !!!)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25006">[ date ]</a>
+              <a href="thread.html#25006">[ thread ]</a>
+              <a href="subject.html#25006">[ subject ]</a>
+              <a href="author.html#25006">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

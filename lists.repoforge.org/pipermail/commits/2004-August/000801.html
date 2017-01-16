@@ -1,0 +1,448 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1995 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1995%20-%20trunk/tools/yam&In-Reply-To=%3C20040814095741.30CE718822%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000800.html">
+   <LINK REL="Next"  HREF="000802.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1995 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1995%20-%20trunk/tools/yam&In-Reply-To=%3C20040814095741.30CE718822%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1995 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Aug 14 11:57:41 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000800.html">[SVN] r1994 - in trunk/rpms: arpd glabels john metakit putty
+</A></li>
+        <LI>Next message: <A HREF="000802.html">[SVN] r1996 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#801">[ date ]</a>
+              <a href="thread.html#801">[ thread ]</a>
+              <a href="subject.html#801">[ subject ]</a>
+              <a href="author.html#801">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-14 11:57:39 +0200 (Sat, 14 Aug 2004)
+New Revision: 1995
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.conf
+Log:
+Added some more rsync options that people might use.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-14 09:08:01 UTC (rev 1994)
++++ trunk/tools/yam/ChangeLog	2004-08-14 09:57:39 UTC (rev 1995)
+@@ -1,6 +1,7 @@
+ * 0.5
+ - Skipped a 0.4 release to indicate this is an important update.
+ - Rewrote most of the code to allow for smoother dist/arch configuration
++- Fixed rsync exclude problem (Bert de Bruijn)
+ 
+ * 0.4
+ - Added noarch by default to all dists
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-14 09:08:01 UTC (rev 1994)
++++ trunk/tools/yam/yam	2004-08-14 09:57:39 UTC (rev 1995)
+@@ -74,6 +74,90 @@
+       --unmount         unmount distributions
+ '''
+ 
++class config:
++	def __init__(self):
++		self.configfile = op.configfile
++		self.cfg = ConfigParser.ConfigParser()
++
++		(s,b,p,q,f,o) = urlparse.urlparse(self.configfile)
++		if s in ('http', 'ftp', 'file'):
++			configfh = urllib.urlopen(self.configfile)
++			try:
++				self.cfg.readfp(configfh)
++			except ConfigParser.MissingSectionHeaderError, e:
++				die(6, 'Error accessing URL: %s' % self.configfile)
++		else:
++			if os.access(self.configfile, os.R_OK):
++				self.cfg.read(self.configfile)
++			else:
++				die(6, 'Error accessing file: %s' % self.configfile)
++
++		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/yam/html')
++		self.srcdir = self.getoption('main', 'srcdir', '/var/yam')
++		self.lockfile = self.getoption('main', 'lockfile', '/var/run/yam.pid')
++		self.pxelinux = self.getoption('main', 'pxelinux', '/usr/lib/syslinux/pxelinux.0')
++		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/yam')
++		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/yam')
++
++		self.apt = not self.getoption('main', 'apt', 'yes') in ('no', 'off', 'false')
++		self.createrepo = not self.getoption('main', 'createrepo', 'yes') in ('no', 'off', 'false')
++		self.yum = not self.getoption('main', 'yum', 'yes') in ('no', 'off', 'false')
++
++		self.createrepocmd = self.getoption('main', 'createrepocmd', '/usr/bin/createrepo')
++		self.genbasedircmd = self.getoption('main', 'genbasedircmd', '/usr/bin/genbasedir')
++		self.lftpcmd = self.getoption('main', 'lftpcmd', '/usr/bin/lftp')
++		self.mountcmd = self.getoption('main', 'mountcmd', '/bin/mount')
++		self.rsynccmd = self.getoption('main', 'rsynccmd', '/usr/bin/rsync')
++		self.umountcmd = self.getoption('main', 'umountcmd', '/bin/umount')
++		self.yumarchcmd = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
++
++		self.rsyncbwlimit = self.getoption('main', 'rsync-bwlimit', None)
++		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in ('no', 'off', 'false')
++		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in ('no', 'off', 'false')
++		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in ('no', 'off', 'false')
++
++		self.repos = self.getrepos()
++		self.dists = []
++
++		for section in self.cfg.sections():
++			if section in ['main', 'repos']:
++				continue
++			else:
++				archs = self.getoption(section, 'arch', op.arch).split()
++				for arch in archs:
++					self.dists.append(distclass(section, arch))
++					self.dists[-1].arch = arch;
++					for option in self.cfg.options(section):
++						if option in ['iso', 'release', 'repo', 'tag']:
++							setattr(self.dists[-1], option, self.cfg.get(section, option))
++						elif option in ['arch', 'dist', 'name']:
++							continue
++						else:
++							self.dists[-1].repos[option] = self.cfg.get(section, option)
++					self.dists[-1].rewrite()
++
++	def getoption(self, section, option, var):
++		&quot;Get an option from a section from configfile&quot;
++		try:
++			var = self.cfg.get(section, option)
++		except ConfigParser.NoSectionError, e:
++			print 'Failed to find section: %s' % section
++		except ConfigParser.NoOptionError, e:
++			debug('Failed to find option %s in section %s' % (option, section))
++			pass
++		debug('Setting config %s in section %s to %s' % (option, section, var))
++		return var
++
++	def getrepos(self):
++		&quot;Return all main repositories&quot;
++		repos={}
++		if self.cfg.has_section('repos'):
++			for repo in self.cfg.options('repos'):
++				url=self.getoption('repos', repo, None)
++				if url:
++					repos[repo]=url.split()
++		return repos
++
+ class distclass:
+ 	def __init__(self, dist, arch):
+ 		self.arch = arch
+@@ -198,87 +282,6 @@
+ 		symlink(cf.htmldir + '/HEADER.repo.shtml', distdir + '/HEADER.shtml')
+ 		symlink(cf.htmldir + '/README.index.shtml', distdir + '/README.shtml')
+ 
+-class config:
+-	def __init__(self):
+-		self.configfile = op.configfile
+-		self.cfg = ConfigParser.ConfigParser()
+-
+-		(s,b,p,q,f,o) = urlparse.urlparse(self.configfile)
+-		if s in ('http', 'ftp', 'file'):
+-			configfh = urllib.urlopen(self.configfile)
+-			try:
+-				self.cfg.readfp(configfh)
+-			except ConfigParser.MissingSectionHeaderError, e:
+-				die(6, 'Error accessing URL: %s' % self.configfile)
+-		else:
+-			if os.access(self.configfile, os.R_OK):
+-				self.cfg.read(self.configfile)
+-			else:
+-				die(6, 'Error accessing file: %s' % self.configfile)
+-
+-		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/yam/html')
+-		self.srcdir = self.getoption('main', 'srcdir', '/var/yam')
+-		self.lockfile = self.getoption('main', 'lockfile', '/var/run/yam.pid')
+-		self.pxelinux = self.getoption('main', 'pxelinux', '/usr/lib/syslinux/pxelinux.0')
+-		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/yam')
+-		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/yam')
+-
+-		self.apt = not self.getoption('main', 'apt', 'yes') in ('no', 'off', 'false')
+-		self.createrepo = not self.getoption('main', 'createrepo', 'yes') in ('no', 'off', 'false')
+-		self.yum = not self.getoption('main', 'yum', 'yes') in ('no', 'off', 'false')
+-
+-		self.createrepocmd = self.getoption('main', 'createrepocmd', '/usr/bin/createrepo')
+-		self.genbasedircmd = self.getoption('main', 'genbasedircmd', '/usr/bin/genbasedir')
+-		self.lftpcmd = self.getoption('main', 'lftpcmd', '/usr/bin/lftp')
+-		self.mountcmd = self.getoption('main', 'mountcmd', '/bin/mount')
+-		self.rsynccmd = self.getoption('main', 'rsynccmd', '/usr/bin/rsync')
+-		self.umountcmd = self.getoption('main', 'umountcmd', '/bin/umount')
+-		self.yumarchcmd = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
+-
+-		self.repos = self.getrepos()
+-		self.dists = []
+-
+-		for section in self.cfg.sections():
+-			if section in ['main', 'repos']:
+-				continue
+-			else:
+-				archs = self.getoption(section, 'arch', op.arch).split()
+-				for arch in archs:
+-					self.dists.append(distclass(section, arch))
+-					self.dists[-1].arch = arch;
+-					for option in self.cfg.options(section):
+-						if option in ['iso', 'release', 'repo', 'tag']:
+-							setattr(self.dists[-1], option, self.cfg.get(section, option))
+-						elif option in ['arch', 'dist', 'name']:
+-							continue
+-						else:
+-							self.dists[-1].repos[option] = self.cfg.get(section, option)
+-					self.dists[-1].rewrite()
+-
+-	def getoption(self, section, option, var):
+-		&quot;Get an option from a section from configfile&quot;
+-		try:
+-			var = self.cfg.get(section, option)
+-		except ConfigParser.NoSectionError, e:
+-			print 'Failed to find section: %s' % section
+-		except ConfigParser.NoOptionError, e:
+-			debug('Failed to find option %s in section %s' % (option, section))
+-			pass
+-		debug('Setting config %s in section %s to %s' % (option, section, var))
+-		return var
+-
+-	def getrepos(self):
+-		&quot;Return all main repositories&quot;
+-		repos={}
+-		if self.cfg.has_section('repos'):
+-			for repo in self.cfg.options('repos'):
+-				url=self.getoption('repos', repo, None)
+-				if url:
+-###					FIXME: repo should be another list with URLs
+-					repos[repo]=url.split()
+-#					print repo, repos[repo]
+-		return repos
+-
+ def info(str):
+ 	&quot;Output info message&quot;
+ 	if op.verbose and not op.quiet:
+@@ -390,18 +393,24 @@
+ 	if not os.path.isfile(cf.rsynccmd):
+ 		die(4, 'rsync command not found as %s' % cf.rsynccmd)
+ 	mkdir(path)
+-	print '%s -avzHL --delete-after %s %s' % (cf.rsynccmd, url, path)
+-	opts = ''
+-	if op.quiet: opts = &quot;--quiet&quot;
+-#	os.system('%s -avzHL --progress --delete-after --delete-excluded --timeout=5 --include \\&quot;*.rpm\\&quot; --exclude \\&quot;*.src.rpm\\&quot; --exclude \\&quot;*\\&quot; %s %s' % (cf.rsynccmd, url, path))
+-	os.system('%s -avzHL %s --progress --delete-excluded --include \\&quot;*.rpm\\&quot; --exclude \\&quot;*.src.rpm\\&quot; --exclude \\&quot;*\\&quot; %s %s' % (cf.rsynccmd, opts, url, path))
++	if op.quiet: opts = ' -q'
++	elif op.verbose: opts = ' -v --progress'
++	else: opts = ''
+ 
++	if cf.rsyncexclsrpm: opts = ' --exclude=\\&quot;*.src.rpm\\&quot;' + opts
++	if cf.rsyncexcldebug: opts = ' --exclude=\\&quot;*-debuginfo-*.rpm\\&quot;' + opts
++	if cf.rsyncexclsrpm or cf.rsyncexcldebug: opts = opts + ' --exclude=\\&quot;*.*\\&quot;'
++	if cf.rsynccleanup: opts = opts + ' --delete-after --delete-excluded'
++	if cf.rsyncbwlimit: opts = opts + ' --bwlimit='+cf.rsyncbwlimit
++
++	opts = opts + ' --timeout=5'
++	os.system('%s -aHL %s %s %s' % (cf.rsynccmd, opts, url, path))
++
+ def lftpmirror(url, path):
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+ 	if not os.path.isfile(cf.lftpcmd):
+ 		die(4, 'lftp command not found as %s' % cf.lftpcmd)
+ 	mkdir(path)
+-	print '%s -c \'mirror -a -r %s %s\'' % (cf.lftpcmd, url, path)
+ 	opts = ''
+ 	if op.quiet: opts=&quot;--verbose=0&quot;
+ 	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror %s -a -I *.rpm -X *.src.rpm %s %s\'' % (cf.lftpcmd, opts, url, path))
+@@ -413,7 +422,7 @@
+ def rpmlink ((dist, repo), dirpath, filelist):
+ 	&quot;Symlink all RPM packages that match a given arch&quot;
+ 	if dist.arch:
+-		if archs[dist.arch]: as=archs[dist.arch]+ ['noarch']
++		if archs[dist.arch]: as=archs[dist.arch] + ['noarch']
+ 		else: as=['dist.arch'] + ['noarch']
+ 		for arch in as:
+ 			rpmmatch='.+\.' + arch + '\.rpm$'
+@@ -441,18 +450,7 @@
+ 	symlink(cf.htmldir + '/HEADER.index.shtml', cf.wwwdir + '/HEADER.shtml')
+ 	symlink(cf.htmldir + '/README.index.shtml', cf.wwwdir + '/README.shtml')
+ 
+-	### Update extras
+-#	if op.extra:
+-#		for extra in cf.extras.keys():
+-#			for source in cf.extras[extra]:
+-#				mirror(source, cf.srcdir + '/extras/' + extra)
+-
+ 	for dist in cf.dists:
+-#		print dist.name, dist.dist, dist.arch, dist.tag, dist.release
+-#		print dist.repos
+-#		print dist.iso
+-#		print dist.isos()
+-	
+ #		if not cf.dists != []:
+ #			info('Ignoring distribution %s, is not defined' % dist.name)
+ #			continue
+@@ -486,7 +484,6 @@
+ 					mirror(dist.repos[repo], cf.srcdir + '/' + dist.name + '/' + repo)
+ 			else:
+ 				if op.extra:
+-					print &quot;DO2:&quot;, repo
+ 					mirror(dist.repos[repo], cf.srcdir + '/' + dist.name + '/' + repo)
+ 
+ 		if not op.generate:
+@@ -513,6 +510,7 @@
+ 				os.path.walk(srcdir, rpmlink, (dist, repo))
+ 
+ 		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
++		### Maybe add a hardlink utility for cleaning up afterwards
+ #		os.remove(cf.srcdir + '/updates/' + dist + '/' + os.path.basename(file))
+ 
+ 		srcdir = cf.srcdir + '/' + dist.name + '/local'
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-08-14 09:08:01 UTC (rev 1994)
++++ trunk/tools/yam/yam.conf	2004-08-14 09:57:39 UTC (rev 1995)
+@@ -1,4 +1,11 @@
+-### Configuration file for Yam 0.4
++### Configuration file for Yam
++###
++### Easy steps:
++###   + Put your ISO files into /var/yam/iso
++###   + Put your custom packages into /var/yam/&lt;dist&gt;/local or /var/yam/all/local
++###   + Customize this file to your liking (see documentation for details)
++###   + Run yam -v, then yam -gv, then yam -guv and finally yam -guvx to understand what it does
++
+ [main]
+ srcdir=/var/yam
+ wwwdir=/var/www/yam
+@@ -8,8 +15,9 @@
+ ### If you want to mirror a whole repository, packages should be tagged
+ #[repos]
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/">rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/</A>
++#dries=<A HREF="http://dries.studentenweb.org/apt/packages/">http://dries.studentenweb.org/apt/packages/</A>
+ #freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/</A>
+-#dries=<A HREF="http://dries.studentenweb.org/apt/packages/">http://dries.studentenweb.org/apt/packages/</A>
++#newrpms=<A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/</A>
+ 
+ 
+ ### You can however also add extra repositories to you dist config
+@@ -18,24 +26,29 @@
+ arch=i386 x86_64
+ tag=fc2 rhfc2
+ 
+-iso=FC2-$arch-disc?.iso
++iso=FC$release-$arch-disc?.iso
+ core=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ 
+ dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
+ dries=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++newrpms=<A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/</A>
+ 
+-
+ #[tao1]
+ #release=1.0
++#arch=i386 ia64 s390 s390x x86_64
+ #tag=el3 rhel3
+ #
+ #iso=mooch-i386-disc?.iso
+ #os=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
+ #updates=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
++#contrib=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
++#kernel-el=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
+ 
++#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
+ 
++
+ #[centos3]
+ #release=3.1
+ #tag=el3 rhel3
+@@ -43,7 +56,11 @@
+ #iso=CentOS-3.1-$arch.disc?.iso
+ #os=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RedHat/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RedHat/RPMS/</A>
+ #updates=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
++#extras=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
++#addons=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
++#contrib=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
+ 
++#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
+ 
+ #[rh73]
+ #release=7.3
+@@ -52,8 +69,9 @@
+ #iso=valhalla-$arch-disc?.iso
+ #os=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
+ #updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
++#
++#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/</A>
+ 
+-
+ ### RHN support has not been added yet, any help is welcome.
+ #[rhes3]
+ #release=3
+@@ -61,19 +79,21 @@
+ #
+ #iso=rhel-3-U2-$arch-es-disc?.iso rhel-3-U2-$arch-disc?.iso
+ #updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
++#
++#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+-
+ #[rhas21]
+ #release=2.1
+ #tag=el2 rhel2.1
+ #
+ #iso=RHEL2.1AS-U4-re0427.2.1-$arch-disc?.iso rhel-21-u2-$arch-disc?.iso
+ #updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
++#
++#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2/en/$arch/RPMS.$repo/</A>
+ 
+-
+ ### SuSE is not yet supported for remote booting and for updates, insight is welcome.
+ #[sles8]
+ #release=8
+ #
+-#iso=SLES-8-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
++#iso=SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
+ #updates=<A HREF="ftp://dag_wieers@be.ibm.com@ftp3.be.ibm.com/suse/maintweb/$arch/update/SuSE-SLES/$release/">ftp://dag_wieers@be.ibm.com@ftp3.be.ibm.com/suse/maintweb/$arch/update/SuSE-SLES/$release/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000800.html">[SVN] r1994 - in trunk/rpms: arpd glabels john metakit putty
+</A></li>
+	<LI>Next message: <A HREF="000802.html">[SVN] r1996 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#801">[ date ]</a>
+              <a href="thread.html#801">[ thread ]</a>
+              <a href="subject.html#801">[ subject ]</a>
+              <a href="author.html#801">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

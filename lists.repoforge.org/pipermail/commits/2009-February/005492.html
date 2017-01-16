@@ -1,0 +1,268 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6693 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6693%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200902092017.n19KHf1e013005%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005491.html">
+   <LINK REL="Next"  HREF="005493.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6693 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6693%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200902092017.n19KHf1e013005%40surya.karan.org%3E"
+       TITLE="[svn] r6693 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Feb  9 21:17:41 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005491.html">[svn] r6692 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="005493.html">[svn] r6694 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5492">[ date ]</a>
+              <a href="thread.html#5492">[ thread ]</a>
+              <a href="subject.html#5492">[ subject ]</a>
+              <a href="author.html#5492">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-02-09 20:17:41 +0000 (Mon, 09 Feb 2009)
+New Revision: 6693
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Added left and right mouse buttons and battery check.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-02-09 12:29:33 UTC (rev 6692)
++++ trunk/tools/wiipresent/ChangeLog	2009-02-09 20:17:41 UTC (rev 6693)
+@@ -1,6 +1,8 @@
+ * Mon Feb 09 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Use tilt information to move mouse pointer.
+ - Show battery information.
++- Implemented left and right mouse buttons.
++- Simple battery level check.
+ 
+ * Sat Feb 07 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Ignore repeating keys.
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-02-09 12:29:33 UTC (rev 6692)
++++ trunk/tools/wiipresent/wiipresent.c	2009-02-09 20:17:41 UTC (rev 6693)
+@@ -60,9 +60,13 @@
+         XTestFakeRelativeMotionEvent(display, xpos, ypos, 0);
+     else
+         XTestFakeMotionEvent(display, -1, xpos, ypos, 0);
+-    return;
+ }
+ 
++void ClickMouse(Display *display, int button, int release) {
++    XTestFakeButtonEvent(display, button, release, 0);
++    XSync(display, False);
++}
++
+ void exit_clean(int sig) {
+     wiimote_disconnect(&amp;wmote);
+     printf(&quot;Exiting on signal %d.\n&quot;, sig);
+@@ -79,7 +83,7 @@
+ 
+ int main() {
+     int debug = False;
+-    int length = 1 * 60;
++    int length = 50 * 60;
+     char btaddress[] = &quot;00:1B:7A:F9:D5:70&quot;;
+     wmote = (wiimote_t) WIIMOTE_INIT;
+     wiimote_report_t report = WIIMOTE_REPORT_INIT;
+@@ -114,8 +118,6 @@
+ 
+     rumble(&amp;wmote, 200);
+ 
+-    printf(&quot;Battery status: %d\n&quot;, wmote.battery);
+-
+     time_t start = 0, now = 0, duration = 0;
+     int phase = 0, oldphase = 0;
+     uint16_t keys = 0;
+@@ -159,77 +161,96 @@
+             oldphase = phase;
+         }
+ 
+-        if (wmote.keys.two) {
+-            report.channel = WIIMOTE_RID_STATUS;
+-            if (wiimote_report(&amp;wmote, &amp;report, sizeof (report.status)) &lt; 0) {
+-                wiimote_perror(&quot;unable to get status report&quot;);
+-            }
++        // Check battery
++        if (wmote.battery &lt; 5) {
++            printf(&quot;Bettery low (%d%%), please replace batteries !\n&quot;, wmote.battery);
+         }
+ 
+ //        printf(&quot;%f - %f - %f - %ld - %ld - %ld - %d\n&quot;, ((float) duration * 5.0 / (float) length), (float) duration, (float) length, start, now, duration, phase);
+ 
+-        // Filter out recurring key-events for the same key-press
+-        if (keys == wmote.keys.bits &amp;&amp; !wmote.keys.a) {
+-            continue;
+-        } else {
+-            keys = wmote.keys.bits;
+-        }
++        // Inside the mouse functionality
++        if (wmote.keys.a) {
++            wmote.mode.acc = 1;
+ 
+-        if (wmote.keys.home) {
+-            printf(&quot;Exit on user request.\n&quot;);
+-            wiimote_disconnect(&amp;wmote);
+-        }
++            // Block repeating keys
++            if (keys == wmote.keys.bits) {
++                continue;
++            }
+ 
+-        if (wmote.keys.a) {
+-            if (debug) printf(&quot;[A] &quot;);
+-            wmote.mode.acc = 1;
+-            MovePointer(display, wmote.tilt.x/8, wmote.tilt.y/8, 1);
++            // Left mouse button events
++            if (wmote.keys.minus) {
++                ClickMouse(display, 1, 1);
++            } else if (keys &amp; WIIMOTE_KEY_MINUS) {
++                ClickMouse(display, 1, 0);
++            }
++
++            // Right mouse button events
++            if (wmote.keys.plus) {
++                ClickMouse(display, 3, 1);
++            } else if (keys &amp; WIIMOTE_KEY_PLUS) {
++                ClickMouse(display, 3, 0);
++            }
++
+         } else {
+             wmote.mode.acc = 0;
+-        }
+ 
+-        if (wmote.keys.b) {
+-            if (debug) printf(&quot;[B] &quot;);
+-        }
++            // Block repeating keys
++            if (keys == wmote.keys.bits) {
++                continue;
++            }
+ 
+-        if (wmote.keys.one) {
+-            if (debug) printf(&quot;[1] &quot;);
+-            XActivateScreenSaver(display);
+-        }
++            // Disconnect the device
++            if (wmote.keys.home) {
++                printf(&quot;Exit on user request.\n&quot;);
++                wiimote_disconnect(&amp;wmote);
++            }
+ 
+-        if (wmote.keys.two) {
+-            if (debug) printf(&quot;[2] &quot;);
+-        }
++            if (wmote.keys.b) {
++                if (debug) printf(&quot;[B] &quot;);
++            }
+ 
+-        if (wmote.keys.plus) {
+-            if (debug) printf(&quot;[+] &quot;);
+-            FakeKeycode(XK_Right, ControlMask | Mod1Mask);
+-        }
++            // Blank screen
++            if (wmote.keys.one) {
++                XActivateScreenSaver(display);
++            }
+ 
+-        if (wmote.keys.minus) {
+-            if (debug) printf(&quot;[-] &quot;);
+-            FakeKeycode(XK_Left, ControlMask | Mod1Mask);
+-        }
++            if (wmote.keys.two) {
++                if (debug) printf(&quot;[2] &quot;);
++            }
+ 
+-        if (wmote.keys.up) {
+-            if (debug) printf(&quot;[up] &quot;);
+-            FakeKeycode(XK_F9, 0);
+-        }
++            // Goto to previous workspace
++            if (wmote.keys.plus) {
++                FakeKeycode(XK_Right, ControlMask | Mod1Mask);
++            }
+ 
+-        if (wmote.keys.down) {
+-            if (debug) printf(&quot;[down] &quot;);
+-            FakeKeycode(XK_Escape, 0);
+-        }
++            // Goto to next workspace
++            if (wmote.keys.minus) {
++                FakeKeycode(XK_Left, ControlMask | Mod1Mask);
++            }
+ 
+-        if (wmote.keys.left) {
+-            if (debug) printf(&quot;[left] &quot;);
+-            FakeKeycode(XK_Page_Up, 0);
++            // Fullscreen
++            if (wmote.keys.up) {
++                FakeKeycode(XK_F9, 0);
++            }
++
++            if (wmote.keys.down) {
++                FakeKeycode(XK_Escape, 0);
++            }
++
++            // Next slide
++            if (wmote.keys.left) {
++                FakeKeycode(XK_Page_Up, 0);
++            }
++
++            // Previous slide
++            if (wmote.keys.right) {
++                FakeKeycode(XK_Page_Down, 0);
++            }
++
++            // Save the keys state for next run
++            keys = wmote.keys.bits;
+         }
+ 
+-        if (wmote.keys.right) {
+-            if (debug) printf(&quot;[right] &quot;);
+-            FakeKeycode(XK_Page_Down, 0);
+-        }
+     }
+     XCloseDisplay(display);
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005491.html">[svn] r6692 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="005493.html">[svn] r6694 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5492">[ date ]</a>
+              <a href="thread.html#5492">[ thread ]</a>
+              <a href="subject.html#5492">[ subject ]</a>
+              <a href="author.html#5492">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

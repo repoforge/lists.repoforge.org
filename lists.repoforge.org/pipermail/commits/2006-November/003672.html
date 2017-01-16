@@ -1,0 +1,146 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4872 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4872%20-%20trunk/tools/yam&In-Reply-To=%3C20061109191734.71726944B4D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003671.html">
+   <LINK REL="Next"  HREF="003673.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4872 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4872%20-%20trunk/tools/yam&In-Reply-To=%3C20061109191734.71726944B4D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4872 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Nov  9 20:17:34 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003671.html">[svn] r4871 - trunk/rpms/zope
+</A></li>
+        <LI>Next message: <A HREF="003673.html">[svn] r4873 - trunk/rpms/gaim-encryption
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3672">[ date ]</a>
+              <a href="thread.html#3672">[ thread ]</a>
+              <a href="subject.html#3672">[ subject ]</a>
+              <a href="author.html#3672">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-11-09 20:17:33 +0100 (Thu, 09 Nov 2006)
+New Revision: 4872
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/rhnget
+Log:
+Added proxy support to rhnget
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-11-09 02:30:31 UTC (rev 4871)
++++ trunk/tools/yam/ChangeLog	2006-11-09 19:17:33 UTC (rev 4872)
+@@ -3,6 +3,7 @@
+ - Do not copy the comps.xml from the ISO when the target os-comps.xml exists (Jason Kim)
+ - Fixed a problem when locking during a dry-run (David Lutterkort)
+ - Improved a lot of dist configs
++- Added proxy support to rhnget (no need anymore to tweak /etc/sysconfig/rhn/up2date)
+ 
+ * 0.8.3 - Van Eyck - released 15/10/2006
+ - Fixed a problem with specific python versions (Justin B Hochstetler)
+
+Modified: trunk/tools/yam/rhnget
+===================================================================
+--- trunk/tools/yam/rhnget	2006-11-09 02:30:31 UTC (rev 4871)
++++ trunk/tools/yam/rhnget	2006-11-09 19:17:33 UTC (rev 4872)
+@@ -188,8 +188,7 @@
+ 	'Log on to RHN and return cfg, loginInfo and systemid'
+ 	global cfg, loginInfo, rd, config, rpcServer
+ 
+-	rhnscheme, rhnserver, t, t, t, t = urlparse.urlparse(url)
+-
++	### Look for the usual suspects
+ 	if os.path.isfile(op.systemid):
+ 		systemidpath = op.systemid
+ 	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
+@@ -214,7 +213,13 @@
+ 	cfg['isatty'] = 1
+ 	cfg['networkRetries'] = 3
+ #	cfg['headerFetchCount'] = 20
++	cfg['enableProxy'] = 0
++	cfg['enableProxyAuth'] = 0
++	cfg['httpProxy'] = ''
++	cfg['proxyUser='] = ''
++	cfg['proxyPassword'] = ''
+ 
++	### Override the version if forced in Yam configuration (to allow single systemid usage)
+ 	if op.rhnrelease:
+ 		cfg['versionOverride'] = op.rhnrelease
+ 	else:
+@@ -224,11 +229,14 @@
+ #	if op.arch:
+ #		cfg['forceArch'] = '%s-redhat-linux' % op.arch
+ 
++	### Modify the logfile in case we have no rights to write in /var/log/up2date (non-root)
+ 	if os.access('/var/log/up2date', os.W_OK):
+ 		cfg['logFile'] = '/var/log/up2date'
+ 	else:
+ 		cfg['logFile'] = os.path.expanduser('~/up2date.log')
+ 
++	### If we're not targetting the default RHN server, change the location
++	rhnscheme, rhnserver, t, t, t, t = urlparse.urlparse(url)
+ 	if rhnserver:
+ 		cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
+ 		if rhnscheme == 'rhn':
+@@ -236,6 +244,22 @@
+ 		else:
+ 			cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
+ 
++	### Get proxy information from environment and set up2date config accordingly
++	if os.environ['http_proxy'] and rhnscheme == 'rhn':
++		t, proxy, t, t, t, t = urlparse.urlparse(os.environ['http_proxy'])
++	elif os.environ['https_proxy'] and rhnscheme == 'rhns':
++		t, proxy, t, t, t, t = urlparse.urlparse(os.environ['https_proxy'])
++	if proxy:
++		cfg['enableProxy'] = 1
++		cfg['httpProxy'] = proxy
++		info(4, 'Setting proxy for %s to %s' % (rhnscheme, proxy))
++		### FIXME: Implement proxy authentication
++#		if proxy.username and proxy.password:
++#			cfg['enableProxyAuth'] = 1
++#			cfg['proxyPassword'] = proxy.password
++#			cfg['proxyUser='] = proxy.username
++
++	### Set debugging information to something very high (there seems to be no granularity)
+ 	if op.verbose &gt;= 3:
+ 		cfg['debug'] = 10000
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003671.html">[svn] r4871 - trunk/rpms/zope
+</A></li>
+	<LI>Next message: <A HREF="003673.html">[svn] r4873 - trunk/rpms/gaim-encryption
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3672">[ date ]</a>
+              <a href="thread.html#3672">[ thread ]</a>
+              <a href="subject.html#3672">[ subject ]</a>
+              <a href="author.html#3672">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

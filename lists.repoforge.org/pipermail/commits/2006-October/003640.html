@@ -1,0 +1,683 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4840 - in trunk/rpms: . dkms-lirc dkms-ntfs dkms-pwc	dkms-tiacx
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4840%20-%20in%20trunk/rpms%3A%20.%20dkms-lirc%20dkms-ntfs%20dkms-pwc%0A%09dkms-tiacx&In-Reply-To=%3C20061020142344.E1715944B44%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003639.html">
+   <LINK REL="Next"  HREF="003641.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4840 - in trunk/rpms: . dkms-lirc dkms-ntfs dkms-pwc	dkms-tiacx</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4840%20-%20in%20trunk/rpms%3A%20.%20dkms-lirc%20dkms-ntfs%20dkms-pwc%0A%09dkms-tiacx&In-Reply-To=%3C20061020142344.E1715944B44%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4840 - in trunk/rpms: . dkms-lirc dkms-ntfs dkms-pwc	dkms-tiacx">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Oct 20 16:23:44 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003639.html">[svn] r4839 - trunk/rpms/mpd
+</A></li>
+        <LI>Next message: <A HREF="003641.html">[svn] r4841 - in trunk: rpms/mplayerplug-in	web/freshrpms.net/packages/lists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3640">[ date ]</a>
+              <a href="thread.html#3640">[ thread ]</a>
+              <a href="subject.html#3640">[ subject ]</a>
+              <a href="author.html#3640">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-10-20 16:23:43 +0200 (Fri, 20 Oct 2006)
+New Revision: 4840
+
+Added:
+   trunk/rpms/dkms-lirc/
+   trunk/rpms/dkms-lirc/dkms-lirc.spec
+   trunk/rpms/dkms-lirc/lirc-0.8.1pre2-alldrivers.patch
+   trunk/rpms/dkms-lirc/lirc-0.8.1pre2-nolinuxconfigh.patch
+   trunk/rpms/dkms-ntfs/
+   trunk/rpms/dkms-ntfs/dkms-ntfs.spec
+   trunk/rpms/dkms-ntfs/ntfs-2.1.27-from-2.6.18-noblksize.patch
+   trunk/rpms/dkms-pwc/
+   trunk/rpms/dkms-pwc/dkms-pwc.spec
+   trunk/rpms/dkms-pwc/pwc-v4l2-20061018-042701-no-config.h.patch
+Modified:
+   trunk/rpms/dkms-tiacx/dkms-tiacx.spec
+Log:
+Initial import of dkms-ntfs, dkms-lirc, dkms-pwc and minor dkms-tiacx cleanup.
+
+
+Added: trunk/rpms/dkms-lirc/dkms-lirc.spec
+===================================================================
+--- trunk/rpms/dkms-lirc/dkms-lirc.spec	                        (rev 0)
++++ trunk/rpms/dkms-lirc/dkms-lirc.spec	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -0,0 +1,106 @@
++# $Id$
++# Authority: matthias
++# Dist: nodist
++
++# We disable lirc_gpio (build fails) and lirc_parallel (not SMP safe)
++%define modules lirc_atiusb lirc_bt829 lirc_cmdir lirc_dev lirc_i2c lirc_igorplugusb lirc_imon lirc_it87 lirc_mceusb lirc_mceusb2 lirc_sasem lirc_serial lirc_sir lirc_streamzap
++
++Summary: Drivers for lirc supported hardware
++Name: dkms-lirc
++Version: 0.8.1
++Release: 0.1.pre2
++License: GPL
++Group: System Environment/Kernel
++URL: <A HREF="http://www.lirc.org/">http://www.lirc.org/</A>
++Source: <A HREF="http://lirc.sourceforge.net/software/snapshots/lirc-%{version">http://lirc.sourceforge.net/software/snapshots/lirc-%{version</A>}pre2.tar.bz2
++Patch0: lirc-0.8.1pre2-alldrivers.patch
++Patch1: lirc-0.8.1pre2-nolinuxconfigh.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildArch: noarch
++Requires: gcc, lirc
++Requires(post): dkms
++Requires(preun): dkms
++BuildRequires: autoconf
++# Kind of bogus since it's the configure check that requires it
++BuildRequires: kernel, kernel-devel
++
++%description
++Drivers (Linux kernel modules) for various infrared remote controls and
++receivers supported by lirc.
++
++
++%prep
++%setup -n lirc-%{version}pre2
++%patch0 -p1 -b .alldrivers
++%patch1 -p1 -b .nolinuxconfigh
++
++
++%build
++# We patched configure.in to remove some drivers
++autoconf
++# Get the most recent kernel's build path. Just as bogus as the buildreq...
++%configure \
++    --with-kerneldir=`ls -1 -d /lib/modules/*/build | tail -1` \
++    --with-driver=all
++
++
++%install
++%{__rm} -rf %{buildroot}
++
++%define dkms_name lirc
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
++# Kernel module sources install for dkms
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++%{__cp} -a drivers/ config.h config.status configure.in \
++    %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++# Configuration for dkms
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
++PACKAGE_NAME=%{dkms_name}
++PACKAGE_VERSION=%{dkms_vers}
++MAKE[0]=&quot;make -C drivers KERNEL_LOCATION=${kernel_source_dir}&quot;
++CLEAN[0]=&quot;make -C drivers clean&quot;
++EOF
++# Here we loop since all the many drivers are in their own directory
++i=0; for module in %{modules}; do
++%{__cat} &gt;&gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; EOF
++BUILT_MODULE_NAME[${i}]=${module}
++BUILT_MODULE_LOCATION[${i}]=drivers/${module}
++DEST_MODULE_LOCATION[${i}]=/kernel/drivers/input/lirc
++EOF
++(( i++ ))
++done
++# And the last line of the file, to keep the &quot;usual&quot; order
++%{__cat} &gt;&gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; EOF
++AUTOINSTALL=&quot;YES&quot;
++EOF
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++# Add to DKMS registry
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
++
++%preun
++# Remove all versions from DKMS registry
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc COPYING
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++
++%changelog
++* Wed Oct 18 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.8.1-0.1.pre2
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/dkms-lirc/dkms-lirc.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/dkms-lirc/lirc-0.8.1pre2-alldrivers.patch
+===================================================================
+--- trunk/rpms/dkms-lirc/lirc-0.8.1pre2-alldrivers.patch	                        (rev 0)
++++ trunk/rpms/dkms-lirc/lirc-0.8.1pre2-alldrivers.patch	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -0,0 +1,18 @@
++diff -Naupr lirc-0.8.1pre2.orig/configure.in lirc-0.8.1pre2/configure.in
++--- lirc-0.8.1pre2.orig/configure.in	2006-10-14 08:19:17.000000000 +0200
+++++ lirc-0.8.1pre2/configure.in	2006-10-18 01:36:19.000000000 +0200
++@@ -1129,14 +1129,12 @@ elif test &quot;$lirc_driver&quot; = &quot;all&quot;; then
++ 	lirc_atiusb \
++ 	lirc_bt829 \
++ 	lirc_cmdir \
++-	lirc_gpio \
++ 	lirc_i2c \
++ 	lirc_igorplugusb \
++ 	lirc_imon \
++ 	lirc_it87 \
++ 	lirc_mceusb \
++ 	lirc_mceusb2 \
++-	lirc_parallel \
++ 	lirc_sasem \
++ 	lirc_serial \
++ 	lirc_sir \
+
+Added: trunk/rpms/dkms-lirc/lirc-0.8.1pre2-nolinuxconfigh.patch
+===================================================================
+--- trunk/rpms/dkms-lirc/lirc-0.8.1pre2-nolinuxconfigh.patch	                        (rev 0)
++++ trunk/rpms/dkms-lirc/lirc-0.8.1pre2-nolinuxconfigh.patch	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -0,0 +1,171 @@
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_atiusb/lirc_atiusb.c lirc-0.8.1pre2/drivers/lirc_atiusb/lirc_atiusb.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_atiusb/lirc_atiusb.c	2006-07-31 03:19:57.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_atiusb/lirc_atiusb.c	2006-10-18 16:42:55.000000000 +0200
++@@ -39,8 +39,6 @@
++ #error &quot;*******************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++-
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/init.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_bt829/lirc_bt829.c lirc-0.8.1pre2/drivers/lirc_bt829/lirc_bt829.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_bt829/lirc_bt829.c	2005-11-27 12:03:01.000000000 +0100
+++++ lirc-0.8.1pre2/drivers/lirc_bt829/lirc_bt829.c	2006-10-18 16:43:23.000000000 +0200
++@@ -23,7 +23,6 @@
++ #error &quot;This driver needs kernel version 2.4.0 or higher&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/module.h&gt;
++ #include &lt;linux/threads.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_cmdir/lirc_cmdir.c lirc-0.8.1pre2/drivers/lirc_cmdir/lirc_cmdir.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_cmdir/lirc_cmdir.c	2006-08-10 02:53:21.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_cmdir/lirc_cmdir.c	2006-10-18 16:43:31.000000000 +0200
++@@ -35,7 +35,6 @@
++ #error &quot;**********************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/module.h&gt;
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/signal.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_dev/lirc_dev.c lirc-0.8.1pre2/drivers/lirc_dev/lirc_dev.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_dev/lirc_dev.c	2006-09-22 05:18:22.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_dev/lirc_dev.c	2006-10-18 16:43:34.000000000 +0200
++@@ -32,7 +32,6 @@
++ #error &quot;**********************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/module.h&gt;
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/sched.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_igorplugusb/lirc_igorplugusb.c lirc-0.8.1pre2/drivers/lirc_igorplugusb/lirc_igorplugusb.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_igorplugusb/lirc_igorplugusb.c	2006-03-04 23:36:38.000000000 +0100
+++++ lirc-0.8.1pre2/drivers/lirc_igorplugusb/lirc_igorplugusb.c	2006-10-18 16:43:43.000000000 +0200
++@@ -47,7 +47,6 @@
++ #error &quot;*******************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/module.h&gt;
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/kmod.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_imon/lirc_imon.c lirc-0.8.1pre2/drivers/lirc_imon/lirc_imon.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_imon/lirc_imon.c	2006-07-31 03:19:57.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_imon/lirc_imon.c	2006-10-18 16:43:46.000000000 +0200
++@@ -49,8 +49,6 @@
++ #error &quot;*** Sorry, this driver requires kernel version 2.4.22 or higher&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++-
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/init.h&gt;
++ #include &lt;linux/kernel.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_it87/lirc_it87.c lirc-0.8.1pre2/drivers/lirc_it87/lirc_it87.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_it87/lirc_it87.c	2006-01-21 18:43:36.000000000 +0100
+++++ lirc-0.8.1pre2/drivers/lirc_it87/lirc_it87.c	2006-10-18 16:43:51.000000000 +0200
++@@ -38,9 +38,6 @@
++ # include &lt;config.h&gt;
++ #endif
++  
++-#include &lt;linux/config.h&gt;
++-
++-
++ #include &lt;linux/sched.h&gt;
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/signal.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_mceusb/lirc_mceusb.c lirc-0.8.1pre2/drivers/lirc_mceusb/lirc_mceusb.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_mceusb/lirc_mceusb.c	2006-07-31 03:19:57.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_mceusb/lirc_mceusb.c	2006-10-18 16:43:54.000000000 +0200
++@@ -88,7 +88,6 @@
++  *
++  */
++ 
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/init.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_mceusb2/lirc_mceusb2.c lirc-0.8.1pre2/drivers/lirc_mceusb2/lirc_mceusb2.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_mceusb2/lirc_mceusb2.c	2006-09-22 05:18:22.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_mceusb2/lirc_mceusb2.c	2006-10-18 16:43:57.000000000 +0200
++@@ -40,8 +40,6 @@
++ #error &quot;*******************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++-
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/init.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_parallel/lirc_parallel.c lirc-0.8.1pre2/drivers/lirc_parallel/lirc_parallel.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_parallel/lirc_parallel.c	2005-09-22 22:10:37.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_parallel/lirc_parallel.c	2006-10-18 16:44:31.000000000 +0200
++@@ -40,8 +40,6 @@
++ #error &quot;**********************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++-
++ #ifdef CONFIG_SMP
++ #error &quot;--- Sorry, this driver is not SMP safe. ---&quot;
++ #endif
++@@ -50,7 +48,6 @@
++ #include &lt;linux/sched.h&gt;
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/signal.h&gt;
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/fs.h&gt;
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/ioport.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_sasem/lirc_sasem.c lirc-0.8.1pre2/drivers/lirc_sasem/lirc_sasem.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_sasem/lirc_sasem.c	2006-07-24 01:24:35.000000000 +0200
+++++ lirc-0.8.1pre2/drivers/lirc_sasem/lirc_sasem.c	2006-10-18 16:44:09.000000000 +0200
++@@ -58,8 +58,6 @@
++ #error &quot;*** Sorry, this driver requires kernel version 2.4.22 or higher&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++-
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/init.h&gt;
++ #include &lt;linux/kernel.h&gt;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_serial/lirc_serial.c lirc-0.8.1pre2/drivers/lirc_serial/lirc_serial.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_serial/lirc_serial.c	2006-01-21 18:43:36.000000000 +0100
+++++ lirc-0.8.1pre2/drivers/lirc_serial/lirc_serial.c	2006-10-18 16:44:13.000000000 +0200
++@@ -61,8 +61,6 @@
++ #error &quot;**********************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++-
++ #if defined(CONFIG_SERIAL) || defined(CONFIG_SERIAL_8250)
++ #warning &quot;******************************************&quot;
++ #warning &quot; Your serial port driver is compiled into &quot;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_sir/lirc_sir.c lirc-0.8.1pre2/drivers/lirc_sir/lirc_sir.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_sir/lirc_sir.c	2006-01-21 18:43:36.000000000 +0100
+++++ lirc-0.8.1pre2/drivers/lirc_sir/lirc_sir.c	2006-10-18 16:44:16.000000000 +0200
++@@ -46,8 +46,6 @@
++ # include &lt;config.h&gt;
++ #endif
++  
++-#include &lt;linux/config.h&gt;
++-
++ #if !defined(LIRC_ON_SA1100) &amp;&amp; !defined(CONFIG_SERIAL_MODULE)
++ #warning &quot;******************************************&quot;
++ #warning &quot; Your serial port driver is compiled into &quot;
++diff -Naupr lirc-0.8.1pre2.orig/drivers/lirc_streamzap/lirc_streamzap.c lirc-0.8.1pre2/drivers/lirc_streamzap/lirc_streamzap.c
++--- lirc-0.8.1pre2.orig/drivers/lirc_streamzap/lirc_streamzap.c	2006-03-04 23:36:39.000000000 +0100
+++++ lirc-0.8.1pre2/drivers/lirc_streamzap/lirc_streamzap.c	2006-10-18 16:44:18.000000000 +0200
++@@ -38,7 +38,6 @@
++ #error &quot;*******************************************************&quot;
++ #endif
++ 
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/kernel.h&gt;
++ #include &lt;linux/errno.h&gt;
++ #include &lt;linux/init.h&gt;
+
+Added: trunk/rpms/dkms-ntfs/dkms-ntfs.spec
+===================================================================
+--- trunk/rpms/dkms-ntfs/dkms-ntfs.spec	                        (rev 0)
++++ trunk/rpms/dkms-ntfs/dkms-ntfs.spec	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -0,0 +1,90 @@
++# $Id$
++# Authority: matthias
++# Dist: nodist
++
++%define fromkernel 2.6.18
++
++Summary: Driver for reading and writing on NTFS formatted volumes
++Name: dkms-ntfs
++Version: 2.1.27
++Release: 1
++License: GPL
++Group: System Environment/Kernel
++URL: <A HREF="http://www.linux-ntfs.org/">http://www.linux-ntfs.org/</A>
++# Created after extracting linux kernel sources and running:
++# tar cjvf ntfs-%{version}-from-%{fromkernel}.tar.bz2 \
++# Documentation/filesystems/ntfs.txt COPYING fs/ntfs/
++Source: ntfs-%{version}-from-%{fromkernel}.tar.bz2
++Patch0: ntfs-2.1.27-from-2.6.18-noblksize.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildArch: noarch
++Requires: gcc
++Requires(post): dkms
++Requires(preun): dkms
++
++%description
++Driver (Linux kernel module) for reading and writing on NTFS formatted volumes.
++
++
++%prep
++%setup -c
++%patch0 -p0 -b .noblksize
++# Move the file to not have it mixed with the sources but included as %doc
++%{__mv} fs/ntfs/ChangeLog .
++
++
++%build
++
++
++%install
++%{__rm} -rf %{buildroot}
++
++%define dkms_name ntfs
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
++# Kernel module sources install for dkms
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++%{__cp} -a fs/ntfs/* %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++# Configuration for dkms
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
++PACKAGE_NAME=%{dkms_name}
++PACKAGE_VERSION=%{dkms_vers}
++MAKE[0]=&quot;make -C ${kernel_source_dir} M=${dkms_tree}/%{dkms_name}/%{dkms_vers}/build CONFIG_NTFS_FS=m CONFIG_NTFS_RW=y&quot;
++CLEAN[0]=&quot;make -C ${kernel_source_dir} M=${dkms_tree}/%{dkms_name}/%{dkms_vers}/build clean&quot;
++BUILT_MODULE_NAME[0]=ntfs
++DEST_MODULE_LOCATION[0]=/kernel/fs/ntfs
++AUTOINSTALL=&quot;YES&quot;
++EOF
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++# Add to DKMS registry
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
++
++%preun
++# Remove all versions from DKMS registry
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc ChangeLog COPYING Documentation/filesystems/ntfs.txt
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++
++%changelog
++* Fri Oct 20 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 2.1.27-1
++- Initial RPM release.
++- Create source the same way as the rpm.livna.org package does.
++- Fix build with noblksize patch made from an undocumented change in the
++  rpm.livna.org package's (not so) pristine sources.
++
+
+
+Property changes on: trunk/rpms/dkms-ntfs/dkms-ntfs.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/dkms-ntfs/ntfs-2.1.27-from-2.6.18-noblksize.patch
+===================================================================
+--- trunk/rpms/dkms-ntfs/ntfs-2.1.27-from-2.6.18-noblksize.patch	                        (rev 0)
++++ trunk/rpms/dkms-ntfs/ntfs-2.1.27-from-2.6.18-noblksize.patch	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -0,0 +1,43 @@
++diff -Naupr test2/fs/ntfs/inode.c test/fs/ntfs/inode.c
++--- fs/ntfs/inode.c	2006-09-20 05:42:06.000000000 +0200
+++++ fs/ntfs/inode.c	2006-09-22 16:21:54.000000000 +0200
++@@ -556,8 +556,6 @@ static int ntfs_read_locked_inode(struct
++ 
++ 	/* Setup the generic vfs inode parts now. */
++ 
++-	/* This is the optimal IO size (for stat), not the fs block size. */
++-	vi-&gt;i_blksize = PAGE_CACHE_SIZE;
++ 	/*
++ 	 * This is for checking whether an inode has changed w.r.t. a file so
++ 	 * that the file can be updated if necessary (compare with f_version).
++@@ -1234,7 +1232,6 @@ static int ntfs_read_locked_attr_inode(s
++ 	base_ni = NTFS_I(base_vi);
++ 
++ 	/* Just mirror the values from the base inode. */
++-	vi-&gt;i_blksize	= base_vi-&gt;i_blksize;
++ 	vi-&gt;i_version	= base_vi-&gt;i_version;
++ 	vi-&gt;i_uid	= base_vi-&gt;i_uid;
++ 	vi-&gt;i_gid	= base_vi-&gt;i_gid;
++@@ -1504,7 +1501,6 @@ static int ntfs_read_locked_index_inode(
++ 	ni	= NTFS_I(vi);
++ 	base_ni = NTFS_I(base_vi);
++ 	/* Just mirror the values from the base inode. */
++-	vi-&gt;i_blksize	= base_vi-&gt;i_blksize;
++ 	vi-&gt;i_version	= base_vi-&gt;i_version;
++ 	vi-&gt;i_uid	= base_vi-&gt;i_uid;
++ 	vi-&gt;i_gid	= base_vi-&gt;i_gid;
++diff -Naupr test2/fs/ntfs/mft.c test/fs/ntfs/mft.c
++--- fs/ntfs/mft.c	2006-09-20 05:42:06.000000000 +0200
+++++ fs/ntfs/mft.c	2006-09-22 16:21:54.000000000 +0200
++@@ -2638,11 +2638,6 @@ mft_rec_already_initialized:
++ 		}
++ 		vi-&gt;i_ino = bit;
++ 		/*
++-		 * This is the optimal IO size (for stat), not the fs block
++-		 * size.
++-		 */
++-		vi-&gt;i_blksize = PAGE_CACHE_SIZE;
++-		/*
++ 		 * This is for checking whether an inode has changed w.r.t. a
++ 		 * file so that the file can be updated if necessary (compare
++ 		 * with f_version).
+
+Added: trunk/rpms/dkms-pwc/dkms-pwc.spec
+===================================================================
+--- trunk/rpms/dkms-pwc/dkms-pwc.spec	                        (rev 0)
++++ trunk/rpms/dkms-pwc/dkms-pwc.spec	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -0,0 +1,81 @@
++# $Id$
++# Authority: matthias
++# Dist: nodist
++
++%define date 20061018
++%define time 042701
++
++Summary: Driver for Philips USB webcams
++Name: dkms-pwc
++Version: 10.0.11
++Release: 1.%{date}
++License: GPL
++Group: System Environment/Kernel
++URL: <A HREF="http://saillard.org/linux/pwc/">http://saillard.org/linux/pwc/</A>
++Source: <A HREF="http://saillard.org/linux/pwc/snapshots/pwc-v4l2-%{date">http://saillard.org/linux/pwc/snapshots/pwc-v4l2-%{date</A>}-%{time}.tar.bz2
++Patch0: pwc-v4l2-20061018-042701-no-config.h.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildArch: noarch
++Requires: gcc
++Requires(post): dkms
++Requires(preun): dkms
++
++%description
++Free Philips USB Webcam driver for Linux that supports VGA resolution,
++newer kernels and replaces the old pwcx module.
++
++
++%prep
++%setup -n pwc-v4l2-%{date}-%{time}
++%patch0 -p1 -b .no-config.h
++
++
++%build
++
++
++%install
++%{__rm} -rf %{buildroot}
++
++%define dkms_name pwc
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
++# Kernel module sources install for dkms
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++%{__cp} -a * %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++# Configuration for dkms
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
++PACKAGE_NAME=%{dkms_name}
++PACKAGE_VERSION=%{dkms_vers}
++BUILT_MODULE_NAME[0]=pwc
++DEST_MODULE_LOCATION[0]=/kernel/drivers/media/video/pwc
++AUTOINSTALL=&quot;YES&quot;
++EOF
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++# Add to DKMS registry
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
++
++%preun
++# Remove all versions from DKMS registry
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
++
++
++%files
++%defattr(-, root, root, 0755)
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++
++%changelog
++* Thu Oct 19 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 10.0.11-1.20061018
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/dkms-pwc/dkms-pwc.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/dkms-pwc/pwc-v4l2-20061018-042701-no-config.h.patch
+===================================================================
+--- trunk/rpms/dkms-pwc/pwc-v4l2-20061018-042701-no-config.h.patch	                        (rev 0)
++++ trunk/rpms/dkms-pwc/pwc-v4l2-20061018-042701-no-config.h.patch	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -0,0 +1,23 @@
++diff -Naupr pwc-v4l2-20061018-042701.orig/pwc.h pwc-v4l2-20061018-042701/pwc.h
++--- pwc-v4l2-20061018-042701.orig/pwc.h	2006-09-25 21:56:26.000000000 +0200
+++++ pwc-v4l2-20061018-042701/pwc.h	2006-10-19 00:11:09.000000000 +0200
++@@ -25,7 +25,6 @@
++ #ifndef PWC_H
++ #define PWC_H
++ 
++-#include &lt;linux/config.h&gt;
++ #include &lt;linux/module.h&gt;
++ #include &lt;linux/usb.h&gt;
++ #include &lt;linux/spinlock.h&gt;
++diff -Naupr pwc-v4l2-20061018-042701.orig/pwc-uncompress.h pwc-v4l2-20061018-042701/pwc-uncompress.h
++--- pwc-v4l2-20061018-042701.orig/pwc-uncompress.h	2006-01-07 12:57:47.000000000 +0100
+++++ pwc-v4l2-20061018-042701/pwc-uncompress.h	2006-10-19 00:11:20.000000000 +0200
++@@ -30,8 +30,6 @@
++ #ifndef PWC_UNCOMPRESS_H
++ #define PWC_UNCOMPRESS_H
++ 
++-#include &lt;linux/config.h&gt;
++-
++ #include &quot;pwc-ioctl.h&quot;
++ 
++ /* from pwc-dec.h */
+
+Modified: trunk/rpms/dkms-tiacx/dkms-tiacx.spec
+===================================================================
+--- trunk/rpms/dkms-tiacx/dkms-tiacx.spec	2006-10-18 21:19:39 UTC (rev 4839)
++++ trunk/rpms/dkms-tiacx/dkms-tiacx.spec	2006-10-20 14:23:43 UTC (rev 4840)
+@@ -24,7 +24,7 @@
+ 
+ 
+ %prep
+-%setup -c %{name}-%{version}
++%setup -c
+ %patch0 -p0 -b .build
+ 
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003639.html">[svn] r4839 - trunk/rpms/mpd
+</A></li>
+	<LI>Next message: <A HREF="003641.html">[svn] r4841 - in trunk: rpms/mplayerplug-in	web/freshrpms.net/packages/lists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3640">[ date ]</a>
+              <a href="thread.html#3640">[ thread ]</a>
+              <a href="subject.html#3640">[ subject ]</a>
+              <a href="author.html#3640">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

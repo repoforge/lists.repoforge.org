@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7890 - trunk/rpms/icinga
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7890%20-%20trunk/rpms/icinga&In-Reply-To=%3C200910071125.n97BPtMP024177%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006685.html">
+   <LINK REL="Next"  HREF="006687.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7890 - trunk/rpms/icinga</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7890%20-%20trunk/rpms/icinga&In-Reply-To=%3C200910071125.n97BPtMP024177%40surya.karan.org%3E"
+       TITLE="[svn] r7890 - trunk/rpms/icinga">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Oct  7 13:25:55 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006685.html">[svn] r7889 - trunk/rpms/discount
+</A></li>
+        <LI>Next message: <A HREF="006687.html">[svn] r7891 - trunk/rpms/perl-XML-Simple
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6686">[ date ]</a>
+              <a href="thread.html#6686">[ thread ]</a>
+              <a href="subject.html#6686">[ subject ]</a>
+              <a href="author.html#6686">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: 2009-10-07 12:25:55 +0100 (Wed, 07 Oct 2009)
+New Revision: 7890
+
+Modified:
+   trunk/rpms/icinga/icinga.spec
+Log:
+- make packages openSUSE compatible
+- add %apachecondir, %apacheuser, %apachegroup depending on vendor
+- configure add --with-httpd-conf=%{apacheconfdir} 
+- configure add --with-init-dir=%{_initrddir}
+
+
+
+Modified: trunk/rpms/icinga/icinga.spec
+===================================================================
+--- trunk/rpms/icinga/icinga.spec	2009-10-07 03:25:14 UTC (rev 7889)
++++ trunk/rpms/icinga/icinga.spec	2009-10-07 11:25:55 UTC (rev 7890)
+@@ -6,10 +6,21 @@
+ 
+ %define logdir %{_localstatedir}/log/icinga
+ 
++%if &quot;%{_vendor}&quot; == &quot;suse&quot;
++%define apacheconfdir  %{_sysconfdir}/apache2/conf.d
++%define apacheuser wwwrun
++%define apachegroup www
++%endif
++%if &quot;%{_vendor}&quot; == &quot;redhat&quot;
++%define apacheconfdir  %{_sysconfdir}/httpd/conf.d
++%define apacheuser apache
++%define apachegroup apache
++%endif
++
+ Summary: Open Source host, service and network monitoring program
+ Name: icinga
+ Version: 0.8.4
+-Release: 1
++Release: 2
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://www.icinga.org/">http://www.icinga.org/</A>
+@@ -17,6 +28,7 @@
+ Source0: <A HREF="http://dl.sf.net/icinga/icinga-%{version">http://dl.sf.net/icinga/icinga-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
++BuildRequires: gcc
+ BuildRequires: gd-devel &gt; 1.8
+ BuildRequires: zlib-devel
+ BuildRequires: libpng-devel
+@@ -73,8 +85,8 @@
+     --sbindir=&quot;%{_datadir}/icinga/cgi&quot; \
+     --sysconfdir=&quot;%{_sysconfdir}/icinga&quot; \
+     --with-cgiurl=&quot;/icinga/cgi-bin&quot; \
+-    --with-command-user=&quot;apache&quot; \
+-    --with-command-group=&quot;apache&quot; \
++    --with-command-user=&quot;%{apacheuser}&quot; \
++    --with-command-group=&quot;%{apachegroup}&quot; \
+     --with-gd-lib=&quot;%{_libdir}&quot; \
+     --with-gd-inc=&quot;%{_includedir}&quot; \
+     --with-htmurl=&quot;/icinga&quot; \
+@@ -87,12 +99,14 @@
+     --with-template-extinfo \
+     --enable-event-broker \
+     --enable-embedded-perl \
+-    --enable-idoutils
++    --enable-idoutils \
++    --with-httpd-conf=%{apacheconfdir} \
++    --with-init-dir=%{_initrddir}
+ %{__make} %{?_smp_mflags} all
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__mkdir} -p %{buildroot}/etc/httpd/conf.d
++%{__mkdir} -p %{buildroot}/%{apacheconfdir}
+ %{__make} install install-init install-commandmode install-config \
+     install-webconf install-idoutils \
+     DESTDIR=&quot;%{buildroot}&quot; \
+@@ -120,7 +134,8 @@
+ 
+ %pre
+ # Add icinga user
+-/usr/sbin/useradd -c &quot;icinga&quot; -s /sbin/nologin -r -d /var/icinga -G apache icinga 2&gt; /dev/null || :
++/usr/sbin/groupadd icinga 2&gt; /dev/null || :
++/usr/sbin/useradd -c &quot;icinga&quot; -s /sbin/nologin -r -d /var/icinga -G %{apachegroup} -g icinga icinga 2&gt; /dev/null || :
+ 
+ 
+ %post
+@@ -167,11 +182,11 @@
+ %{logdir}
+ %dir %{_localstatedir}/icinga
+ %dir %{_localstatedir}/icinga/checkresults
+-%attr(2755,icinga,apache) %{_localstatedir}/icinga/rw/
++%attr(2755,icinga,%{apachegroup}) %{_localstatedir}/icinga/rw/
+ 
+ %files gui
+ %defattr(-,icinga,icinga,-)
+-%config(noreplace) %attr(-,root,root) %{_sysconfdir}/httpd/conf.d/icinga.conf
++%config(noreplace) %attr(-,root,root) %{apacheconfdir}/icinga.conf
+ %{_datadir}/icinga
+ 
+ %files idoutils
+@@ -185,6 +200,12 @@
+ 
+ 
+ %changelog
++* Wed Oct 07 2009 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmr at financial.com</A>&gt; - 0.8.4-2
++- make packages openSUSE compatible
++- add %apachecondir, %apacheuser, %apachegroup depending on vendor
++- configure add --with-httpd-conf=%{apacheconfdir} 
++- configure add --with-init-dir=%{_initrddir}
++
+ * Wed Sep 16 2009 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmr at financial.com</A>&gt; - 0.8.4-1
+ - Update to version 0.8.4.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006685.html">[svn] r7889 - trunk/rpms/discount
+</A></li>
+	<LI>Next message: <A HREF="006687.html">[svn] r7891 - trunk/rpms/perl-XML-Simple
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6686">[ date ]</a>
+              <a href="thread.html#6686">[ thread ]</a>
+              <a href="subject.html#6686">[ subject ]</a>
+              <a href="author.html#6686">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

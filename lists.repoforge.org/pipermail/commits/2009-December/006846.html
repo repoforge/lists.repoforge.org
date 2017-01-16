@@ -1,0 +1,309 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8051 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8051%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200912021351.nB2DpblR007723%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006845.html">
+   <LINK REL="Next"  HREF="006847.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8051 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8051%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200912021351.nB2DpblR007723%40surya.karan.org%3E"
+       TITLE="[svn] r8051 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Dec  2 14:51:37 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006845.html">[svn] r8050 - in trunk/rpms: . perl-List-AllUtils perl-MooseX-Types
+</A></li>
+        <LI>Next message: <A HREF="006847.html">[svn] r8052 - trunk/rpms/perl-MooseX-Types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6846">[ date ]</a>
+              <a href="thread.html#6846">[ thread ]</a>
+              <a href="subject.html#6846">[ subject ]</a>
+              <a href="author.html#6846">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-12-02 13:51:37 +0000 (Wed, 02 Dec 2009)
+New Revision: 8051
+
+Added:
+   trunk/tools/dstat/plugins/dstat_dstat.py
+   trunk/tools/dstat/plugins/dstat_qmail.py
+   trunk/tools/dstat/plugins/dstat_test.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/docs/dstat.1.txt
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_dbus.py
+Log:
+ - Added external dstat_qmail plugin to show the length of qmail queues (Tom Van Looy)
++- Added external dstat_dstat plugin to show Dstat's own cputime and latency values
++- Added --profile option to get profiling statistics when you exit dstat
+
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-12-01 22:08:56 UTC (rev 8050)
++++ trunk/tools/dstat/ChangeLog	2009-12-02 13:51:37 UTC (rev 8051)
+@@ -3,6 +3,8 @@
+ - Documentation improvements
+ - Implement linecache for top-plugins (caching for statistics)
+ - Added external dstat_qmail plugin to show the length of qmail queues (Tom Van Looy)
++- Added external dstat_dstat plugin to show Dstat's own cputime and latency values
++- Added --profile option to get profiling statistics when you exit dstat
+ 
+ * 0.7.0 - Tokyo - release 25/11/2009
+ - Fixed dstat_disk plugin for total calculation on 2.6.25+ kernels (Noel J. Bergman)
+
+Modified: trunk/tools/dstat/docs/dstat.1.txt
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1.txt	2009-12-01 22:08:56 UTC (rev 8050)
++++ trunk/tools/dstat/docs/dstat.1.txt	2009-12-02 13:51:37 UTC (rev 8051)
+@@ -165,7 +165,10 @@
+ --output file::
+     write CSV output to file
+ 
++--profile::
++    show profiling statistics when exiting dstat
+ 
++
+ == PLUGINS
+ While anyone can create their own dstat plugins (and contribute them) dstat
+ ships with a number of plugins already that extend its capabilities greatly.
+@@ -261,6 +264,9 @@
+ --proc-count::
+     show total number of processes
+ 
++--qmail::
++    show qmail queue sizes (needs qmail)
++
+ --rpc::
+     show RPC client calls stats
+ 
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-12-01 22:08:56 UTC (rev 8050)
++++ trunk/tools/dstat/dstat	2009-12-02 13:51:37 UTC (rev 8051)
+@@ -89,6 +89,7 @@
+         self.header = True
+         self.output = False
+         self.pidfile = False
++        self.profile = False
+ 
+         ### List of available plugins
+         allplugins = listplugins()
+@@ -115,7 +116,7 @@
+                 ['all', 'all-plugins', 'bw', 'blackonwhite', 'debug',
+                  'filesystem', 'float', 'full', 'gonuts', 'help', 'integer',
+                  'list', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate',
+-                 'output=', 'pidfile=', 'version', 'vmstat'] + allplugins)
++                 'output=', 'pidfile=', 'profile', 'version', 'vmstat'] + allplugins)
+         except getopt.error, exc:
+             print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+             sys.exit(1)
+@@ -170,15 +171,15 @@
+             elif opt in ['-f', '--full']:
+                 self.full = True
+ 
+-            elif opt in ['--bw', '--black-on-white']:
+-                self.blackonwhite = True
+-            elif opt in ['--debug']:
+-                self.debug = self.debug + 1
+             elif opt in ['--all-plugins']:
+                 ### Make list unique in a fancy fast way
+                 plugins = {}.fromkeys(allplugins).keys()
+                 plugins.sort()
+                 self.plugins += plugins
++            elif opt in ['--bw', '--black-on-white']:
++                self.blackonwhite = True
++            elif opt in ['--debug']:
++                self.debug = self.debug + 1
+             elif opt in ['--float']:
+                 self.float = True
+             elif opt in ['--integer']:
+@@ -197,6 +198,8 @@
+                 self.output = arg
+             elif opt in ['--pidfile']:
+                 self.pidfile = arg
++            elif opt in ['--profile']:
++                self.profile = True
+             elif opt in ['-h', '--help']:
+                 self.usage()
+                 self.help()
+@@ -215,6 +218,7 @@
+             sys.exit(1)
+ 
+         if not self.plugins:
++            print 'You did not select any stats, using -cdngy by default.'
+             self.plugins = [ 'cpu', 'disk', 'net', 'page', 'sys' ]
+ 
+         try:
+@@ -2431,7 +2435,11 @@
+         initterm()
+         op = Options(sys.argv[1:])
+         theme = set_theme()
+-        main()
++        if op.profile:
++            import profile
++            profile.run('main()', 'dstat_profile.log')
++        else:
++            main()
+     except KeyboardInterrupt, e:
+         if op.update:
+             sys.stdout.write('\n')
+@@ -2440,6 +2448,17 @@
+     if op.pidfile and os.path.exists(op.pidfile):
+         os.remove(op.pidfile)
+ 
++    if op.profile:
++        rows, cols = gettermsize()
++        import pstats
++        p = pstats.Stats('dstat_profile.log')
++#        p.sort_stats('name')
++#        p.print_stats()
++        p.sort_stats('cumulative').print_stats(rows - 12)
++#        p.sort_stats('time').print_stats(rows - 12)
++#        p.sort_stats('file').print_stats('__init__')
++#        p.sort_stats('time', 'cum').print_stats(.5, 'init')
++#        p.print_callees()
+     exit(0)
+ else:
+     op = Options('')
+
+Modified: trunk/tools/dstat/plugins/dstat_dbus.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_dbus.py	2009-12-01 22:08:56 UTC (rev 8050)
++++ trunk/tools/dstat/plugins/dstat_dbus.py	2009-12-02 13:51:37 UTC (rev 8051)
+@@ -4,7 +4,6 @@
+     &quot;&quot;&quot;
+     Number of active dbus sessions.
+     &quot;&quot;&quot;
+-
+     def __init__(self):
+         self.name = 'dbus'
+         self.nick = ('sys', 'ses')
+
+Added: trunk/tools/dstat/plugins/dstat_dstat.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_dstat.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_dstat.py	2009-12-02 13:51:37 UTC (rev 8051)
+@@ -0,0 +1,30 @@
++### Author: Dag Wieers &lt;dag$wieers,com&gt;
++
++class dstat_plugin(dstat):
++    &quot;&quot;&quot;
++    Provide more information related to the dstat process
++    &quot;&quot;&quot;
++    def __init__(self):
++        self.name = 'dstat'
++        self.nick = ('time', 'latency')
++        self.vars = ('cputime', 'latency')
++        self.type = 'd'
++        self.width = 4
++        self.scale = 100
++        self.pid = str(os.getpid())
++
++    def extract(self):
++        ### Extract counters
++        l = dopen('/proc/%s/schedstat' % self.pid).read().split()
++#        l = linecache.getline('/proc/%s/schedstat' % self.pid, 1).split()
++
++        self.set2['cputime'] = long(l[0])
++        self.set2['latency'] = long(l[1])
++
++        for name in self.vars:
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
++
++        if step == op.delay:
++            self.set1.update(self.set2)
++
++# vim:ts=4:sw=4:et
+
+Added: trunk/tools/dstat/plugins/dstat_qmail.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_qmail.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_qmail.py	2009-12-02 13:51:37 UTC (rev 8051)
+@@ -0,0 +1,24 @@
++### Author: Tom Van Looy &lt;tom$ctors,net&gt;
++
++class dstat_plugin(dstat):
++    &quot;&quot;&quot;
++    port of qmail_qstat to dstat
++    &quot;&quot;&quot;
++    def __init__(self):
++        self.name = 'qmail'
++        self.nick = ('in_queue', 'not_prep')
++        self.vars = ('mess', 'todo')
++        self.type = 'd'
++        self.width = 4
++        self.scale = 100
++
++    def check(self):
++        for item in self.vars:
++            if not os.access('/var/qmail/queue/'+item, os.R_OK):
++                raise Exception, 'Cannot access qmail queues'
++
++    def extract(self):
++        for item in self.vars:
++            self.val[item] = len(glob.glob('/var/qmail/queue/'+item+'/*/*'))
++
++# vim:ts=4:sw=4:et
+
+Added: trunk/tools/dstat/plugins/dstat_test.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_test.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_test.py	2009-12-02 13:51:37 UTC (rev 8051)
+@@ -0,0 +1,19 @@
++### Author: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++
++class dstat_plugin(dstat):
++    def __init__(self):
++        self.name = 'test'
++        self.nick = ( 'f1', 'f2' )
++        self.vars = ( 'f1', 'f2' )
++#        self.type = 'd'
++#        self.width = 4
++#        self.scale = 20
++        self.type = 's'
++        self.width = 4
++        self.scale = 0
++
++    def extract(self):
++#        Self.val = { 'f1': -1, 'f2': -1 }
++        self.val = { 'f1': 'test', 'f2': 'test' }
++
++# vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006845.html">[svn] r8050 - in trunk/rpms: . perl-List-AllUtils perl-MooseX-Types
+</A></li>
+	<LI>Next message: <A HREF="006847.html">[svn] r8052 - trunk/rpms/perl-MooseX-Types
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6846">[ date ]</a>
+              <a href="thread.html#6846">[ thread ]</a>
+              <a href="subject.html#6846">[ subject ]</a>
+              <a href="author.html#6846">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4760 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4760%20-%20trunk/tools/yam&In-Reply-To=%3C20060923231241.E058D318221%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003559.html">
+   <LINK REL="Next"  HREF="003561.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4760 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4760%20-%20trunk/tools/yam&In-Reply-To=%3C20060923231241.E058D318221%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4760 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Sep 24 01:12:41 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003559.html">[svn] r4759 - in trunk/tools/yam: . config
+</A></li>
+        <LI>Next message: <A HREF="003561.html">[svn] r4761 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3560">[ date ]</a>
+              <a href="thread.html#3560">[ thread ]</a>
+              <a href="subject.html#3560">[ subject ]</a>
+              <a href="author.html#3560">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-09-24 01:12:40 +0200 (Sun, 24 Sep 2006)
+New Revision: 4760
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+Log:
+Send mails on changes
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-09-23 15:48:47 UTC (rev 4759)
++++ trunk/tools/yam/ChangeLog	2006-09-23 23:12:40 UTC (rev 4760)
+@@ -6,6 +6,7 @@
+ - Added logging updates to /var/log/yam
+ - Output changes to repositories and when very verbose show packages
+ - Added yam.logrotate for rotating the yam logfile
++- Mail out repository changes if mailto directive is set
+ 
+ * 0.8.2 - Finally fixed - released 19/09/2006
+ - Use exec in conjunction with system()
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-09-23 15:48:47 UTC (rev 4759)
++++ trunk/tools/yam/yam	2006-09-23 23:12:40 UTC (rev 4760)
+@@ -154,6 +154,9 @@
+ 		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/yam')
+ 		self.logfile = self.getoption('main', 'logfile', '/var/log/yam.log')
+ 
++		self.mailto = self.getoption('main', 'mailto', None)
++		self.smtpserver = self.getoption('main', 'smtp-server', 'localhost')
++
+ 		self.rhnlogin = self.getoption('main', 'rhnlogin', None)
+ 
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+@@ -1343,6 +1346,19 @@
+ 	symlink(cf.htmldir + '/HEADER.index.shtml', cf.wwwdir + '/HEADER.shtml')
+ 	symlink(cf.htmldir + '/README.index.shtml', cf.wwwdir + '/README.shtml')
+ 
++def mail(subject, msg):
++	info(2, 'Sending mail to: %s' % cf.mailto)
++	try:
++		import smtplib
++		smtp = smtplib.SMTP(cf.smtpserver)
++#		server.set_debuglevel(1)
++		msg = 'Subject: [yam] %s\n\nCurrent time:\n%s\nSystem information:\n%s\nUptime:\n%s\nCurrently logged on users:\n%s\n%s\n\n%s' % (subject, os.popen('date').read(), os.popen('uname -a').read(), os.popen('uptime').read(), os.popen('who').read(), subject, msg)
++		for email in cf.mailto.split():
++			smtp.sendmail('yam@%s' % os.uname()[1], email, 'To: %s\n%s' % (email, msg))
++		smtp.quit()
++	except:
++		info(1, 'Sending mail via %s failed.' % cf.smtpserver)
++
+ def main():
+ 	### Check availability of commands
+ 	for cmd in cf.cmd.keys():
+@@ -1383,6 +1399,10 @@
+ 			if not append:
+ 				error(1, 'Distribution %s not defined' % name)
+ 
++	sumnew = 0
++	sumremoved = 0
++	msg = ''
++
+ 	### Mounting and mirroring available distributions/repositories
+ 	for dist in dists:
+ 		dist.findisos()
+@@ -1392,8 +1412,9 @@
+ 				dist.umount()
+ 			if not op.umount or op.remount:
+ 				dist.discs = dist.mount()
+-	
++
+ 		if op.update:
++			msg = msg + '\nDistribution: %s (%s)' % (dist.name, dist.nick)
+ 			info(1, '%s: Updating %s' % (dist.nick, dist.name))
+ 
+ 			distnew = 0
+@@ -1416,23 +1437,38 @@
+ 				removed = repo.oldlist.difference(repo.newlist)
+ 
+ 				if new or removed:
++					msg = msg + '\n\n\tRepository: %s' % repo.name
+ 					info(2, '%s: Repository %s changed (new: %d, removed: %d)' % (dist.nick, repo.name, len(new), len(removed)))
+ 					info(4, '%s: New packages: %s' % (dist.nick, new))
+ 					info(4, '%s: Removed packages: %s' % (dist.nick, removed))
+ 					fd = open(cf.logfile, 'a')
+ 					date = time.strftime(&quot;%b %d %H:%M:%S&quot;, time.gmtime())
+-					for element in new.list:
+-						fd.write('%s %s/%s Added %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
+-					for element in removed.list:
+-						fd.write('%s %s/%s Removed %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
++
++					if new.list:
++						distnew += len(new)
++						for element in new.list:
++							fd.write('%s %s/%s Added %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
++							msg = msg + '\n\t\t+ %s (%d kiB)' % (element[0], element[1]/1024)
++
++					if removed.list:
++						distremoved += len(removed)
++						
++						for element in removed.list:
++							fd.write('%s %s/%s Removed %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
++							msg = msg + '\n\t\t- %s (%d kiB)' % (element[0], element[1]/1024)
++
+ 					fd.close()
+ 					repo.changed = True
+-					distnew += len(new)
+-					distremoved += len(removed)
++					msg = msg + '\n'
+ 
+ 			if distnew or distremoved:
+ 				info(0, '%s: Distribution updated (new: %d, removed: %d)' % (dist.nick, distnew, distremoved))
++				sumnew = sumnew + distnew
++				sumremoved = sumremoved + distremoved
+ 
++			subject = 'Repository changes (new: %d, removed: %d)' % (sumnew, sumremoved)
++			mail(subject, msg)
++
+ 	if not op.generate:
+ 		sys.exit(0)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003559.html">[svn] r4759 - in trunk/tools/yam: . config
+</A></li>
+	<LI>Next message: <A HREF="003561.html">[svn] r4761 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3560">[ date ]</a>
+              <a href="thread.html#3560">[ thread ]</a>
+              <a href="subject.html#3560">[ subject ]</a>
+              <a href="author.html#3560">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

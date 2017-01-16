@@ -1,0 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4268 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4268%20-%20trunk/tools/yam&In-Reply-To=%3C20060403071651.E068F3180CD%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="003069.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4268 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4268%20-%20trunk/tools/yam&In-Reply-To=%3C20060403071651.E068F3180CD%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4268 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Apr  3 09:16:51 CEST 2006</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="003069.html">[svn] r4269 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3068">[ date ]</a>
+              <a href="thread.html#3068">[ thread ]</a>
+              <a href="subject.html#3068">[ subject ]</a>
+              <a href="author.html#3068">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-04-03 09:16:50 +0200 (Mon, 03 Apr 2006)
+New Revision: 4268
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Exception handling and return code handling for mirror-commands. Fix for apt repositories.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-03-31 12:33:42 UTC (rev 4267)
++++ trunk/tools/yam/ChangeLog	2006-04-03 07:16:50 UTC (rev 4268)
+@@ -5,6 +5,9 @@
+ - Allow for architecture in section name (eg. [rhel4as-i386]). (Alexander Bergolth)
+ - Skip metadata generation by default for repository 'all'.
+ - Write out apt release-files to facilitate apt-pinning. (Alexander Bergolth)
++- Make use of os.system() instead of os.popen(). (Alexander Bergolth)
++- Take advantage of mirror-command return codes. (Alexander Bergolth)
++- Make use of Exception handling for mirror-commands.
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-03-31 12:33:42 UTC (rev 4267)
++++ trunk/tools/yam/TODO	2006-04-03 07:16:50 UTC (rev 4268)
+@@ -48,6 +48,7 @@
+   This would be very useful to have a separate gfs, lacd, rhaps, rhds2 CD repo
+ + Add more working distributions to yam-complex.conf
+ + Allow to specify variables in [DEFAULT] and do string expansion in place (see mail from Alexander Bergolth)
++  and optionally make %(var)s syntax work for per-distro variables as well
+ 
+ ### Usability
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-03-31 12:33:42 UTC (rev 4267)
++++ trunk/tools/yam/yam	2006-04-03 07:16:50 UTC (rev 4268)
+@@ -434,7 +434,7 @@
+ 			### Write out /srcdir/nick/base/release
+ 			releasefile = os.path.join(self.dir, 'base', 'release')
+ 			if not os.path.exists(releasefile):
+-				open(releasefile, 'w').write('Origin: <A HREF="http://yam/%s/\nLabel:">http://yam/%s/\nLabel:</A> %s\nSuite: Unknown\nCodename: %s\nDate: unknown\nArchitectures: %s\nComponents: \nDescription: %s\nMD5Sum:\n' % (self.nick, self.name, self.nick, self.arch, self.name))
++				open(releasefile, 'w').write('Origin: <A HREF="http://yam/%s/\nLabel:">http://yam/%s/\nLabel:</A> %s\nSuite: Unknown\nCodename: %s\nDate: unknown\nArchitectures: %s\nComponents:\nDescription: %s\nMD5Sum:\n' % (self.nick, self.name, self.nick, self.arch, self.name))
+ 
+ 			### Write out /srcdir/nick/base/release.repo
+ 			for repo in self.oldrepos:
+@@ -512,6 +512,12 @@
+ 		info(5, '%s: Removing %s' % (self.nick, repo))
+ 		remove(glob.glob(os.path.join(self.dir, 'RPMS.' + repo, '*.rpm')))
+ 
++class YamMirrorException(Exception):
++	def __init__(self, value):
++		self.value = value
++	def __str__(self):
++		return repr(self.value)
++
+ def sha1dir(dir):
+ 	&quot;Return sha1sum of a directory&quot;
+ 	### FIXME: Add file sizes and mtime to sha1sum
+@@ -530,7 +536,7 @@
+ def error(level, str):
+ 	&quot;Output error message&quot;
+ 	if level &lt;= op.verbose:
+-		sys.stdout.write('yam: %s\n' % str)
++		sys.stderr.write('yam: %s\n' % str)
+ 
+ def info(level, str):
+ 	&quot;Output info message&quot;
+@@ -548,7 +554,8 @@
+ 		str = str + '&gt;/dev/null'
+ 	if not op.dryrun or dryrun:
+ 		info(5, 'Execute: %s' % str)
+-		os.popen(str, 'w')
++#		os.popen(str, 'w')
++		return os.system(str)
+ 	else:
+ 		info(1, 'Not execute: %s' % str)
+ 
+@@ -644,28 +651,33 @@
+ 
+ def mirror(urls, path, dist):
+ 	&quot;Check URL and pass on to mirror-functions.&quot;
++	global exitcode
+ 	for url in urls.split():
+-		info(2, 'Fetch packages from %s to %s' % (url, path))
+-		s, l, p, q, f, o = urlparse.urlparse(url)
+-		if s in ('rsync', ):
+-			mirrorrsync(url, path)
+-		elif s in ('ftp', ):
+-			if cf.cmd['mirrordir']:
++		try:
++			info(2, 'Fetch packages from %s to %s' % (url, path))
++			s, l, p, q, f, o = urlparse.urlparse(url)
++			if s in ('rsync', ):
++				mirrorrsync(url, path)
++			elif s in ('ftp', ):
++				if cf.cmd['mirrordir']:
++					mirrormirrordir(url, path)
++				else:
++					mirrorlftp(url, path)
++			elif s in ('fish', 'http', 'https', 'sftp'):
++				mirrorlftp(url, path)
++			elif s in ('file', ''):
++				mirrorfile(url, path)
++			elif s in ('yam', ):
++				mirroryam(url, path)
++			elif s in ('mc', ):
+ 				mirrormirrordir(url, path)
++			elif s in ('rhn', 'rhns'):
++				mirrorrhn(url, path, dist)
+ 			else:
+-				mirrorlftp(url, path)
+-		elif s in ('fish', 'http', 'https', 'sftp'):
+-			mirrorlftp(url, path)
+-		elif s in ('file', ''):
+-			mirrorfile(url, path)
+-		elif s in ('yam', ):
+-			mirroryam(url, path)
+-		elif s in ('mc', ):
+-			mirrormirrordir(url, path)
+-		elif s in ('rhn', 'rhns'):
+-			mirrorrhn(url, path, dist)
+-		else:
+-			error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
++				error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
++		except YamMirrorException, e:
++			error(2, 'Mirroring failed for %s with message:\n  %s' % (url, e.value))
++			exitcode = 2
+ 
+ def mirrorrsync(url, path):
+ 	&quot;Mirror everything from an <A HREF="rsync://">rsync://</A> URL&quot;
+@@ -690,7 +702,9 @@
+ 	opts = opts + ' --include=\&quot;*.rpm\&quot;'
+ 	if cf.rsyncexclsrpm or cf.rsyncexcldebug: opts = opts + ' --exclude=\&quot;*.*\&quot;'
+ 
+-	run('%s %s %s %s' % (cf.cmd['rsync'], opts, url, path), dryrun=True)
++	ret = run('%s %s %s %s' % (cf.cmd['rsync'], opts, url, path), dryrun=True)
++	if not ret:
++		raise(YamMirrorException('Failed with return code: %s' % ret))
+ 
+ def mirrormirrordir(url, path):
+ 	&quot;Mirror everything from a <A HREF="ftp://">ftp://</A> or <A HREF="mc://">mc://</A> URL&quot;
+@@ -708,8 +722,11 @@
+ 	if cf.mirrordirexclsrpm: opts = opts + ' -G \&quot;*.src.rpm\&quot; -G \&quot;SRPMS\&quot;'
+ 	if cf.mirrordirexcldebug: opts = opts + ' -G \&quot;*-debuginfo-*.rpm\&quot; -G \&quot;debug\&quot;'
+ 
+-	run(&quot;%s %s '%s' '%s'&quot; % (cf.cmd['mirrordir'], opts, url, path), dryrun=True)
++	ret = run(&quot;%s %s '%s' '%s'&quot; % (cf.cmd['mirrordir'], opts, url, path), dryrun=True)
++	if not ret:
++		raise(YamMirrorException('Failed with return code: %s' % ret))
+ 
++
+ def mirrorlftp(url, path):
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+ 	if not cf.cmd['lftp']:
+@@ -733,7 +750,9 @@
+ 	if cf.lftpexclsrpm: mirroropts = mirroropts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
+ 	if cf.lftpexcldebug: mirroropts = mirroropts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
+ 
+-	run('%s %s -c \'%s mirror %s %s %s\'' % (cf.cmd['lftp'], opts, sets, mirroropts, url, path), dryrun=True)
++	ret = run('%s %s -c \'%s mirror %s %s %s\'' % (cf.cmd['lftp'], opts, sets, mirroropts, url, path), dryrun=True)
++	if not ret:
++		raise(YamMirrorException('Failed with return code: %s' % ret))
+ 
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+@@ -891,29 +910,24 @@
+ 				server = rpcServer.getServer()
+ 				channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
+ 			except rpclib.Fault, f:
+-				error(0, 'Error subscribing %s to channel %s, skipping.%s' % (dist.nick, label, f.faultString))
+-				return
++				raise(YamMirrorException('Error subscribing %s to channel %s, skipping.%s' % (dist.nick, label, f.faultString)))
+ 			systemid = rhnlogin(url, path, dist, force=True)
+ 			if not systemid: return
+ 			info(6, '\nAFTER SUBSC: logininfo: %s\n' % loginInfo)
+ 			channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
+ 			if not channel:
+-				error(0, 'Failed to subscribe RHN id %s to channel %s, skipping.' % (dist.nick, label))
+-				return
++				raise(YamMirrorException('Failed to subscribe RHN id %s to channel %s, skipping.' % (dist.nick, label)))
+ 		else:
+-			info(1, 'No RHN username or password supplied in Yam configuration. Please add channel %s on RHN website manually.' % label)
+-			return
++			raise(YamMirrorException('No RHN username or password supplied in Yam configuration. Please add channel %s on RHN website manually.' % label))
+ 
+ 	### Download packagelist for this channel
+ 	repos = repoDirector.initRepoDirector()
+ 	try:
+ 		package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	except rpclib.Fault, f:
+-		error(0, 'Error listing packages from channel %s. Skipping. %s' % (label, f.faultString))
+-		return
++		raise(YamMirrorException('Error listing packages from channel %s. Skipping. %s' % (label, f.faultString)))
+ 	except up2dateErrors.CommunicationError, e:
+-		error(0, 'Error listing packages from channel %s. Skipping.\n%s' % (label, e))
+-		return
++		raise(YamMirrorException('Error listing packages from channel %s. Skipping.\n%s' % (label, e)))
+ 
+ 	### Download packages from the packagelist
+ 	signal.signal(signal.SIGINT, signal.SIG_DFL)
+@@ -1136,6 +1150,7 @@
+ 
+ ### Main entrance
+ if __name__ == '__main__':
++	exitcode = 0
+ 	op = Options(sys.argv[1:])
+ 	cf = Config()
+ 	try:
+@@ -1145,5 +1160,6 @@
+ 	except OSError, e:
+ #		print e.errno
+ 		die(7, 'OSError: %s' % e)
++sys.exit(exitcode)
+ 
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="003069.html">[svn] r4269 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3068">[ date ]</a>
+              <a href="thread.html#3068">[ thread ]</a>
+              <a href="subject.html#3068">[ subject ]</a>
+              <a href="author.html#3068">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

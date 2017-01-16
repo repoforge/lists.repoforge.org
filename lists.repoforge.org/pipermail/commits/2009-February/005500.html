@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6701 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6701%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200902171849.n1HInsC4007210%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005499.html">
+   <LINK REL="Next"  HREF="005501.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6701 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6701%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200902171849.n1HInsC4007210%40surya.karan.org%3E"
+       TITLE="[svn] r6701 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Feb 17 19:49:54 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005499.html">[svn] r6700 - trunk/tools/unoconv
+</A></li>
+        <LI>Next message: <A HREF="005501.html">[svn] r6702 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5500">[ date ]</a>
+              <a href="thread.html#5500">[ thread ]</a>
+              <a href="subject.html#5500">[ subject ]</a>
+              <a href="author.html#5500">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-02-17 18:49:54 +0000 (Tue, 17 Feb 2009)
+New Revision: 6701
+
+Added:
+   trunk/tools/dstat/plugins/dstat_ntp.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Added dstat_ntp plugin to display time from NTP source.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-02-17 18:36:16 UTC (rev 6700)
++++ trunk/tools/dstat/ChangeLog	2009-02-17 18:49:54 UTC (rev 6701)
+@@ -4,6 +4,8 @@
+ - Raise a warning when discovery returns empty
+ - Improvements to dstat_battery and dstat_cpufreq
+ - Added external dstat_power plugin to show ACPI power usage
++- Simplified logic inside dstat_time
++- Added external dstat_ntp to show time from an NTP server
+ 
+ * 0.6.9 - Locarno - release 02/12/2008
+ - Input text color is now gray (again)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-02-17 18:36:16 UTC (rev 6700)
++++ trunk/tools/dstat/dstat	2009-02-17 18:49:54 UTC (rev 6701)
+@@ -1451,27 +1451,22 @@
+ ### FIXME: If timefmt &lt; len(self.nick) output is fucked up
+ class dstat_time(dstat):
+     def __init__(self):
+-        self.name = 'time'
+-        self.timefmt = os.getenv('DSTAT_TIMEFMT')
+-        if self.timefmt:
+-            tmp = time.strftime(self.timefmt, time.localtime())
+-            self.format = ('s', len(tmp), 0)
+-        elif op.debug:
+-            self.format = ('s', 18, 0)
++        self.name = 'system'
++        self.timefmt = os.getenv('DSTAT_TIMEFMT') or '%d-%m %H:%M:%S'
++        if op.debug:
++            self.format = ('s', len(time.strftime(self.timefmt, time.localtime())) + 4, 0)
+         else:
+-            self.format = ('s', 14, 0)
++            self.format = ('s', len(time.strftime(self.timefmt, time.localtime())), 0)
+         self.nick = ('date/time',)
+         self.vars = ('time',)
+         self.init(self.vars, 1)
+ 
+     ### We are now using the starttime for this plugin, not the execution time of this plugin
+     def extract(self):
+-        if self.timefmt:
+-            self.val['time'] = time.strftime(self.timefmt, time.localtime(starttime))
+-        elif op.debug:
+-            self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime(starttime)) + &quot;.%03d&quot; % (round(starttime * 1000 % 1000 ))
++        if op.debug:
++            self.val['time'] = time.strftime(self.timefmt, time.localtime(starttime)) + &quot;.%03d&quot; % (round(starttime * 1000 % 1000 ))
+         else:
+-            self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime(starttime))
++            self.val['time'] = time.strftime(self.timefmt, time.localtime(starttime))
+ 
+     def show(self):
+         if step == op.delay:
+
+Added: trunk/tools/dstat/plugins/dstat_ntp.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_ntp.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_ntp.py	2009-02-17 18:49:54 UTC (rev 6701)
+@@ -0,0 +1,54 @@
++### Dstat NTP plugin
++### Displays time from an NTP server
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++global socket
++import socket
++global struct
++import struct
++
++### FIXME: Implement millisecond granularity as well
++
++class dstat_ntp(dstat):
++    def __init__(self):
++        self.name = 'ntp'
++        self.timefmt = os.getenv('DSTAT_TIMEFMT') or '%d-%m %H:%M:%S'
++        self.ntpserver = os.getenv('DSTAT_NTPSERVER') or '0.fedora.pool.ntp.org'
++        self.format = ('s', len(time.strftime(self.timefmt, time.localtime())), 0)
++        self.nick = ('date/time',)
++        self.vars = ('time',)
++        self.epoch = 2208988800L
++        self.socket = socket.socket( socket.AF_INET, socket.SOCK_DGRAM )
++        self.init(self.vars, 1)
++
++    def gettime(self):
++        self.socket.sendto( '\x1b' + 47 * '\0', ( self.ntpserver, 123 ))
++        data, address = self.socket.recvfrom( 1024 )
++
++        if data:
++            return (struct.unpack( '!12I', data )[10] - self.epoch)
++        else:
++            return 0
++
++    def check(self):
++        try:
++            self.gettime()
++        except gaierror:
++            raise Exception, 'Failed to connect to NTP server.'
++        except error:
++            raise Exception, 'Error connecting to NTP server.'
++        return True
++
++    def extract(self):
++        starttime = self.gettime()
++        self.val['time'] = time.strftime(self.timefmt, time.localtime(starttime))
++
++    def show(self):
++        if step == op.delay:
++            color = 'silver'
++        else:
++            color = 'gray'
++        return ansi[color] + self.val['time']
++
++# vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005499.html">[svn] r6700 - trunk/tools/unoconv
+</A></li>
+	<LI>Next message: <A HREF="005501.html">[svn] r6702 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5500">[ date ]</a>
+              <a href="thread.html#5500">[ thread ]</a>
+              <a href="subject.html#5500">[ subject ]</a>
+              <a href="author.html#5500">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

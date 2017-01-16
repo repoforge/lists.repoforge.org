@@ -1,0 +1,370 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3305 - in trunk/tools/pydar2: . dries etc pydar scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3305%20-%20in%20trunk/tools/pydar2%3A%20.%20dries%20etc%20pydar%20scripts&In-Reply-To=%3C20050616044518.5213231810F%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002106.html">
+   <LINK REL="Next"  HREF="002108.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3305 - in trunk/tools/pydar2: . dries etc pydar scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3305%20-%20in%20trunk/tools/pydar2%3A%20.%20dries%20etc%20pydar%20scripts&In-Reply-To=%3C20050616044518.5213231810F%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3305 - in trunk/tools/pydar2: . dries etc pydar scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jun 16 06:45:18 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002106.html">[svn] r3304 - in trunk/tools/pydar2: . etc pydar scripts
+</A></li>
+        <LI>Next message: <A HREF="002108.html">[svn] r3306 - in trunk/rpms: perl-AOL-TOC perl-Compress-Bzip2	perl-File-Which perl-GD-Graph perl-GD-Text-Util	perl-Gnome2-Canvas perl-Graphics-ColorNames perl-IP-Country	perl-Inline-TT perl-Net-IMAP-Simple perl-SVN-Churn	perl-SVN-Log perl-SVN-Log-Index perl-SVN-Mirror perl-SVN-Push	perl-Scraper pgadmin3 pydar2 spamassassin zonecheck zsplit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2107">[ date ]</a>
+              <a href="thread.html#2107">[ thread ]</a>
+              <a href="subject.html#2107">[ subject ]</a>
+              <a href="author.html#2107">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-16 06:45:17 +0200 (Thu, 16 Jun 2005)
+New Revision: 3305
+
+Added:
+   trunk/tools/pydar2/dries/directoryview-part.html
+Modified:
+   trunk/tools/pydar2/etc/slave.conf
+   trunk/tools/pydar2/pydar-buildserver-slave.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/specfiletags.py
+   trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+   trunk/tools/pydar2/scripts/rpmforgesite.py
+Log:
+update
+
+Added: trunk/tools/pydar2/dries/directoryview-part.html
+===================================================================
+--- trunk/tools/pydar2/dries/directoryview-part.html	2005-06-14 22:02:05 UTC (rev 3304)
++++ trunk/tools/pydar2/dries/directoryview-part.html	2005-06-16 04:45:17 UTC (rev 3305)
+@@ -0,0 +1,15 @@
++&lt;?php
++// todo updaten van file op ace
++$dh = opendir(&quot;.&quot;);
++?&gt;&lt;a href=&quot;..&quot;&gt;Parent Directory&lt;/a&gt;&lt;br /&gt;&lt;?php
++while (($file = readdir($dh)) !== false) {
++        if (($file != &quot;.&quot;) &amp;&amp; ($file != &quot;..&quot;)) {
++                $suffix = &quot;&quot;;
++                if (is_dir($file)) {
++                        $suffix = &quot;/&quot;;
++                }
++                print &quot;&lt;a href=\&quot;&quot; . $file . &quot;\&quot;&gt;&quot; . $file . $suffix . &quot;&lt;/a&gt;&lt;br /&gt;&quot;;
++        }
++}
++closedir($dh);
++?&gt;
+\ No newline at end of file
+
+
+Property changes on: trunk/tools/pydar2/dries/directoryview-part.html
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/pydar2/etc/slave.conf
+===================================================================
+--- trunk/tools/pydar2/etc/slave.conf	2005-06-14 22:02:05 UTC (rev 3304)
++++ trunk/tools/pydar2/etc/slave.conf	2005-06-16 04:45:17 UTC (rev 3305)
+@@ -2,6 +2,11 @@
+ #buildmachineid=
+ #buildmasterurl=<A HREF="http://localhost:9999/">http://localhost:9999/</A>
+ #password=
++## From: emailaddress
++#mailfrom=
++## Attach buildlog to mails as plain-text or zipped or simply don't attach it
++# choices: plain, gzip, not
++#attachbuildlog=gzip
+ 
+ #[el4-i386]
+ #type=RSYNCYUM
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-06-14 22:02:05 UTC (rev 3304)
++++ trunk/tools/pydar2/pydar/config.py	2005-06-16 04:45:17 UTC (rev 3305)
+@@ -194,6 +194,14 @@
+         self.__fullInitMaster()
+         return self.__masterBuildResultsDir
+         
++    def getSlaveAttachBuildLog(self):
++        self.__fullInitSlave()
++        return self.__slaveAttachBuildLog
++    
++    def getSlaveFromEmail(self):
++        self.__fullInitSlave()
++        return self.__slaveFromEmail
++    
+     def __fullInitSlave(self):
+         if Config.__fullInitSlaveDone or Config.__withinFullInitSlave:
+             return
+@@ -210,6 +218,8 @@
+         self.__buildmachineid = myParser.get('slave','buildmachineid')
+         self.__buildmasterurlslave = myParser.get('slave','buildmasterurl')
+         self.__slavepassword = myParser.get('slave','password')
++        self.__slaveFromEmail = myParser.get('slave','mailfrom')
++        self.__slaveAttachBuildLog = myParser.get('slave','attachbuildlog')
+         # get the supported distro + arch strings like fc3-i386
+         self.__buildRootList = BuildRootList()
+         # currently allow 2 ways for specifying buildroots:
+
+Modified: trunk/tools/pydar2/pydar/specfiletags.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specfiletags.py	2005-06-14 22:02:05 UTC (rev 3304)
++++ trunk/tools/pydar2/pydar/specfiletags.py	2005-06-16 04:45:17 UTC (rev 3305)
+@@ -67,6 +67,12 @@
+             if string.find(br,'/') &lt; 0 and string.find(br,'(') &lt; 0 and br != &quot;&quot;:
+                 finalbuildreqs.append(br)
+                 self.cat.debug(&quot;good buildreq: &quot; + br)
++            else:
++                mo = re.search(re.compile('perl\((.*)::(.*)\)'), br)
++                if mo != None:
++                    tempbr = &quot;perl-&quot; + mo.group(1) + &quot;-&quot; + mo.group(2)
++                    self.cat.debug(&quot;also good buildreq: &quot; + tempbr)
++                    finalbuildreqs.append(tempbr)
+         return finalbuildreqs
+        
+         
+
+Modified: trunk/tools/pydar2/pydar-buildserver-slave.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-slave.py	2005-06-14 22:02:05 UTC (rev 3304)
++++ trunk/tools/pydar2/pydar-buildserver-slave.py	2005-06-16 04:45:17 UTC (rev 3305)
+@@ -159,9 +159,9 @@
+             self.__myserverclient.sendResultFileName(self.__config.getBuildMachineId(), self.__config.getSlavePassword(),  command.getId(),brr.getSrpm())
+         self.__myserverclient.sendBuildResult(self.__config.getBuildMachineId(),  self.__config.getSlavePassword(), command.getId(), buildResult)
+     
+-    def __getSubjectPartFromLog(self, log):
++    def __getSubjectPartFromBuildLog(self, log):
+         # get the last line
+-        mo = re.search(re.compile('.*\n(..*)', re.MULTILINE), log)
++        mo = re.search(re.compile('(.*)$'), log)
+         if mo != None:
+             lastline = mo.group(1)
+             self.__cat.debug(&quot;lastline: &quot; + lastline)
+@@ -181,6 +181,14 @@
+         subject = &quot;&quot;
+         output = &quot;&quot;
+         rpmspart = &quot;&quot;
++        
++        # first read the contents of the buildlog in a string
++        # it might be used in the subject and it might be used as a mimepart
++        fp = GzipFile(command.getBuildDir() + &quot;/buildlog.txt.gz&quot;, &quot;rb&quot;)
++        buildlog = fp.read()
++        fp.close()
++            
++        
+         if len(brr.getRpms()) &gt; 0:
+             subject = &quot;pydar2:: build ok: &quot; + command.getDistroArchTag() + &quot; - &quot; + command.getSpecFileShortFileName()
+             rpmspart = &quot;rpms: \n&quot;
+@@ -189,7 +197,7 @@
+             rpmspart = rpmspart + &quot;srpm: \n&quot;
+             rpmspart = rpmspart + &quot;  &quot; + brr.getSrpm()
+         else:
+-            subject = &quot;pydar2:: build failed: &quot; + command.getDistroArchTag() + &quot; - &quot; +  command.getSpecFileShortFileName() + self.__getSubjectPartFromLog(brr.getLog())
++            subject = &quot;pydar2:: build failed: &quot; + command.getDistroArchTag() + &quot; - &quot; +  command.getSpecFileShortFileName() + &quot;:&quot; + self.__getSubjectPartFromBuildLog(buildlog)
+         output = output + brr.getContainsErrorsText() + &quot;\n&quot;
+         
+         output = output + command.toMultiLineString()
+@@ -200,13 +208,15 @@
+                 
+         msg = MIMEMultipart()
+         msg['Subject'] = subject
+-        msg['From'] = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        msg['From'] = self.__config.getSlaveFromEmail()
+         msg['To'] = command.getToEmail()
+-        me = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        me = self.__config.getSlaveFromEmail()
+         you = command.getToEmail()
+ 
+-        attachAsGzip = False
+-        if attachAsGzip:
++        msg.attach(MIMEText(output))
++        
++        code = self.__config.getSlaveAttachBuildLog()
++        if code == &quot;gzip&quot;:
+             msgpart = MIMEBase(&quot;application&quot;, &quot;x-zip&quot;)
+             fp = open(command.getBuildDir() + &quot;/buildlog.txt.gz&quot;, &quot;rb&quot;)
+             strarr = fp.read()
+@@ -214,14 +224,11 @@
+             fp.close()
+             msgpart.add_header('Content-Disposition', 'attachment', filename=&quot;buildlog.txt.gz&quot;)
+             Encoders.encode_base64(msgpart)
+-        else:
+-            fp = GzipFile(command.getBuildDir() + &quot;/buildlog.txt.gz&quot;, &quot;rb&quot;)
+-            strarr = fp.read()
+-            fp.close()
+-            msgpart = MIMEText(strarr)
++            msg.attach(msgpart)
++        if code == &quot;plain&quot;:
++            msgpart = MIMEText(buildlog)
++            msg.attach(msgpart)
+         
+-        msg.attach(MIMEText(output))
+-        msg.attach(msgpart)
+         # copypaste from example on www.python.org
+         s = smtplib.SMTP(self.__config.getSmtpServer())
+         #s.connect()
+
+Modified: trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-06-14 22:02:05 UTC (rev 3304)
++++ trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-06-16 04:45:17 UTC (rev 3305)
+@@ -36,9 +36,9 @@
+     if authority == None:
+         print &quot;spec file without authority, ignoring&quot;
+         return False
+-    else:
+-        if string.find(authority, &quot;dries&quot;) &lt; 0:
+-            return False
++    #else:
++    #    #if string.find(authority, &quot;dries&quot;) &lt; 0:
++    #        return False
+     return True
+     
+     
+
+Modified: trunk/tools/pydar2/scripts/rpmforgesite.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgesite.py	2005-06-14 22:02:05 UTC (rev 3304)
++++ trunk/tools/pydar2/scripts/rpmforgesite.py	2005-06-16 04:45:17 UTC (rev 3305)
+@@ -34,7 +34,7 @@
+     so.generate()
+     
+ class DistroArchObject:
+-    def __init__(self,shortName,displayName, rpmsUrl, suffixes, fullName):
++    def __init__(self,shortName,displayName, rpmsUrl, suffixes, fullName, additionalPaths):
+         self.shortName = shortName
+         self.displayName = displayName
+         self.rpmsUrl = rpmsUrl
+@@ -42,6 +42,7 @@
+         self.srpms = []
+         self.suffixes = suffixes
+         self.fullName = fullName
++        self.additionalPaths = additionalPaths
+     
+ class SiteObject:
+     def __init__(self,specRepo):
+@@ -56,15 +57,24 @@
+         self.__siterootdir =  &quot;/tmp/packages/&quot;
+         self.__storage = storagefactory.StorageFactory.getStorage()
+         self.__rpmlists = []
+-        self.__rpmlists.append(DistroArchObject(&quot;el4-i386-dries&quot;, &quot;el4 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/</A>&quot;, [&quot;el4.rf&quot;], &quot;Red Hat Enterprise Linux 4 for i386&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;el3-i386-dries&quot;, &quot;el3 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/</A>&quot;, [&quot;el3.rf&quot;], &quot;Red Hat Enterprise Linux 3 for i386&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;fc3-i386-dries&quot;, &quot;fc3 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/</A>&quot;, [&quot;fc3.rf&quot;, &quot;fc3.dries&quot;], &quot;Fedora Core 3 for i386&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;fc2-i386-dries&quot;, &quot;fc2 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/</A>&quot;, [&quot;fc2.rf&quot;, &quot;fc2.dries&quot;], &quot;Fedora Core 2 for i386&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;fc1-i386-dries&quot;, &quot;fc1 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/</A>&quot;, [&quot;fc1.rf&quot;, &quot;fc1.dries&quot;], &quot;Fedora Core 1 for i386&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;fc4-i386-dries&quot;, &quot;fc4 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for i386&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;fc4-x86_64-dries&quot;, &quot;fc4 x86_64 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for x86_64&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;au1.92-sparc-dries&quot;, &quot;au1.92 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/</A>&quot;, [&quot;au1.92.rf&quot;, &quot;au1.92.dries&quot;], &quot;Aurora 1.92 for sparc&quot;))
+-        self.__rpmlists.append(DistroArchObject(&quot;au1.91-sparc-dries&quot;, &quot;au1.91 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/</A>&quot;, [&quot;au1.91.rf&quot;, &quot;au1.91.dries&quot;],&quot;Aurora 1.91 for sparc&quot;))
++        addPaths = ['redhat/el4/i386']
++        self.__rpmlists.append(DistroArchObject(&quot;el4-i386-dries&quot;, &quot;el4 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/RPMS.dries/</A>&quot;, [&quot;el4.rf&quot;], &quot;Red Hat Enterprise Linux 4 for i386&quot;, addPaths))
++        addPaths = ['redhat/el3/i386']
++        self.__rpmlists.append(DistroArchObject(&quot;el3-i386-dries&quot;, &quot;el3 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/RPMS.dries/</A>&quot;, [&quot;el3.rf&quot;], &quot;Red Hat Enterprise Linux 3 for i386&quot;, addPaths))
++        addPaths = ['fedora/fc3/i386']
++        self.__rpmlists.append(DistroArchObject(&quot;fc3-i386-dries&quot;, &quot;fc3 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/RPMS.dries/</A>&quot;, [&quot;fc3.rf&quot;, &quot;fc3.dries&quot;], &quot;Fedora Core 3 for i386&quot;, addPaths))
++        addPaths = ['fedora/fc2/i386']
++        self.__rpmlists.append(DistroArchObject(&quot;fc2-i386-dries&quot;, &quot;fc2 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/RPMS.dries/</A>&quot;, [&quot;fc2.rf&quot;, &quot;fc2.dries&quot;], &quot;Fedora Core 2 for i386&quot;, addPaths))
++        addPaths = ['fedora/fc1/i386']
++        self.__rpmlists.append(DistroArchObject(&quot;fc1-i386-dries&quot;, &quot;fc1 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/RPMS.dries/</A>&quot;, [&quot;fc1.rf&quot;, &quot;fc1.dries&quot;], &quot;Fedora Core 1 for i386&quot;, addPaths))
++        addPaths = ['fedora/fc4/i386']
++        self.__rpmlists.append(DistroArchObject(&quot;fc4-i386-dries&quot;, &quot;fc4 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for i386&quot;, addPaths))
++        addPaths = ['fedora/fc4/x86_64']
++        self.__rpmlists.append(DistroArchObject(&quot;fc4-x86_64-dries&quot;, &quot;fc4 x86_64 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/RPMS.dries/</A>&quot;, [&quot;fc4.rf&quot;, &quot;fc4.dries&quot;], &quot;Fedora Core 4 for x86_64&quot;, addPaths))
++        addPaths = ['aurora/1.92/sparc']
++        self.__rpmlists.append(DistroArchObject(&quot;au1.92-sparc-dries&quot;, &quot;au1.92 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/</A>&quot;, [&quot;au1.92.rf&quot;, &quot;au1.92.dries&quot;], &quot;Aurora 1.92 for sparc&quot;, addPaths))
++        addPaths = ['aurora/1.91/sparc']
++        self.__rpmlists.append(DistroArchObject(&quot;au1.91-sparc-dries&quot;, &quot;au1.91 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/</A>&quot;, [&quot;au1.91.rf&quot;, &quot;au1.91.dries&quot;],&quot;Aurora 1.91 for sparc&quot;, addPaths))
+         self.__rpmNameToSpecSubDirName = {}
+         self.__completeRpmsLists()
+         self.__completeSiteValues()
+@@ -166,6 +176,29 @@
+         for i in self.__rpmlists:
+             self.generateDistroArchPageRpm(i)
+             self.generateDistroArchPageSrpm(i)
++        # also create some directory indexes
++        dirs = [&quot;fedora&quot;, &quot;redhat&quot;, &quot;aurora&quot;]
++        for i in dirs:
++            self.generateDirectoryView(i)
++        # also create a HEADER.html which is used on the mirrors
++        self.generateHeaders()
++        
++    def generateHeaders(self):
++        contents = &quot;&lt;link rel=\&quot;stylesheet\&quot; type=\&quot;text/css\&quot; media=\&quot;all\&quot; href=\&quot;<A HREF="http://dries.ulyssis.org/layout/rpm.css\">http://dries.ulyssis.org/layout/rpm.css\</A>&quot;/&gt;\n&quot;
++        contents = contents + &quot;&lt;div class=\&quot;dirheader\&quot;&gt;You can find more information about these rpms at &lt;a href=\&quot;<A HREF="http://dries.ulyssis.org/rpm/\">http://dries.ulyssis.org/rpm/\</A>&quot;&gt;<A HREF="http://dries.ulyssis.org/rpm/&lt;/a">http://dries.ulyssis.org/rpm/&lt;/a</A>&gt;&lt;/div&gt;\n&quot;
++        f = open(os.path.join(self.__siterootdir,&quot;HEADERS.html&quot;), &quot;w&quot;)
++        f.write(contents)
++        f.close()
++        contents = &quot;You can find more information about these rpms at <A HREF="http://dries.ulyssis.org/rpm/\n">http://dries.ulyssis.org/rpm/\n</A>&quot;
++        f = open(os.path.join(self.__siterootdir,&quot;HEADERS&quot;), &quot;w&quot;)
++        f.write(contents)
++        f.close()
++        
++        
++    def generateDirectoryView(self,path):
++        contents = self.__getFileContents(&quot;dries/directoryview-part.html&quot;)
++        self.generateFullPage(contents,[],path + &quot;/index.php&quot;, &quot;Index of /rpm/&quot; + path + &quot; - Dries RPM Repository&quot;)
++        
+             
+     def pydar2Pages(self):
+         contents = self.__getFileContents(&quot;dries/pydar2/index-part.html&quot;)
+@@ -182,8 +215,8 @@
+         self.generateFullPage(contents,[],&quot;pydar2/classdiagram.html&quot;, &quot;Class diagram: Pydar2 rpm buildserver: Dries RPM Repository&quot;)
+         contents = self.__getFileContents(&quot;dries/pydar2/needed-part.html&quot;)
+         self.generateFullPage(contents,[],&quot;pydar2/needed.html&quot;, &quot;Todo: Pydar2 rpm buildserver: Dries RPM Repository&quot;)
+-        shutil.copy(&quot;dries/pydar2/classdiagram.png&quot;,self.__siterootdir)
+-        shutil.copy(&quot;dries/pydar2/classdiagram.xmi&quot;,self.__siterootdir)
++        shutil.copy(&quot;dries/pydar2/classdiagram.png&quot;,self.__siterootdir + &quot;/pydar2/&quot;)
++        shutil.copy(&quot;dries/pydar2/classdiagram.xmi&quot;,self.__siterootdir + &quot;/pydar2/&quot;)
+             
+     def clientConfigPage(self):
+         contents = self.__getFileContents(&quot;dries/clientconfig-part.html&quot;)
+@@ -214,6 +247,10 @@
+                 linkToPackage = &quot;&amp;nbsp;-&amp;nbsp&lt;a href=\&quot;/rpm/packages/&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;/info.html\&quot;&gt;&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;&lt;/a&gt;&quot;
+             contents = contents + &quot;&lt;a href=\&quot;&quot; + distroArch.rpmsUrl + r + &quot;\&quot;&gt;&quot; + r + &quot;&lt;/a&gt;&quot; + linkToPackage + &quot;&lt;br /&gt;&quot;
+         self.generateFullPage(contents, [distroArch.displayName], distroArch.shortName + &quot;-rpms.html&quot;,distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;): Dries RPM Repository&quot;)
++        # also generate a page in redhat/el4/i386/ for example
++        for path in distroArch.additionalPaths:
++            contents = &quot;This page now contains links to the rpms on one of the mirrors because the page is generating way too much traffic for this server.&lt;br /&gt;&lt;br /&gt;&quot; + contents
++            self.generateFullPage(contents, [distroArch.displayName], path + &quot;/index.html&quot;,distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;): Dries RPM Repository&quot;)
+     
+     def generateDistroArchPageSrpm(self,distroArch):
+         contents = &quot;&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002106.html">[svn] r3304 - in trunk/tools/pydar2: . etc pydar scripts
+</A></li>
+	<LI>Next message: <A HREF="002108.html">[svn] r3306 - in trunk/rpms: perl-AOL-TOC perl-Compress-Bzip2	perl-File-Which perl-GD-Graph perl-GD-Text-Util	perl-Gnome2-Canvas perl-Graphics-ColorNames perl-IP-Country	perl-Inline-TT perl-Net-IMAP-Simple perl-SVN-Churn	perl-SVN-Log perl-SVN-Log-Index perl-SVN-Mirror perl-SVN-Push	perl-Scraper pgadmin3 pydar2 spamassassin zonecheck zsplit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2107">[ date ]</a>
+              <a href="thread.html#2107">[ thread ]</a>
+              <a href="subject.html#2107">[ subject ]</a>
+              <a href="author.html#2107">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

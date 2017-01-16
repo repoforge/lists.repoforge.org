@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1592 - trunk/rpms/gaim
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1592%20-%20trunk/rpms/gaim&In-Reply-To=%3C20040719061020.DF2B41FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000400.html">
+   <LINK REL="Next"  HREF="000402.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1592 - trunk/rpms/gaim</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1592%20-%20trunk/rpms/gaim&In-Reply-To=%3C20040719061020.DF2B41FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1592 - trunk/rpms/gaim">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Jul 19 08:10:20 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000400.html">[SVN] r1591 - trunk/rpms/libsnack
+</A></li>
+        <LI>Next message: <A HREF="000402.html">[SVN] r1593 - in trunk/rpms: gaim gaim-meanwhile gtkspell meanwhile	swh-plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#401">[ date ]</a>
+              <a href="thread.html#401">[ thread ]</a>
+              <a href="subject.html#401">[ subject ]</a>
+              <a href="author.html#401">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-07-19 08:10:18 +0200 (Mon, 19 Jul 2004)
+New Revision: 1592
+
+Modified:
+   trunk/rpms/gaim/gaim.spec
+Log:
+Update to gaim 0.80.
+Added xinput patch and simplified desktop patch.
+
+
+Modified: trunk/rpms/gaim/gaim.spec
+===================================================================
+--- trunk/rpms/gaim/gaim.spec	2004-07-19 02:38:45 UTC (rev 1591)
++++ trunk/rpms/gaim/gaim.spec	2004-07-19 06:10:18 UTC (rev 1592)
+@@ -6,7 +6,7 @@
+ 
+ Summary: Gtk2 based multiprotocol instant messaging client
+ Name: gaim
+-Version: 0.77
++Version: 0.80
+ Release: 1
+ Epoch: 1
+ License: GPL
+@@ -14,16 +14,14 @@
+ URL: <A HREF="http://gaim.sourceforge.net/">http://gaim.sourceforge.net/</A>
+ 
+ Source: <A HREF="http://dl.sf.net/gaim/gaim-%{version">http://dl.sf.net/gaim/gaim-%{version</A>}.tar.bz2
+-Patch0: gaim-0.75-desktop.patch
++#Source1: gaim-rpmforge-prefs.xml
++Patch0: gaim-0.80-desktop.patch
+ Patch1: gaim-prefs.patch
+-BuildRoot: %{_tmppath}/%{name}-%{version}-root
++### soon to be replaced by upstream fix
++Patch4: gaim-0.76-xinput.patch
++Patch128: gaim-0.79-cached_buddy_icons.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-Requires: gtk2, gtkspell, libao
+-Requires: mozilla-nss, mozilla-nspr
+-Requires: startup-notification, audiofile
+-%{?_with_tcltk:Requires: tcl, tk}
+-%{?_with_arts:Requires: arts}
+-%{?_with_perl:Requires: perl}
+ BuildRequires: XFree86-devel
+ BuildRequires: libtool, gtk2-devel, gtkspell-devel, libao-devel
+ BuildRequires: mozilla-nss, mozilla-nss-devel
+@@ -31,7 +29,9 @@
+ BuildRequires: startup-notification-devel, audiofile-devel
+ %{?_with_tcltk:BuildRequires: tcl-devel, tk-devel}
+ %{?_with_arts:BuildRequires: arts-devel}
+-%{?_with_perl:BuildRequires: perl}
++%{!?_without_perl:BuildRequires: perl}
++%{?_with_tcltk:Requires: tcl, tk}
++%{?_with_perl:Requires: perl}
+ 
+ %description
+ Gaim is a multi-protocol instant messaging client compatible with AIM (Oscar
+@@ -53,31 +53,43 @@
+ away, and more. 
+ 
+ Available rpmbuild rebuild options :
+---with : tcltk arts perl
++--with : tcltk arts
++--without : perl
+ 
+ 
+ %prep
+ %setup -n %{name}-%{?date:%{date}}%{!?date:%{version}}
+-%patch0 -p1 -b .desktop
++%patch0 -b .desktop
+ %patch1 -p1 -b .prefs
++%patch4 -p1
+ 
+ 
+ %build
+ %configure \
++    --enable-nss=&quot;yes&quot; \
+     %{!?_with_tcltk:--disable-tcl --disable-tk} \
+     %{!?_with_arts:--disable-artsc} \
+-    %{!?_with_perl:--disable-perl}
++    %{?_without_perl:--disable-perl}
+ %{__make} %{?_smp_mflags}
+ 
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__make} install DESTDIR=%{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
+ %find_lang %{name}
+ %{__strip} %{buildroot}%{_libdir}/{*.so*,%{name}/*.so} || :
+-%{?_with_perl:%{__rm} -f %{buildroot}%{perl_archlib}/perllocal.pod}
++%{!?_without_perl:%{__rm} -f %{buildroot}%{perl_archlib}/perllocal.pod}
+ 
++#%{__install} -D -m0644 %{SOURCE1} $RPM_BUILD_ROOT%{_sysconfdir}/gaim/prefs.xml
+ 
++
++%post
++/sbin/ldconfig -n %{_libdir}/gaim
++
++%postun
++/sbin/ldconfig -n %{_libdir}/gaim
++
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+@@ -86,22 +98,27 @@
+ %defattr(-, root, root, 0755)
+ %doc doc/the_penguin.txt doc/CREDITS NEWS COPYING AUTHORS doc/FAQ README
+ %doc ChangeLog doc/PERL-HOWTO.dox HACKING doc/gaims_funniest_home_convos.txt
+-%{_bindir}/%{name}*
+-%{_includedir}/%{name}-remote
+-%{_libdir}/%{name}
+-%{_libdir}/lib%{name}-remote.*
+-%{_datadir}/applications/%{name}.desktop
+-%{_datadir}/pixmaps/%{name}.png
+-%{_datadir}/pixmaps/%{name}
+-%{_datadir}/sounds/%{name}
++#%{_sysconfdir}/gaim/
++%{_bindir}/gaim*
++%{_includedir}/gaim/
++%{_libdir}/gaim/
++%{_libdir}/libgaim-remote.*
++%{_datadir}/applications/gaim.desktop
++%{_datadir}/pixmaps/gaim.png
++%{_datadir}/pixmaps/gaim/
++%{_datadir}/sounds/gaim/
+ %{_mandir}/man1/*
+-%if %{?_with_perl:1}%{!?_with_perl:0}
++%{_libdir}/pkgconfig/gaim.pc
++%if %{!?_without_perl:1}0
+   %{perl_vendorarch}/Gaim.pm
+   %{perl_vendorarch}/auto/Gaim
+   %{perl_vendorman3dir}/*
+ %endif
+ 
+ %changelog
++* Mon Jul 19 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.80-1
++- Update to 0.80.
++
+ * Fri Apr 30 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.77-1
+ - Update to 0.77.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000400.html">[SVN] r1591 - trunk/rpms/libsnack
+</A></li>
+	<LI>Next message: <A HREF="000402.html">[SVN] r1593 - in trunk/rpms: gaim gaim-meanwhile gtkspell meanwhile	swh-plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#401">[ date ]</a>
+              <a href="thread.html#401">[ thread ]</a>
+              <a href="subject.html#401">[ subject ]</a>
+              <a href="author.html#401">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

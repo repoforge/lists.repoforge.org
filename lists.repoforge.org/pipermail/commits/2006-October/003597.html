@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4797 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4797%20-%20trunk/tools/yam&In-Reply-To=%3C20061008182127.85B92318223%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003596.html">
+   <LINK REL="Next"  HREF="003598.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4797 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4797%20-%20trunk/tools/yam&In-Reply-To=%3C20061008182127.85B92318223%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4797 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Oct  8 20:21:27 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003596.html">[svn] r4796 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="003598.html">[svn] r4798 - in trunk/rpms: . dkms-tiacx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3597">[ date ]</a>
+              <a href="thread.html#3597">[ thread ]</a>
+              <a href="subject.html#3597">[ subject ]</a>
+              <a href="author.html#3597">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-10-08 20:21:25 +0200 (Sun, 08 Oct 2006)
+New Revision: 4797
+
+Modified:
+   trunk/tools/yam/rhnget
+Log:
+Small changes
+
+Modified: trunk/tools/yam/rhnget
+===================================================================
+--- trunk/tools/yam/rhnget	2006-10-07 14:05:53 UTC (rev 4796)
++++ trunk/tools/yam/rhnget	2006-10-08 18:21:25 UTC (rev 4797)
+@@ -15,7 +15,21 @@
+ ### Copyright 2004-2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ import os, sys, shutil, getopt, ConfigParser, urlparse, types
++import signal, xmlrpclib
+ 
++if os.path.exists('/usr/share/rhn/') and os.path.exists('/usr/share/rhn/up2date_client/'):
++	sys.path.insert(0, '/usr/share/rhn/')
++	sys.path.insert(1, '/usr/share/rhn/up2date_client/')
++else:
++	die(1,'up2date is not installed. Aborting execution')
++
++from up2date_client import config, rpcServer, wrapperUtils, up2dateErrors, repoDirector
++from rhn import rpclib
++
++cfg = {}
++loginInfo = {}
++rd = None
++
+ __version__ = &quot;$Revision: 4786 $&quot;
+ # $Source$
+ 
+@@ -32,13 +46,14 @@
+ 		self.quiet = False
+ 		self.rhngetcleanup = False
+ 		self.rhngetdownloadall = False
++		self.rhngetsource = False
+ 		self.rhnrelease = None
+ 		self.systemid = '/etc/sysconfig/rhn/systemid'
+ 		self.verbose = 1
+ 
+ 		try:
+ 			opts, args = getopt.getopt (args, 'hnqr:s:v',
+-				('delete', 'download-all', 'dryrun', 'help', 'quiet', 'release=', 'systemid=', 'verbose', 'version' ))
++				('delete', 'download-all', 'dryrun', 'help', 'quiet', 'release=', 'source', 'systemid=', 'verbose', 'version' ))
+ 		except getopt.error, exc:
+ 			print 'rhnget: %s, try rhnget -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -59,6 +74,8 @@
+ 				self.quiet = True
+ 			elif opt in ('-r', '--release'):
+ 				self.rhnrelease = arg
++			elif opt in ('--source', ):
++				self.rhngetsource = True
+ 			elif opt in ('-s', '--systemid'):
+ 				self.systemid = os.path.abspath(arg)
+ 			elif opt in ('-v', '--verbose'):
+@@ -70,6 +87,12 @@
+ 				print 'rhnget: the use of -x or --extras is deprecated, use -u and -r instead'
+ 				self.update = True
+ 
++		if len(args) &lt; 2:
++			self.usage()
++			print
++			self.help()
++			sys.exit(1)
++
+ 		self.uri = args[0]
+ 		self.destination = args[1]
+ 
+@@ -92,7 +115,7 @@
+ 		print 'usage: rhnget [options] <A HREF="rhns://server/channel">rhns://server/channel</A> destination-path'
+ 
+ 	def help(self):
+-		print '''Set up a distribution server from ISO files
++		print '''Download packages from Red Hat Network (RHN)
+ 
+ rhnget options:
+       --delete            delete files that are not on the sender side
+@@ -157,26 +180,6 @@
+ 	if not os.path.exists(path):
+ 		os.makedirs(path)
+ 
+-def rhnreset():
+-	&quot;Clean up2date's global variables&quot;
+-	global cfg, loginInfo, rd, config, repoDirector, rpcServer
+-#   global cfg, loginInfo, rd, server_list, channel_blacklist, selected_channels, lastPercent
+-       
+-	cfg = {}
+-	loginInfo = {}
+-	rd = None
+-#   server_list = None
+-#   channel_blacklist = None
+-#   selected_channels = None
+-#   lastPercent = None
+-#   pkgSack = None
+-    
+-	### Does this help ?
+-#	reload(config)
+-#	reload(repoDirector)
+-#	reload(rpcServer)
+-
+-
+ def rhnlogin(url, path, force=False):
+ 	'Log on to RHN and return cfg, loginInfo and systemid'
+ 	global cfg, loginInfo, rd, config, rpcServer
+@@ -194,11 +197,6 @@
+ 
+ 	systemid = open(systemidpath).read()
+ 
+-	from up2date_client import config, rpcServer
+-	from rhn import rpclib
+-
+-	rhnreset()
+-
+ 	cfg['systemIdPath'] = systemidpath
+ 	cfg = config.initUp2dateConfig()
+ 	cfg['systemIdPath'] = systemidpath
+@@ -269,16 +267,9 @@
+ 	'Mirror a channel from RHN'
+ 	global cfg, loginInfo, rd, repoDirector, rpcServer
+ 
+-	sys.path.insert(0, '/usr/share/rhn/')
+-	sys.path.insert(1, '/usr/share/rhn/up2date_client/')
+-
+ 	t, t, label, t, t, t = urlparse.urlparse(url)
+ 	label = label.strip('/')
+ 
+-	from up2date_client import rpcServer, wrapperUtils, up2dateErrors, repoDirector
+-	from rhn import rpclib
+-	import signal, xmlrpclib
+-
+ 	### Log on to RHN
+ 	systemid = rhnlogin(url, path)
+ 	if not systemid:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003596.html">[svn] r4796 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="003598.html">[svn] r4798 - in trunk/rpms: . dkms-tiacx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3597">[ date ]</a>
+              <a href="thread.html#3597">[ thread ]</a>
+              <a href="subject.html#3597">[ subject ]</a>
+              <a href="author.html#3597">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

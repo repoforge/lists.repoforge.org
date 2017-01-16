@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4458 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4458%20-%20trunk/tools/yam&In-Reply-To=%3C20060531200406.61FB7944D94%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003257.html">
+   <LINK REL="Next"  HREF="003259.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4458 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4458%20-%20trunk/tools/yam&In-Reply-To=%3C20060531200406.61FB7944D94%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4458 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed May 31 22:04:06 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003257.html">[svn] r4457 - trunk/rpms/griffith
+</A></li>
+        <LI>Next message: <A HREF="003259.html">[svn] r4459 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3258">[ date ]</a>
+              <a href="thread.html#3258">[ thread ]</a>
+              <a href="subject.html#3258">[ subject ]</a>
+              <a href="author.html#3258">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-05-31 22:04:04 +0200 (Wed, 31 May 2006)
+New Revision: 4458
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+Log:
+Sort the distributions in the order provided on the commandline
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-05-31 19:56:57 UTC (rev 4457)
++++ trunk/tools/yam/ChangeLog	2006-05-31 20:04:04 UTC (rev 4458)
+@@ -18,6 +18,7 @@
+ - Fixed typo in documentation (basegendir -&gt; genbasedir) (Marc Herbert)
+ - Added default cronjob to package
+ - Fixed a recent bug where dangling symlinks were not properly removed
++- Sort the distributions in the order provided on the commandline
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-05-31 19:56:57 UTC (rev 4457)
++++ trunk/tools/yam/yam	2006-05-31 20:04:04 UTC (rev 4458)
+@@ -39,7 +39,7 @@
+ class Options:
+ 	def __init__(self, args):
+ 		self.configfile = '/etc/yam.conf'
+-		self.dist = []
++		self.dists = []
+ 		self.rhnrelease = None
+ 		self.extra = False
+ 		self.force = False
+@@ -65,7 +65,7 @@
+ 				self.configfile = os.path.abspath(arg)
+ 			elif opt in ['-d', '--dist']:
+ #				print 'yam: the use of -d as an option is deprecated'
+-				self.dist = self.dist + arg.split(',')
++				self.dists = self.dists + arg.split(',')
+ 			elif opt in ['-f', '--force']:
+ 				self.force = True
+ 			elif opt in ['-g', '--generate']:
+@@ -94,7 +94,7 @@
+ 				self.extra = True
+ 
+ 		for arg in args:
+-			self.dist = self.dist + arg.split(',')
++			self.dists = self.dists + arg.split(',')
+ 
+ 		if self.quiet:
+ 			self.verbose = 0
+@@ -746,6 +746,7 @@
+ 	if op.verbose &gt;= 3: opts = opts + ' -v' * (op.verbose - 3)	
+ 	if op.dryrun: opts = opts + ' --dry-run'
+ 	if cf.mirrordircleanup: opts = opts + ' -k'
++
+ #	opts = opts + ' -I \&quot;*.rpm\&quot;'
+ 	opts = opts + ' -G \&quot;headers\&quot; -G \&quot;repodata\&quot;'
+ 	if cf.mirrordirexclsrpm: opts = opts + ' -G \&quot;*.src.rpm\&quot; -G \&quot;SRPMS\&quot;'
+@@ -1041,13 +1042,23 @@
+ 			cf.cmd[cmd] = ' '.join(list)
+ 	if not cf.cmd['createrepo'] and not cf.cmd['yumarch'] and not cf.cmd['genbasedir']:
+ 		error(1, 'No tools found to generate repository metadata. Please install apt, yum or createrepo.')
+-		
++
++	### List the distributions in order of appearance
++	if not op.dists:
++		dists = cf.dists
++	else:
++		dists = []
++		for name in op.dists:
++			for dist in cf.dists:
++				if name == dist.dist or name == dist.nick:
++					dists.append(dist)
++	
+ 	### Iterate over the available distributions
+-	for dist in cf.dists:
+-		if op.dist:
+-			if dist.dist not in op.dist and dist.nick not in op.dist:
+-				error(3, '%s: %s ignored, not requested' % (dist.nick, dist.name))
+-				continue
++	for dist in dists:
++#		if op.dists:
++#			if dist.dist not in op.dists and dist.nick not in op.dists:
++#				error(3, '%s: %s ignored, not requested' % (dist.nick, dist.name))
++#				continue
+ 
+ 		### Mount ISOs
+ 		if dist.isos():
+@@ -1060,21 +1071,21 @@
+ 		if op.update or op.extra:
+ 			info(1, '%s: Updating %s' % (dist.nick, dist.name))
+ 
+-		repos = dist.repos.keys()
+-		repos.sort()
++			repos = dist.repos.keys()
++			repos.sort()
+ 
+-		### Downloading things
+-		for repo in repos:
+-			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+-			if repo in ['os', 'core']:
+-				if op.update and not dist.isos():
+-					mirror(dist.repos[repo], srcdir, dist)
+-			elif repo in ['updates', ]:
+-				if op.update:
+-					mirror(dist.repos[repo], srcdir, dist)
+-			else:
+-				if op.extra:
+-					mirror(dist.repos[repo], srcdir, dist)
++			### Downloading things
++			for repo in repos:
++				srcdir = os.path.join(cf.srcdir, dist.nick, repo)
++				if repo in ['os', 'core']:
++					if op.update and not dist.isos():
++						mirror(dist.repos[repo], srcdir, dist)
++				elif repo in ['updates', ]:
++					if op.update:
++						mirror(dist.repos[repo], srcdir, dist)
++				else:
++					if op.extra:
++						mirror(dist.repos[repo], srcdir, dist)
+ 
+ 	if not op.generate:
+ 		sys.exit(0)
+@@ -1082,8 +1093,8 @@
+ 	htmlindex()
+ 
+ 	for dist in cf.dists:
+-		if op.dist:
+-			if dist.dist not in op.dist and dist.nick not in op.dist:
++		if op.dists:
++			if dist.dist not in op.dists and dist.nick not in op.dists:
+ 				continue
+ 
+ 		repos = dist.repos.keys()
+@@ -1172,7 +1183,7 @@
+ 			if cf.pxelinux:
+ 				copy(cf.pxelinux, tftpdir)
+ 
+-	if cf.hardlink and not op.dist:
++	if cf.hardlink and not op.dists:
+ 		hardlink(cf.srcdir)
+ 
+               
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003257.html">[svn] r4457 - trunk/rpms/griffith
+</A></li>
+	<LI>Next message: <A HREF="003259.html">[svn] r4459 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3258">[ date ]</a>
+              <a href="thread.html#3258">[ thread ]</a>
+              <a href="subject.html#3258">[ subject ]</a>
+              <a href="author.html#3258">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

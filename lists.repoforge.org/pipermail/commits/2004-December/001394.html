@@ -1,0 +1,264 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2589 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2589%20-%20trunk/tools/dstat&In-Reply-To=%3C20041202040256.803AA17F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001393.html">
+   <LINK REL="Next"  HREF="001395.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2589 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2589%20-%20trunk/tools/dstat&In-Reply-To=%3C20041202040256.803AA17F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2589 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Dec  2 05:02:56 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001393.html">[SVN] r2588 - trunk/rpms/xdesktopwaves
+</A></li>
+        <LI>Next message: <A HREF="001395.html">[SVN] r2590 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1394">[ date ]</a>
+              <a href="thread.html#1394">[ thread ]</a>
+              <a href="subject.html#1394">[ subject ]</a>
+              <a href="author.html#1394">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-02 05:02:54 +0100 (Thu, 02 Dec 2004)
+New Revision: 2589
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Released 0.5.5.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-12-01 20:01:45 UTC (rev 2588)
++++ trunk/tools/dstat/ChangeLog	2004-12-02 04:02:54 UTC (rev 2589)
+@@ -1,4 +1,5 @@
+ * 0.5.5
++- In fact, round() was not the problem, len() was, use str() instead. (Anton Blanchard)
+ - Abandoned the use of round() as it is limited to integers (Juergen Kreileder)
+ 
+ * 0.5.4
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-12-01 20:01:45 UTC (rev 2588)
++++ trunk/tools/dstat/TODO	2004-12-02 04:02:54 UTC (rev 2589)
+@@ -8,6 +8,7 @@
+ ### Export/Graph
+ + Add -o/--output option to save directly to a file
+ + Add --parse option to give parsable output (maybe CSV output ?)
+++ Interface with rrdtool
+ 
+ ### Extending statistics (help welcome!)
+ + Add all stats to seperate modules and allow people to plugin their own modules
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-01 20:01:45 UTC (rev 2588)
++++ trunk/tools/dstat/dstat	2004-12-02 04:02:54 UTC (rev 2589)
+@@ -19,7 +19,7 @@
+ import os, sys, re, getopt, time
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = &quot;0.5.4&quot;
++VERSION = '0.5.5'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -132,7 +132,7 @@
+ 		print 'Python %s' % sys.version
+ 
+ 	def usage(self):
+-		print 'usage: dstat [-av] [-cdgilmnpsty] [-D dev1..] [-I #..] [-N if1..] [delay [count]]'
++		print 'usage: dstat [-afv] [-cdgilmnpsty] [-D..] [-I..] [-N..] [delay [count]]'
+ 
+ 	def help(self):
+ 		print '''Versatile tool for generating system resource statistics
+@@ -163,7 +163,7 @@
+   -a, --all          equals -cdngyl
+   -v, --vmstat       equals -pmgdsc -D total
+ 
+-  -f, --full         expand -D, -I and -N disovery lists
++  -f, --full         expand -D, -I and -N discovery lists
+   --integer          show integer values
+   --nocolor          disable colors (implies --noupdate)
+   --noheader         disable repetitive headers
+@@ -883,19 +883,20 @@
+ 		color = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
+ 	else:
+ 		color = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'geen')
+-		
++
+ 	if var &lt; 0:
+ 		return ' ' * (max-2) + '- '
+ 
+ 	c = 0
+ 	while True:
+-		if len('%d' % long(var)) &lt; max:
++		repr = str(long(round(var)))
++		if len(repr) &lt; max:
+ 			if not op.integer and len('%1.2f' % var) &lt; max:
+ 				ret = '%1.2f' % var
+ 			elif not op.integer and len('%1.1f' % var) &lt; max:
+ 				ret = '%1.1f' % var
+ 			else:
+-				ret = '%d' % long(var)
++				ret = repr
+ 			break
+ 		var = var / base
+ 		c = c + 1
+
+Modified: trunk/tools/dstat/dstat.1
+===================================================================
+--- trunk/tools/dstat/dstat.1	2004-12-01 20:01:45 UTC (rev 2588)
++++ trunk/tools/dstat/dstat.1	2004-12-02 04:02:54 UTC (rev 2589)
+@@ -3,7 +3,7 @@
+ .SH NAME
+ Dstat \- Versatile tool for generating system resource statistics
+ .SH SYNOPSIS
+-dstat [-acdgilmnpsy] [-D dev1..] [-I #..] [-N if1..] [delay [count]]
++dstat [-afv] [-cdgilmnpsty] [-D..] [-I..] [-N..] [delay [count]]
+ .SH DESCRIPTION
+ Dstat is a versatile replacement for vmstat, iostat and ifstat. Dstat overcomes some of the limitations and adds some extra features.
+ 
+@@ -65,7 +65,7 @@
+ equals \fB\-pmgdsc\fR \fB\-D\fR total
+ .TP
+ \fB\-f\fR, \fB\-\-full\fR
+-expand -D, -I and -N disovery lists
++expand -D, -I and -N discovery lists
+ .TP
+ \fB\-\-integer\fR
+ show integer values
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2004-12-01 20:01:45 UTC (rev 2588)
++++ trunk/tools/dstat/dstat.spec	2004-12-02 04:02:54 UTC (rev 2589)
+@@ -2,9 +2,14 @@
+ # Authority: dag
+ # Upstream: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
++%{?dist: %{expand: %%define %dist 1}}
++
++%{?rh7:%define _with_python15 1}
++%{?el2:%define _with_python15 1}
++
+ Summary: Versatile vmstat, iostat and ifstat replacement
+ Name: dstat
+-Version: 0.5.4
++Version: 0.5.5
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -53,6 +58,8 @@
+ %{__rm} -rf %{buildroot}
+ %makeinstall
+ 
++%{?_with_python15:%{__install} -D -m0755 dstat15 %{buildroot}%{_bindir}/dstat}
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+@@ -65,8 +72,12 @@
+ %{_bindir}/dstat
+ 
+ %changelog
++* Thu Dec 02 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.5-1
++- Updated to release 0.5.5.
++
+ * Thu Nov 25 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.4-1
+ - Updated to release 0.5.4.
++- Use dstat15 if distribution uses python 1.5.
+ 
+ * Sun Nov 21 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.3-1
+ - Updated to release 0.5.3.
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2004-12-01 20:01:45 UTC (rev 2588)
++++ trunk/tools/dstat/dstat15	2004-12-02 04:02:54 UTC (rev 2589)
+@@ -19,7 +19,7 @@
+ import os, sys, re, getopt, time, string
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = &quot;0.5.4&quot;
++VERSION = '0.5.5'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -132,7 +132,7 @@
+ 		print 'Python %s' % sys.version
+ 
+ 	def usage(self):
+-		print 'usage: dstat [-av] [-cdgilmnpsty] [-D dev1..] [-I #..] [-N if1..] [delay [count]]'
++		print 'usage: dstat [-afv] [-cdgilmnpsty] [-D..] [-I..] [-N..] [delay [count]]'
+ 
+ 	def help(self):
+ 		print '''Versatile tool for generating system resource statistics
+@@ -883,18 +883,20 @@
+ 		color = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
+ 	else:
+ 		color = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'geen')
+-		
+-	if var &lt; 0: return ' ' * (max-2) + '- '
+ 
++	if var &lt; 0:
++		return ' ' * (max-2) + '- '
++
+ 	c = 0
+ 	while True:
+-		if len('%d' % round(long(var))) &lt; max:
++		repr = str(long(round(var)))
++		if len(repr) &lt; max:
+ 			if not op.integer and len('%1.2f' % var) &lt; max:
+ 				ret = '%1.2f' % var
+ 			elif not op.integer and len('%1.1f' % var) &lt; max:
+ 				ret = '%1.1f' % var
+ 			else:
+-				ret = '%d' % round(long(var))
++				ret = repr
+ 			break
+ 		var = var / base
+ 		c = c + 1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001393.html">[SVN] r2588 - trunk/rpms/xdesktopwaves
+</A></li>
+	<LI>Next message: <A HREF="001395.html">[SVN] r2590 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1394">[ date ]</a>
+              <a href="thread.html#1394">[ thread ]</a>
+              <a href="subject.html#1394">[ subject ]</a>
+              <a href="author.html#1394">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

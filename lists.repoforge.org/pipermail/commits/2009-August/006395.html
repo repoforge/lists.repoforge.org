@@ -1,0 +1,3387 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7599 - trunk/rpms/smplayer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7599%20-%20trunk/rpms/smplayer&In-Reply-To=%3C200908071551.n77FpaWb010335%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006394.html">
+   <LINK REL="Next"  HREF="006396.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7599 - trunk/rpms/smplayer</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7599%20-%20trunk/rpms/smplayer&In-Reply-To=%3C200908071551.n77FpaWb010335%40surya.karan.org%3E"
+       TITLE="[svn] r7599 - trunk/rpms/smplayer">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug  7 17:51:36 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006394.html">[svn] r7598 - trunk/rpms/bogofilter
+</A></li>
+        <LI>Next message: <A HREF="006396.html">[svn] r7600 - trunk/rpms/perl-IO-Socket-SSL
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6395">[ date ]</a>
+              <a href="thread.html#6395">[ thread ]</a>
+              <a href="subject.html#6395">[ subject ]</a>
+              <a href="author.html#6395">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: yury
+Date: 2009-08-07 16:51:35 +0100 (Fri, 07 Aug 2009)
+New Revision: 7599
+
+Added:
+   trunk/rpms/smplayer/smplayer-0.6.8-el5-logic-zyv.patch
+   trunk/rpms/smplayer/smplayer-0.6.8-el5-ui-zyv.patch
+Modified:
+   trunk/rpms/smplayer/smplayer.spec
+Log:
+Update SMPlayer SPEC file to the latest version and add new set of
+patches for CentOS 5.
+
+
+
+Added: trunk/rpms/smplayer/smplayer-0.6.8-el5-logic-zyv.patch
+===================================================================
+--- trunk/rpms/smplayer/smplayer-0.6.8-el5-logic-zyv.patch	                        (rev 0)
++++ trunk/rpms/smplayer/smplayer-0.6.8-el5-logic-zyv.patch	2009-08-07 15:51:35 UTC (rev 7599)
+@@ -0,0 +1,112 @@
++diff -Naur --exclude='*.ui' smplayer-0.6.8-orig/src/basegui.cpp smplayer-0.6.8/src/basegui.cpp
++--- smplayer-0.6.8-orig/src/basegui.cpp	2009-07-15 03:08:26.000000000 +0400
+++++ smplayer-0.6.8/src/basegui.cpp	2009-07-31 21:01:20.000000000 +0400
++@@ -38,6 +38,9 @@
++ #include &lt;QDesktopServices&gt;
++ #include &lt;QInputDialog&gt;
++ 
+++// ZYV - need to include this for Qt4.2
+++#include &lt;QTextStream&gt;
+++
++ #include &lt;cmath&gt;
++ 
++ #include &quot;mplayerwindow.h&quot;
++diff -Naur --exclude='*.ui' smplayer-0.6.8-orig/src/findsubtitles/filedownloader/filedownloader.cpp smplayer-0.6.8/src/findsubtitles/filedownloader/filedownloader.cpp
++--- smplayer-0.6.8-orig/src/findsubtitles/filedownloader/filedownloader.cpp	2009-07-12 14:08:27.000000000 +0400
+++++ smplayer-0.6.8/src/findsubtitles/filedownloader/filedownloader.cpp	2009-07-31 21:16:48.000000000 +0400
++@@ -47,15 +47,22 @@
++ 
++ void FileDownloader::setProxy(QNetworkProxy proxy) {
++ 	http-&gt;abort();
++-	http-&gt;setProxy(proxy);
+++
+++	// ZYV - proxy trick
+++//	http-&gt;setProxy(proxy);
+++	http-&gt;setProxy(proxy.hostName(), proxy.port(), proxy.user(), proxy.password());
++ 
++ 	qDebug(&quot;FileDownloader::setProxy: host: '%s' port: %d type: %d&quot;,
++            proxy.hostName().toUtf8().constData(), proxy.port(), proxy.type());
++ }
++ 
++ void FileDownloader::download(QUrl url) {
++-	QHttp::ConnectionMode mode = url.scheme().toLower() == &quot;https&quot; ? QHttp::ConnectionModeHttps : QHttp::ConnectionModeHttp;
++-	http-&gt;setHost(url.host(), mode, url.port() == -1 ? 0 : url.port());
+++
+++	// ZYV - This is only supported in Qt4.3 and later
+++//	QHttp::ConnectionMode mode = url.scheme().toLower() == &quot;https&quot; ? QHttp::ConnectionModeHttps : QHttp::ConnectionModeHttp;
+++//	http-&gt;setHost(url.host(), mode, url.port() == -1 ? 0 : url.port());
+++
+++	http-&gt;setHost(url.host(), url.port() == -1 ? 0 : url.port());
++     
++ 	if (!url.userName().isEmpty())
++ 		http-&gt;setUser(url.userName(), url.password());
++diff -Naur --exclude='*.ui' smplayer-0.6.8-orig/src/findsubtitles/findsubtitlesconfigdialog.cpp smplayer-0.6.8/src/findsubtitles/findsubtitlesconfigdialog.cpp
++--- smplayer-0.6.8-orig/src/findsubtitles/findsubtitlesconfigdialog.cpp	2009-01-02 01:41:28.000000000 +0300
+++++ smplayer-0.6.8/src/findsubtitles/findsubtitlesconfigdialog.cpp	2009-07-31 21:20:05.000000000 +0400
++@@ -24,8 +24,18 @@
++ {
++ 	setupUi(this);
++ 
++-	proxy_type_combo-&gt;addItem( tr(&quot;Http&quot;), QNetworkProxy::HttpProxy);
++-	proxy_type_combo-&gt;addItem( tr(&quot;Socks5&quot;), QNetworkProxy::Socks5Proxy);
+++	// ZYV - HTTP Proxy type is only supported in Qt4.3+
+++
+++	// Anyway, there are no calls to setApplicationProxy() anywhere in the code.
+++	// These proxy settings are only used with QHttp. Which in Qt4.2 only supports 
+++	// HTTP proxy :-) So what we are going to do is just to ignore Socks5Proxy and 
+++	// use these settings for HTTP proxy in QHttp instead. Sorry, it's by no means 
+++	// an elegant solution, but supporting Socks5 would require way too many changes 
+++	// in the upstream code. Better solutions are welcome.
+++
+++//	proxy_type_combo-&gt;addItem( tr(&quot;Http&quot;), QNetworkProxy::HttpProxy);
+++//	proxy_type_combo-&gt;addItem( tr(&quot;Socks5&quot;), QNetworkProxy::Socks5Proxy);
+++	proxy_type_combo-&gt;addItem( tr(&quot;Http&quot;), QNetworkProxy::Socks5Proxy);
++ 
++ 	use_proxy_check-&gt;setWhatsThis( tr(&quot;Enable/disable the use of the proxy.&quot;) );
++ 	proxy_hostname_edit-&gt;setWhatsThis( tr(&quot;The host name of the proxy.&quot;) );
++diff -Naur --exclude='*.ui' smplayer-0.6.8-orig/src/findsubtitles/findsubtitleswindow.cpp smplayer-0.6.8/src/findsubtitles/findsubtitleswindow.cpp
++--- smplayer-0.6.8-orig/src/findsubtitles/findsubtitleswindow.cpp	2009-07-12 03:30:24.000000000 +0400
+++++ smplayer-0.6.8/src/findsubtitles/findsubtitleswindow.cpp	2009-07-31 23:53:03.000000000 +0400
++@@ -147,8 +147,13 @@
++ 	language_filter-&gt;setCurrentIndex(0);
++ 
++ 	// Proxy
+++
+++	// ZYV - HTTP Proxy is only supported in Qt4.3+ - make Socks5 default
+++	// (this is actually fake, becuase these settings are used for HTTP)
+++
++ 	use_proxy = false;
++-	proxy_type = QNetworkProxy::HttpProxy;
+++//	proxy_type = QNetworkProxy::HttpProxy;
+++	proxy_type = QNetworkProxy::Socks5Proxy;
++ 	proxy_host = &quot;&quot;;
++ 	proxy_port = 0;
++ 	proxy_username = &quot;&quot;;
++@@ -169,7 +174,10 @@
++ 
++ void FindSubtitlesWindow::setProxy(QNetworkProxy proxy) {
++ 	downloader-&gt;abort();
++-	downloader-&gt;setProxy(proxy);
+++
+++	// ZYV - Different calling conventions for Qt &lt; 4.3
+++//	downloader-&gt;setProxy(proxy);
+++	downloader-&gt;setProxy(proxy.hostName(), proxy.port(), proxy.user(), proxy.password());
++ 
++ #ifdef DOWNLOAD_SUBS
++ 	file_downloader-&gt;setProxy(proxy);
++diff -Naur --exclude='*.ui' smplayer-0.6.8-orig/src/videopreview/videopreview.cpp smplayer-0.6.8/src/videopreview/videopreview.cpp
++--- smplayer-0.6.8-orig/src/videopreview/videopreview.cpp	2009-03-18 13:34:40.000000000 +0300
+++++ smplayer-0.6.8/src/videopreview/videopreview.cpp	2009-07-31 23:54:28.000000000 +0400
++@@ -324,7 +324,11 @@
++ 	}
++ 
++ 	if (run.thumbnail_width == 0) {
++-		int spacing = grid_layout-&gt;horizontalSpacing() * (prop.n_cols-1);
+++
+++		// ZYV - no horizontalSpacing in Qt4.2
+++//		int spacing = grid_layout-&gt;horizontalSpacing() * (prop.n_cols-1);
+++		int spacing = grid_layout-&gt;spacing() * (prop.n_cols-1);
+++
++ 		if (spacing &lt; 0) spacing = 0;
++ 		qDebug(&quot;VideoPreview::addPicture: spacing: %d&quot;, spacing);
++ 		run.thumbnail_width = (prop.max_width - spacing) / prop.n_cols;
+
+Added: trunk/rpms/smplayer/smplayer-0.6.8-el5-ui-zyv.patch
+===================================================================
+--- trunk/rpms/smplayer/smplayer-0.6.8-el5-ui-zyv.patch	                        (rev 0)
++++ trunk/rpms/smplayer/smplayer-0.6.8-el5-ui-zyv.patch	2009-08-07 15:51:35 UTC (rev 7599)
+@@ -0,0 +1,3148 @@
++diff -Naur smplayer-0.6.8-orig/src/findsubtitles/findsubtitleswindow.ui smplayer-0.6.8/src/findsubtitles/findsubtitleswindow.ui
++--- smplayer-0.6.8-orig/src/findsubtitles/findsubtitleswindow.ui	2009-01-02 01:34:51.000000000 +0300
+++++ smplayer-0.6.8/src/findsubtitles/findsubtitleswindow.ui	2009-07-31 23:07:11.000000000 +0400
++@@ -13,37 +13,19 @@
++    &lt;string&gt;Find Subtitles&lt;/string&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;spacing&quot; &gt;
++-    &lt;number&gt;6&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
+++   &lt;property name=&quot;margin&quot; &gt;
++     &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-     &lt;property name=&quot;spacing&quot; &gt;
++-      &lt;number&gt;6&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;leftMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;topMargin&quot; &gt;
+++     &lt;property name=&quot;margin&quot; &gt;
++       &lt;number&gt;0&lt;/number&gt;
++      &lt;/property&gt;
++-     &lt;property name=&quot;rightMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;bottomMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
+++     &lt;property name=&quot;spacing&quot; &gt;
+++      &lt;number&gt;6&lt;/number&gt;
++      &lt;/property&gt;
++      &lt;item&gt;
++       &lt;widget class=&quot;QLabel&quot; name=&quot;subtitles_for_label&quot; &gt;
++@@ -65,20 +47,11 @@
++    &lt;/item&gt;
++    &lt;item&gt;
++     &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-     &lt;property name=&quot;spacing&quot; &gt;
++-      &lt;number&gt;6&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;leftMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;topMargin&quot; &gt;
+++     &lt;property name=&quot;margin&quot; &gt;
++       &lt;number&gt;0&lt;/number&gt;
++      &lt;/property&gt;
++-     &lt;property name=&quot;rightMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;bottomMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
+++     &lt;property name=&quot;spacing&quot; &gt;
+++      &lt;number&gt;6&lt;/number&gt;
++      &lt;/property&gt;
++      &lt;item&gt;
++       &lt;widget class=&quot;QLabel&quot; name=&quot;filter_language_label&quot; &gt;
++@@ -141,25 +114,18 @@
++    &lt;/item&gt;
++    &lt;item&gt;
++     &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-     &lt;property name=&quot;spacing&quot; &gt;
++-      &lt;number&gt;6&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;leftMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;topMargin&quot; &gt;
+++     &lt;property name=&quot;margin&quot; &gt;
++       &lt;number&gt;0&lt;/number&gt;
++      &lt;/property&gt;
++-     &lt;property name=&quot;rightMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;bottomMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
+++     &lt;property name=&quot;spacing&quot; &gt;
+++      &lt;number&gt;6&lt;/number&gt;
++      &lt;/property&gt;
++      &lt;item&gt;
++       &lt;widget class=&quot;QLabel&quot; name=&quot;status&quot; &gt;
++        &lt;property name=&quot;sizePolicy&quot; &gt;
++-        &lt;sizepolicy vsizetype=&quot;Preferred&quot; hsizetype=&quot;Expanding&quot; &gt;
+++        &lt;sizepolicy&gt;
+++         &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++         &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++          &lt;horstretch&gt;0&lt;/horstretch&gt;
++          &lt;verstretch&gt;0&lt;/verstretch&gt;
++         &lt;/sizepolicy&gt;
++@@ -178,7 +144,9 @@
++      &lt;item&gt;
++       &lt;widget class=&quot;QProgressBar&quot; name=&quot;progress&quot; &gt;
++        &lt;property name=&quot;sizePolicy&quot; &gt;
++-        &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++        &lt;sizepolicy&gt;
+++         &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++         &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++          &lt;horstretch&gt;0&lt;/horstretch&gt;
++          &lt;verstretch&gt;0&lt;/verstretch&gt;
++         &lt;/sizepolicy&gt;
++diff -Naur smplayer-0.6.8-orig/src/findsubtitles/subchooserdialog.ui smplayer-0.6.8/src/findsubtitles/subchooserdialog.ui
++--- smplayer-0.6.8-orig/src/findsubtitles/subchooserdialog.ui	2008-10-10 02:39:25.000000000 +0400
+++++ smplayer-0.6.8/src/findsubtitles/subchooserdialog.ui	2009-07-31 21:00:37.000000000 +0400
++@@ -13,6 +13,12 @@
++    &lt;string&gt;Subtitle selection&lt;/string&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
+++   &lt;/property&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
+++   &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel&quot; &gt;
++      &lt;property name=&quot;text&quot; &gt;
++@@ -47,20 +53,11 @@
++    &lt;/item&gt;
++    &lt;item&gt;
++     &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-     &lt;property name=&quot;spacing&quot; &gt;
++-      &lt;number&gt;6&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;leftMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;topMargin&quot; &gt;
+++     &lt;property name=&quot;margin&quot; &gt;
++       &lt;number&gt;0&lt;/number&gt;
++      &lt;/property&gt;
++-     &lt;property name=&quot;rightMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;bottomMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
+++     &lt;property name=&quot;spacing&quot; &gt;
+++      &lt;number&gt;6&lt;/number&gt;
++      &lt;/property&gt;
++      &lt;item&gt;
++       &lt;widget class=&quot;QPushButton&quot; name=&quot;selectAll&quot; &gt;
++diff -Naur smplayer-0.6.8-orig/src/inputmplayerversion.ui smplayer-0.6.8/src/inputmplayerversion.ui
++--- smplayer-0.6.8-orig/src/inputmplayerversion.ui	2009-02-16 03:23:54.000000000 +0300
+++++ smplayer-0.6.8/src/inputmplayerversion.ui	2009-07-31 21:12:23.000000000 +0400
++@@ -14,20 +14,11 @@
++    &lt;string&gt;SMPlayer - Enter the MPlayer version&lt;/string&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;spacing&quot; &gt;
++-    &lt;number&gt;6&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
+++   &lt;property name=&quot;margin&quot; &gt;
++     &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QLabel&quot; name=&quot;message&quot; &gt;
++@@ -81,20 +72,11 @@
++    &lt;/item&gt;
++    &lt;item&gt;
++     &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-     &lt;property name=&quot;spacing&quot; &gt;
++-      &lt;number&gt;6&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;leftMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;topMargin&quot; &gt;
+++     &lt;property name=&quot;margin&quot; &gt;
++       &lt;number&gt;0&lt;/number&gt;
++      &lt;/property&gt;
++-     &lt;property name=&quot;rightMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;bottomMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
+++     &lt;property name=&quot;spacing&quot; &gt;
+++      &lt;number&gt;6&lt;/number&gt;
++      &lt;/property&gt;
++      &lt;item&gt;
++       &lt;widget class=&quot;QLabel&quot; name=&quot;label_2&quot; &gt;
++diff -Naur smplayer-0.6.8-orig/src/prefadvanced.ui smplayer-0.6.8/src/prefadvanced.ui
++--- smplayer-0.6.8-orig/src/prefadvanced.ui	2009-05-05 05:36:14.000000000 +0400
+++++ smplayer-0.6.8/src/prefadvanced.ui	2009-07-31 20:58:57.000000000 +0400
++@@ -5,22 +5,16 @@
++    &lt;rect&gt;
++     &lt;x&gt;0&lt;/x&gt;
++     &lt;y&gt;0&lt;/y&gt;
++-    &lt;width&gt;511&lt;/width&gt;
+++    &lt;width&gt;529&lt;/width&gt;
++     &lt;height&gt;466&lt;/height&gt;
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QTabWidget&quot; name=&quot;advanced_tab&quot; &gt;
++@@ -32,22 +26,19 @@
++        &lt;string&gt;&amp;amp;Advanced&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;monitor_aspect_icon&quot; &gt;
++@@ -75,7 +66,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;MyComboBox&quot; name=&quot;monitoraspect_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -106,7 +99,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_2&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -132,6 +127,12 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;0&lt;/number&gt;
+++         &lt;/property&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_8&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++@@ -177,7 +178,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_3&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -206,7 +209,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -218,20 +223,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;colorkey_label&quot; &gt;
++@@ -249,7 +245,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;QLineEdit&quot; name=&quot;colorkey_view&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Minimum&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -304,20 +302,11 @@
++        &lt;string&gt;Options for MP&amp;amp;layer&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-       &lt;property name=&quot;spacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel3_2&quot; &gt;
++@@ -336,20 +325,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel1_3&quot; &gt;
++@@ -372,7 +352,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line2&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -405,20 +387,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel2_3&quot; &gt;
++@@ -441,7 +414,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line3&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -473,20 +448,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel3_3&quot; &gt;
++@@ -526,26 +492,23 @@
++        &lt;string&gt;&amp;amp;Network&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QGroupBox&quot; name=&quot;internet_connection_groupbox&quot; &gt;
++          &lt;property name=&quot;title&quot; &gt;
++           &lt;string&gt;Network Connection&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-          &lt;property name=&quot;spacing&quot; &gt;
++-           &lt;number&gt;6&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
++            &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QRadioButton&quot; name=&quot;ipv4_button&quot; &gt;
++@@ -584,6 +547,12 @@
++        &lt;string&gt;Lo&amp;amp;gs&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QCheckBox&quot; name=&quot;log_smplayer_check&quot; &gt;
++          &lt;property name=&quot;text&quot; &gt;
++@@ -604,17 +573,11 @@
++           &lt;bool&gt;false&lt;/bool&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QGridLayout&quot; &gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;0&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
++-           &lt;number&gt;0&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
++-           &lt;number&gt;0&lt;/number&gt;
+++          &lt;property name=&quot;margin&quot; &gt;
+++           &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;0&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item rowspan=&quot;3&quot; row=&quot;0&quot; column=&quot;0&quot; &gt;
++            &lt;spacer&gt;
++@@ -659,7 +622,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line8_2&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++diff -Naur smplayer-0.6.8-orig/src/prefdrives.ui smplayer-0.6.8/src/prefdrives.ui
++--- smplayer-0.6.8-orig/src/prefdrives.ui	2009-03-18 13:43:04.000000000 +0300
+++++ smplayer-0.6.8/src/prefdrives.ui	2009-07-31 21:08:24.000000000 +0400
++@@ -10,19 +10,10 @@
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;spacing&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
++     &lt;number&gt;0&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++@@ -35,20 +26,11 @@
++        &lt;string&gt;Drives&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-       &lt;property name=&quot;spacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel2_5&quot; &gt;
++@@ -65,21 +47,12 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;9&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;property name=&quot;spacing&quot; &gt;
++           &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;cdrom_drive_icon&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++@@ -92,21 +65,12 @@
++          &lt;/item&gt;
++          &lt;item&gt;
++           &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++           &lt;property name=&quot;margin&quot; &gt;
+++            &lt;number&gt;9&lt;/number&gt;
+++           &lt;/property&gt;
++            &lt;property name=&quot;spacing&quot; &gt;
++             &lt;number&gt;6&lt;/number&gt;
++            &lt;/property&gt;
++-           &lt;property name=&quot;leftMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;topMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;rightMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;bottomMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++            &lt;item&gt;
++             &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel1_7&quot; &gt;
++              &lt;property name=&quot;text&quot; &gt;
++@@ -123,7 +87,9 @@
++            &lt;item&gt;
++             &lt;widget class=&quot;MyComboBox&quot; name=&quot;cdrom_device_combo&quot; &gt;
++              &lt;property name=&quot;sizePolicy&quot; &gt;
++-              &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++              &lt;sizepolicy&gt;
+++               &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++               &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                &lt;horstretch&gt;0&lt;/horstretch&gt;
++                &lt;verstretch&gt;0&lt;/verstretch&gt;
++               &lt;/sizepolicy&gt;
++@@ -163,7 +129,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line8&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -181,21 +149,12 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;9&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;property name=&quot;spacing&quot; &gt;
++           &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;dvd_drive_icon&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++@@ -208,21 +167,12 @@
++          &lt;/item&gt;
++          &lt;item&gt;
++           &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++           &lt;property name=&quot;margin&quot; &gt;
+++            &lt;number&gt;9&lt;/number&gt;
+++           &lt;/property&gt;
++            &lt;property name=&quot;spacing&quot; &gt;
++             &lt;number&gt;6&lt;/number&gt;
++            &lt;/property&gt;
++-           &lt;property name=&quot;leftMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;topMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;rightMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;bottomMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++            &lt;item&gt;
++             &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel2_2&quot; &gt;
++              &lt;property name=&quot;text&quot; &gt;
++@@ -239,7 +189,9 @@
++            &lt;item&gt;
++             &lt;widget class=&quot;MyComboBox&quot; name=&quot;dvd_device_combo&quot; &gt;
++              &lt;property name=&quot;sizePolicy&quot; &gt;
++-              &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++              &lt;sizepolicy&gt;
+++               &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++               &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                &lt;horstretch&gt;0&lt;/horstretch&gt;
++                &lt;verstretch&gt;0&lt;/verstretch&gt;
++               &lt;/sizepolicy&gt;
++diff -Naur smplayer-0.6.8-orig/src/prefgeneral.ui smplayer-0.6.8/src/prefgeneral.ui
++--- smplayer-0.6.8-orig/src/prefgeneral.ui	2009-07-03 03:13:46.000000000 +0400
+++++ smplayer-0.6.8/src/prefgeneral.ui	2009-07-31 20:59:11.000000000 +0400
++@@ -5,24 +5,15 @@
++    &lt;rect&gt;
++     &lt;x&gt;0&lt;/x&gt;
++     &lt;y&gt;0&lt;/y&gt;
++-    &lt;width&gt;486&lt;/width&gt;
++-    &lt;height&gt;503&lt;/height&gt;
+++    &lt;width&gt;504&lt;/width&gt;
+++    &lt;height&gt;538&lt;/height&gt;
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;spacing&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
++     &lt;number&gt;0&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++@@ -35,8 +26,20 @@
++        &lt;string&gt;&amp;amp;General&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;0&lt;/number&gt;
+++         &lt;/property&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel1_2&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++@@ -61,6 +64,12 @@
++           &lt;string&gt;Media settings&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
+++           &lt;number&gt;9&lt;/number&gt;
+++          &lt;/property&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
+++          &lt;/property&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QCheckBox&quot; name=&quot;remember_all_check&quot; &gt;
++             &lt;property name=&quot;text&quot; &gt;
++@@ -70,6 +79,12 @@
++           &lt;/item&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QGridLayout&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
+++             &lt;number&gt;0&lt;/number&gt;
+++            &lt;/property&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
+++            &lt;/property&gt;
++             &lt;item rowspan=&quot;2&quot; row=&quot;0&quot; column=&quot;0&quot; &gt;
++              &lt;spacer&gt;
++               &lt;property name=&quot;orientation&quot; &gt;
++@@ -92,7 +107,9 @@
++                &lt;bool&gt;false&lt;/bool&gt;
++               &lt;/property&gt;
++               &lt;property name=&quot;sizePolicy&quot; &gt;
++-               &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;MinimumExpanding&quot; &gt;
+++               &lt;sizepolicy&gt;
+++                &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                 &lt;horstretch&gt;0&lt;/horstretch&gt;
++                 &lt;verstretch&gt;0&lt;/verstretch&gt;
++                &lt;/sizepolicy&gt;
++@@ -104,6 +121,12 @@
++             &lt;/item&gt;
++             &lt;item row=&quot;1&quot; column=&quot;1&quot; &gt;
++              &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++              &lt;property name=&quot;margin&quot; &gt;
+++               &lt;number&gt;0&lt;/number&gt;
+++              &lt;/property&gt;
+++              &lt;property name=&quot;spacing&quot; &gt;
+++               &lt;number&gt;6&lt;/number&gt;
+++              &lt;/property&gt;
++               &lt;item&gt;
++                &lt;widget class=&quot;QLabel&quot; name=&quot;filesettings_method_label&quot; &gt;
++                 &lt;property name=&quot;enabled&quot; &gt;
++@@ -150,6 +173,12 @@
++           &lt;string&gt;Screenshots&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QGridLayout&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
+++           &lt;number&gt;9&lt;/number&gt;
+++          &lt;/property&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
+++          &lt;/property&gt;
++           &lt;item row=&quot;0&quot; column=&quot;0&quot; colspan=&quot;2&quot; &gt;
++            &lt;widget class=&quot;QCheckBox&quot; name=&quot;use_screenshots_check&quot; &gt;
++             &lt;property name=&quot;text&quot; &gt;
++@@ -220,8 +249,20 @@
++        &lt;string&gt;&amp;amp;Video&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;0&lt;/number&gt;
+++         &lt;/property&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;vo_label&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++@@ -238,7 +279,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;QComboBox&quot; name=&quot;vo_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -269,7 +312,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_5&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -281,20 +326,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QCheckBox&quot; name=&quot;postprocessing_check&quot; &gt;
++@@ -331,32 +367,23 @@
++          &lt;/item&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QSpinBox&quot; name=&quot;autoq_spin&quot; &gt;
++-           &lt;property name=&quot;minimum&quot; &gt;
++-            &lt;number&gt;1&lt;/number&gt;
++-           &lt;/property&gt;
++            &lt;property name=&quot;maximum&quot; &gt;
++             &lt;number&gt;6&lt;/number&gt;
++            &lt;/property&gt;
+++           &lt;property name=&quot;minimum&quot; &gt;
+++            &lt;number&gt;1&lt;/number&gt;
+++           &lt;/property&gt;
++           &lt;/widget&gt;
++          &lt;/item&gt;
++         &lt;/layout&gt;
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_7&quot; &gt;
++@@ -371,7 +398,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;QComboBox&quot; name=&quot;deinterlace_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -395,6 +424,12 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;0&lt;/number&gt;
+++         &lt;/property&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_8&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++@@ -407,12 +442,12 @@
++          &lt;/item&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QDoubleSpinBox&quot; name=&quot;zoom_spin&quot; &gt;
++-           &lt;property name=&quot;minimum&quot; &gt;
++-            &lt;double&gt;0.500000000000000&lt;/double&gt;
++-           &lt;/property&gt;
++            &lt;property name=&quot;maximum&quot; &gt;
++             &lt;double&gt;10.000000000000000&lt;/double&gt;
++            &lt;/property&gt;
+++           &lt;property name=&quot;minimum&quot; &gt;
+++            &lt;double&gt;0.500000000000000&lt;/double&gt;
+++           &lt;/property&gt;
++            &lt;property name=&quot;singleStep&quot; &gt;
++             &lt;double&gt;0.100000000000000&lt;/double&gt;
++            &lt;/property&gt;
++@@ -439,7 +474,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_4&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -480,7 +517,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_3&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -517,6 +556,12 @@
++           &lt;string&gt;Screensaver&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
+++           &lt;number&gt;9&lt;/number&gt;
+++          &lt;/property&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
+++          &lt;/property&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QCheckBox&quot; name=&quot;turn_screensaver_off_check&quot; &gt;
++             &lt;property name=&quot;text&quot; &gt;
++@@ -554,8 +599,20 @@
++        &lt;string&gt;A&amp;amp;udio&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;0&lt;/number&gt;
+++         &lt;/property&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;ao_label&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++@@ -572,7 +629,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;QComboBox&quot; name=&quot;ao_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -603,7 +662,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_6&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -629,20 +690,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label&quot; &gt;
++@@ -674,20 +726,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_6&quot; &gt;
++@@ -702,7 +745,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;TristateCombo&quot; name=&quot;scaletempo_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -730,17 +775,11 @@
++           &lt;string&gt;Volume&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
+++          &lt;property name=&quot;margin&quot; &gt;
+++           &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QCheckBox&quot; name=&quot;global_volume_check&quot; &gt;
++@@ -751,20 +790,11 @@
++           &lt;/item&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-            &lt;property name=&quot;spacing&quot; &gt;
++-             &lt;number&gt;6&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;leftMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;topMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;rightMargin&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
++              &lt;number&gt;0&lt;/number&gt;
++             &lt;/property&gt;
++-            &lt;property name=&quot;bottomMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
++             &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QCheckBox&quot; name=&quot;softvol_check&quot; &gt;
++@@ -807,12 +837,12 @@
++               &lt;property name=&quot;enabled&quot; &gt;
++                &lt;bool&gt;false&lt;/bool&gt;
++               &lt;/property&gt;
++-              &lt;property name=&quot;minimum&quot; &gt;
++-               &lt;number&gt;10&lt;/number&gt;
++-              &lt;/property&gt;
++               &lt;property name=&quot;maximum&quot; &gt;
++                &lt;number&gt;10000&lt;/number&gt;
++               &lt;/property&gt;
+++              &lt;property name=&quot;minimum&quot; &gt;
+++               &lt;number&gt;10&lt;/number&gt;
+++              &lt;/property&gt;
++              &lt;/widget&gt;
++             &lt;/item&gt;
++            &lt;/layout&gt;
++@@ -833,20 +863,20 @@
++           &lt;string&gt;Synchronization&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
+++          &lt;property name=&quot;margin&quot; &gt;
+++           &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;4&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
+++             &lt;number&gt;0&lt;/number&gt;
+++            &lt;/property&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
+++            &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QCheckBox&quot; name=&quot;autosync_check&quot; &gt;
++               &lt;property name=&quot;text&quot; &gt;
++@@ -894,12 +924,12 @@
++               &lt;property name=&quot;enabled&quot; &gt;
++                &lt;bool&gt;false&lt;/bool&gt;
++               &lt;/property&gt;
++-              &lt;property name=&quot;minimum&quot; &gt;
++-               &lt;number&gt;0&lt;/number&gt;
++-              &lt;/property&gt;
++               &lt;property name=&quot;maximum&quot; &gt;
++                &lt;number&gt;1000&lt;/number&gt;
++               &lt;/property&gt;
+++              &lt;property name=&quot;minimum&quot; &gt;
+++               &lt;number&gt;0&lt;/number&gt;
+++              &lt;/property&gt;
++               &lt;property name=&quot;value&quot; &gt;
++                &lt;number&gt;100&lt;/number&gt;
++               &lt;/property&gt;
++@@ -909,6 +939,12 @@
++           &lt;/item&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
+++             &lt;number&gt;0&lt;/number&gt;
+++            &lt;/property&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
+++            &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QCheckBox&quot; name=&quot;use_mc_check&quot; &gt;
++               &lt;property name=&quot;text&quot; &gt;
++@@ -983,20 +1019,11 @@
++        &lt;string&gt;Preferre&amp;amp;d audio and subtitles&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-       &lt;property name=&quot;spacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QLabel&quot; name=&quot;preferred_desc&quot; &gt;
++@@ -1012,7 +1039,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -1024,22 +1053,10 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QGridLayout&quot; &gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;verticalSpacing&quot; &gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
++           &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item row=&quot;1&quot; column=&quot;2&quot; &gt;
++@@ -1124,32 +1141,20 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QGridLayout&quot; &gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;verticalSpacing&quot; &gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
++           &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item row=&quot;1&quot; column=&quot;1&quot; &gt;
++           &lt;widget class=&quot;QSpinBox&quot; name=&quot;audio_track_spin&quot; &gt;
++-           &lt;property name=&quot;minimum&quot; &gt;
++-            &lt;number&gt;1&lt;/number&gt;
++-           &lt;/property&gt;
++            &lt;property name=&quot;maximum&quot; &gt;
++             &lt;number&gt;99&lt;/number&gt;
++            &lt;/property&gt;
+++           &lt;property name=&quot;minimum&quot; &gt;
+++            &lt;number&gt;1&lt;/number&gt;
+++           &lt;/property&gt;
++           &lt;/widget&gt;
++          &lt;/item&gt;
++          &lt;item row=&quot;1&quot; column=&quot;0&quot; &gt;
++@@ -1241,15 +1246,15 @@
++  &lt;/widget&gt;
++  &lt;customwidgets&gt;
++   &lt;customwidget&gt;
++-   &lt;class&gt;TristateCombo&lt;/class&gt;
++-   &lt;extends&gt;QComboBox&lt;/extends&gt;
++-   &lt;header&gt;tristatecombo.h&lt;/header&gt;
++-  &lt;/customwidget&gt;
++-  &lt;customwidget&gt;
++    &lt;class&gt;FileChooser&lt;/class&gt;
++    &lt;extends&gt;QLineEdit&lt;/extends&gt;
++    &lt;header&gt;filechooser.h&lt;/header&gt;
++   &lt;/customwidget&gt;
+++  &lt;customwidget&gt;
+++   &lt;class&gt;TristateCombo&lt;/class&gt;
+++   &lt;extends&gt;QComboBox&lt;/extends&gt;
+++   &lt;header&gt;tristatecombo.h&lt;/header&gt;
+++  &lt;/customwidget&gt;
++  &lt;/customwidgets&gt;
++  &lt;tabstops&gt;
++   &lt;tabstop&gt;general_tab&lt;/tabstop&gt;
++diff -Naur smplayer-0.6.8-orig/src/prefinput.ui smplayer-0.6.8/src/prefinput.ui
++--- smplayer-0.6.8-orig/src/prefinput.ui	2009-06-13 04:05:06.000000000 +0400
+++++ smplayer-0.6.8/src/prefinput.ui	2009-07-31 21:08:41.000000000 +0400
++@@ -10,17 +10,11 @@
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QTabWidget&quot; name=&quot;input_tab&quot; &gt;
++@@ -32,37 +26,19 @@
++        &lt;string&gt;&amp;amp;Keyboard&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-       &lt;property name=&quot;spacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
++         &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;keyboard_icon&quot; &gt;
++@@ -77,7 +53,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;actioneditor_desc&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Preferred&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -98,7 +76,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;ActionsEditor&quot; native=&quot;1&quot; name=&quot;actions_editor&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Expanding&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -112,22 +92,10 @@
++        &lt;string&gt;&amp;amp;Mouse&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QGridLayout&quot; &gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;verticalSpacing&quot; &gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
++         &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item row=&quot;0&quot; column=&quot;1&quot; colspan=&quot;3&quot; &gt;
++@@ -159,7 +127,9 @@
++        &lt;item row=&quot;2&quot; column=&quot;2&quot; &gt;
++         &lt;widget class=&quot;MyComboBox&quot; name=&quot;double_click_combo&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -276,7 +246,9 @@
++        &lt;item row=&quot;7&quot; column=&quot;1&quot; colspan=&quot;3&quot; &gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line7&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -323,20 +295,11 @@
++        &lt;/item&gt;
++        &lt;item rowspan=&quot;10&quot; row=&quot;0&quot; column=&quot;0&quot; &gt;
++         &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;mouse_icon&quot; &gt;
++@@ -368,22 +331,10 @@
++        &lt;/item&gt;
++        &lt;item row=&quot;8&quot; column=&quot;1&quot; colspan=&quot;3&quot; &gt;
++         &lt;layout class=&quot;QGridLayout&quot; &gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;verticalSpacing&quot; &gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
++           &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item row=&quot;0&quot; column=&quot;0&quot; colspan=&quot;2&quot; &gt;
++@@ -402,7 +353,9 @@
++          &lt;item row=&quot;1&quot; column=&quot;0&quot; &gt;
++           &lt;widget class=&quot;QComboBox&quot; name=&quot;wheel_function_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -430,7 +383,9 @@
++        &lt;item row=&quot;1&quot; column=&quot;2&quot; &gt;
++         &lt;widget class=&quot;MyComboBox&quot; name=&quot;left_click_combo&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -469,7 +424,9 @@
++        &lt;item row=&quot;3&quot; column=&quot;2&quot; &gt;
++         &lt;widget class=&quot;MyComboBox&quot; name=&quot;right_click_combo&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -483,10 +440,18 @@
++        &lt;string&gt;M&amp;amp;ouse wheel functions&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QGridLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++         &lt;widget class=&quot;QLabel&quot; name=&quot;wheel_functions_label&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Preferred&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -548,15 +513,15 @@
++  &lt;/widget&gt;
++  &lt;customwidgets&gt;
++   &lt;customwidget&gt;
++-   &lt;class&gt;MyComboBox&lt;/class&gt;
++-   &lt;extends&gt;QComboBox&lt;/extends&gt;
++-   &lt;header&gt;mycombobox.h&lt;/header&gt;
++-  &lt;/customwidget&gt;
++-  &lt;customwidget&gt;
++    &lt;class&gt;ActionsEditor&lt;/class&gt;
++    &lt;extends&gt;QWidget&lt;/extends&gt;
++    &lt;header&gt;actionseditor.h&lt;/header&gt;
++   &lt;/customwidget&gt;
+++  &lt;customwidget&gt;
+++   &lt;class&gt;MyComboBox&lt;/class&gt;
+++   &lt;extends&gt;QComboBox&lt;/extends&gt;
+++   &lt;header&gt;mycombobox.h&lt;/header&gt;
+++  &lt;/customwidget&gt;
++  &lt;/customwidgets&gt;
++  &lt;tabstops&gt;
++   &lt;tabstop&gt;input_tab&lt;/tabstop&gt;
++diff -Naur smplayer-0.6.8-orig/src/prefinterface.ui smplayer-0.6.8/src/prefinterface.ui
++--- smplayer-0.6.8-orig/src/prefinterface.ui	2008-11-16 04:30:01.000000000 +0300
+++++ smplayer-0.6.8/src/prefinterface.ui	2009-07-31 20:59:27.000000000 +0400
++@@ -10,19 +10,10 @@
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;spacing&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
++     &lt;number&gt;0&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++@@ -35,20 +26,11 @@
++        &lt;string&gt;&amp;amp;Interface&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-       &lt;property name=&quot;spacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QGroupBox&quot; name=&quot;groupBox&quot; &gt;
++@@ -56,20 +38,11 @@
++           &lt;string&gt;Main window&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-          &lt;property name=&quot;spacing&quot; &gt;
++-           &lt;number&gt;6&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
++            &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QLabel&quot; name=&quot;resize_window_icon&quot; &gt;
++@@ -80,20 +53,11 @@
++           &lt;/item&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-            &lt;property name=&quot;spacing&quot; &gt;
++-             &lt;number&gt;6&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;leftMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;topMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;rightMargin&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
++              &lt;number&gt;0&lt;/number&gt;
++             &lt;/property&gt;
++-            &lt;property name=&quot;bottomMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
++             &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QLabel&quot; name=&quot;label&quot; &gt;
++@@ -108,7 +72,9 @@
++             &lt;item&gt;
++              &lt;widget class=&quot;QComboBox&quot; name=&quot;mainwindow_resize_combo&quot; &gt;
++               &lt;property name=&quot;sizePolicy&quot; &gt;
++-               &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++               &lt;sizepolicy&gt;
+++                &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                 &lt;horstretch&gt;0&lt;/horstretch&gt;
++                 &lt;verstretch&gt;0&lt;/verstretch&gt;
++                &lt;/sizepolicy&gt;
++@@ -161,20 +127,11 @@
++           &lt;string&gt;Recent files&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-          &lt;property name=&quot;spacing&quot; &gt;
++-           &lt;number&gt;6&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
++            &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel1_15&quot; &gt;
++@@ -191,12 +148,12 @@
++           &lt;/item&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QSpinBox&quot; name=&quot;recents_max_items_spin&quot; &gt;
++-            &lt;property name=&quot;minimum&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++             &lt;property name=&quot;maximum&quot; &gt;
++              &lt;number&gt;20&lt;/number&gt;
++             &lt;/property&gt;
+++            &lt;property name=&quot;minimum&quot; &gt;
+++             &lt;number&gt;0&lt;/number&gt;
+++            &lt;/property&gt;
++            &lt;/widget&gt;
++           &lt;/item&gt;
++           &lt;item&gt;
++@@ -218,7 +175,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_3&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -230,22 +189,10 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QGridLayout&quot; &gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;verticalSpacing&quot; &gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
++           &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++@@ -277,7 +224,9 @@
++          &lt;item row=&quot;2&quot; column=&quot;1&quot; &gt;
++           &lt;widget class=&quot;MyComboBox&quot; name=&quot;style_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -300,7 +249,9 @@
++          &lt;item row=&quot;0&quot; column=&quot;1&quot; &gt;
++           &lt;widget class=&quot;MyComboBox&quot; name=&quot;language_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -323,7 +274,9 @@
++          &lt;item row=&quot;1&quot; column=&quot;1&quot; &gt;
++           &lt;widget class=&quot;MyComboBox&quot; name=&quot;iconset_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -369,7 +322,9 @@
++          &lt;item row=&quot;3&quot; column=&quot;1&quot; &gt;
++           &lt;widget class=&quot;QComboBox&quot; name=&quot;gui_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -394,7 +349,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -406,20 +363,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_2&quot; &gt;
++@@ -464,22 +412,10 @@
++        &lt;string&gt;&amp;amp;Seeking&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QGridLayout&quot; &gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;verticalSpacing&quot; &gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
++         &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item row=&quot;3&quot; column=&quot;1&quot; &gt;
++@@ -497,20 +433,11 @@
++        &lt;/item&gt;
++        &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++         &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;SeekWidget&quot; native=&quot;1&quot; name=&quot;seek1&quot; /&gt;
++@@ -542,7 +469,9 @@
++        &lt;item row=&quot;1&quot; column=&quot;0&quot; colspan=&quot;2&quot; &gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line_4&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -554,20 +483,11 @@
++        &lt;/item&gt;
++        &lt;item row=&quot;2&quot; column=&quot;0&quot; colspan=&quot;2&quot; &gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_3&quot; &gt;
++@@ -582,7 +502,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;QComboBox&quot; name=&quot;timeslider_behaviour_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++@@ -621,37 +543,19 @@
++        &lt;string&gt;Ins&amp;amp;tances&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-       &lt;property name=&quot;spacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;instances_icon&quot; &gt;
++@@ -662,20 +566,11 @@
++          &lt;/item&gt;
++          &lt;item&gt;
++           &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-           &lt;property name=&quot;spacing&quot; &gt;
++-            &lt;number&gt;6&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;leftMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;topMargin&quot; &gt;
+++           &lt;property name=&quot;margin&quot; &gt;
++             &lt;number&gt;0&lt;/number&gt;
++            &lt;/property&gt;
++-           &lt;property name=&quot;rightMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
++-           &lt;/property&gt;
++-           &lt;property name=&quot;bottomMargin&quot; &gt;
++-            &lt;number&gt;0&lt;/number&gt;
+++           &lt;property name=&quot;spacing&quot; &gt;
+++            &lt;number&gt;6&lt;/number&gt;
++            &lt;/property&gt;
++            &lt;item&gt;
++             &lt;widget class=&quot;QCheckBox&quot; name=&quot;single_instance_check&quot; &gt;
++@@ -693,20 +588,11 @@
++               &lt;string&gt;Port to listen&lt;/string&gt;
++              &lt;/property&gt;
++              &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-              &lt;property name=&quot;spacing&quot; &gt;
++-               &lt;number&gt;6&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;leftMargin&quot; &gt;
++-               &lt;number&gt;9&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;topMargin&quot; &gt;
+++              &lt;property name=&quot;margin&quot; &gt;
++                &lt;number&gt;9&lt;/number&gt;
++               &lt;/property&gt;
++-              &lt;property name=&quot;rightMargin&quot; &gt;
++-               &lt;number&gt;9&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;bottomMargin&quot; &gt;
++-               &lt;number&gt;9&lt;/number&gt;
+++              &lt;property name=&quot;spacing&quot; &gt;
+++               &lt;number&gt;6&lt;/number&gt;
++               &lt;/property&gt;
++               &lt;item&gt;
++                &lt;widget class=&quot;QRadioButton&quot; name=&quot;automatic_port_button&quot; &gt;
++@@ -717,20 +603,11 @@
++               &lt;/item&gt;
++               &lt;item&gt;
++                &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-                &lt;property name=&quot;spacing&quot; &gt;
++-                 &lt;number&gt;6&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;leftMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;topMargin&quot; &gt;
+++                &lt;property name=&quot;margin&quot; &gt;
++                  &lt;number&gt;0&lt;/number&gt;
++                 &lt;/property&gt;
++-                &lt;property name=&quot;rightMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;bottomMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
+++                &lt;property name=&quot;spacing&quot; &gt;
+++                 &lt;number&gt;6&lt;/number&gt;
++                 &lt;/property&gt;
++                 &lt;item&gt;
++                  &lt;widget class=&quot;QRadioButton&quot; name=&quot;manual_port_button&quot; &gt;
++@@ -794,6 +671,12 @@
++        &lt;string&gt;&amp;amp;Floating control&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QLabel&quot; name=&quot;label_6&quot; &gt;
++          &lt;property name=&quot;text&quot; &gt;
++@@ -813,6 +696,12 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QGridLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;0&lt;/number&gt;
+++         &lt;/property&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_7&quot; &gt;
++            &lt;property name=&quot;text&quot; &gt;
++diff -Naur smplayer-0.6.8-orig/src/prefperformance.ui smplayer-0.6.8/src/prefperformance.ui
++--- smplayer-0.6.8-orig/src/prefperformance.ui	2009-06-23 13:38:34.000000000 +0400
+++++ smplayer-0.6.8/src/prefperformance.ui	2009-07-31 20:59:38.000000000 +0400
++@@ -10,21 +10,12 @@
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
+++   &lt;/property&gt;
++    &lt;property name=&quot;spacing&quot; &gt;
++     &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QTabWidget&quot; name=&quot;tabWidget&quot; &gt;
++      &lt;property name=&quot;currentIndex&quot; &gt;
++@@ -35,20 +26,11 @@
++        &lt;string&gt;&amp;amp;Performance&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-       &lt;property name=&quot;spacing&quot; &gt;
++-        &lt;number&gt;6&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;leftMargin&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
++         &lt;number&gt;9&lt;/number&gt;
++        &lt;/property&gt;
++-       &lt;property name=&quot;topMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;rightMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
++-       &lt;/property&gt;
++-       &lt;property name=&quot;bottomMargin&quot; &gt;
++-        &lt;number&gt;9&lt;/number&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QGroupBox&quot; name=&quot;priority_group&quot; &gt;
++@@ -56,20 +38,11 @@
++           &lt;string&gt;Priority&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-          &lt;property name=&quot;spacing&quot; &gt;
++-           &lt;number&gt;6&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
++            &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item&gt;
++            &lt;widget class=&quot;QLabel&quot; name=&quot;priority_intro_label&quot; &gt;
++@@ -83,20 +56,11 @@
++           &lt;/item&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-            &lt;property name=&quot;spacing&quot; &gt;
++-             &lt;number&gt;6&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;leftMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;topMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;rightMargin&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
++              &lt;number&gt;0&lt;/number&gt;
++             &lt;/property&gt;
++-            &lt;property name=&quot;bottomMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
++             &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QLabel&quot; name=&quot;priority_label&quot; &gt;
++@@ -182,20 +146,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_13&quot; &gt;
++@@ -209,12 +164,12 @@
++          &lt;/item&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QSpinBox&quot; name=&quot;threads_spin&quot; &gt;
++-           &lt;property name=&quot;minimum&quot; &gt;
++-            &lt;number&gt;1&lt;/number&gt;
++-           &lt;/property&gt;
++            &lt;property name=&quot;maximum&quot; &gt;
++             &lt;number&gt;8&lt;/number&gt;
++            &lt;/property&gt;
+++           &lt;property name=&quot;minimum&quot; &gt;
+++            &lt;number&gt;1&lt;/number&gt;
+++           &lt;/property&gt;
++            &lt;property name=&quot;value&quot; &gt;
++             &lt;number&gt;1&lt;/number&gt;
++            &lt;/property&gt;
++@@ -241,23 +196,20 @@
++           &lt;string&gt;H.264&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-          &lt;property name=&quot;spacing&quot; &gt;
++-           &lt;number&gt;6&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
++            &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
+++             &lt;number&gt;0&lt;/number&gt;
+++            &lt;/property&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
+++            &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QLabel&quot; name=&quot;label_8&quot; &gt;
++               &lt;property name=&quot;text&quot; &gt;
++@@ -298,20 +250,11 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label&quot; &gt;
++@@ -368,6 +311,12 @@
++        &lt;string&gt;&amp;amp;Cache&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QGridLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item row=&quot;0&quot; column=&quot;0&quot; colspan=&quot;4&quot; &gt;
++         &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel1_12&quot; &gt;
++          &lt;property name=&quot;text&quot; &gt;
++diff -Naur smplayer-0.6.8-orig/src/prefplaylist.ui smplayer-0.6.8/src/prefplaylist.ui
++--- smplayer-0.6.8-orig/src/prefplaylist.ui	2008-10-17 03:26:46.000000000 +0400
+++++ smplayer-0.6.8/src/prefplaylist.ui	2009-07-31 20:59:49.000000000 +0400
++@@ -10,17 +10,11 @@
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QTabWidget&quot; name=&quot;playlist_tab&quot; &gt;
++@@ -32,6 +26,12 @@
++        &lt;string&gt;&amp;amp;Playlist&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;widget class=&quot;QCheckBox&quot; name=&quot;auto_add_to_playlist_check&quot; &gt;
++          &lt;property name=&quot;text&quot; &gt;
++@@ -41,6 +41,12 @@
++        &lt;/item&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
+++          &lt;number&gt;0&lt;/number&gt;
+++         &lt;/property&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
+++         &lt;/property&gt;
++          &lt;item&gt;
++           &lt;spacer&gt;
++            &lt;property name=&quot;orientation&quot; &gt;
++@@ -63,7 +69,9 @@
++             &lt;bool&gt;false&lt;/bool&gt;
++            &lt;/property&gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;MinimumExpanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++diff -Naur smplayer-0.6.8-orig/src/prefsubtitles.ui smplayer-0.6.8/src/prefsubtitles.ui
++--- smplayer-0.6.8-orig/src/prefsubtitles.ui	2009-03-11 12:39:29.000000000 +0300
+++++ smplayer-0.6.8/src/prefsubtitles.ui	2009-07-31 21:00:01.000000000 +0400
++@@ -13,17 +13,11 @@
++    &lt;string/&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QTabWidget&quot; name=&quot;subtitles_tab&quot; &gt;
++@@ -35,6 +29,9 @@
++        &lt;string&gt;&amp;amp;Subtitles&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;property name=&quot;spacing&quot; &gt;
++         &lt;number&gt;6&lt;/number&gt;
++        &lt;/property&gt;
++@@ -44,22 +41,10 @@
++           &lt;string&gt;Autoload&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QGridLayout&quot; &gt;
++-          &lt;property name=&quot;leftMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;topMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;rightMargin&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
++            &lt;number&gt;9&lt;/number&gt;
++           &lt;/property&gt;
++-          &lt;property name=&quot;bottomMargin&quot; &gt;
++-           &lt;number&gt;9&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-           &lt;number&gt;6&lt;/number&gt;
++-          &lt;/property&gt;
++-          &lt;property name=&quot;verticalSpacing&quot; &gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
++            &lt;number&gt;6&lt;/number&gt;
++           &lt;/property&gt;
++           &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++@@ -126,22 +111,19 @@
++           &lt;string&gt;Encoding&lt;/string&gt;
++          &lt;/property&gt;
++          &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++          &lt;property name=&quot;margin&quot; &gt;
+++           &lt;number&gt;9&lt;/number&gt;
+++          &lt;/property&gt;
+++          &lt;property name=&quot;spacing&quot; &gt;
+++           &lt;number&gt;6&lt;/number&gt;
+++          &lt;/property&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-            &lt;property name=&quot;spacing&quot; &gt;
++-             &lt;number&gt;6&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;leftMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;topMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
++-            &lt;/property&gt;
++-            &lt;property name=&quot;rightMargin&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
++              &lt;number&gt;0&lt;/number&gt;
++             &lt;/property&gt;
++-            &lt;property name=&quot;bottomMargin&quot; &gt;
++-             &lt;number&gt;0&lt;/number&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
++             &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel4&quot; &gt;
++@@ -159,7 +141,9 @@
++             &lt;item&gt;
++              &lt;widget class=&quot;QComboBox&quot; name=&quot;font_encoding_combo&quot; &gt;
++               &lt;property name=&quot;sizePolicy&quot; &gt;
++-               &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++               &lt;sizepolicy&gt;
+++                &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                 &lt;horstretch&gt;0&lt;/horstretch&gt;
++                 &lt;verstretch&gt;0&lt;/verstretch&gt;
++                &lt;/sizepolicy&gt;
++@@ -189,9 +173,12 @@
++           &lt;/item&gt;
++           &lt;item&gt;
++            &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-            &lt;property name=&quot;bottomMargin&quot; &gt;
+++            &lt;property name=&quot;margin&quot; &gt;
++              &lt;number&gt;0&lt;/number&gt;
++             &lt;/property&gt;
+++            &lt;property name=&quot;spacing&quot; &gt;
+++             &lt;number&gt;6&lt;/number&gt;
+++            &lt;/property&gt;
++             &lt;item&gt;
++              &lt;widget class=&quot;QCheckBox&quot; name=&quot;use_enca_check&quot; &gt;
++               &lt;property name=&quot;text&quot; &gt;
++@@ -205,7 +192,9 @@
++                &lt;bool&gt;false&lt;/bool&gt;
++               &lt;/property&gt;
++               &lt;property name=&quot;sizePolicy&quot; &gt;
++-               &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++               &lt;sizepolicy&gt;
+++                &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                 &lt;horstretch&gt;0&lt;/horstretch&gt;
++                 &lt;verstretch&gt;0&lt;/verstretch&gt;
++                &lt;/sizepolicy&gt;
++@@ -240,7 +229,9 @@
++        &lt;item&gt;
++         &lt;widget class=&quot;Line&quot; name=&quot;line&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -280,6 +271,12 @@
++        &lt;string&gt;&amp;amp;Font and colors&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QGridLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++         &lt;widget class=&quot;QPushButton&quot; name=&quot;normal_subs_button&quot; &gt;
++          &lt;property name=&quot;text&quot; &gt;
++@@ -322,7 +319,9 @@
++        &lt;item row=&quot;1&quot; column=&quot;0&quot; colspan=&quot;3&quot; &gt;
++         &lt;widget class=&quot;QStackedWidget&quot; name=&quot;stackedWidget&quot; &gt;
++          &lt;property name=&quot;sizePolicy&quot; &gt;
++-          &lt;sizepolicy vsizetype=&quot;Expanding&quot; hsizetype=&quot;Preferred&quot; &gt;
+++          &lt;sizepolicy&gt;
+++           &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++           &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++            &lt;horstretch&gt;0&lt;/horstretch&gt;
++            &lt;verstretch&gt;0&lt;/verstretch&gt;
++           &lt;/sizepolicy&gt;
++@@ -338,28 +337,22 @@
++          &lt;/property&gt;
++          &lt;widget class=&quot;QWidget&quot; name=&quot;normal_subs&quot; &gt;
++           &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++           &lt;property name=&quot;margin&quot; &gt;
+++            &lt;number&gt;9&lt;/number&gt;
+++           &lt;/property&gt;
+++           &lt;property name=&quot;spacing&quot; &gt;
+++            &lt;number&gt;6&lt;/number&gt;
+++           &lt;/property&gt;
++            &lt;item&gt;
++             &lt;widget class=&quot;QGroupBox&quot; name=&quot;groupBox_5&quot; &gt;
++              &lt;property name=&quot;title&quot; &gt;
++               &lt;string&gt;Font&lt;/string&gt;
++              &lt;/property&gt;
++              &lt;layout class=&quot;QGridLayout&quot; &gt;
++-              &lt;property name=&quot;leftMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;topMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;rightMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;bottomMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-               &lt;number&gt;6&lt;/number&gt;
+++              &lt;property name=&quot;margin&quot; &gt;
+++               &lt;number&gt;9&lt;/number&gt;
++               &lt;/property&gt;
++-              &lt;property name=&quot;verticalSpacing&quot; &gt;
+++              &lt;property name=&quot;spacing&quot; &gt;
++                &lt;number&gt;6&lt;/number&gt;
++               &lt;/property&gt;
++               &lt;item row=&quot;1&quot; column=&quot;1&quot; colspan=&quot;2&quot; &gt;
++@@ -375,7 +368,9 @@
++                  &lt;bool&gt;false&lt;/bool&gt;
++                 &lt;/property&gt;
++                 &lt;property name=&quot;sizePolicy&quot; &gt;
++-                 &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++                 &lt;sizepolicy&gt;
+++                  &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                  &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                   &lt;horstretch&gt;0&lt;/horstretch&gt;
++                   &lt;verstretch&gt;0&lt;/verstretch&gt;
++                  &lt;/sizepolicy&gt;
++@@ -428,40 +423,19 @@
++               &lt;string&gt;Size&lt;/string&gt;
++              &lt;/property&gt;
++              &lt;layout class=&quot;QGridLayout&quot; &gt;
++-              &lt;property name=&quot;leftMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;topMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;rightMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;bottomMargin&quot; &gt;
++-               &lt;number&gt;4&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;horizontalSpacing&quot; &gt;
++-               &lt;number&gt;6&lt;/number&gt;
+++              &lt;property name=&quot;margin&quot; &gt;
+++               &lt;number&gt;9&lt;/number&gt;
++               &lt;/property&gt;
++-              &lt;property name=&quot;verticalSpacing&quot; &gt;
+++              &lt;property name=&quot;spacing&quot; &gt;
++                &lt;number&gt;6&lt;/number&gt;
++               &lt;/property&gt;
++               &lt;item row=&quot;0&quot; column=&quot;0&quot; colspan=&quot;3&quot; &gt;
++                &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-                &lt;property name=&quot;spacing&quot; &gt;
++-                 &lt;number&gt;6&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;leftMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;topMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;rightMargin&quot; &gt;
+++                &lt;property name=&quot;margin&quot; &gt;
++                  &lt;number&gt;0&lt;/number&gt;
++                 &lt;/property&gt;
++-                &lt;property name=&quot;bottomMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
+++                &lt;property name=&quot;spacing&quot; &gt;
+++                 &lt;number&gt;6&lt;/number&gt;
++                 &lt;/property&gt;
++                 &lt;item&gt;
++                  &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel2_2&quot; &gt;
++@@ -560,20 +534,11 @@
++               &lt;string&gt;Position&lt;/string&gt;
++              &lt;/property&gt;
++              &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-              &lt;property name=&quot;spacing&quot; &gt;
++-               &lt;number&gt;6&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;leftMargin&quot; &gt;
+++              &lt;property name=&quot;margin&quot; &gt;
++                &lt;number&gt;9&lt;/number&gt;
++               &lt;/property&gt;
++-              &lt;property name=&quot;topMargin&quot; &gt;
++-               &lt;number&gt;9&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;rightMargin&quot; &gt;
++-               &lt;number&gt;9&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;bottomMargin&quot; &gt;
++-               &lt;number&gt;9&lt;/number&gt;
+++              &lt;property name=&quot;spacing&quot; &gt;
+++               &lt;number&gt;6&lt;/number&gt;
++               &lt;/property&gt;
++               &lt;item&gt;
++                &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel1_22&quot; &gt;
++@@ -593,25 +558,18 @@
++               &lt;/item&gt;
++               &lt;item&gt;
++                &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-                &lt;property name=&quot;spacing&quot; &gt;
++-                 &lt;number&gt;6&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;leftMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;topMargin&quot; &gt;
+++                &lt;property name=&quot;margin&quot; &gt;
++                  &lt;number&gt;0&lt;/number&gt;
++                 &lt;/property&gt;
++-                &lt;property name=&quot;rightMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;bottomMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
+++                &lt;property name=&quot;spacing&quot; &gt;
+++                 &lt;number&gt;6&lt;/number&gt;
++                 &lt;/property&gt;
++                 &lt;item&gt;
++                  &lt;widget class=&quot;QSlider&quot; name=&quot;sub_pos_slider&quot; &gt;
++                   &lt;property name=&quot;sizePolicy&quot; &gt;
++-                   &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++                   &lt;sizepolicy&gt;
+++                    &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                    &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                     &lt;horstretch&gt;0&lt;/horstretch&gt;
++                     &lt;verstretch&gt;0&lt;/verstretch&gt;
++                    &lt;/sizepolicy&gt;
++@@ -644,20 +602,11 @@
++               &lt;/item&gt;
++               &lt;item&gt;
++                &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-                &lt;property name=&quot;spacing&quot; &gt;
++-                 &lt;number&gt;6&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;leftMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;topMargin&quot; &gt;
+++                &lt;property name=&quot;margin&quot; &gt;
++                  &lt;number&gt;0&lt;/number&gt;
++                 &lt;/property&gt;
++-                &lt;property name=&quot;rightMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
++-                &lt;/property&gt;
++-                &lt;property name=&quot;bottomMargin&quot; &gt;
++-                 &lt;number&gt;0&lt;/number&gt;
+++                &lt;property name=&quot;spacing&quot; &gt;
+++                 &lt;number&gt;6&lt;/number&gt;
++                 &lt;/property&gt;
++                 &lt;item&gt;
++                  &lt;widget class=&quot;QLabel&quot; name=&quot;textLabel2_9&quot; &gt;
++@@ -717,8 +666,20 @@
++          &lt;/widget&gt;
++          &lt;widget class=&quot;QWidget&quot; name=&quot;ass_subs&quot; &gt;
++           &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++           &lt;property name=&quot;margin&quot; &gt;
+++            &lt;number&gt;9&lt;/number&gt;
+++           &lt;/property&gt;
+++           &lt;property name=&quot;spacing&quot; &gt;
+++            &lt;number&gt;6&lt;/number&gt;
+++           &lt;/property&gt;
++            &lt;item&gt;
++             &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++             &lt;property name=&quot;margin&quot; &gt;
+++              &lt;number&gt;0&lt;/number&gt;
+++             &lt;/property&gt;
+++             &lt;property name=&quot;spacing&quot; &gt;
+++              &lt;number&gt;6&lt;/number&gt;
+++             &lt;/property&gt;
++              &lt;item&gt;
++               &lt;widget class=&quot;QLabel&quot; name=&quot;ass_scale_label&quot; &gt;
++                &lt;property name=&quot;text&quot; &gt;
++@@ -732,7 +693,9 @@
++              &lt;item&gt;
++               &lt;widget class=&quot;QDoubleSpinBox&quot; name=&quot;ass_font_scale_spin&quot; &gt;
++                &lt;property name=&quot;sizePolicy&quot; &gt;
++-                &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Maximum&quot; &gt;
+++                &lt;sizepolicy&gt;
+++                 &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                 &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                  &lt;horstretch&gt;0&lt;/horstretch&gt;
++                  &lt;verstretch&gt;0&lt;/verstretch&gt;
++                 &lt;/sizepolicy&gt;
++@@ -770,12 +733,12 @@
++              &lt;/item&gt;
++              &lt;item&gt;
++               &lt;widget class=&quot;QSpinBox&quot; name=&quot;ass_line_spacing_spin&quot; &gt;
++-               &lt;property name=&quot;minimum&quot; &gt;
++-                &lt;number&gt;-20&lt;/number&gt;
++-               &lt;/property&gt;
++                &lt;property name=&quot;maximum&quot; &gt;
++                 &lt;number&gt;20&lt;/number&gt;
++                &lt;/property&gt;
+++               &lt;property name=&quot;minimum&quot; &gt;
+++                &lt;number&gt;-20&lt;/number&gt;
+++               &lt;/property&gt;
++               &lt;/widget&gt;
++              &lt;/item&gt;
++             &lt;/layout&gt;
++@@ -786,17 +749,11 @@
++               &lt;bool&gt;true&lt;/bool&gt;
++              &lt;/property&gt;
++              &lt;layout class=&quot;QGridLayout&quot; &gt;
++-              &lt;property name=&quot;leftMargin&quot; &gt;
++-               &lt;number&gt;2&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;topMargin&quot; &gt;
++-               &lt;number&gt;2&lt;/number&gt;
++-              &lt;/property&gt;
++-              &lt;property name=&quot;rightMargin&quot; &gt;
++-               &lt;number&gt;2&lt;/number&gt;
+++              &lt;property name=&quot;margin&quot; &gt;
+++               &lt;number&gt;9&lt;/number&gt;
++               &lt;/property&gt;
++-              &lt;property name=&quot;bottomMargin&quot; &gt;
++-               &lt;number&gt;2&lt;/number&gt;
+++              &lt;property name=&quot;spacing&quot; &gt;
+++               &lt;number&gt;6&lt;/number&gt;
++               &lt;/property&gt;
++               &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++                &lt;widget class=&quot;QGroupBox&quot; name=&quot;groupBox_4&quot; &gt;
++@@ -804,20 +761,20 @@
++                  &lt;string&gt;Font&lt;/string&gt;
++                 &lt;/property&gt;
++                 &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-                 &lt;property name=&quot;leftMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;topMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;rightMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;margin&quot; &gt;
+++                  &lt;number&gt;9&lt;/number&gt;
++                  &lt;/property&gt;
++-                 &lt;property name=&quot;bottomMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;spacing&quot; &gt;
+++                  &lt;number&gt;6&lt;/number&gt;
++                  &lt;/property&gt;
++                  &lt;item&gt;
++                   &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++                   &lt;property name=&quot;margin&quot; &gt;
+++                    &lt;number&gt;0&lt;/number&gt;
+++                   &lt;/property&gt;
+++                   &lt;property name=&quot;spacing&quot; &gt;
+++                    &lt;number&gt;6&lt;/number&gt;
+++                   &lt;/property&gt;
++                    &lt;item&gt;
++                     &lt;widget class=&quot;MyFontComboBox&quot; name=&quot;style_font_combo&quot; /&gt;
++                    &lt;/item&gt;
++@@ -825,6 +782,12 @@
++                  &lt;/item&gt;
++                  &lt;item&gt;
++                   &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++                   &lt;property name=&quot;margin&quot; &gt;
+++                    &lt;number&gt;0&lt;/number&gt;
+++                   &lt;/property&gt;
+++                   &lt;property name=&quot;spacing&quot; &gt;
+++                    &lt;number&gt;6&lt;/number&gt;
+++                   &lt;/property&gt;
++                    &lt;item&gt;
++                     &lt;widget class=&quot;QLabel&quot; name=&quot;label&quot; &gt;
++                      &lt;property name=&quot;text&quot; &gt;
++@@ -838,7 +801,9 @@
++                    &lt;item&gt;
++                     &lt;widget class=&quot;QSpinBox&quot; name=&quot;style_size_spin&quot; &gt;
++                      &lt;property name=&quot;sizePolicy&quot; &gt;
++-                      &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Preferred&quot; &gt;
+++                      &lt;sizepolicy&gt;
+++                       &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                       &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                        &lt;horstretch&gt;0&lt;/horstretch&gt;
++                        &lt;verstretch&gt;0&lt;/verstretch&gt;
++                       &lt;/sizepolicy&gt;
++@@ -892,17 +857,11 @@
++                  &lt;string&gt;Colors&lt;/string&gt;
++                 &lt;/property&gt;
++                 &lt;layout class=&quot;QGridLayout&quot; &gt;
++-                 &lt;property name=&quot;leftMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;topMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;margin&quot; &gt;
+++                  &lt;number&gt;9&lt;/number&gt;
++                  &lt;/property&gt;
++-                 &lt;property name=&quot;rightMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;bottomMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;spacing&quot; &gt;
+++                  &lt;number&gt;6&lt;/number&gt;
++                  &lt;/property&gt;
++                  &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++                   &lt;widget class=&quot;QLabel&quot; name=&quot;label_2&quot; &gt;
++@@ -920,7 +879,9 @@
++                  &lt;item row=&quot;0&quot; column=&quot;1&quot; &gt;
++                   &lt;widget class=&quot;SelectColorButton&quot; name=&quot;style_text_color_button&quot; &gt;
++                    &lt;property name=&quot;sizePolicy&quot; &gt;
++-                    &lt;sizepolicy vsizetype=&quot;Ignored&quot; hsizetype=&quot;Minimum&quot; &gt;
+++                    &lt;sizepolicy&gt;
+++                     &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                     &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                      &lt;horstretch&gt;0&lt;/horstretch&gt;
++                      &lt;verstretch&gt;0&lt;/verstretch&gt;
++                     &lt;/sizepolicy&gt;
++@@ -946,7 +907,9 @@
++                  &lt;item row=&quot;1&quot; column=&quot;1&quot; &gt;
++                   &lt;widget class=&quot;SelectColorButton&quot; name=&quot;style_border_color_button&quot; &gt;
++                    &lt;property name=&quot;sizePolicy&quot; &gt;
++-                    &lt;sizepolicy vsizetype=&quot;Ignored&quot; hsizetype=&quot;Minimum&quot; &gt;
+++                    &lt;sizepolicy&gt;
+++                     &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                     &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                      &lt;horstretch&gt;0&lt;/horstretch&gt;
++                      &lt;verstretch&gt;0&lt;/verstretch&gt;
++                     &lt;/sizepolicy&gt;
++@@ -969,7 +932,9 @@
++                  &lt;item row=&quot;2&quot; column=&quot;1&quot; &gt;
++                   &lt;widget class=&quot;SelectColorButton&quot; name=&quot;style_shadow_color_button&quot; &gt;
++                    &lt;property name=&quot;sizePolicy&quot; &gt;
++-                    &lt;sizepolicy vsizetype=&quot;Ignored&quot; hsizetype=&quot;Minimum&quot; &gt;
+++                    &lt;sizepolicy&gt;
+++                     &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++                     &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                      &lt;horstretch&gt;0&lt;/horstretch&gt;
++                      &lt;verstretch&gt;0&lt;/verstretch&gt;
++                     &lt;/sizepolicy&gt;
++@@ -988,17 +953,11 @@
++                  &lt;string&gt;Margins&lt;/string&gt;
++                 &lt;/property&gt;
++                 &lt;layout class=&quot;QGridLayout&quot; &gt;
++-                 &lt;property name=&quot;leftMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;topMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;margin&quot; &gt;
+++                  &lt;number&gt;9&lt;/number&gt;
++                  &lt;/property&gt;
++-                 &lt;property name=&quot;rightMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;bottomMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;spacing&quot; &gt;
+++                  &lt;number&gt;6&lt;/number&gt;
++                  &lt;/property&gt;
++                  &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++                   &lt;widget class=&quot;QLabel&quot; name=&quot;label_7&quot; &gt;
++@@ -1070,17 +1029,11 @@
++                  &lt;string&gt;Alignment&lt;/string&gt;
++                 &lt;/property&gt;
++                 &lt;layout class=&quot;QGridLayout&quot; &gt;
++-                 &lt;property name=&quot;leftMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;topMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
++-                 &lt;/property&gt;
++-                 &lt;property name=&quot;rightMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;margin&quot; &gt;
+++                  &lt;number&gt;9&lt;/number&gt;
++                  &lt;/property&gt;
++-                 &lt;property name=&quot;bottomMargin&quot; &gt;
++-                  &lt;number&gt;4&lt;/number&gt;
+++                 &lt;property name=&quot;spacing&quot; &gt;
+++                  &lt;number&gt;6&lt;/number&gt;
++                  &lt;/property&gt;
++                  &lt;item row=&quot;0&quot; column=&quot;0&quot; &gt;
++                   &lt;widget class=&quot;QLabel&quot; name=&quot;label_4&quot; &gt;
++@@ -1119,6 +1072,12 @@
++               &lt;/item&gt;
++               &lt;item row=&quot;2&quot; column=&quot;0&quot; colspan=&quot;2&quot; &gt;
++                &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++                &lt;property name=&quot;margin&quot; &gt;
+++                 &lt;number&gt;0&lt;/number&gt;
+++                &lt;/property&gt;
+++                &lt;property name=&quot;spacing&quot; &gt;
+++                 &lt;number&gt;6&lt;/number&gt;
+++                &lt;/property&gt;
++                 &lt;item&gt;
++                  &lt;widget class=&quot;QLabel&quot; name=&quot;label_5&quot; &gt;
++                   &lt;property name=&quot;text&quot; &gt;
++@@ -1193,7 +1152,9 @@
++            &lt;item&gt;
++             &lt;widget class=&quot;Line&quot; name=&quot;line_3&quot; &gt;
++              &lt;property name=&quot;sizePolicy&quot; &gt;
++-              &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++              &lt;sizepolicy&gt;
+++               &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++               &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++                &lt;horstretch&gt;0&lt;/horstretch&gt;
++                &lt;verstretch&gt;0&lt;/verstretch&gt;
++               &lt;/sizepolicy&gt;
++@@ -1205,6 +1166,12 @@
++            &lt;/item&gt;
++            &lt;item&gt;
++             &lt;layout class=&quot;QHBoxLayout&quot; &gt;
+++             &lt;property name=&quot;margin&quot; &gt;
+++              &lt;number&gt;0&lt;/number&gt;
+++             &lt;/property&gt;
+++             &lt;property name=&quot;spacing&quot; &gt;
+++              &lt;number&gt;6&lt;/number&gt;
+++             &lt;/property&gt;
++              &lt;item&gt;
++               &lt;widget class=&quot;QCheckBox&quot; name=&quot;force_ass_styles&quot; &gt;
++                &lt;property name=&quot;text&quot; &gt;
++diff -Naur smplayer-0.6.8-orig/src/preftv.ui smplayer-0.6.8/src/preftv.ui
++--- smplayer-0.6.8-orig/src/preftv.ui	2009-07-15 02:46:07.000000000 +0400
+++++ smplayer-0.6.8/src/preftv.ui	2009-07-31 21:08:54.000000000 +0400
++@@ -10,17 +10,11 @@
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;margin&quot; &gt;
+++    &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;0&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;widget class=&quot;QTabWidget&quot; name=&quot;tvt_tab&quot; &gt;
++@@ -32,22 +26,19 @@
++        &lt;string&gt;&amp;amp;TV and radio&lt;/string&gt;
++       &lt;/attribute&gt;
++       &lt;layout class=&quot;QVBoxLayout&quot; &gt;
+++       &lt;property name=&quot;margin&quot; &gt;
+++        &lt;number&gt;9&lt;/number&gt;
+++       &lt;/property&gt;
+++       &lt;property name=&quot;spacing&quot; &gt;
+++        &lt;number&gt;6&lt;/number&gt;
+++       &lt;/property&gt;
++        &lt;item&gt;
++         &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-         &lt;property name=&quot;spacing&quot; &gt;
++-          &lt;number&gt;6&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;leftMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;topMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
++-         &lt;/property&gt;
++-         &lt;property name=&quot;rightMargin&quot; &gt;
+++         &lt;property name=&quot;margin&quot; &gt;
++           &lt;number&gt;0&lt;/number&gt;
++          &lt;/property&gt;
++-         &lt;property name=&quot;bottomMargin&quot; &gt;
++-          &lt;number&gt;0&lt;/number&gt;
+++         &lt;property name=&quot;spacing&quot; &gt;
+++          &lt;number&gt;6&lt;/number&gt;
++          &lt;/property&gt;
++          &lt;item&gt;
++           &lt;widget class=&quot;QLabel&quot; name=&quot;label_7&quot; &gt;
++@@ -62,7 +53,9 @@
++          &lt;item&gt;
++           &lt;widget class=&quot;QComboBox&quot; name=&quot;deinterlace_combo&quot; &gt;
++            &lt;property name=&quot;sizePolicy&quot; &gt;
++-            &lt;sizepolicy vsizetype=&quot;Fixed&quot; hsizetype=&quot;Expanding&quot; &gt;
+++            &lt;sizepolicy&gt;
+++             &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++             &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++              &lt;horstretch&gt;0&lt;/horstretch&gt;
++              &lt;verstretch&gt;0&lt;/verstretch&gt;
++             &lt;/sizepolicy&gt;
++diff -Naur smplayer-0.6.8-orig/src/timedialog.ui smplayer-0.6.8/src/timedialog.ui
++--- smplayer-0.6.8-orig/src/timedialog.ui	2009-01-30 03:00:30.000000000 +0300
+++++ smplayer-0.6.8/src/timedialog.ui	2009-07-31 21:00:11.000000000 +0400
++@@ -5,47 +5,31 @@
++    &lt;rect&gt;
++     &lt;x&gt;0&lt;/x&gt;
++     &lt;y&gt;0&lt;/y&gt;
++-    &lt;width&gt;195&lt;/width&gt;
++-    &lt;height&gt;91&lt;/height&gt;
+++    &lt;width&gt;198&lt;/width&gt;
+++    &lt;height&gt;96&lt;/height&gt;
++    &lt;/rect&gt;
++   &lt;/property&gt;
++   &lt;layout class=&quot;QVBoxLayout&quot; &gt;
++-   &lt;property name=&quot;spacing&quot; &gt;
++-    &lt;number&gt;6&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;leftMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;topMargin&quot; &gt;
+++   &lt;property name=&quot;margin&quot; &gt;
++     &lt;number&gt;9&lt;/number&gt;
++    &lt;/property&gt;
++-   &lt;property name=&quot;rightMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
++-   &lt;/property&gt;
++-   &lt;property name=&quot;bottomMargin&quot; &gt;
++-    &lt;number&gt;9&lt;/number&gt;
+++   &lt;property name=&quot;spacing&quot; &gt;
+++    &lt;number&gt;6&lt;/number&gt;
++    &lt;/property&gt;
++    &lt;item&gt;
++     &lt;layout class=&quot;QHBoxLayout&quot; &gt;
++-     &lt;property name=&quot;spacing&quot; &gt;
++-      &lt;number&gt;6&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;leftMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;topMargin&quot; &gt;
+++     &lt;property name=&quot;margin&quot; &gt;
++       &lt;number&gt;0&lt;/number&gt;
++      &lt;/property&gt;
++-     &lt;property name=&quot;rightMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
++-     &lt;/property&gt;
++-     &lt;property name=&quot;bottomMargin&quot; &gt;
++-      &lt;number&gt;0&lt;/number&gt;
+++     &lt;property name=&quot;spacing&quot; &gt;
+++      &lt;number&gt;6&lt;/number&gt;
++      &lt;/property&gt;
++      &lt;item&gt;
++       &lt;widget class=&quot;QLabel&quot; name=&quot;time_label&quot; &gt;
++        &lt;property name=&quot;sizePolicy&quot; &gt;
++-        &lt;sizepolicy vsizetype=&quot;Preferred&quot; hsizetype=&quot;Minimum&quot; &gt;
+++        &lt;sizepolicy&gt;
+++         &lt;hsizetype&gt;0&lt;/hsizetype&gt;
+++         &lt;vsizetype&gt;0&lt;/vsizetype&gt;
++          &lt;horstretch&gt;0&lt;/horstretch&gt;
++          &lt;verstretch&gt;0&lt;/verstretch&gt;
++         &lt;/sizepolicy&gt;
+
+Modified: trunk/rpms/smplayer/smplayer.spec
+===================================================================
+--- trunk/rpms/smplayer/smplayer.spec	2009-08-05 18:05:21 UTC (rev 7598)
++++ trunk/rpms/smplayer/smplayer.spec	2009-08-07 15:51:35 UTC (rev 7599)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Frontend for mplayer
+ Name: smplayer
+-Version: 0.6.6
++Version: 0.6.8
+ Release: 1
+ License: GPL
+ Group: Applications/Multimedia
+@@ -12,7 +12,8 @@
+ 
+ Source: <A HREF="http://dl.sf.net/smplayer/smplayer-%{version">http://dl.sf.net/smplayer/smplayer-%{version</A>}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-Patch: smplayer-0.6.6-centos5-zyv.patch
++Patch0: smplayer-0.6.8-el5-logic-zyv.patch
++Patch1: smplayer-0.6.8-el5-ui-zyv.patch
+ 
+ BuildRequires: gcc-c++
+ BuildRequires: qt4-devel
+@@ -28,7 +29,8 @@
+ 
+ %prep
+ %setup
+-%patch -p1
++%patch0 -p1
++%patch1 -p1
+ 
+ %build
+ export PATH=&quot;%{_libdir}/qt4/bin:$PATH&quot;
+@@ -55,6 +57,9 @@
+ %{_datadir}/smplayer/
+ 
+ %changelog
++* Fri Jul 31 2009 Yury V. Zaytsev &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">yury at shurup.com</A>&gt; - 0.6.8-1
++- New patches for CentOS 5 for smplayer 0.6.8 (HTTPS &amp; Socks5 disabled).
++
+ * Wed Feb 11 2009 Yury V. Zaytsev &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">yury at shurup.com</A>&gt; - 0.6.6-1
+ - New patch for CentOS 5 for smplayer 0.6.6 (HTTPS &amp; Socks5 disabled).
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006394.html">[svn] r7598 - trunk/rpms/bogofilter
+</A></li>
+	<LI>Next message: <A HREF="006396.html">[svn] r7600 - trunk/rpms/perl-IO-Socket-SSL
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6395">[ date ]</a>
+              <a href="thread.html#6395">[ thread ]</a>
+              <a href="subject.html#6395">[ subject ]</a>
+              <a href="author.html#6395">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

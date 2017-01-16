@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6207 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6207%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200803090325.m293PC1J017638%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005005.html">
+   <LINK REL="Next"  HREF="005007.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6207 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6207%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200803090325.m293PC1J017638%40surya.karan.org%3E"
+       TITLE="[svn] r6207 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Mar  9 04:25:12 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005005.html">[svn] r6206 - in trunk/rpms: . docbook2x
+</A></li>
+        <LI>Next message: <A HREF="005007.html">[svn] r6208 - in trunk/rpms: perl-Algorithm-Cluster	perl-Archive-Rar perl-Archive-Tar-Wrapper perl-Array-Compare	perl-CGI-Upload perl-Calendar-Simple	perl-Catalyst-Model-NetBlogger perl-Class-C3-Componentised	perl-Class-Data-Accessor perl-Class-Trigger perl-Curses	perl-Data-Structure-Util perl-Object-InsideOut
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5006">[ date ]</a>
+              <a href="thread.html#5006">[ thread ]</a>
+              <a href="subject.html#5006">[ subject ]</a>
+              <a href="author.html#5006">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-03-09 03:25:08 +0000 (Sun, 09 Mar 2008)
+New Revision: 6207
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topio.py
+Log:
+Added improved tick patch (Kelly Long)
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-03-09 00:37:26 UTC (rev 6206)
++++ trunk/tools/dstat/ChangeLog	2008-03-09 03:25:08 UTC (rev 6207)
+@@ -1,3 +1,7 @@
++* 0.6.7svn - ... - release 09/03/2008
++- Added improved tick patch (Kelly Long)
++- Show milliseconds in dstat_time when using --debug cfr. dstat_epoch
++
+ * 0.6.7 - Cambridge overdue - released 26/02/2008
+ - Only rewrite xterm title when XTERM_SHELL is set to bash
+ - Added more Dbt (Debian bug tracker) ids in the ChangeLog and TODO
+@@ -8,9 +12,9 @@
+ - Fixed a problem with asciidoc DocBook output (Dbt 427214, Michael Ablassmeier)
+ - Report when python-curses is missing and colors don't work (eg. on OpenSUSE)
+ - Improve --version output wrt. terminal and color support
+-- Fixed a few inaccuracies in the man page. (John Goggan)
+-- Fixed opening vanished files in /proc in dstat_topcpu.
+-- Fixed formatting bug in dstat_topcpu.
++- Fixed a few inaccuracies in the man page (John Goggan)
++- Fixed opening vanished files in /proc in dstat_topcpu
++- Fixed formatting bug in dstat_topcpu
+ - Added external dstat_mysql_* and dstat_innodb_* plugins
+ - Added greppipe() and matchpipe() to improve performance on pipe-handling
+ - Added external dstat_topio and dstat_topbio plugins
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2008-03-09 00:37:26 UTC (rev 6206)
++++ trunk/tools/dstat/TODO	2008-03-09 03:25:08 UTC (rev 6207)
+@@ -57,7 +57,7 @@
+ + Python 1.5 prints 'L' for long, crashes when int()
+ + Implement better (?) protection against counter rollovers (see mail from Sebastien Prud'homme)
+ + Plugins currently have to be written in python 1.5 to work for dstat15 (lowest common denominator)
+-+ When stdout is suspend (Ctrl-S) you get: IOError: [Errno 4] Interrupted system call (Dbt 309953, Marc Lehmann, <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">supastuff at freenode</A>)
+++ Because output is unbiffered, when stdout is suspendes (Ctrl-S) you get: IOError: [Errno 4] Interrupted system call (Dbt 309953, Marc Lehmann, <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">supastuff at freenode</A>)
+ 
+ ### Plugin issues
+ + plugins that use /proc/pid are reasonably slow
+@@ -72,12 +72,12 @@
+ + Create modules that can contain samples of different units
+ 
+    CPU: (see mpstat)
+-	sys, usr, idl, iow, hiq, siq (percentage)
+-      	intr/sec (int)
+-	
++    sys, usr, idl, iow, hiq, siq (percentage)
++        intr/sec (int)
++
+    IO: (see iostat -x)
+-	tps (int)
+-	blk_read/sec, blk_wrtn/sec (kB/sec)
++    tps (int)
++    blk_read/sec, blk_wrtn/sec (kB/sec)
+ 
+ + Design proper object model and namespace for _all_ possible stats
+ + Create a seperate curses-based tool, much like nmon (dstat stays line-based)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-03-09 00:37:26 UTC (rev 6206)
++++ trunk/tools/dstat/dstat	2008-03-09 03:25:08 UTC (rev 6207)
+@@ -1276,13 +1276,16 @@
+     def __init__(self):
+         self.name = 'time'
+         self.format = ('s', 14, 0)
++        if op.debug:
++            self.format = ('s', 18, 0)
+         self.nick = ('date/time',)
+         self.vars = ('time',)
+         self.init(self.vars, 1)
+ 
+     def extract(self):
+-        ### FIXME: Add milliseconds when using --debug (see dstat_epoch)
+         self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime())
++        if op.debug:
++            self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime()) + &quot;.%d&quot; % (time.time() * 1000 % 1000 )
+ 
+     def show(self):
+         if step == op.delay:
+@@ -1954,7 +1957,7 @@
+                 if newwidth &lt;= cols or ( vislist == totlist[:-1] and newwidth &lt; cols ):
+                     vislist.append(o)
+                     curwidth = newwidth
+-    
++
+             ### Check when to display the header
+             if op.header and rows &gt;= 6:
+                 if oldvislist != vislist:
+@@ -1980,6 +1983,13 @@
+             ansi['default'] = ansi['gray']
+         line = ansi['default']
+ 
++        ### Recalculate the time spend
++        ticknow = time.time()
++        if loop != 0:
++            tick = ticknow - tickbefore
++        if step == op.delay:
++            tickbefore = ticknow
++
+         ### Calculate all objects (visible, invisible)
+         oline = ''
+         for o in totlist:
+@@ -1988,7 +1998,6 @@
+                 line = line + o.show() + o.showend(totlist, vislist)
+             if op.output and step == op.delay:
+                 oline = oline + o.showcsv() + o.showcsvend(totlist, vislist)
+-
+         ### Print stats
+         sys.stdout.write(line + ansi['default'])
+         if op.output and step == op.delay:
+@@ -2029,7 +2038,6 @@
+ 
+         loop = (update + op.delay - 1) / op.delay
+         step = ((update - 1) % op.delay) + 1
+-        tick = step
+ 
+     signal.signal(signal.SIGALRM, signal.SIG_IGN)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	2008-03-09 00:37:26 UTC (rev 6206)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2008-03-09 03:25:08 UTC (rev 6207)
+@@ -17,7 +17,7 @@
+ 
+     def check(self):
+         if not os.access('/proc/self/io', os.R_OK):
+-            raise Exception, 'Kernel has no I/O accounting, use at least 2.6.20.'
++            raise Exception, 'Kernel has no I/O accounting, use at least 2.6.20'
+         return True
+ 
+     def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_topio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topio.py	2008-03-09 00:37:26 UTC (rev 6206)
++++ trunk/tools/dstat/plugins/dstat_topio.py	2008-03-09 03:25:08 UTC (rev 6207)
+@@ -17,7 +17,7 @@
+ 
+     def check(self):
+         if not os.access('/proc/self/io', os.R_OK):
+-            raise Exception, 'Kernel has no I/O accounting, use at least 2.6.20.'
++            raise Exception, 'Kernel has no I/O accounting, use at least 2.6.20'
+         return True
+ 
+     def extract(self):
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005005.html">[svn] r6206 - in trunk/rpms: . docbook2x
+</A></li>
+	<LI>Next message: <A HREF="005007.html">[svn] r6208 - in trunk/rpms: perl-Algorithm-Cluster	perl-Archive-Rar perl-Archive-Tar-Wrapper perl-Array-Compare	perl-CGI-Upload perl-Calendar-Simple	perl-Catalyst-Model-NetBlogger perl-Class-C3-Componentised	perl-Class-Data-Accessor perl-Class-Trigger perl-Curses	perl-Data-Structure-Util perl-Object-InsideOut
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5006">[ date ]</a>
+              <a href="thread.html#5006">[ thread ]</a>
+              <a href="subject.html#5006">[ subject ]</a>
+              <a href="author.html#5006">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

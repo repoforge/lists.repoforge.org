@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3257 - in trunk/tools/pydar2: . pydar sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3257%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20sql&In-Reply-To=%3C20050529212432.2C4D81D02AF%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002058.html">
+   <LINK REL="Next"  HREF="002060.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3257 - in trunk/tools/pydar2: . pydar sql</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3257%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20sql&In-Reply-To=%3C20050529212432.2C4D81D02AF%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3257 - in trunk/tools/pydar2: . pydar sql">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May 29 23:24:32 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002058.html">[svn] r3256 - trunk/tools/pydar2
+</A></li>
+        <LI>Next message: <A HREF="002060.html">[svn] r3258 - in trunk/tools/pydar2: dries/pydar2 pydar scripts sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2059">[ date ]</a>
+              <a href="thread.html#2059">[ thread ]</a>
+              <a href="subject.html#2059">[ subject ]</a>
+              <a href="author.html#2059">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-05-29 23:24:31 +0200 (Sun, 29 May 2005)
+New Revision: 3257
+
+Modified:
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/pydarclient.py
+   trunk/tools/pydar2/pydar/rights.py
+   trunk/tools/pydar2/sql/master.sql
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-29 20:51:46 UTC (rev 3256)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-29 21:24:31 UTC (rev 3257)
+@@ -358,6 +358,19 @@
+         cursor.close()
+         self.__releaseConnection(conn)
+ 
++    def getNumberOfNotYetStartedCommands(self):
++        retval = None
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        cursor.execute(&quot;select count(*) as total from pydar2_commands where not pc.handled and not pc.inprogress&quot;)
++        if cursor.rowcount &gt; 0:
++            row = cursor.fetchone()
++            retval = row[0]
++        conn.commit()
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++        
+     def reserveCommand(self, buildmachineid):
+         self.__cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
+         conn = self.__getConnection()
+
+Modified: trunk/tools/pydar2/pydar/pydarclient.py
+===================================================================
+--- trunk/tools/pydar2/pydar/pydarclient.py	2005-05-29 20:51:46 UTC (rev 3256)
++++ trunk/tools/pydar2/pydar/pydarclient.py	2005-05-29 21:24:31 UTC (rev 3257)
+@@ -50,3 +50,7 @@
+         retval = myserverclient.callUpdateSiteScript(userId,password, specRepoName)
+         return retval
+     
++    def getNumberOfNotYetStartedCommands(self, userId, password):
++        myserverclient = Server(self.buildmasterurl)
++        retval = myserverclient.getNumberOfNotYetStartedCommands(userId,password)
++        return retval
+
+Modified: trunk/tools/pydar2/pydar/rights.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rights.py	2005-05-29 20:51:46 UTC (rev 3256)
++++ trunk/tools/pydar2/pydar/rights.py	2005-05-29 21:24:31 UTC (rev 3257)
+@@ -31,3 +31,4 @@
+     GET_SPEC_REPOSITORIES_UPDATE_COMMANDS = &quot;GET_SPEC_REPOSITORIES_UPDATE_COMMANDS&quot;
+     UPDATE_SITE_SCRIPT=&quot;UPDATE_SITE_SCRIPT&quot;
+     UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS = &quot;UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS&quot;
++    GET_NUMBER_OF_NOTYETSTARTED_COMMANDS = &quot;GET_NUMBER_OF_NOTYETSTARTED_COMMANDS&quot;
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-29 20:51:46 UTC (rev 3256)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-29 21:24:31 UTC (rev 3257)
+@@ -132,6 +132,13 @@
+             return &quot;&quot;
+         else:
+             raise Exception( &quot;UNKNOWN USERID&quot;)
++            
++    def getNumberOfNotYetStartedCommands(self, userId, password):
++        self.__cat.debug(&quot;start,userId=&quot; + str(userId))
++        if self.__storage.checkIfValidUserId(userId, password, Rights.GET_NUMBER_OF_NOTYETSTARTED_COMMANDS):
++            return self.__storage.getNumberOfNotYetStartedCommands()
++        else:
++            raise Exception( &quot;UNKNOWN USERID&quot;)
+         
+     def updateAllSpecRepositoriesFileLists(self,userId, password):
+         self.__cat.debug(&quot;start,userId=&quot; + str(userId))
+
+Modified: trunk/tools/pydar2/sql/master.sql
+===================================================================
+--- trunk/tools/pydar2/sql/master.sql	2005-05-29 20:51:46 UTC (rev 3256)
++++ trunk/tools/pydar2/sql/master.sql	2005-05-29 21:24:31 UTC (rev 3257)
+@@ -229,4 +229,5 @@
+ insert into pydar2_rights (id, abbrev, description) values (7, 'GET_SPEC_REPOSITORIES_UPDATE_COMMANDS', 'get the update commands for the specrepositories');
+ insert into pydar2_rights (id, abbrev, description) values (8, 'UPDATE_SITE_SCRIPT', 'call the script which builds a site');
+ insert into pydar2_rights (id, abbrev, description) values (9, 'UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS', 'ask the master to update all spec repositories');
++insert into pydar2_rights (id, abbrev, description) values (10, 'GET_NUMBER_OF_NOTYETSTARTED_COMMANDS', 'get the number of commands which are not yet reserved or finished');
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002058.html">[svn] r3256 - trunk/tools/pydar2
+</A></li>
+	<LI>Next message: <A HREF="002060.html">[svn] r3258 - in trunk/tools/pydar2: dries/pydar2 pydar scripts sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2059">[ date ]</a>
+              <a href="thread.html#2059">[ thread ]</a>
+              <a href="subject.html#2059">[ subject ]</a>
+              <a href="author.html#2059">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

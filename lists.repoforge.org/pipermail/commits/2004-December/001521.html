@@ -1,0 +1,226 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2716 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2716%20-%20trunk/tools/dstat&In-Reply-To=%3C20041223172402.BE07C1A279%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001520.html">
+   <LINK REL="Next"  HREF="001522.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2716 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2716%20-%20trunk/tools/dstat&In-Reply-To=%3C20041223172402.BE07C1A279%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2716 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Dec 23 18:24:02 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001520.html">[SVN] r2715 - in trunk/rpms: atop etherape kismet
+</A></li>
+        <LI>Next message: <A HREF="001522.html">[SVN] r2717 - trunk/rpms/blender
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1521">[ date ]</a>
+              <a href="thread.html#1521">[ thread ]</a>
+              <a href="subject.html#1521">[ subject ]</a>
+              <a href="author.html#1521">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-23 18:24:00 +0100 (Thu, 23 Dec 2004)
+New Revision: 2716
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Preparing 0.5.7.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-12-23 15:45:29 UTC (rev 2715)
++++ trunk/tools/dstat/ChangeLog	2004-12-23 17:24:00 UTC (rev 2716)
+@@ -1,3 +1,7 @@
++* 0.5.7
++- Change Makefile to not install when run without target. (Kurt Roeckx)
++- Fixed another crash caused by /proc instability.
++
+ * 0.5.6
+ - Made sys and int stats unit-aware (so 10000 int/sec -&gt; 10.0k) (Anton Blanchard)
+ - Improve conv() function and stat show() functions
+@@ -13,7 +17,8 @@
+ - Added smp support (Bert de Bruijn)
+ - proc stats now show averages
+ - Check if output is a tty, else disable colors and updates
+-- Fixed bug in interrupt stats on smp systems
++- Fixed bug in interrupt stats on smp systems (Bert de Bruijn)
++- Improved intterupt stats (Bert de Bruijn)
+ - Improvement in output, 10.0k or 5.0 will be displayed simply as 10k or 5
+ - proc stats now show floats
+ 
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2004-12-23 15:45:29 UTC (rev 2715)
++++ trunk/tools/dstat/Makefile	2004-12-23 17:24:00 UTC (rev 2716)
+@@ -4,7 +4,8 @@
+ datadir = $(prefix)/share
+ mandir = $(datadir)/man
+ 
+-all: install
++all:
++	@echo &quot;No build phase.&quot;
+ 
+ install:
+ #	-[ ! -f $(DESTDIR)$(sysconfdir)/dstat.conf ] &amp;&amp; install -D -m0644 dstat.conf $(DESTDIR)$(sysconfdir)/dstat.conf
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-12-23 15:45:29 UTC (rev 2715)
++++ trunk/tools/dstat/TODO	2004-12-23 17:24:00 UTC (rev 2716)
+@@ -21,9 +21,10 @@
+ + Look into interfacing with specific HW counters in /proc
+ 
+ ### General bugs
+++ Backport all changes to dstat15
+ + Timer is not accurate on 2.6 kernel, every second there's a 1ms deviation (every 17mins -&gt; 1sec)
+ 
+ ### Stat bugs
+ + tcp stat is very slow and generates lots of softirqs (on some systems)
+-+ proc stat seems to be off by one, no clue why
+ + Implement better (?) protection against counter rollovers
+++ Fix bug with: ./dstat -tit -I 177
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-23 15:45:29 UTC (rev 2715)
++++ trunk/tools/dstat/dstat	2004-12-23 17:24:00 UTC (rev 2716)
+@@ -20,7 +20,7 @@
+ import ConfigParser, urlparse, signal, resource
+ #import curses
+ 
+-VERSION = '0.5.6'
++VERSION = '0.5.7'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -223,8 +223,9 @@
+ 		if isinstance(self.name, types.StringType):
+ 			return self.len
+ 		else:
+-			for i in self.cn2: break
+-			return len(self.cn2[i]) * self.len + len(self.cn2[i]) - 1
++			for name in self.cn2.keys():
++				return len(self.cn2[name]) * self.len + len(self.cn2[name]) - 1
++			return 0
+ 
+ 	def title1(self):
+ 		if isinstance(self.name, types.StringType):
+@@ -255,7 +256,7 @@
+ 			return ansi['blue'] + ret
+ 
+ 	def check(self):
+-		if self.discover():
++		if self.discover() and self.width():
+ 			return True
+ 		return False
+ 
+@@ -766,6 +767,7 @@
+ 				l = l2[1:] + l[1:]
+ 			else:
+ 				l = l[1:]
++			if len(l) &lt; 9: continue
+ 			if name in (self.vars) :
+ 				self.cn2[name] = ( long(l[0]), long(l[8]) )
+ 			if not re.match('^(Inter-\||face|lo)$', name):
+@@ -851,7 +853,7 @@
+ 				self.val['processes'] = 0
+ 				self.cn2[name] = long(l[1])
+ 			elif name == 'procs_running':
+-				self.cn2[name] = self.cn2[name] + long(l[1]) - 1
++				self.cn2[name] = self.cn2[name] + long(l[1]) - 2
+ 			elif name == 'procs_blocked':
+ 				self.cn2[name] = self.cn2[name] + long(l[1])
+ 		if update:
+@@ -1281,7 +1283,7 @@
+ 		if update &lt;= op.delay * op.count or op.count == -1:
+ 			signal.pause()
+ 
+-		### The last step in a loop is to show the definitive line on a new line
++		### The last step in a loop is to show the definitive line on its own line
+ 		if step == op.delay:
+ 			sys.stdout.write('\n' + ansi['reset'] + ansi['clearline'] + ansi['save'])
+ 		else:
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2004-12-23 15:45:29 UTC (rev 2715)
++++ trunk/tools/dstat/dstat.spec	2004-12-23 17:24:00 UTC (rev 2716)
+@@ -9,7 +9,7 @@
+ 
+ Summary: Versatile vmstat, iostat and ifstat replacement
+ Name: dstat
+-Version: 0.5.6
++Version: 0.5.7
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -72,7 +72,10 @@
+ %{_bindir}/dstat
+ 
+ %changelog
+-* Wed Dec 08 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.6-1
++* Tue Dec 21 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.7-1
++- Updated to release 0.5.7.
++
++* Mon Dec 20 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.6-1
+ - Updated to release 0.5.6.
+ 
+ * Thu Dec 02 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.5-1
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2004-12-23 15:45:29 UTC (rev 2715)
++++ trunk/tools/dstat/dstat15	2004-12-23 17:24:00 UTC (rev 2716)
+@@ -19,7 +19,7 @@
+ import os, sys, re, getopt, time, string
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = '0.5.6'
++VERSION = '0.5.7'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001520.html">[SVN] r2715 - in trunk/rpms: atop etherape kismet
+</A></li>
+	<LI>Next message: <A HREF="001522.html">[SVN] r2717 - trunk/rpms/blender
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1521">[ date ]</a>
+              <a href="thread.html#1521">[ thread ]</a>
+              <a href="subject.html#1521">[ subject ]</a>
+              <a href="author.html#1521">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4554 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4554%20-%20trunk/tools/dstat&In-Reply-To=%3C20060625232018.99BEF944E35%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003353.html">
+   <LINK REL="Next"  HREF="003355.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4554 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4554%20-%20trunk/tools/dstat&In-Reply-To=%3C20060625232018.99BEF944E35%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4554 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jun 26 01:20:18 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003353.html">[svn] r4553 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="003355.html">[svn] r4555 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3354">[ date ]</a>
+              <a href="thread.html#3354">[ thread ]</a>
+              <a href="subject.html#3354">[ subject ]</a>
+              <a href="author.html#3354">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-06-26 01:20:18 +0200 (Mon, 26 Jun 2006)
+New Revision: 4554
+
+Modified:
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat15
+Log:
+More python 1.5 specific changes
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-06-25 23:01:23 UTC (rev 4553)
++++ trunk/tools/dstat/dstat	2006-06-25 23:20:18 UTC (rev 4554)
+@@ -1547,7 +1547,7 @@
+ 	exit(ret)
+ 
+ def initterm():
+-	&quot;Return the terminal size&quot;
++	&quot;Initialise terminal&quot;
+ 	global termsize
+ 
+ 	### Unbuffered sys.stdout
+@@ -1556,23 +1556,37 @@
+ 	try:
+ 		global fcntl, struct, termios
+ 		import fcntl, struct, termios
++		termios.TIOCGWINSZ
+ 	except:
+ 		try:
+-	 		termsize = (int(os.getenv('LINES')), int(os.getenv('COLUMNS')))
++			curses.setupterm()
++			curses.tigetnum('lines'), curses.tigetnum('cols')
+ 		except:
+-			termsize = 25, 80
++			pass
++		else:
++			termsize = None, 2
+ 	else:
+-		termsize = None
++		termsize = None, 1
+ 
+ def gettermsize():
+-	&quot;Return the terminal geometry&quot;
+-	if termsize:
+-		return termsize
+-	else:
+-		s = struct.pack('HHHH', 0, 0, 0, 0)
+-		x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+-		return struct.unpack('HHHH', x)[:2]
++	&quot;Return the dynamic terminal geometry&quot;
++	global termsize
+ 
++	if not termsize[0]:
++		try:
++			if termsize[1] == 1:
++				s = struct.pack('HHHH', 0, 0, 0, 0)
++				x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
++				return struct.unpack('HHHH', x)[:2]
++			elif termsize[1] == 2:
++				curses.setupterm()
++				return curses.tigetnum('lines'), curses.tigetnum('cols')
++			else:
++				termsize = (int(os.environ['LINES']), int(os.environ['COLUMNS']))
++		except:
++			termsize = 25, 80
++	return termsize
++
+ def getcpunr():
+ 	&quot;Return the number of CPUs in the system&quot;
+ 	cpunr = -1
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2006-06-25 23:01:23 UTC (rev 4553)
++++ trunk/tools/dstat/dstat15	2006-06-25 23:20:18 UTC (rev 4554)
+@@ -1134,7 +1134,6 @@
+ 		self.nick = ('used', 'free')
+ 		self.discover = self.discover()
+ 		self.vars = self.vars()
+-		self.name = ['swp/'+improve(name) for name in self.vars]
+ 		self.name = []
+ 		for name in self.vars:
+ 			self.name.append('swp/'+improve(name))
+@@ -1552,7 +1551,7 @@
+ 	exit(ret)
+ 
+ def initterm():
+-	&quot;Return the terminal size&quot;
++	&quot;Initialise terminal&quot;
+ 	global termsize
+ 
+ 	### Unbuffered sys.stdout
+@@ -1561,23 +1560,37 @@
+ 	try:
+ 		global fcntl, struct, termios
+ 		import fcntl, struct, termios
++		termios.TIOCGWINSZ
+ 	except:
+ 		try:
+-			termsize = (int(os.environ['LINES']), int(os.environ['COLUMNS']))
++			curses.setupterm()
++			curses.tigetnum('lines'), curses.tigetnum('cols')
+ 		except:
+-			termsize = 25, 80
++			pass
++		else:
++			termsize = None, 2
+ 	else:
+-		termsize = None
++		termsize = None, 1
+ 
+ def gettermsize():
+-	&quot;Return the terminal geometry&quot;
+-	if termsize:
+-		return termsize
+-	else:
+-		s = struct.pack('HHHH', 0, 0, 0, 0)
+-		x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+-		return struct.unpack('HHHH', x)[:2]
++	&quot;Return the dynamic terminal geometry&quot;
++	global termsize
+ 
++	if not termsize[0]:
++		try:
++			if termsize[1] == 1:
++				s = struct.pack('HHHH', 0, 0, 0, 0)
++				x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
++				return struct.unpack('HHHH', x)[:2]
++			elif termsize[1] == 2:
++				curses.setupterm()
++				return curses.tigetnum('lines'), curses.tigetnum('cols')
++			else:
++				termsize = (int(os.environ['LINES']), int(os.environ['COLUMNS']))
++		except:
++			termsize = 25, 80
++	return termsize
++
+ def getcpunr():
+ 	&quot;Return the number of CPUs in the system&quot;
+ 	cpunr = -1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003353.html">[svn] r4553 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="003355.html">[svn] r4555 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3354">[ date ]</a>
+              <a href="thread.html#3354">[ thread ]</a>
+              <a href="subject.html#3354">[ subject ]</a>
+              <a href="author.html#3354">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

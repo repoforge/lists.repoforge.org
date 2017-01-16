@@ -1,0 +1,210 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3623 - trunk/tools/checkspec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3623%20-%20trunk/tools/checkspec&In-Reply-To=%3C20051008115052.D08D83180FE%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002422.html">
+   <LINK REL="Next"  HREF="002424.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3623 - trunk/tools/checkspec</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3623%20-%20trunk/tools/checkspec&In-Reply-To=%3C20051008115052.D08D83180FE%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3623 - trunk/tools/checkspec">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Oct  8 13:50:52 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002422.html">[svn] r3622 - in trunk/rpms: . bmp-itouch
+</A></li>
+        <LI>Next message: <A HREF="002424.html">[svn] r3624 - in trunk/rpms: aldo duma libdc1394 scribus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2423">[ date ]</a>
+              <a href="thread.html#2423">[ thread ]</a>
+              <a href="subject.html#2423">[ subject ]</a>
+              <a href="author.html#2423">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-10-08 13:50:51 +0200 (Sat, 08 Oct 2005)
+New Revision: 3623
+
+Modified:
+   trunk/tools/checkspec/checkspec
+Log:
+fixes by Wil Cooley: stderr-&gt;STDERR &amp; builroot regex fix
+
+Modified: trunk/tools/checkspec/checkspec
+===================================================================
+--- trunk/tools/checkspec/checkspec	2005-10-08 09:47:47 UTC (rev 3622)
++++ trunk/tools/checkspec/checkspec	2005-10-08 11:50:51 UTC (rev 3623)
+@@ -26,7 +26,34 @@
+ 	}
+ }
+ 
++sub checkDocInAlphabeticalOrder {
++	my $METHOD_NAME = &quot;checkDocInAlphabeticalOrder - &quot;;
++	my ($filename, $filecontents) = @_;
++	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	my @lines = split(&quot;\n&quot;, $filecontents);
++	my $line;
++	foreach $line (@lines) {
++		if ($line =~ /^%doc (.*)/) {
++			my $filenamesString = $1;
++			my @filenames = split(&quot; &quot;, $filenamesString);
++			my @filenamesSorted = sort(@filenames);
++			TODO
++		}
++	}
++}
+ 
++sub checkChangelog {
++	my $METHOD_NAME = &quot;checkChangelog - &quot;;
++	my ($filename, $filecontents) = @_;
++	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	if ($filecontents =~ /%changelog\n/) {
++		debug($METHOD_NAME . &quot;changelog line ok&quot;);
++	} else {
++		print STDERR $filename . &quot; : changelog section not ok\n&quot;;
++		$specproblems{$filename} = 1;
++	}
++}
++
+ sub checkCleanSection {
+ 	my $METHOD_NAME = &quot;checkCleanSection - &quot;;
+ 	my ($filename, $filecontents) = @_;
+@@ -34,7 +61,7 @@
+ 	if ($filecontents =~ /\%clean\n\%\{__rm\} \-rf \%\{buildroot\}/) {
+ 		debug($METHOD_NAME . &quot;clean section ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot; : %clean section not ok\n&quot;;
++		print STDERR $filename . &quot; : %clean section not ok\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ }
+@@ -46,7 +73,7 @@
+ 	if ($filecontents =~ /\%install\n\%\{__rm\} \-rf \%\{buildroot\}/) {
+ 		debug($METHOD_NAME . &quot;install section starts with rm rf, ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot; : install section does not start with rm rf\n&quot;;
++		print STDERR $filename . &quot; : install section does not start with rm rf\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ }
+@@ -61,7 +88,7 @@
+ 	if (!($filecontents =~ /LC_MESSAGES/)) {
+ 		debug($METHOD_NAME . &quot;LC_MESSAGES in %files not found, ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot; : contains LC_MESSAGES in %files section\n&quot;;
++		print STDERR $filename . &quot; : contains LC_MESSAGES in %files section\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ }
+@@ -76,7 +103,7 @@
+ 	if (!($filecontents =~ /\n\//)) {
+ 		debug($METHOD_NAME . &quot;no line after %files which starts with a slash, ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot; : contains lines which start with a slash in %files section\n&quot;;
++		print STDERR $filename . &quot; : contains lines which start with a slash in %files section\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ }
+@@ -86,7 +113,7 @@
+ 	my ($filename, $filecontents) = @_;
+         debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
+ 	if ($filecontents =~ /^[ \t]*install/gm) {
+-		print stderr $filename . &quot; : contains install, should be \%\{__install\}\n&quot;;
++		print STDERR $filename . &quot; : contains install, should be \%\{__install\}\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	} else {
+ 		debug($METHOD_NAME . &quot;checkMacros ok&quot;);
+@@ -97,10 +124,10 @@
+ 	my $METHOD_NAME = &quot;checkBuildRoot - &quot;;
+ 	my ($filename, $filecontents) = @_;
+ 	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
+-	if ($filecontents =~ /^BuildRoot: \%\{\_tmppath\}\/\%\{name\}\-\%\{version\}\-\%\{release\}\-root$/gm) {
++	if ($filecontents =~ /^BuildRoot:\s*\%\{\_tmppath\}\/\%\{name\}\-\%\{version\}\-\%\{release\}\-root$/gm) {
+ 		debug($METHOD_NAME . &quot;buildroot ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot; : buildroot not ok\n&quot;;
++		print STDERR $filename . &quot; : buildroot not ok\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ 	# BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+@@ -117,7 +144,7 @@
+ 			if (!($line =~ /^Source[0-9]*:/) 
+ 			&amp;&amp; !($line =~/^# Screenshot/)
+ 			&amp;&amp; !($line =~/^\%define/)) {
+-				print stderr $filename . &quot; : line too long, line: &quot; . $line . &quot;\n&quot;;
++				print STDERR $filename . &quot; : line too long, line: &quot; . $line . &quot;\n&quot;;
+ 				$specproblems{$filename} = 1;
+ 			}
+ 		}
+@@ -142,17 +169,17 @@
+ 		if ($lastlineWasFilesLine) {
+ 			if ($line =~ /^%defattr\(([0-9a-zA-Z -]*),([0-9a-zA-Z -]*),([0-9a-zA-Z -]*),([0-9a-zA-Z -]*)\)/) {
+ 				if (!($line =~ /^%defattr\(([0-9a-zA-Z-]*), ([0-9a-zA-Z-]*), ([0-9a-zA-Z-]*), ([0-9a-zA-Z-]*)\)/)) {
+-					print stderr $filename . &quot; : spaces not ok in defattr, line= &quot; . $line . &quot;\n&quot;;
++					print STDERR $filename . &quot; : spaces not ok in defattr, line= &quot; . $line . &quot;\n&quot;;
+ 				}
+ 				$lastlineWasFilesLine = 0;				
+ 				next;
+ 			}
+ 			if ($line =~ /^%defattr\(([0-9a-zA-Z -]*),([0-9a-zA-Z -]*),([0-9a-zA-Z -]*)\)/) {
+-				print stderr $filename . &quot; : no chmod mode at end of defattr, line= &quot; . $line . &quot;\n&quot;;
++				print STDERR $filename . &quot; : no chmod mode at end of defattr, line= &quot; . $line . &quot;\n&quot;;
+ 				$lastlineWasFilesLine = 0;
+ 				next;
+ 			}
+-			print stderr $filename . &quot; : no defattr line after files section\n&quot;;
++			print STDERR $filename . &quot; : no defattr line after files section\n&quot;;
+ 			$lastlineWasFilesLine = 0;
+ 		}
+ 	}
+@@ -177,6 +204,7 @@
+ 	checkDefattrLines($filename, $filecontents);
+ 	checkRmRfBeforeInstall($filename, $filecontents);
+ 	checkMacros($filename, $filecontents);
++	checkChangelog($filename, $filecontents);
+ }
+ 
+ sub printJoeLine {
+@@ -186,7 +214,7 @@
+ 		chomp $name;
+ 		$line = $line . &quot; &quot; . $name;
+ 	}
+-	print stderr &quot;joe &quot; . $line . &quot;\n&quot;;
++	print STDERR &quot;joe &quot; . $line . &quot;\n&quot;;
+ }
+ 
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002422.html">[svn] r3622 - in trunk/rpms: . bmp-itouch
+</A></li>
+	<LI>Next message: <A HREF="002424.html">[svn] r3624 - in trunk/rpms: aldo duma libdc1394 scribus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2423">[ date ]</a>
+              <a href="thread.html#2423">[ thread ]</a>
+              <a href="subject.html#2423">[ subject ]</a>
+              <a href="author.html#2423">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,364 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4253 - trunk/rpms/kannel
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4253%20-%20trunk/rpms/kannel&In-Reply-To=%3C20060329093403.5C56931808F%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003052.html">
+   <LINK REL="Next"  HREF="003054.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4253 - trunk/rpms/kannel</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4253%20-%20trunk/rpms/kannel&In-Reply-To=%3C20060329093403.5C56931808F%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4253 - trunk/rpms/kannel">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Mar 29 11:34:03 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003052.html">[svn] r4252 - trunk/rpms/transcode
+</A></li>
+        <LI>Next message: <A HREF="003054.html">[svn] r4254 - in trunk/rpms: . bmpx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3053">[ date ]</a>
+              <a href="thread.html#3053">[ thread ]</a>
+              <a href="subject.html#3053">[ subject ]</a>
+              <a href="author.html#3053">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-03-29 11:34:01 +0200 (Wed, 29 Mar 2006)
+New Revision: 4253
+
+Added:
+   trunk/rpms/kannel/kannel.conf
+   trunk/rpms/kannel/kannel.init
+   trunk/rpms/kannel/kannel.logrotate
+Modified:
+   trunk/rpms/kannel/kannel.spec
+Log:
+Commit very old kannel changes (default config, init script and logrotate).
+
+
+Added: trunk/rpms/kannel/kannel.conf
+===================================================================
+--- trunk/rpms/kannel/kannel.conf	2006-03-28 12:36:32 UTC (rev 4252)
++++ trunk/rpms/kannel/kannel.conf	2006-03-29 09:34:01 UTC (rev 4253)
+@@ -0,0 +1,14 @@
++# Default kannel configuration file
++group = core
++admin-port = 13000
++admin-password = changemenow
++status-password = changemetoo
++admin-deny-ip = &quot;*.*.*.*&quot;
++admin-allow-ip = &quot;127.0.0.1&quot;
++#smsbox-port = 13001
++#wapbox-port = 13002
++box-deny-ip = &quot;*.*.*.*&quot;
++box-allow-ip = &quot;127.0.0.1&quot;
++wdp-interface-name = &quot;*&quot;
++log-file = &quot;/var/log/kannel/bearerbox.log&quot;
++log-level = 1
+
+Added: trunk/rpms/kannel/kannel.init
+===================================================================
+--- trunk/rpms/kannel/kannel.init	2006-03-28 12:36:32 UTC (rev 4252)
++++ trunk/rpms/kannel/kannel.init	2006-03-29 09:34:01 UTC (rev 4253)
+@@ -0,0 +1,111 @@
++#!/bin/sh
++#
++# kannel	This script takes care of starting and stopping the kannel \
++#		WAP gateway services (bearer/wap/smsbox).
++# chkconfig: - 97 03
++# description:  The Kannel WAP and SMS gateway services
++# config: /etc/kannel.conf
++
++# Use start-stop-kannel
++prog=&quot;/usr/sbin/start-stop-kannel&quot;
++args=&quot;--start --background --chuid kannel:kannel --exec &quot;
++config=&quot;/etc/kannel.conf&quot;
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++# Source networking configuration.
++. /etc/sysconfig/network
++
++# Check that networking is up.
++[ &quot;${NETWORKING}&quot; = &quot;no&quot; ] &amp;&amp; exit 0
++
++[ -f $config ] || exit 1
++
++RETVAL=0
++RETVAL_BEARER=0
++RETVAL_WAP=0
++RETVAL_SMS=0
++
++start() {
++        # Start daemons.
++        echo -n &quot;Starting kannel bearer box: &quot;
++	daemon $prog $args /usr/sbin/bearerbox $config
++	RETVAL_BEARER=$?
++	echo
++
++	# Starting wap and sms only makes sense if bearerbox is running
++	if [ $RETVAL_BEARER -eq 0 ]; then
++	  if grep &quot;^group = wapbox&quot; $config &amp;&gt;/dev/null; then
++	    echo -n &quot;Starting kannel wap box: &quot;
++	    daemon $prog $args /usr/sbin/wapbox $config
++	    RETVAL_WAP=$?
++	    echo
++	  fi
++	  if grep &quot;^group = smsbox&quot; $config &amp;&gt;/dev/null; then
++	    echo -n &quot;Starting kannel sms box: &quot;
++	    daemon $prog $args /usr/sbin/smsbox $config
++	    RETVAL_SMS=$?
++	    echo
++	  fi
++	fi
++ 	[ $RETVAL_BEARER -eq 0 -a $RETVAL_WAP -eq 0 -a $RETVAL_SMS -eq 0 ] \
++	  &amp;&amp; touch /var/lock/subsys/kannel || RETVAL=1
++}
++
++stop() {
++        # Stop daemons.
++	if grep &quot;^group = smsbox&quot; $config &amp;&gt;/dev/null; then
++	  echo -n &quot;Shutting down kannel sms box: &quot;
++	  killproc /usr/sbin/smsbox
++	  RETVAL_SMS=$?
++	  echo
++	fi
++	if grep &quot;^group = wapbox&quot; $config &amp;&gt;/dev/null; then
++	  echo -n &quot;Shutting down kannel wap box: &quot;
++	  killproc /usr/sbin/wapbox
++	  RETVAL_WAP=$?
++	  echo
++	fi
++	echo -n &quot;Shutting down kannel bearer box: &quot;
++        killproc /usr/sbin/bearerbox
++	RETVAL_BEARER=$?
++	echo
++	[ $RETVAL_BEARER -eq 0 -a $RETVAL_WAP -eq 0 -a $RETVAL_SMS -eq 0 ] \
++	  || RETVAL=1
++	rm -f /var/lock/subsys/kannel
++}
++
++# See how we were called.
++case &quot;$1&quot; in
++  start)
++	start
++        ;;
++  stop)
++	stop
++        ;;
++  status)
++	status /usr/sbin/bearerbox
++	RETVAL_BEARER=$?
++	if grep &quot;^group = wapbox&quot; $config &amp;&gt;/dev/null; then
++	  status /usr/sbin/wapbox
++	  RETVAL_WAP=$?
++	fi
++	if grep &quot;^group = smsbox&quot; $config &amp;&gt;/dev/null; then
++	  status /usr/sbin/smsbox
++	  RETVAL_SMS=$?
++	fi
++	[ $RETVAL_BEARER -eq 0 -a $RETVAL_WAP -eq 0 -a $RETVAL_SMS -eq 0 ] \
++	  || RETVAL=1
++	;;
++  restart)
++	stop
++	start
++	;;  
++  *)
++        echo $&quot;Usage: $0 {start|stop|restart|status}&quot;
++        RETVAL=1
++esac
++
++exit $RETVAL
++
+
+
+Property changes on: trunk/rpms/kannel/kannel.init
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/rpms/kannel/kannel.logrotate
+===================================================================
+--- trunk/rpms/kannel/kannel.logrotate	2006-03-28 12:36:32 UTC (rev 4252)
++++ trunk/rpms/kannel/kannel.logrotate	2006-03-29 09:34:01 UTC (rev 4253)
+@@ -0,0 +1,10 @@
++/var/log/kannel/*.log {
++    compress
++    missingok
++    notifempty
++    create 640 kannel kannel
++    sharedscripts
++    postrotate
++        /usr/bin/killall -HUP bearerbox smsbox wapbox 2&gt;/dev/null || true
++    endscript
++}
+
+Modified: trunk/rpms/kannel/kannel.spec
+===================================================================
+--- trunk/rpms/kannel/kannel.spec	2006-03-28 12:36:32 UTC (rev 4252)
++++ trunk/rpms/kannel/kannel.spec	2006-03-29 09:34:01 UTC (rev 4253)
+@@ -4,18 +4,21 @@
+ Summary: WAP and SMS gateway
+ Name: kannel
+ Version: 1.4.0
+-Release: 3
++Release: 4
+ License: Kannel
+ Group: System Environment/Daemons
+ URL: <A HREF="http://www.kannel.org/">http://www.kannel.org/</A>
+-Source: <A HREF="http://www.kannel.org/download/%{version">http://www.kannel.org/download/%{version</A>}/gateway-%{version}.tar.bz2
+-Patch: kannel-1.4.0-depend.patch
++Source0: <A HREF="http://www.kannel.org/download/%{version">http://www.kannel.org/download/%{version</A>}/gateway-%{version}.tar.bz2
++Source1: kannel.logrotate
++Source2: kannel.init
++Source3: kannel.conf
++Patch0: kannel-1.4.0-depend.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: bison, byacc, flex, ImageMagick
+ BuildRequires: libxml2-devel, openssl-devel, zlib-devel
+ BuildRequires: pcre-devel
+ # DB backends
+-BuildRequires: sqlite-devel
++BuildRequires: sqlite2-devel
+ # For the docs... I think we need transfig too, so disable for now.
+ #BuildRequires: jadetex, tetex-dvips, docbook-dtds, docbook-style-dsssl
+ 
+@@ -47,7 +50,7 @@
+ 
+ %prep
+ %setup -n gateway-%{version}
+-%patch -p0 -b .depend
++%{!?rh73:%patch0 -p0 -b .depend}
+ 
+ %{?el3:%{__perl} -pi.orig -e 's|^(CFLAGS)=|$1=-I/usr/kerberos/include |' Makefile.in}
+ %{?rh9:%{__perl} -pi.orig -e 's|^(CFLAGS)=|$1=-I/usr/kerberos/include |' Makefile.in}
+@@ -56,6 +59,7 @@
+ %build
+ %configure \
+     --enable-start-stop-daemon \
++    --enable-pcre \
+     --with-sqlite
+ %{__make} %{?_smp_mflags}
+ 
+@@ -63,45 +67,70 @@
+ %install
+ %{__rm} -rf %{buildroot}
+ %makeinstall
++# Install fakesmsc and fakewap, useful for monitoring
++%{__install} -m 0755 test/{fakesmsc,fakewap} %{buildroot}%{_bindir}/
++# Logrotate entry
++%{__install} -D -m 0644 %{SOURCE1} %{buildroot}%{_sysconfdir}/logrotate.d/kannel
++# Init script
++%{__install} -D -m 0755 %{SOURCE2} %{buildroot}%{_sysconfdir}/rc.d/init.d/kannel
++# Default configuration file
++%{__install} -D -m 0640 %{SOURCE3} %{buildroot}%{_sysconfdir}/kannel.conf
++# Empty log directory
++%{__mkdir_p} %{buildroot}%{_var}/log/kannel/
++# Rename start-stop-daemon to start-stop-kannel
++%{__mv} %{buildroot}%{_sbindir}/start-stop-daemon \
++        %{buildroot}%{_sbindir}/start-stop-kannel
+ 
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+ 
+-#post
+-#if [ $1 -eq 1 ]; then
+-#   /sbin/chkconfig --add foobar
+-#fi
++%pre
++# Create system account
++/usr/sbin/useradd -c &quot;Kannel WAP and SMS gateway&quot; -r -M -s '' \
++    -d %{_var}/lib/kannel kannel &amp;&gt;/dev/null || :
+ 
+-#preun
+-#if [ $1 -eq 0 ]; then
+-#   /sbin/service foobar stop &gt;/dev/null 2&gt;&amp;1 || :
+-#   /sbin/chkconfig --del foobar
+-#fi
++%post
++/sbin/chkconfig --add kannel
+ 
+-#postun
+-#if [ $1 -ge 1 ]; then
+-#   /sbin/service foobar condrestart &gt;/dev/null 2&gt;&amp;1 || :
+-#fi
++%preun
++if [ $1 -eq 0 ]; then
++    # Last removal, stop service and remove it
++    /sbin/service kannel stop &amp;&gt;/dev/null || :
++    /sbin/chkconfig --del kannel
++fi
+ 
++%postun
++if [ $1 -ge 1 ]; then
++    /sbin/service kannel condrestart &amp;&gt;/dev/null || :
++fi
+ 
++
+ %files
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS COPYING ChangeLog NEWS README STATUS
++%attr(0640, kannel, kannel) %config(noreplace) %{_sysconfdir}/kannel.conf
++%config(noreplace) %{_sysconfdir}/logrotate.d/kannel
++%config %{_sysconfdir}/rc.d/init.d/kannel
+ %{_bindir}/*
+ %{_sbindir}/*
+ %{_mandir}/man?/*
++%attr(0750, kannel, kannel) %dir %{_var}/log/kannel/
+ 
+-
+ %files devel
+ %defattr(-, root, root, 0755)
+ %{_includedir}/kannel/
+-%dir %{_libdir}/kannel/
+-%{_libdir}/kannel/*.a
++%exclude %{_libdir}/kannel/*.a
+ 
+ 
+ %changelog
++* Mon Jul  4 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.4.0-4
++- Include (at last!) user creation, logrotate entry and init script.
++- Include default configuration file (do nothing, access only from 127.0.0.1).
++- Include empty log directory.
++- Include fakesmsc and fakewap programs, useful for monitoring purposes.
++
+ * Mon Jan 17 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.4.0-3
+ - Added Stefan Radman's patch for kannel bug #173 to fix .depend problem.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003052.html">[svn] r4252 - trunk/rpms/transcode
+</A></li>
+	<LI>Next message: <A HREF="003054.html">[svn] r4254 - in trunk/rpms: . bmpx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3053">[ date ]</a>
+              <a href="thread.html#3053">[ thread ]</a>
+              <a href="subject.html#3053">[ subject ]</a>
+              <a href="author.html#3053">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

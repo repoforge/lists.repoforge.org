@@ -1,0 +1,219 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4345 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4345%20-%20trunk/tools/yam&In-Reply-To=%3C20060505080025.5F30C3180B8%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003144.html">
+   <LINK REL="Next"  HREF="003146.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4345 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4345%20-%20trunk/tools/yam&In-Reply-To=%3C20060505080025.5F30C3180B8%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4345 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri May  5 10:00:25 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003144.html">[svn] r4344 - trunk/rpms/xmms-musepack
+</A></li>
+        <LI>Next message: <A HREF="003146.html">[svn] r4346 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3145">[ date ]</a>
+              <a href="thread.html#3145">[ thread ]</a>
+              <a href="subject.html#3145">[ subject ]</a>
+              <a href="author.html#3145">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-05-05 10:00:24 +0200 (Fri, 05 May 2006)
+New Revision: 4345
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Important set of updates and feature enhancements
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-05-03 20:02:55 UTC (rev 4344)
++++ trunk/tools/yam/ChangeLog	2006-05-05 08:00:24 UTC (rev 4345)
+@@ -8,6 +8,9 @@
+ - Make use of os.system() instead of os.popen(). (Alexander Bergolth)
+ - Take advantage of mirror-command return codes. (Alexander Bergolth)
+ - Make use of Exception handling for mirror-commands.
++- Added comps.xml handling for repositories (and handle the ISO case) (Gareth Armstrong, Jason Kim)
++- Handle arguments and deprecate the -d option
++- Fixed yam.spec to refer to config/*.conf (Matthew Hannigan)
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-05-03 20:02:55 UTC (rev 4344)
++++ trunk/tools/yam/TODO	2006-05-05 08:00:24 UTC (rev 4345)
+@@ -23,7 +23,7 @@
+ 
+ ### RHN support
+ + Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+-+ Fix the 'cached' logininfo which causes old channel information to be present (relogin, logout ?)
+++ Fix the 'cached' logininfo which causes old channel information to be present (relogin, logout ?) - Fixed when using gensystemid
+ + Check for existence of packages on ISOs (updates vs os)
+ + Allow Yam to create new systems (register) in RHN on demand (gensystemid functionality)
+ + Allow to install all packages (repos.listAllPackages vs repos.listPackages methods) (rhn-download-all option)
+@@ -33,7 +33,6 @@
+ + Add URPMI and Red Carpet support (help needed)
+ + Add YaST/YOU support (both for mirroring as providing metadata, seems impossible ?)
+ + Create anaconda-style metadata for booting an updated installation
+-+ Create group information (createrepo -g comps.xml RPMS.os) (see patch provided by Jason Kim)
+ + Complain when a required tool is not available
+ + Increase generation speed by using filecache better (processing per repo vs per metadata)
+ + Make .sha1sum also use filesizes
+@@ -71,13 +70,13 @@
+ + Add documentation about chaining Yam servers
+ + Add a yam and yam.conf manpage
+ + Comment the code more (pydoc strings)
+++ ZeroConf support (or documentation)
+ 
+ ### Internal python
+ + Improve the copy/symlink/rename functions, using exceptions
+ + Mirroring code should be in a separate class
+ + Repositories should go in seperate classes
+ + File-operations may need to go to a separate class, use shutil ? (needs python 2.3)
+-+ Arguments are ignored, do something with them
+ + Improve the remove and symlink stage (combine the check of existing links with creating and removing)
+ 
+ ### Bugs
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-05-03 20:02:55 UTC (rev 4344)
++++ trunk/tools/yam/yam	2006-05-05 08:00:24 UTC (rev 4345)
+@@ -39,7 +39,7 @@
+ class Options:
+ 	def __init__(self, args):
+ 		self.configfile = '/etc/yam.conf'
+-		self.dist = None
++		self.dist = []
+ 		self.rhnrelease = None
+ 		self.extra = False
+ 		self.force = False
+@@ -64,13 +64,15 @@
+ 			if opt in ['-c', '--config']:
+ 				self.configfile = os.path.abspath(arg)
+ 			elif opt in ['-d', '--dist']:
+-				self.dist = arg.split(',')
++#				print 'yam: the use of -d as an option is deprecated'
++				self.dist = self.dist + arg.split(',')
+ 			elif opt in ['-f', '--force']:
+ 				self.force = True
+ 			elif opt in ['-g', '--generate']:
+ 				self.generate = True
+ 			elif opt in ['-h', '--help']:
+ 				self.usage()
++				print
+ 				self.help()
+ 				sys.exit(0)
+ 			elif opt in ['-n', '--dry-run']:
+@@ -91,6 +93,9 @@
+ 			elif opt in ['-x', '--extras']:
+ 				self.extra = True
+ 
++		for arg in args:
++			self.dist = self.dist + arg.split(',')
++
+ 		if self.quiet:
+ 			self.verbose = 0
+ 
+@@ -108,14 +113,13 @@
+ 		print 'build revision $Rev$'
+ 
+ 	def usage(self):
+-		print 'usage: yam [-f] [-g] [-n] [-q] [-u] [-v] [-x] [-c config] [-d dist1,dist2-arch]'
++		print 'usage: yam [options] dist1 [dist2-arch ..]'
+ 
+ 	def help(self):
+ 		print '''Set up a distribution server from ISO files
+ 
+ Yam options:
+   -c, --config=file     specify alternative configfile
+-  -d, --dist=dist       specify distributions and/or architecture
+   -f, --force           force repository generation
+   -g, --generate        generate Yam repositories
+   -n, --dry-run         show what would have been done
+@@ -434,7 +438,7 @@
+ 			### Write out /srcdir/nick/base/release
+ 			releasefile = os.path.join(self.dir, 'base', 'release')
+ 			if not os.path.exists(releasefile):
+-				open(releasefile, 'w').write('Origin: <A HREF="http://yam/%s/\nLabel:">http://yam/%s/\nLabel:</A> %s\nSuite: Unknown\nCodename: %s\nDate: unknown\nArchitectures: %s\nComponents:\nDescription: %s\nMD5Sum:\n' % (self.nick, self.name, self.nick, self.arch, self.name))
++				open(releasefile, 'w').write('Origin: <A HREF="http://yam/%s/\nLabel:">http://yam/%s/\nLabel:</A> %s\nSuite: Unknown\nCodename: %s\nDate: unknown\nArchitectures: %s\nComponents: \nDescription: %s\nMD5Sum:\n' % (self.nick, self.name, self.nick, self.arch, self.name))
+ 
+ 			### Write out /srcdir/nick/base/release.repo
+ 			for repo in self.oldrepos:
+@@ -477,6 +481,9 @@
+ 			if os.path.isdir(repodir):
+ 				if os.path.isdir(os.path.join(repodir, '.olddata')):
+ 					remove(os.path.join(repodir, '.olddata'))
++				srcdir = os.path.join(cf.srcdir, dist.nick, repo)
++				if os.path.isfile(os.path.join(cf.srcdir, dist.nick, repo + '-comps.xml')):
++						opts = opts + ' -g &quot;%s&quot;' % os.path.join(cf.srcdir, dist.nick, repo + '-comps.xml')
+ 				info(2, '%s: Create new-style Yum repository for %s' % (self.nick, repo))
+ 				run('%s %s %s' % (cf.cmd['createrepo'], opts, repodir))
+ 
+@@ -1076,6 +1083,8 @@
+ 			for disc in dist.discs:
+ 				dist.link(os.path.join(dist.dir, disc), 'os')
+ 				dist.repos['os'] = None
++			for file in glob.glob(os.path.join(self.dir + '/disc1/*/base/comps.xml')):
++				copy(file, os.path.join(cf.srcdir, dist.nick, repo + '-comps.xml'))
+ 
+ 		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
+ 		### Maybe add a hardlink utility for cleaning up afterwards
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-05-03 20:02:55 UTC (rev 4344)
++++ trunk/tools/yam/yam.spec	2006-05-05 08:00:24 UTC (rev 4345)
+@@ -63,7 +63,7 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README* THANKS TODO WISHLIST *.conf
++%doc AUTHORS ChangeLog COPYING README* THANKS TODO WISHLIST config/*.conf
+ %config(noreplace) %{_sysconfdir}/yam.conf
+ %config(noreplace) %{_sysconfdir}/httpd/conf.d/yam.conf
+ %config %{_initrddir}/yam
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003144.html">[svn] r4344 - trunk/rpms/xmms-musepack
+</A></li>
+	<LI>Next message: <A HREF="003146.html">[svn] r4346 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3145">[ date ]</a>
+              <a href="thread.html#3145">[ thread ]</a>
+              <a href="subject.html#3145">[ subject ]</a>
+              <a href="author.html#3145">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

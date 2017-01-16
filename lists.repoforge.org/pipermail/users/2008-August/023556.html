@@ -1,0 +1,371 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [suggest] Problems with spamassassin 3.2.5-1.el5.rf
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20Problems%20with%20spamassassin%203.2.5-1.el5.rf&In-Reply-To=%3C52634.192.168.1.2.1219307861.squirrel%40www.123plaza.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023553.html">
+   <LINK REL="Next"  HREF="023564.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[suggest] Problems with spamassassin 3.2.5-1.el5.rf</H1>
+    <B>Ignacio Bustamante</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20Problems%20with%20spamassassin%203.2.5-1.el5.rf&In-Reply-To=%3C52634.192.168.1.2.1219307861.squirrel%40www.123plaza.com%3E"
+       TITLE="[suggest] Problems with spamassassin 3.2.5-1.el5.rf">ignaciob at 123plaza.com
+       </A><BR>
+    <I>Thu Aug 21 10:37:41 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023553.html">[suggest] Problems with spamassassin 3.2.5-1.el5.rf
+</A></li>
+        <LI>Next message: <A HREF="023564.html">[suggest] Problems with spamassassin 3.2.5-1.el5.rf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23556">[ date ]</a>
+              <a href="thread.html#23556">[ thread ]</a>
+              <a href="subject.html#23556">[ subject ]</a>
+              <a href="author.html#23556">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi Michael,
+
+&gt;<i> Yes that's dangerous. I would personally run the sa-update and if there
+</I>&gt;<i> are &gt; updates, get the cron to send me an email so I could manually
+</I>&gt;<i> copy the files from /var/lib/spamassassin to /usr/share/spamassassin.
+</I>
+I tried that, but the problem is that spamassassin will look into all
+three directories for rule files (/etc/mail/spamassassin,
+/var/lib/spamassassin/&lt;version&gt; and  /usr/share/spamassassin), so in
+reality you have to move, not copy the files to /usr/share/spamassassin.
+
+In my case this aggravated by the fact that I had initially installed
+spamassassin from centos base repo, added a bunch of rules from SARE to
+/etc/mail/spamassassin along with rules dujour, and later upgraded to
+spamassassin from rpmforge, only to end up with &quot;triplicate&quot; set of rules
+:<i>). To make the story short, spamassassin was taking 20-30 seconds to scan
+</I>each email message.
+
+Regards,
+
+Ignacio
+
+&gt;<i> Hi Ignacio,
+</I>&gt;<i>
+</I>&gt;&gt;<i> Michael,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> On my system when I run &quot;spamassassin -D --lint&quot;, it shows that the
+</I>&gt;&gt;<i> rules
+</I>&gt;&gt;<i> directory is set to &quot;/usr/share/spamassassin&quot;, and suspect that in your
+</I>&gt;&gt;<i> system will show this result too, so in fact you might have now an newly
+</I>&gt;&gt;<i> installed  duplicate set of rules :).
+</I>&gt;<i>
+</I>&gt;<i> Hmm... I just checked my lint on el4, it has /var/lib/spamassassin, on el5
+</I>&gt;<i> it
+</I>&gt;<i> has /usr/share/spamassassin.
+</I>&gt;<i>
+</I>&gt;<i> I just started up a clean el5 VM and tested this with a clean install of
+</I>&gt;<i> SA
+</I>&gt;<i> 3.2.5 from rpmforge. I ran an sa-update (without any parameters) and the
+</I>&gt;<i> updates went into /var/lib/spamassassin.
+</I>&gt;<i>
+</I>&gt;<i> So it seems on el4 the rpm is fine, on el5 it isn't.
+</I>&gt;<i>
+</I>&gt;&gt;<i> I haven't looked into this in detail, but suspect this means that
+</I>&gt;&gt;<i> spamassassin rules directory was compiled with
+</I>&gt;&gt;<i> &quot;/usr/share/spamassassin&quot;, but sa-update was compiled with
+</I>&gt;&gt;<i> &quot;/var/lib/spamassassin&quot; therefore the problem.
+</I>&gt;<i>
+</I>&gt;<i> Yes that seems to be the case. Checking the (latest) spec there's this
+</I>&gt;<i> bit:
+</I>&gt;<i>
+</I>&gt;<i> %build
+</I>&gt;<i> export CFLAGS=&quot;%{optflags} -I/usr/kerberos/include&quot;
+</I>&gt;<i> %{__perl} Makefile.PL \
+</I>&gt;<i> %{!?_with_perl_5_6:DESTDIR=&quot;%{buildroot}&quot;} \
+</I>&gt;<i> 		SYSCONFDIR=&quot;%{_sysconfdir}&quot; \
+</I>&gt;<i> 		INSTALLDIRS=&quot;vendor&quot; \
+</I>&gt;<i> 		ENABLE_SSL=&quot;yes&quot; &lt;/dev/null
+</I>&gt;<i> %{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;
+</I>&gt;<i> %{__make} %{?_smp_mflags} spamc/libspamc.so LIBS=&quot;-ldl %{optflags} -fPIC&quot;
+</I>&gt;<i>
+</I>&gt;<i> ie. from what I can see without specifically defining the
+</I>&gt;<i> /var/lib/spamassassin directory the build on Makefile.PL will use the
+</I>&gt;<i> default
+</I>&gt;<i> /usr/share/spamassassin directory.
+</I>&gt;<i>
+</I>&gt;<i> From the SA doc this is what it says about this:
+</I>&gt;<i>
+</I>&gt;<i> *******
+</I>&gt;<i> SpamAssassin will look in a number of areas to find the default
+</I>&gt;<i> configuration files that are used.  The &quot;__*__&quot; text are variables
+</I>&gt;<i> whose value you can see by looking at the first several lines of the
+</I>&gt;<i> &quot;spamassassin&quot; or &quot;spamd&quot; scripts.
+</I>&gt;<i>
+</I>&gt;<i> They are set on install time and can be overridden with the Makefile.PL
+</I>&gt;<i> command line options DATADIR (for __def_rules_dir__) and CONFDIR (for
+</I>&gt;<i> __local_rules_dir__).  If none of these options were given, FHS-compliant
+</I>&gt;<i> locations based on the PREFIX (which becomes __prefix__) are chosen.
+</I>&gt;<i> *******
+</I>&gt;<i>
+</I>&gt;<i> So without those Makefile.PL overrides...
+</I>&gt;<i>
+</I>&gt;<i> I think at this point Dag will need to comment as it's his spec :)
+</I>&gt;<i>
+</I>&gt;&gt;<i> Here is the pertaining output from my system:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> ...
+</I>&gt;&gt;<i> [7037] dbg: config: using &quot;/usr/share/spamassassin&quot; for sys rules
+</I>&gt;&gt;<i> pre files [7037] dbg: config: using &quot;/usr/share/spamassassin&quot; for
+</I>&gt;&gt;<i> default rules dir [7037] dbg: config: read file
+</I>&gt;<i> /usr/share/spamassassin/10_default_prefs.cf
+</I>&gt;&gt;<i> [7037] dbg: config: read file /usr/share/spamassassin/20_advance_fee.cf
+</I>&gt;&gt;<i> [7037] dbg: config: read file
+</I>&gt;&gt;<i> /usr/share/spamassassin/20_body_tests.cf [7037] dbg: config: read
+</I>&gt;&gt;<i> file /usr/share/spamassassin/20_compensate.cf [7037] dbg: config:
+</I>&gt;&gt;<i> read file /usr/share/spamassassin/20_dnsbl_tests.cf [7037] dbg:
+</I>&gt;&gt;<i> config: read file /usr/share/spamassassin/20_drugs.cf [7037] dbg:
+</I>&gt;&gt;<i> config: read file /usr/share/spamassassin/20_dynrdns.cf [7037] dbg:
+</I>&gt;&gt;<i> config: read file /usr/share/spamassassin/20_fake_helo_tests.cf
+</I>&gt;&gt;<i> [7037] dbg: config: read file
+</I>&gt;&gt;<i> /usr/share/spamassassin/20_head_tests.cf [7037] dbg: config: read
+</I>&gt;&gt;<i> file /usr/share/spamassassin/20_html_tests.cf [7037] dbg: config:
+</I>&gt;&gt;<i> read file /usr/share/spamassassin/20_imageinfo.cf ...
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Please note that I am temporarily using sa-update with option
+</I>&gt;&gt;<i> &quot;--updatedir
+</I>&gt;&gt;<i> /usr/share/spamassassin&quot; to compensate for this problem, which by
+</I>&gt;&gt;<i> the way it's not recommended according to
+</I>&gt;<i> <A HREF="http://wiki.apache.org/spamassassin/RuleUpdates">http://wiki.apache.org/spamassassin/RuleUpdates</A>
+</I>&gt;<i>
+</I>&gt;<i> Yes that's dangerous. I would personally run the sa-update and if there
+</I>&gt;<i> are
+</I>&gt;<i> updates, get the cron to send me an email so I could manually copy the
+</I>&gt;<i> files
+</I>&gt;<i> from /var/lib/spamassassin to /usr/share/spamassassin.
+</I>&gt;<i>
+</I>&gt;<i> Of course the right way to fix it would seem to be to change the spec file
+</I>&gt;<i> so
+</I>&gt;<i> it compiles with the /var/lib/spamassassin directory structure for el5.
+</I>&gt;<i>
+</I>&gt;<i> Regards,
+</I>&gt;<i>
+</I>&gt;<i> Michael.
+</I>&gt;<i>
+</I>&gt;&gt;<i> Regards,
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> Ignacio
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> &gt; Hi Ignacio,
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;&gt; Hi Michael,
+</I>&gt;&gt;<i> &gt;&gt;
+</I>&gt;&gt;<i> &gt;&gt; I stand by what I said, if you do not have the time to run &quot;sa-
+</I>&gt;&gt;<i> &gt;&gt; update&quot;, there is no sense in stating that &quot;it is not true&quot;. Would
+</I>&gt;&gt;<i> &gt;&gt; someone (other than me):-) that has an installed spamassassin 3.2.5-
+</I>&gt;&gt;<i> &gt;&gt; 1.el5.rf please run sa-update, and corroborate wether or not a set
+</I>&gt;&gt;<i> &gt;&gt; of rules gets placed in folder &quot;/var/lib/spamassassin/&lt;version&gt;&quot;
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; I run sa-update every night and use the spamassassin package from
+</I>&gt;&gt;<i> rpmforge
+</I>&gt;&gt;<i> &gt; on
+</I>&gt;&gt;<i> &gt; both el4 and el5 servers.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; The sa-update script is meant to update the rules and put them into
+</I>&gt;&gt;<i> &gt; /var/lib/spamassassin.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; The /usr/share/spamassassin directory is there to provide rules to
+</I>&gt;&gt;<i> admins
+</I>&gt;&gt;<i> &gt; they
+</I>&gt;&gt;<i> &gt; can use to copy/move into /var/lib/spamassassin. The fact the rules
+</I>&gt;&gt;<i> get
+</I>&gt;&gt;<i> &gt; packaged in /usr/share/spamassassin is irrelevant as SA doesn't use
+</I>&gt;&gt;<i> them
+</I>&gt;&gt;<i> &gt; from
+</I>&gt;&gt;<i> &gt; that location.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;&gt; In reply to your second statement, I am fully aware that SARE has
+</I>&gt;&gt;<i> &gt;&gt; been deprecated, but it is not a wildly known fact!. Plenty of
+</I>&gt;&gt;<i> &gt;&gt; proofs of this can be easily found by googling around using keywords
+</I>&gt;&gt;<i> &gt;&gt; &quot;spamassassin how to OR guide&quot;, and verify how widely &quot;rules-dujour&quot;
+</I>&gt;&gt;<i> &gt;&gt; installation is recommended, even in very recent installation guides.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; I'm on the SARE mailing list and occassionally (every 3 - 6 months)
+</I>&gt;&gt;<i> &gt; there's an
+</I>&gt;&gt;<i> &gt; email on that list and it's someone that asks about the rulesdujour
+</I>&gt;&gt;<i> &gt; script.
+</I>&gt;&gt;<i> &gt; The person is then told not use it any more but instead use sa-update.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; I would suspect that if rulesdujour was still widely used the SARE
+</I>&gt;&gt;<i> mailing
+</I>&gt;&gt;<i> &gt; list would be much more active than that.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;&gt; Besides none of these problems that are causing so much confussion
+</I>&gt;&gt;<i> would
+</I>&gt;&gt;<i> &gt;&gt; be around if rf's apmassassins rpm was not bundled with these rules.
+</I>&gt;&gt;<i> &gt;&gt;  Much less locating them in an non-standard folder such as
+</I>&gt;&gt;<i> &gt;&gt; &quot;/usr/share/spamassassin&quot;, instead of using one of the default
+</I>&gt;&gt;<i> &gt;&gt; directories&quot;. Again, I stand by my reasonings.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; Many RPM packages supply tools, scripts, etc in the
+</I>&gt;&gt;<i> &gt; /usr/share/&lt;packagename&gt;
+</I>&gt;&gt;<i> &gt; for the administrator to use and copy/move if they need to. This is
+</I>&gt;&gt;<i> not
+</I>&gt;&gt;<i> &gt; isolated to the SA RPM from rpmforge.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;&gt; Please see:
+</I>&gt;&gt;<i> &gt;&gt; <A HREF="http://wiki.apache.org/spamassassin/WhereDoLocalSettingsGo">http://wiki.apache.org/spamassassin/WhereDoLocalSettingsGo</A>
+</I>&gt;&gt;<i> &gt;&gt; <A HREF="http://wiki.apache.org/spamassassin/RuleUpdates">http://wiki.apache.org/spamassassin/RuleUpdates</A>
+</I>&gt;&gt;<i> &gt;&gt;
+</I>&gt;&gt;<i> &gt;&gt; At least you have to agree, that wether users are aware or not of
+</I>&gt;&gt;<i> &gt;&gt; the of the deprecated SARE rules, it is not evident to them that a
+</I>&gt;&gt;<i> &gt;&gt; bundled set of rules was installed with the the package. This is not
+</I>&gt;&gt;<i> &gt;&gt; customary prcatice, unless you somehow added information to the
+</I>&gt;&gt;<i> &gt;&gt; package name that will let the user know this.
+</I>&gt;&gt;<i> &gt;&gt;
+</I>&gt;&gt;<i> &gt;&gt; You have to expect that users will start adding their own sets of
+</I>&gt;&gt;<i> &gt;&gt; rules to &quot;/etc/mail/spamassassin&quot; totally oblivious to the fact
+</I>&gt;&gt;<i> &gt;&gt; there might be a set of duplicate rules on other directory in their
+</I>&gt;&gt;<i> &gt;&gt; system.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; sa-update will put the rules in /var/lib/spamassassin.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; Rules that go into /etc/mail/spamassassin are custom rules for users,
+</I>&gt;&gt;<i> and
+</I>&gt;&gt;<i> &gt; that
+</I>&gt;&gt;<i> &gt; is where they belong.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; SpamAssassin will read from both the /etc/mail/spamassassin and the
+</I>&gt;&gt;<i> &gt; /var/lib/spamassassin directories for the rules but will ignore the
+</I>&gt;&gt;<i> &gt; /usr/share/spamassassin.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; I personally do not see anything wrong with this.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; Regards,
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt; Michael.
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;&gt; Regards,
+</I>&gt;&gt;<i> &gt;&gt;
+</I>&gt;&gt;<i> &gt;&gt; Ignacio
+</I>&gt;&gt;<i> &gt;&gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt; Hi Ali,
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Hope I am not wrong, but...
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Just passing by to metion problems ralated to rpmforge's
+</I>&gt;&gt;<i> spamasassin
+</I>&gt;&gt;<i> &gt;&gt; for Centos/el5 (personally I am using x86_64.3.2.5-1.el5.rf). The
+</I>&gt;&gt;<i> &gt;&gt; problem in question is that the rpm comes bundled with mnany rule-
+</I>&gt;&gt;<i> sets
+</I>&gt;&gt;<i> &gt;&gt; provided by spamassassin.apache.org, and it even comes with an cron
+</I>&gt;&gt;<i> &gt;&gt; script to run sa-update periodically.
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Now, this is very fine and dandy, BUT there are basically two very
+</I>&gt;&gt;<i> &gt;&gt; annoying problems with this approach:
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; First is the fact that the rules updating program (sa-update) that
+</I>&gt;&gt;<i> &gt;&gt; comes
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; with this package was not compiled with the same home directory as
+</I>&gt;&gt;<i> &gt;&gt; spamassassin (/usr/share/spamassassin), therefor, when running
+</I>&gt;&gt;<i> &gt;&gt; sa-update
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; aither manually, or from the supplied script, the new rule-sets
+</I>&gt;&gt;<i> get
+</I>&gt;&gt;<i> &gt;&gt; placed
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; on directory &quot;/var/lib/spamassassin/spamassassinx.x.x.x&quot; or
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; something to that effect, thus creating a DUPLICATE set of rules.
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt; I don't have time to go through the setup and answer you properly
+</I>&gt;&gt;<i> &gt;&gt; here, but
+</I>&gt;&gt;<i> &gt;&gt; &gt; that isn't true. If you understood how the rules work and get
+</I>&gt;&gt;<i> applied,
+</I>&gt;&gt;<i> &gt;&gt; you'll
+</I>&gt;&gt;<i> &gt;&gt; &gt; realise there's nothing wrong with the sa-update script.
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Secondly, since users and administrators alike are totally unaware
+</I>&gt;&gt;<i> of
+</I>&gt;&gt;<i> &gt;&gt; the fact mentioned above, there are  floating around some
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; &quot;tutorials&quot; for installing spamassassin, in which it is
+</I>&gt;&gt;<i> recommended
+</I>&gt;&gt;<i> &gt;&gt; to
+</I>&gt;&gt;<i> &gt;&gt; upgrade to surforge's spamassassing version, along with an auto-
+</I>&gt;&gt;<i> &gt;&gt; updating program such as &quot;rules dujour&quot; :). Now to complicate
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; matters even further &quot;rules dujour&quot; utilizes rulesets provided by
+</I>&gt;&gt;<i> &gt;&gt; SARE,
+</I>&gt;&gt;<i> &gt;&gt; and sre installed in directory&quot;/etc/mail/spamassassin&quot;, thus leading
+</I>&gt;&gt;<i> &gt;&gt; to the creation of a TRIPLICATE set of of rules.
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt; If you've been around the traps for a while, you'll realise that
+</I>&gt;&gt;<i> the
+</I>&gt;&gt;<i> &gt;&gt; rulesdujour script is deprecated and mustn't be used. It was actually
+</I>&gt;&gt;<i> &gt;&gt; announced over 18 months ago now. If you check the sare mailing list
+</I>&gt;&gt;<i> &gt;&gt; archives,
+</I>&gt;&gt;<i> &gt;&gt; &gt; you'll see what I'm talking about.
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt; Regards,
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt; Michael.
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Hope you are now getting a clear picture by now.
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Combining all these seemingly inncouos things and you have a
+</I>&gt;&gt;<i> recipe
+</I>&gt;&gt;<i> &gt;&gt; for
+</I>&gt;&gt;<i> &gt;&gt; disaster, in which spamassassin will bog down the system by bravely
+</I>&gt;&gt;<i> &gt;&gt; trying
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; to eliminate duplicate rules every time it runs, and slowing down
+</I>&gt;&gt;<i> &gt;&gt; tremedously it's scanning time.
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Since I have very superficial knowledge of rpm packaging, I leave
+</I>&gt;&gt;<i> up
+</I>&gt;&gt;<i> &gt;&gt; to
+</I>&gt;&gt;<i> &gt;&gt; you to make the ammendments you consider necessary, which in my
+</I>&gt;&gt;<i> humble
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; opinion would be not to bundle the rulesets, and if you do please
+</I>&gt;&gt;<i> &gt;&gt; place
+</I>&gt;&gt;<i> &gt;&gt; them in a higly visible and well known directory (i.e.
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; /etc/mail/spamassassin). Also don forget to compile sa-update with
+</I>&gt;&gt;<i> &gt;&gt; the
+</I>&gt;&gt;<i> &gt;&gt; same home directory.
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Sorry for sounding sarcastic and obnoxious,(none of that
+</I>&gt;&gt;<i> intended),
+</I>&gt;&gt;<i> &gt;&gt; just
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; the way it came out.
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Regards ALl,
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Ignacio
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; Ignacio
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; _______________________________________________
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; suggest mailing list
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; <A HREF="http://lists.repoforge.org/mailman/listinfo/users">suggest at lists.rpmforge.net</A>
+</I>&gt;&gt;<i> &gt;&gt; &gt;&gt; <A HREF="http://lists.rpmforge.net/mailman/listinfo/suggest">http://lists.rpmforge.net/mailman/listinfo/suggest</A>
+</I>&gt;&gt;<i> &gt;&gt; &gt; ------- End of Original Message -------
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt;&gt; &gt;
+</I>&gt;&gt;<i> &gt; ------- End of Original Message -------
+</I>&gt;&gt;<i> &gt;
+</I>&gt;&gt;<i> &gt;
+</I>&gt;<i> ------- End of Original Message -------
+</I>&gt;<i>
+</I>&gt;<i>
+</I>
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023553.html">[suggest] Problems with spamassassin 3.2.5-1.el5.rf
+</A></li>
+	<LI>Next message: <A HREF="023564.html">[suggest] Problems with spamassassin 3.2.5-1.el5.rf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23556">[ date ]</a>
+              <a href="thread.html#23556">[ thread ]</a>
+              <a href="subject.html#23556">[ subject ]</a>
+              <a href="author.html#23556">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

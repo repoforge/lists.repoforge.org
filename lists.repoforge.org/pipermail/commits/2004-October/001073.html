@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2267 - in trunk/tools/pydar: . pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2267%20-%20in%20trunk/tools/pydar%3A%20.%20pydar&In-Reply-To=%3C20041011203856.42B5217F78%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001072.html">
+   <LINK REL="Next"  HREF="001074.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2267 - in trunk/tools/pydar: . pydar</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2267%20-%20in%20trunk/tools/pydar%3A%20.%20pydar&In-Reply-To=%3C20041011203856.42B5217F78%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2267 - in trunk/tools/pydar: . pydar">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Oct 11 22:38:56 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001072.html">[SVN] r2266 - in trunk/tools/pydar: . pydar
+</A></li>
+        <LI>Next message: <A HREF="001074.html">[SVN] r2268 - in trunk/rpms: cpufreqd tentakel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1073">[ date ]</a>
+              <a href="thread.html#1073">[ thread ]</a>
+              <a href="subject.html#1073">[ subject ]</a>
+              <a href="author.html#1073">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-10-11 22:38:54 +0200 (Mon, 11 Oct 2004)
+New Revision: 2267
+
+Modified:
+   trunk/tools/pydar/pydar-buildserver-slave.py
+   trunk/tools/pydar/pydar/mach.py
+Log:
+fixes
+
+Modified: trunk/tools/pydar/pydar/mach.py
+===================================================================
+--- trunk/tools/pydar/pydar/mach.py	2004-10-11 18:43:56 UTC (rev 2266)
++++ trunk/tools/pydar/pydar/mach.py	2004-10-11 20:38:54 UTC (rev 2267)
+@@ -870,10 +870,6 @@
+             # copy specfile to resultdir
+             shutil.copy2 (os.path.join (self.rootdir, 'tmp', specfile), resultdir)
+             # mangle spec file if requested
+-            if self.config['lastchangedsvnrevid']:
+-                command = 'perl -i -npe \'if ($ch==1) {chomp; $_ = $_ . &quot; #' + self.config['lastchangedsvnrevid']  + '\n&quot;; $ch=0;} if (/\%changelog/) {$ch=1;}\' /tmp/' + specfile
+-                debug(&quot;setting lastchangedsvnrevid with %s&quot; % command)
+-                self.do_chroot(command)
+             if self.config['release']:
+                 # first check if it doesn't already comply !
+                 # FIXME: since fedora.us now uses .1 as a disttag,
+
+Modified: trunk/tools/pydar/pydar-buildserver-slave.py
+===================================================================
+--- trunk/tools/pydar/pydar-buildserver-slave.py	2004-10-11 18:43:56 UTC (rev 2266)
++++ trunk/tools/pydar/pydar-buildserver-slave.py	2004-10-11 20:38:54 UTC (rev 2267)
+@@ -1,6 +1,6 @@
+ #!/usr/bin/python
+ 
+-import getopt, os, sys, Queue, posix, posixpath, string, re, os.path
++import getopt, os, sys, Queue, posix, posixpath, string, re, os.path, shutil
+ sys.path.append(&quot;/usr/share/pydar/pydar&quot;)
+ sys.path.append(&quot;pydar&quot;)
+ from log import Log
+@@ -99,7 +99,7 @@
+         svnwrap.startTransaction()
+         retval = svnwrap.getLastCommitRev(dirName,dirName + &quot;/&quot; + specName)
+         svnwrap.stopTransaction()
+-        return str(retval)
++        return string.rstrip(str(retval))
+ 
+     def doBuildSpec(self,command):
+         specFileName=command.specName
+@@ -120,6 +120,10 @@
+             mach.config['defaultroot'] = command.machRoot
+             self.log.debug(METHOD_NAME + &quot;mach config set to quiet&quot;)
+             os.chdir(self.dirMapping[specFileName])
++            shutil.copyfile(specFileName,'rpmforge-' + specFileName)
++	    commandLine = 'perl -i -npe ' + &quot;'&quot; + 'if ($ch==1) {chomp; $_ = $_ . &quot; #' + lastChangedSvnRevId + '\n&quot;; $ch=0;} if (/\%changelog/) {$ch=1;}' + &quot;' rpmforge-&quot; + specFileName;
++            self.log.debug(METHOD_NAME + &quot;command: &quot; + commandLine)
++            os.system(commandLine)
+             sys.stdout = buffer2
+             sys.stderr = buffer2
+             mach.config['collect'] = 1
+@@ -131,12 +135,12 @@
+             sys.stderr = buffer
+             myparams = ()
+             if command.machRoot == &quot;fedora-1-i386-core&quot;:
+-                myparams = [&quot;build&quot;, specFileName, '--define', '&quot;fc1', '1&quot;']
++                myparams = [&quot;build&quot;, 'rpmforge-' + specFileName, '--define', '&quot;fc1', '1&quot;']
+             else:
+                 if command.machRoot == &quot;fedora-2-i386-core&quot;:
+-                    myparams = [&quot;build&quot;, specFileName, '--define', '&quot;fc2', '1&quot;']
++                    myparams = [&quot;build&quot;, 'rpmforge-' + specFileName, '--define', '&quot;fc2', '1&quot;']
+                 else:
+-                    myparams = [&quot;build&quot;, specFileName]
++                    myparams = [&quot;build&quot;, 'rpmforge-' + specFileName]
+             print &quot;myparams=&quot;, myparams
+             (srpm, rpms) = mach.main(mach.config,myparams)
+             self.log.debug(METHOD_NAME + &quot;srpm:&quot; + srpm)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001072.html">[SVN] r2266 - in trunk/tools/pydar: . pydar
+</A></li>
+	<LI>Next message: <A HREF="001074.html">[SVN] r2268 - in trunk/rpms: cpufreqd tentakel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1073">[ date ]</a>
+              <a href="thread.html#1073">[ thread ]</a>
+              <a href="subject.html#1073">[ subject ]</a>
+              <a href="author.html#1073">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

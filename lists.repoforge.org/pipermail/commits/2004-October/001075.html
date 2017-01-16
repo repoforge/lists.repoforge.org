@@ -1,0 +1,352 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2269 - in trunk/tools: checkspec pydar2/doc pydar2/pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2269%20-%20in%20trunk/tools%3A%20checkspec%20pydar2/doc%20pydar2/pydar&In-Reply-To=%3C20041012120038.9EC4917F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001074.html">
+   <LINK REL="Next"  HREF="001076.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2269 - in trunk/tools: checkspec pydar2/doc pydar2/pydar</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2269%20-%20in%20trunk/tools%3A%20checkspec%20pydar2/doc%20pydar2/pydar&In-Reply-To=%3C20041012120038.9EC4917F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2269 - in trunk/tools: checkspec pydar2/doc pydar2/pydar">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Oct 12 14:00:38 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001074.html">[SVN] r2268 - in trunk/rpms: cpufreqd tentakel
+</A></li>
+        <LI>Next message: <A HREF="001076.html">[SVN] r2270 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1075">[ date ]</a>
+              <a href="thread.html#1075">[ thread ]</a>
+              <a href="subject.html#1075">[ subject ]</a>
+              <a href="author.html#1075">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-10-12 14:00:36 +0200 (Tue, 12 Oct 2004)
+New Revision: 2269
+
+Added:
+   trunk/tools/pydar2/doc/mach.txt
+   trunk/tools/pydar2/pydar/rpmfile.py
+   trunk/tools/pydar2/pydar/rpmscheck.py
+   trunk/tools/pydar2/pydar/tagsfile.py
+Modified:
+   trunk/tools/checkspec/checkmissingfiles
+   trunk/tools/pydar2/pydar/specfile.py
+Log:
+updates/fixes
+
+Modified: trunk/tools/checkspec/checkmissingfiles
+===================================================================
+--- trunk/tools/checkspec/checkmissingfiles	2004-10-12 07:47:01 UTC (rev 2268)
++++ trunk/tools/checkspec/checkmissingfiles	2004-10-12 12:00:36 UTC (rev 2269)
+@@ -20,7 +20,8 @@
+ 				if [[ -a $sourcefile ]] ; then \
+ 					echo &quot;file exists.. ok&quot;
+ 				else \
+-					echo &quot;$sourcefile&quot; 1&gt;&amp;2
++					authority=$(grep -i '# Authority:' $filename | sed 's/.*Authority\: *//g;')
++					echo &quot;${filename}(${authority}) needs $sourcefile&quot; 1&gt;&amp;2
+ 				fi 
+ 			fi
+ 		fi
+
+Added: trunk/tools/pydar2/doc/mach.txt
+===================================================================
+--- trunk/tools/pydar2/doc/mach.txt	2004-10-12 07:47:01 UTC (rev 2268)
++++ trunk/tools/pydar2/doc/mach.txt	2004-10-12 12:00:36 UTC (rev 2269)
+@@ -0,0 +1,6 @@
++
++From a mail of Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jkeating at j2solutions.net</A>&gt; on
++fedora-legacy-list on Sunday 02 October 2004 08:54:51:
++
++redhat-rpm-config (and also elfutils) is needed in a mach root so stripping
++of binaries is ok
+
+Added: trunk/tools/pydar2/pydar/rpmfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmfile.py	2004-10-12 07:47:01 UTC (rev 2268)
++++ trunk/tools/pydar2/pydar/rpmfile.py	2004-10-12 12:00:36 UTC (rev 2269)
+@@ -0,0 +1,34 @@
++
++&quot;&quot;&quot; Reads some tags from a rpm file &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# This class can be used for reading the values of certain tags from a rpm file
++
++import re, os, commands
++from log4py import Logger
++from tagsfile import TagsFile
++
++# currently the standard tags are written in uppercase
++# result can be found in the hashes rpmforgetags and standardtags
++# a rpm has no rpmforgetags
++
++class RpmFile(TagsFile):
++    # rpmfile: a path to a rpm file like /a/b/c.spec
++    # defineargs: a string which can be used on the commandline 
++    # like '--define &quot;fc2 1&quot;'
++    def __init__(self, specfile, defineargs):
++        TagsFile.__init__(self,defineargs, &quot; &quot;, rpmfile)
+\ No newline at end of file
+
+Added: trunk/tools/pydar2/pydar/rpmscheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-12 07:47:01 UTC (rev 2268)
++++ trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-12 12:00:36 UTC (rev 2269)
+@@ -0,0 +1,54 @@
++
++&quot;&quot;&quot; Update info about rpm files (from the apt/yum repository) in a db &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++
++# Normally this runs on the master server. It checks all the rpms in a 
++# repository
++# Probably implemented as:
++# every x hours a cronjob starts which tries to update a mirror of the repository and
++# checks which files are changed. The information about those rpms is updated in the
++# database.
++
++import re, os, commands, posix, posixpath, string, pgdb
++from log4py import Logger
++from svnwrapper import SvnWrapper
++from rpmfile import RpmFile
++
++class RpmsCheck:
++    def __init__(self):
++        self.cat = Logger().get_instance(self)
++        self.cat.debug(&quot;start&quot;)
++        
++    # all the rpms in the rpmsDir will be read, not in subdirectories
++    # so call this function for every directory which contains rpms
++    def check(self, rpmsDir,dbconnectstring):
++        self.cat.debug(&quot;start, rpmsDir=&quot; + rpmsDir)
++        self.dbconnectstring = dbconnectstring
++        # let's check every spec file we can find in the repository
++        rpmsDirList = posix.listdir(rpmsDir)
++        for file in rpmsDirList:
++            rindex = string.rfind(file,'.rpm')
++            if rindex &gt; 0 and rindex == len(file) - len('.rpm'):
++                self.cat.debug(&quot;rpm match, file=&quot; + file)
++                self.checkRpmFile(rpmsDir,file);
++
++    def checkRpmFile(self,rpmsDir,fileName):
++        self.cat.debug(&quot;start,rpmsDir=&quot;+rpmsDir+&quot;,fileName=&quot;+fileName)
++        
++
++
+
+Modified: trunk/tools/pydar2/pydar/specfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specfile.py	2004-10-12 07:47:01 UTC (rev 2268)
++++ trunk/tools/pydar2/pydar/specfile.py	2004-10-12 12:00:36 UTC (rev 2269)
+@@ -20,62 +20,21 @@
+ 
+ import re, os, commands
+ from log4py import Logger
++from tagsfile import TagsFile
+ 
+ 
+ # a rpmforge tag is a tag which begins with '# '
+ # currently the standard tags are written in uppercase
+ # result can be found in the hashes rpmforgetags and standardtags
+ 
+-class SpecFile:
+-    
++class SpecFile(TagsFile):
+     # specfile: a path to a spec file like /a/b/c.spec
+     # defineargs: a string which can be used on the commandline 
+     # like '--define &quot;fc2 1&quot;'
+     def __init__(self, specfile, defineargs):
+-        self.cat = Logger().get_instance(self)
+-        self.cat.debug(&quot;start, specfile=&quot; + specfile)
+-        self.defineargs = defineargs
+-        self.cat.debug(&quot;defineargs: &quot; + defineargs)
+-        self.specfile = specfile
+-        self.rpmforgetags = {}
+-        self.standardtags = {}
+-        self.queryformattags = (&quot;PKGID&quot;,&quot;NAME&quot;,&quot;VERSION&quot;,&quot;RELEASE&quot;,&quot;EPOCH&quot;,&quot;SERIAL&quot;,&quot;SUMMARY&quot;,&quot;DESCRIPTION&quot;,&quot;DISTRIBUTION&quot;,&quot;VENDOR&quot;,&quot;LICENSE&quot;,&quot;PACKAGER&quot;,&quot;GROUP&quot;,&quot;URL&quot;,&quot;ARCH&quot;,&quot;EXCLUDEARCH&quot;,&quot;EXCLUDEOS&quot;,&quot;EXCLUSIVEARCH&quot;,&quot;EXCLUSIVEOS&quot;,&quot;BUILDARCHS&quot;,&quot;DISTURL&quot;)
+-        self.getStandardTags()
+-        self.parseRpmForgeTags()
+-        
+-    def getStandardTags(self):
+-        self.cat.debug(&quot;start&quot;)
+-        queryformat = self.getQueryFormatString()
+-        self.cat.debug(&quot;queryformat=&quot; + str(queryformat))
+-        commandline = &quot;rpm -q &quot; + self.defineargs + &quot; --queryformat '&quot; + queryformat + &quot;' --specfile &quot; + self.specfile
+-        self.cat.debug(&quot;commandline=&quot; + commandline)
+-        result = commands.getoutput(commandline)
+-        self.parseStandardTags(result)
++        TagsFile.__init__(self,defineargs, &quot; --specfile &quot;, specfile)
+ 
+-    def getQueryFormatString(self):
+-        self.cat.debug(&quot;start&quot;)
+-        result = ''
+-        for tag in self.queryformattags:
+-            result = result + &quot;#####&quot; + tag + &quot;#####%{&quot; + tag + &quot;}#####&quot; + tag + &quot;#####&quot;
+-        return result
+         
+-    def parseStandardTags(self, inputstring):
+-        self.cat.debug(&quot;start, inputstring=&quot; + inputstring)
+-        for tag in self.queryformattags:
+-            self.cat.debug(&quot;tag: &quot; + tag)
+-            regexp = '.*#####'+tag+'#####(.*)#####'+tag+'#####.*'
+-            regex = re.compile(regexp,re.MULTILINE | re.DOTALL)
+-            #self.cat.debug(&quot;regexp: &quot;+ regexp)
+-            #self.cat.debug(&quot;inputstring:&quot;+inputstring)
+-            result = regex.match(inputstring)
+-            if result:
+-                value=result.group(1)
+-                self.cat.debug(&quot;value: &quot;+value)
+-                self.standardtags[tag] = value
+-            else:
+-                self.cat.warn(&quot;tag not found, tag:&quot;+tag)
+-
+-        
+     def parseRpmForgeTags(self):
+         f = open(self.specfile, 'r')
+         line = f.readline()
+
+Added: trunk/tools/pydar2/pydar/tagsfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/tagsfile.py	2004-10-12 07:47:01 UTC (rev 2268)
++++ trunk/tools/pydar2/pydar/tagsfile.py	2004-10-12 12:00:36 UTC (rev 2269)
+@@ -0,0 +1,75 @@
++
++&quot;&quot;&quot; Some common stuff for spec and rpm files &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# This class can be used for reading the values of certain tags from spec files
++
++import re, os, commands
++from log4py import Logger
++
++# a rpmforge tag is a tag which begins with '# '
++# currently the standard tags are written in uppercase
++# result can be found in the hashes rpmforgetags and standardtags
++
++class TagsFile:
++    def __init__(self,defineargs,addToCommandLine, filename):
++        self.cat = Logger().get_instance(self)
++        self.cat.debug(&quot;start&quot;)
++        self.filename = filename
++        self.addToCommandLine = addToCommandLine
++        self.defineargs = defineargs
++        self.cat.debug(&quot;defineargs: &quot; + defineargs)
++        self.rpmforgetags = {}
++        self.standardtags = {}
++        self.queryformattags = (&quot;PKGID&quot;,&quot;NAME&quot;,&quot;VERSION&quot;,&quot;RELEASE&quot;,&quot;EPOCH&quot;,&quot;SERIAL&quot;,&quot;SUMMARY&quot;,&quot;DESCRIPTION&quot;,&quot;DISTRIBUTION&quot;,&quot;VENDOR&quot;,&quot;LICENSE&quot;,&quot;PACKAGER&quot;,&quot;GROUP&quot;,&quot;URL&quot;,&quot;ARCH&quot;,&quot;EXCLUDEARCH&quot;,&quot;EXCLUDEOS&quot;,&quot;EXCLUSIVEARCH&quot;,&quot;EXCLUSIVEOS&quot;,&quot;BUILDARCHS&quot;,&quot;DISTURL&quot;)
++        self.getStandardTags()
++        self.parseRpmForgeTags()
++        
++    def getStandardTags(self):
++        self.cat.debug(&quot;start&quot;)
++        queryformat = self.getQueryFormatString()
++        self.cat.debug(&quot;queryformat=&quot; + str(queryformat))
++        commandline = &quot;rpm -q &quot; + self.defineargs + &quot; --queryformat '&quot; + queryformat + self.addToCommandLine + self.filename
++        self.cat.debug(&quot;commandline=&quot; + commandline)
++        result = commands.getoutput(commandline)
++        self.parseStandardTags(result)       
++
++    def getQueryFormatString(self):
++        self.cat.debug(&quot;start&quot;)
++        result = ''
++        for tag in self.queryformattags:
++            result = result + &quot;#####&quot; + tag + &quot;#####%{&quot; + tag + &quot;}#####&quot; + tag + &quot;#####&quot;
++        return result
++        
++    def parseStandardTags(self, inputstring):
++        self.cat.debug(&quot;start, inputstring=&quot; + inputstring)
++        for tag in self.queryformattags:
++            self.cat.debug(&quot;tag: &quot; + tag)
++            regexp = '.*#####'+tag+'#####(.*)#####'+tag+'#####.*'
++            regex = re.compile(regexp,re.MULTILINE | re.DOTALL)
++            #self.cat.debug(&quot;regexp: &quot;+ regexp)
++            #self.cat.debug(&quot;inputstring:&quot;+inputstring)
++            result = regex.match(inputstring)
++            if result:
++                value=result.group(1)
++                self.cat.debug(&quot;value: &quot;+value)
++                self.standardtags[tag] = value
++            else:
++                self.cat.warn(&quot;tag not found, tag:&quot;+tag)
++                
++    def parseRpmForgeTags(self):
++        self.cat.debug(&quot;start, will do nothing..&quot;)
+\ No newline at end of file
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001074.html">[SVN] r2268 - in trunk/rpms: cpufreqd tentakel
+</A></li>
+	<LI>Next message: <A HREF="001076.html">[SVN] r2270 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1075">[ date ]</a>
+              <a href="thread.html#1075">[ thread ]</a>
+              <a href="subject.html#1075">[ subject ]</a>
+              <a href="author.html#1075">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

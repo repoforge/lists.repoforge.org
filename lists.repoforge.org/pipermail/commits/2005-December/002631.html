@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3831 - trunk/rpms/audacious
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3831%20-%20trunk/rpms/audacious&In-Reply-To=%3C20051220123720.5AC4194CC87%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002630.html">
+   <LINK REL="Next"  HREF="002632.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3831 - trunk/rpms/audacious</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3831%20-%20trunk/rpms/audacious&In-Reply-To=%3C20051220123720.5AC4194CC87%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3831 - trunk/rpms/audacious">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Dec 20 13:37:20 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002630.html">[svn] r3830 - trunk/rpms/xmms-mp3
+</A></li>
+        <LI>Next message: <A HREF="002632.html">[svn] r3832 - trunk/rpms/synergy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2631">[ date ]</a>
+              <a href="thread.html#2631">[ thread ]</a>
+              <a href="subject.html#2631">[ subject ]</a>
+              <a href="author.html#2631">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-12-20 13:37:16 +0100 (Tue, 20 Dec 2005)
+New Revision: 3831
+
+Added:
+   trunk/rpms/audacious/audacious-0.1.2-default-alsa.patch
+Modified:
+   trunk/rpms/audacious/audacious.spec
+Log:
+Get audacious actually working.
+
+
+Added: trunk/rpms/audacious/audacious-0.1.2-default-alsa.patch
+===================================================================
+--- trunk/rpms/audacious/audacious-0.1.2-default-alsa.patch	2005-12-20 09:10:53 UTC (rev 3830)
++++ trunk/rpms/audacious/audacious-0.1.2-default-alsa.patch	2005-12-20 12:37:16 UTC (rev 3831)
+@@ -0,0 +1,15 @@
++diff -Naupr audacious-0.1.2.orig/audacious/main.c audacious-0.1.2/audacious/main.c
++--- audacious-0.1.2.orig/audacious/main.c	2005-12-04 18:29:14.000000000 +0100
+++++ audacious-0.1.2/audacious/main.c	2005-12-20 13:27:09.000000000 +0100
++@@ -492,9 +492,9 @@ bmp_config_load(void)
++         cfg.gentitle_format = g_strdup(&quot;%p - %t&quot;);
++ 
++     if (!cfg.outputplugin) {
++-#ifdef HAVE_OSS
+++#ifdef HAVE_ALSA
++         cfg.outputplugin = g_build_filename(PLUGIN_DIR, plugin_dir_list[0],
++-                                            PLUGIN_FILENAME(&quot;OSS&quot;), NULL);
+++                                            PLUGIN_FILENAME(&quot;ALSA&quot;), NULL);
++ #else
++         /* FIXME: This implicitly means the output plugin that is
++          * first in the alphabet will be used (usually the disk writer
+
+Modified: trunk/rpms/audacious/audacious.spec
+===================================================================
+--- trunk/rpms/audacious/audacious.spec	2005-12-20 09:10:53 UTC (rev 3830)
++++ trunk/rpms/audacious/audacious.spec	2005-12-20 12:37:16 UTC (rev 3831)
+@@ -9,15 +9,19 @@
+ Group: Applications/Multimedia
+ URL: <A HREF="http://audacious-media-player.org/">http://audacious-media-player.org/</A>
+ Source: <A HREF="http://audacious-media-player.org/release/audacious-%{version">http://audacious-media-player.org/release/audacious-%{version</A>}.tgz
++Patch: audacious-0.1.2-default-alsa.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++Requires(post): /sbin/ldconfig, desktop-file-utils
++Requires(postun): /sbin/ldconfig, desktop-file-utils
+ BuildRequires: gtk2-devel, libglade2-devel, gettext-devel
+ BuildRequires: libvisual-devel, SDL-devel
+ BuildRequires: libogg-devel, libvorbis-devel, flac-devel, id3lib-devel
+ BuildRequires: alsa-lib-devel, esound-devel
+-%{!?_without_gconf:GConf2-devel}
+-%{!?_with_vfs:BuildRequires: gnome-vfs2-devel}
++%{?_with_gconf:Buildrequires: GConf2-devel}
++%{?_with_vfs:BuildRequires: gnome-vfs2-devel}
+ %{!?_without_lirc:BuildRequires: lirc-devel}
+ BuildRequires: libsndfile, libsamplerate, libsidplay
++BuildRequires: ImageMagick
+ 
+ %description
+ Audacious is a media player forked from BMP (Beep Media Player) which uses a
+@@ -38,13 +42,14 @@
+ 
+ %prep
+ %setup
++%patch -p1 -b .default-alsa
+ 
+ 
+ %build
+ %configure \
+     --disable-rpath \
+-    %{!?_without_gconf:--enable-gconf} \
+-    %{!?_without_vfs:--enable-gnome-vfs} \
++    %{?_with_gconf:--enable-gconf} \
++    %{?_with_vfs:--enable-gnome-vfs} \
+     --with-xmms-eq \
+     --enable-sid
+ %{__make} %{?_smp_mflags}
+@@ -54,15 +59,22 @@
+ %{__rm} -rf %{buildroot}
+ %{__make} install DESTDIR=%{buildroot}
+ %find_lang %{name}
++%{__mkdir_p} %{buildroot}%{_datadir}/pixmaps
++convert audacious/images/audacious_player.xpm \
++    %{buildroot}%{_datadir}/pixmaps/audacious.png
+ 
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+ 
+-%post -p /sbin/ldconfig
++%post
++/sbin/ldconfig
++update-desktop-database -q || :
+ 
+-%postun -p /sbin/ldconfig
++%postun
++/sbin/ldconfig
++update-desktop-database -q || :
+ 
+ 
+ %files -f %{name}.lang
+@@ -74,6 +86,7 @@
+ %{_libdir}/libaudacious.so.*
+ %{_datadir}/applications/audacious.desktop
+ %{_datadir}/audacious/
++%{_datadir}/pixmaps/audacious.png
+ %{_mandir}/man1/audacious.1*
+ 
+ %files devel
+@@ -89,4 +102,5 @@
+ * Tue Dec 20 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.1.2-1
+ - Initial RPM release.
+ - Can't seem to get libsamplerate nor sndfile enabled.
++- Disable GConf and VFS by default, since nothing seems to work otherwise.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002630.html">[svn] r3830 - trunk/rpms/xmms-mp3
+</A></li>
+	<LI>Next message: <A HREF="002632.html">[svn] r3832 - trunk/rpms/synergy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2631">[ date ]</a>
+              <a href="thread.html#2631">[ thread ]</a>
+              <a href="subject.html#2631">[ subject ]</a>
+              <a href="author.html#2631">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

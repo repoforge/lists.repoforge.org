@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6708 - in trunk/tools/wiipresent: . test
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6708%20-%20in%20trunk/tools/wiipresent%3A%20.%20test&In-Reply-To=%3C200903022037.n22KbfGj013078%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005506.html">
+   <LINK REL="Next"  HREF="005508.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6708 - in trunk/tools/wiipresent: . test</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6708%20-%20in%20trunk/tools/wiipresent%3A%20.%20test&In-Reply-To=%3C200903022037.n22KbfGj013078%40surya.karan.org%3E"
+       TITLE="[svn] r6708 - in trunk/tools/wiipresent: . test">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar  2 21:37:41 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005506.html">[svn] r6707 - in trunk/tools/wiipresent: . docs
+</A></li>
+        <LI>Next message: <A HREF="005508.html">[svn] r6709 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5507">[ date ]</a>
+              <a href="thread.html#5507">[ thread ]</a>
+              <a href="subject.html#5507">[ subject ]</a>
+              <a href="author.html#5507">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-03-02 20:37:41 +0000 (Mon, 02 Mar 2009)
+New Revision: 6708
+
+Added:
+   trunk/tools/wiipresent/test/
+   trunk/tools/wiipresent/test/name.c
+Modified:
+   trunk/tools/wiipresent/README
+Log:
+Small changes.
+
+Modified: trunk/tools/wiipresent/README
+===================================================================
+--- trunk/tools/wiipresent/README	2009-03-02 20:28:48 UTC (rev 6707)
++++ trunk/tools/wiipresent/README	2009-03-02 20:37:41 UTC (rev 6708)
+@@ -1,8 +1,10 @@
+ = WiiPresent - Presentations using the Wiimote
+ 
+ WiiPresent is a small program that enables you to use a Nintendo WiiMote
+-for giving presentations.
++for giving presentationsi using Open Office, xpdf, evince or Acrobat Reader.
+ 
++But WiiPresent can also control multimedia applications or firefox.
++
+ It does this by translating WiiMote events into keypresses for applications.
+ 
+ == Build requirements
+
+Added: trunk/tools/wiipresent/test/name.c
+===================================================================
+--- trunk/tools/wiipresent/test/name.c	                        (rev 0)
++++ trunk/tools/wiipresent/test/name.c	2009-03-02 20:37:41 UTC (rev 6708)
+@@ -0,0 +1,122 @@
++/*
++This program is free software; you can redistribute it and/or modify
++it under the terms of the GNU Library General Public License as published by
++the Free Software Foundation; version 2 only
++
++This program is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU Library General Public License for more details.
++
++You should have received a copy of the GNU Library General Public License
++along with this program; if not, write to the Free Software
++Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++Copyright 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++*/
++
++// $Id$
++
++#include &lt;ctype.h&gt;
++#include &lt;stdio.h&gt;
++#include &lt;stdlib.h&gt;
++#include &lt;string.h&gt;
++#include &lt;unistd.h&gt;
++
++#include &lt;X11/Xatom.h&gt;
++#include &lt;X11/Xlib.h&gt;
++#include &lt;X11/Xos.h&gt;
++#include &lt;X11/Xfuncs.h&gt;
++#include &lt;X11/Xutil.h&gt;
++#include &lt;X11/extensions/XTest.h&gt;
++
++static Display *display = NULL;
++static Window window = 0;
++
++Status XFetchProperty (register Display *display, Window window, int property, char **name) {
++    Atom actual_type;
++    int actual_format;
++    unsigned long nitems;
++    unsigned long leftover;
++    unsigned char *data = NULL;
++    if (XGetWindowProperty(display, window, property, 0L, (long) BUFSIZ,
++            False, XA_STRING, &amp;actual_type, &amp;actual_format,
++            &amp;nitems, &amp;leftover, &amp;data) != Success) {
++        *name = NULL;
++        return 0;
++    }
++    if ( (actual_type == XA_STRING) &amp;&amp; (actual_format == 8) ) {
++        *name = (char *) data;
++        return 1;
++    }
++    if (data) XFree((char *)data);
++    *name = NULL;
++    return 0;
++}
++
++void lowercase(char *string) {
++    int i;
++    for(i=0; string[i] != '\0'; i++)
++        if (isupper(string[i]))
++            string[i] = tolower(string[i]);
++}
++
++Status XQueryCommand(Display *display, Window window, char **name) {
++    Window root_window;
++    Window parent_window;
++    Window *children_window;
++    unsigned int nchildrens;
++
++    // Try getting the command
++    if (XFetchProperty(display, window, XA_WM_COMMAND, name) == 0) {
++        // Try XClassHint next
++        XClassHint xclasshint;
++        if (XGetClassHint(display, window, &amp;xclasshint) != 0) {
++            *name = xclasshint.res_class;
++            XFree(xclasshint.res_name);
++        // Try parent window
++        } else if (XQueryTree(display, window, &amp;root_window, &amp;parent_window, &amp;children_window, &amp;nchildrens) != 0) {
++            if (XQueryCommand(display, parent_window, name) == 0)
++                return 0;
++        } else
++            return 0;
++    }
++    lowercase(*name);
++    return 1;
++}
++
++int main(int argc, char **argv) {
++    // Make stdout unbuffered
++    setvbuf(stdout, NULL, _IONBF, 0);
++
++    display = XOpenDisplay(&quot;:0.0&quot;);
++    if (display == NULL) {
++        fprintf(stderr, &quot;Can't open display.\n&quot;);
++        return -1;
++    }
++
++    // Get the root window for the current display.
++    int revert;
++    char *name = NULL;
++    Window oldwindow;
++
++    while (1) {
++        oldwindow = window;
++
++        // Find the window which has the current keyboard focus.
++        XGetInputFocus(display, &amp;window, &amp;revert);
++
++        if (window == oldwindow)
++            continue;
++
++        if (XQueryCommand(display, window, &amp;name) != 0)
++            printf(&quot;Entering %s (%ld)\n&quot;, name, window);
++        else
++            printf(&quot;Entering unknown %s (%ld)\n&quot;, name, window);
++
++        XFree(name);
++        usleep(10000);
++    }
++    XCloseDisplay(display);
++
++    return 0;
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005506.html">[svn] r6707 - in trunk/tools/wiipresent: . docs
+</A></li>
+	<LI>Next message: <A HREF="005508.html">[svn] r6709 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5507">[ date ]</a>
+              <a href="thread.html#5507">[ thread ]</a>
+              <a href="subject.html#5507">[ subject ]</a>
+              <a href="author.html#5507">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

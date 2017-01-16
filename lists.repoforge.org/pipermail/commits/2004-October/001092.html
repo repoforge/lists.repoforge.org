@@ -1,0 +1,572 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2286 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2286%20-%20trunk/tools/yam&In-Reply-To=%3C20041018230844.F214317F8F%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001091.html">
+   <LINK REL="Next"  HREF="001093.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2286 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2286%20-%20trunk/tools/yam&In-Reply-To=%3C20041018230844.F214317F8F%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2286 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Oct 19 01:08:44 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001091.html">[SVN] r2285 - trunk/rpms/createrepo
+</A></li>
+        <LI>Next message: <A HREF="001093.html">[SVN] r2287 - trunk/rpms/nmap
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1092">[ date ]</a>
+              <a href="thread.html#1092">[ thread ]</a>
+              <a href="subject.html#1092">[ subject ]</a>
+              <a href="author.html#1092">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-10-19 01:08:43 +0200 (Tue, 19 Oct 2004)
+New Revision: 2286
+
+Modified:
+   trunk/tools/yam/README.quickstart
+   trunk/tools/yam/yam-complex.conf
+   trunk/tools/yam/yam-dag.conf
+   trunk/tools/yam/yam-example.conf
+   trunk/tools/yam/yam.conf
+Log:
+Configuration and documentation updates
+
+Modified: trunk/tools/yam/README.quickstart
+===================================================================
+--- trunk/tools/yam/README.quickstart	2004-10-18 13:29:43 UTC (rev 2285)
++++ trunk/tools/yam/README.quickstart	2004-10-18 23:08:43 UTC (rev 2286)
+@@ -1,5 +1,25 @@
+ Quickstart for the impatient
+ &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++
++Requisites:
++
++  Depending on what repositories you want to generate, you can install
++  a combination of these packages:
++
++	Apt		(you need 'basegendir', in apt package)
++	old-style Yum	(you need 'yum-arch', in yum package)
++	new-style Yum	(you need 'creatrepo')
++
++  Depending on what kind of sources you want to mirror, you can install
++  a combination of these packages:
++
++	rsync		(you need the 'rsync' package)
++	ftp, http, sftp	(you need the 'lftp' package)
++
++  If you want to hardlink duplicate (downloaded) packages, you need
++  to install 'hardlink', which is part of the kernel-utils package.
++
++
+ Do the following steps to get started (real) fast.
+ 
+   1. Start with collecting the existing ISO files you have of the
+@@ -29,18 +49,22 @@
+ 	eg. called 'myrepo'
+ 
+ 		[fc2]
+-		arch=i386
++		arch = i386
+ 		.
+ 		.
+-		myrepo=<A HREF="file:///var/ftp/pub/my-rpms/fc2/i386/">file:///var/ftp/pub/my-rpms/fc2/i386/</A>
++		myrepo = <A HREF="file:///var/ftp/pub/my-rpms/fc2/i386/">file:///var/ftp/pub/my-rpms/fc2/i386/</A>
+ 
+ 	eg. you can rewrite this as:
+ 
+-		myrepo=<A HREF="file:///var/ftp/pub/my-rpms/$dist/$arch/">file:///var/ftp/pub/my-rpms/$dist/$arch/</A>
++		myrepo = <A HREF="file:///var/ftp/pub/my-rpms/$dist/$arch/">file:///var/ftp/pub/my-rpms/$dist/$arch/</A>
+ 
++        This way you can specify an unlimited number of custom
++        repositories.
+ 
+-  4. Now run Yam with no actions to see if the ISO files are used:
+ 
++  4. Now run Yam with no actions to see if the ISO files are mounted
++     and all your configuration options have been used:
++
+ 	yam -vv
+ 
+      Then run Yam to update the OS packages and updates:
+@@ -66,3 +90,22 @@
+ 	yam -uxgv
+ 
+      and all steps will be performed in one phase.
++
++
++  6. If you're removing distributions from the yam.conf file and
++     you want to remove the ISOs to gain diskspace. Remember that
++     Linux will not release diskspace for files that are still
++     accessed (like a loop-mounted ISO file). You're best bet is
++     to first unmount the ISOs:
++
++	yam -vv --umount
++
++     then remove or comment the distributions and mount again:
++
++	yam -vv
++
++  7. When you're adding new distributions, it's sufficient to just
++     run Yam again. It will automatically mount everything that is
++     not already mounted. You can always remount/reset by doing:
++
++	yam -vvr
+
+Modified: trunk/tools/yam/yam-complex.conf
+===================================================================
+--- trunk/tools/yam/yam-complex.conf	2004-10-18 13:29:43 UTC (rev 2285)
++++ trunk/tools/yam/yam-complex.conf	2004-10-18 23:08:43 UTC (rev 2286)
+@@ -3,91 +3,94 @@
+ ### The [main] section allows to override Yam's default settings
+ ### The yam-example.conf gives an overview of all the possible settings
+ [main]
+-srcdir=/var/yam
+-wwwdir=/var/www/yam
+-createrepo=no
+-arch=i386
++srcdir = /var/yam
++wwwdir = /var/www/yam
++createrepo = no
++arch = i386
+ 
++rsync-timeout = 3600
++rsync-bandwidth-limit = 5
+ 
++
+ ### Any other section is considered a definition for a distribution
+ ### Below are a few examples to show the possibilities
+ [fc2]
+-name=Fedora Core $release ($arch)
+-release=2
+-iso=FC$release-$arch-disc?.iso
+-core=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
+-dries=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-newrpms=<A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/</A>
++name = Fedora Core $release ($arch)
++release = 2
++iso = FC$release-$arch-disc?.iso
++core = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++updates = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
++dries = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
++freshrpms = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++newrpms = <A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/</A>
+ 
+ #[rhes3]
+-#name=Red Hat Enterprise Server $release U3 ($arch)
+-#release=3
+-#iso=rhel-$release-U3-$arch-es-disc?.iso
+-#updates=<A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+-#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++#name = Red Hat Enterprise Server $release U3 ($arch)
++#release = 3
++#iso = rhel-$release-U3-$arch-es-disc?.iso
++#updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
++#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ #[tao1]
+-#name=Tao Linux $release ($arch)
+-#release=1.0
+-#arch=i386 ia64 s390 s390x x86_64
+-#iso=mooch-$arch-disc?.iso
+-#os=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+-#updates=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+-#contrib=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+-#kernel-el=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+-#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
++#name = Tao Linux $release ($arch)
++#release = 1.0
++#arch = i386 ia64 s390 s390x x86_64
++#iso = mooch-$arch-disc?.iso
++#os = <A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
++#updates = <A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
++#contrib = <A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
++#kernel-el = <A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
++#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
+ 
+ #[centos3]
+-#name=CentOS $release ($arch)
+-#release=3.1
+-#iso=CentOS-3.1-$arch.disc?.iso
+-#os=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RedHat/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RedHat/RPMS/</A>
+-#updates=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
+-#extras=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
+-#addons=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
+-#contrib=<A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
+-#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
++#name = CentOS $release ($arch)
++#release = 3.1
++#iso = CentOS-3.1-$arch.disc?.iso
++#os = <A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RedHat/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RedHat/RPMS/</A>
++#updates = <A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
++#extras = <A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
++#addons = <A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
++#contrib = <A HREF="rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/">rsync://ibiblio.org/distros/caoslinux/centos-3/$release/$repo/$arch/RPMS/</A>
++#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
+ 
+ #[rh73]
+-#name=Red Hat $release ($arch)
+-#release=7.3
+-#iso=valhalla-$arch-disc?.iso
+-#os=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
+-#updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
+-#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/</A>
++#name = Red Hat $release ($arch)
++#release = 7.3
++#iso = valhalla-$arch-disc?.iso
++#os = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
++#updates = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
++#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/</A>
+ 
+ #[rhas21]
+-#name=Red hat Advanced Server $release U5 ($arch)
+-#release=2.1
+-#iso=RHEL2.1AS-U5-re0810.RC.0-$arch-disc?.iso
+-#updates=<A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+-#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++#name = Red hat Advanced Server $release U5 ($arch)
++#release = 2.1
++#iso = RHEL2.1AS-U5-re0810.RC.0-$arch-disc?.iso
++#updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
++#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ ### SuSE is not yet supported for remote booting
+ ### Experience and insight is welcome
+ #[sles9]
+-#name=SuSE Linux Enterprise Server $release ($arch)
+-#release=9
+-#iso=SLES-$release-$arch-CD[1-4].iso
+-#you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
++#name = SuSE Linux Enterprise Server $release ($arch)
++#release = 9
++#iso = SLES-$release-$arch-CD[1-4].iso
++#you = <A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+ 
+ #[sles8]
+-#name=SuSE Linux Enterprise Server $release ($arch)
+-#release=8
+-#iso=SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
+-#you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
++#name = SuSE Linux Enterprise Server $release ($arch)
++#release = 8
++#iso = SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
++#you = <A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+ 
+ ### Single CD distribution based on Fedora Core 1
+ #[blag10000]
+-#name=BLAG: Brixton Linux Action Group ($arch)
+-#release=10000
+-#arch=i386
+-#iso=BLAG-$release.iso
+-#os=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+-#updates=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+-#errata=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+-#extras=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+-##TESTING=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#name = BLAG: Brixton Linux Action Group ($arch)
++#release = 10000
++#arch = i386 
++#iso = BLAG-$release.iso
++#os = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#updates = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#errata = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#extras = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++##TESTING = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+
+Modified: trunk/tools/yam/yam-dag.conf
+===================================================================
+--- trunk/tools/yam/yam-dag.conf	2004-10-18 13:29:43 UTC (rev 2285)
++++ trunk/tools/yam/yam-dag.conf	2004-10-18 23:08:43 UTC (rev 2286)
+@@ -1,89 +1,89 @@
+ ### Configuration file for Yam
+ 
+ [main]
+-srcdir=/mnt/data/yam
+-wwwdir=/var/www/yam
+-arch=i386
+-createrepo=no
+-hardlink=yes
+-shareiso=no
++srcdir = /mnt/data/yam
++wwwdir = /var/www/yam
++arch = i386
++createrepo = no
++hardlink = yes
++shareiso = no
+ 
+ [fc2]
+-name=Fedora Core $release ($arch)
+-release=2
+-arch=i386 x86_64
+-iso=FC2-$arch-disc?.iso
+-updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
+-#dag=<A HREF="rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/</A>
+-dries=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++name = Fedora Core $release ($arch)
++release = 2
++arch = i386 x86_64
++iso = FC2-$arch-disc?.iso
++updates = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
++#dag = <A HREF="rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/</A>
++dries = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
++freshrpms = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ 
+ [tao1]
+-name=Tao Linux $release ($arch)
+-release=1.0
+-iso=mooch-$arch-disc?.iso
+-updates=<A HREF="rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/</A>
+-contrib=<A HREF="rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/</A>
+-kernel-el=<A HREF="rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/</A>
+-#dag=<A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
++name = Tao Linux $release ($arch)
++release = 1.0
++iso = mooch-$arch-disc?.iso
++updates = <A HREF="rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/</A>
++contrib = <A HREF="rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/</A>
++kernel-el = <A HREF="rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/</A>
++#dag = <A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
+ 
+ [rhas3]
+-name=Red Hat Advanced Server $release ($arch)
+-release=3
+-arch=i386 x86_64
+-iso=rhel-$release-U3-$arch-as-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso
+-#updates=<A HREF="rsync://lisse/yam/el3a-$arch/$repo/">rsync://lisse/yam/el3a-$arch/$repo/</A>
+-#dag=<A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
++name = Red Hat Advanced Server $release ($arch)
++release = 3
++arch = i386 x86_64
++iso = rhel-$release-U3-$arch-as-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso
++#updates = <A HREF="rsync://lisse/yam/el3a-$arch/$repo/">rsync://lisse/yam/el3a-$arch/$repo/</A>
++#dag = <A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
+ 
+ [rhes3]
+-name=Red Hat Enterprise Server $release ($arch)
+-release=3
+-arch=i386 x86_64
+-iso=rhel-$release-U3-$arch-es-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso *$arch*.iso
+-#updates=<A HREF="rsync://lisse/yam/el3i-$arch/$repo/">rsync://lisse/yam/el3i-$arch/$repo/</A>
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+-#dag=<A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
++name = Red Hat Enterprise Server $release ($arch)
++release = 3
++arch = i386 x86_64
++iso = rhel-$release-U3-$arch-es-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso *$arch*.iso
++#updates = <A HREF="rsync://lisse/yam/el3i-$arch/$repo/">rsync://lisse/yam/el3i-$arch/$repo/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++#dag = <A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ [rhws3]
+-name=Red Hat Workstation $release ($arch)
+-release=3
+-iso=rhel-$release-U3-$arch-ws-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso
+-#dag=<A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
++name = Red Hat Workstation $release ($arch)
++release = 3
++iso = rhel-$release-U3-$arch-ws-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso
++#dag = <A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
+ 
+ [rh73]
+-name=Red Hat $release ($arch)
+-release=7.3
+-iso=valhalla-$arch-disc?.iso
+-updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/</A>
+-#dag=<A HREF="rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/</A>
++name = Red Hat $release ($arch)
++release = 7.3
++iso = valhalla-$arch-disc?.iso
++updates = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/redhat/$release/$arch/$repo/RPMS/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/</A>
++#dag = <A HREF="rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/$release/en/$arch/RPMS.$repo/</A>
+ 
+ [rhas21]
+-name=Red Hat Advanced Server $release ($arch)
+-release=2.1
+-iso=RHEL$releaseAS-U5-re0810.RC.0-i386-disc?.iso
+-#updates=<A HREF="rsync://lisse/yam/el2-$arch/$repo/">rsync://lisse/yam/el2-$arch/$repo/</A>
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+-#dag=<A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
++name = Red Hat Advanced Server $release ($arch)
++release = 2.1
++iso = RHEL$releaseAS-U5-re0810.RC.0-i386-disc?.iso
++#updates = <A HREF="rsync://lisse/yam/el2-$arch/$repo/">rsync://lisse/yam/el2-$arch/$repo/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++#dag = <A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ [sles9]
+-name=SuSE Linux Enterprise Server $release ($arch)
+-release=9
+-iso=SLES-$release-$arch-RC5-CD[1-4].iso
+-you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
++name = SuSE Linux Enterprise Server $release ($arch)
++release = 9
++iso = SLES-$release-$arch-RC5-CD[1-4].iso
++you = <A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+ 
+ [sles8]
+-name=SuSE Linux Enterprise Server $release ($arch)
+-release=8
+-iso=SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD[1-2].iso UnitedLinux-1.0-SP-3-$arch-RC4-CD1.iso
+-you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
++name = SuSE Linux Enterprise Server $release ($arch)
++release = 8
++iso = SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD[1-2].iso UnitedLinux-1.0-SP-3-$arch-RC4-CD1.iso
++you = <A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+ 
+ ### Single CD distribution based on Fedora Core 1
+ [blag10000]
+-name=BLAG: Brixton Linux Action Group $release ($arch)
+-release=10000
+-iso=BLAG-$release.iso
+-#os=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+-#updates=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+-#errata=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++name = BLAG: Brixton Linux Action Group $release ($arch)
++release = 10000
++iso = BLAG-$release.iso
++#os = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#updates = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#errata = <A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2004-10-18 13:29:43 UTC (rev 2285)
++++ trunk/tools/yam/yam-example.conf	2004-10-18 23:08:43 UTC (rev 2286)
+@@ -76,29 +76,29 @@
+ ### BEWARE: packages need to be tagged to work with this and you
+ ### can add extra tags using tag= per distribution
+ [repos]
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/">rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/</A>
+-dries=<A HREF="http://dries.studentenweb.org/apt/packages/">http://dries.studentenweb.org/apt/packages/</A>
+-freshrpms=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/</A>
+-newrpms=<A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/">rsync://apt.sw.be/pub/freshrpms/pub/dag/packages/</A>
++dries = <A HREF="http://dries.studentenweb.org/apt/packages/">http://dries.studentenweb.org/apt/packages/</A>
++freshrpms = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/redhat/</A>
++newrpms = <A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/</A>
+ 
+ ### Dist1 comes with ISO files (i386 is default)
+ [dist1]
+-release=1
+-iso=dist$release-$arch-disc?.iso
+-updates=<A HREF="rsync://rsync.dist1.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist1.org/pub/dist/$release/$arch/$repo/</A>
++release = 1
++iso = dist$release-$arch-disc?.iso
++updates = <A HREF="rsync://rsync.dist1.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist1.org/pub/dist/$release/$arch/$repo/</A>
+ 
+ ### Dist2 is synced with a mirror, has multiple archs
+ [dist2]
+-release=2
+-arch=i386 i586 i686 x86_64
+-os=<A HREF="rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/</A>
+-updates=<A HREF="rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/</A>
++release = 2
++arch = i386 i586 i686 x86_64
++os = <A HREF="rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/</A>
++updates = <A HREF="rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/</A>
+ 
+ ### Dist3 has extra repositories, updates use updates from dist1
+ [dist3]
+-release=3
+-arch=x86_64
+-iso=dist$release-$arch-disc?.iso
+-os=<A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
+-updates=<A HREF="yam://dist1-$arch/$repo/">yam://dist1-$arch/$repo/</A>
+-contrib=<A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
++release = 3
++arch = x86_64
++iso = dist$release-$arch-disc?.iso
++os = <A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
++updates = <A HREF="yam://dist1-$arch/$repo/">yam://dist1-$arch/$repo/</A>
++contrib = <A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-10-18 13:29:43 UTC (rev 2285)
++++ trunk/tools/yam/yam.conf	2004-10-18 23:08:43 UTC (rev 2286)
+@@ -3,25 +3,24 @@
+ ### The [main] section allows to override Yam's default settings
+ ### The yam-example.conf gives an overview of all the possible settings
+ [main]
+-srcdir=/var/yam
+-wwwdir=/var/www/yam
+-createrepo=no
+-arch=i386
++srcdir = /var/yam
++wwwdir = /var/www/yam
++createrepo = no
++arch = i386
+ 
+-
+ ### Any other section is considered a definition for a distribution
+ ### Also see yam-complex.conf, yam-dag.conf and yam.example.conf
+ [fc2]
+-name=Fedora Core $release ($arch)
+-release=2
+-iso=FC$release-$arch-disc?.iso
+-core=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-updates=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
++name = Fedora Core $release ($arch)
++release = 2
++iso = FC$release-$arch-disc?.iso
++core = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++updates = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
+ 
+ [rhes3]
+-name=Red Hat Enterprise Server $release U3 ($arch)
+-release=3
+-iso=rhel-$release-U3-$arch-es-disc?.iso
+-updates=<A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+-dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++name = Red Hat Enterprise Server $release U3 ($arch)
++release = 3
++iso = rhel-$release-U3-$arch-es-disc?.iso
++updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001091.html">[SVN] r2285 - trunk/rpms/createrepo
+</A></li>
+	<LI>Next message: <A HREF="001093.html">[SVN] r2287 - trunk/rpms/nmap
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1092">[ date ]</a>
+              <a href="thread.html#1092">[ thread ]</a>
+              <a href="subject.html#1092">[ subject ]</a>
+              <a href="author.html#1092">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

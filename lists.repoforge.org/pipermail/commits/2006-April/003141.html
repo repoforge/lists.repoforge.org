@@ -1,0 +1,307 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4341 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4341%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060430123137.B94A931821B%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003140.html">
+   <LINK REL="Next"  HREF="003142.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4341 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4341%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060430123137.B94A931821B%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4341 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Apr 30 14:31:37 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003140.html">[svn] r4340 - trunk/rpms/driftnet
+</A></li>
+        <LI>Next message: <A HREF="003142.html">[svn] r4342 - trunk/rpms/clamav
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3141">[ date ]</a>
+              <a href="thread.html#3141">[ thread ]</a>
+              <a href="subject.html#3141">[ subject ]</a>
+              <a href="author.html#3141">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-04-30 14:31:36 +0200 (Sun, 30 Apr 2006)
+New Revision: 4341
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/plugins/dstat_freespace.py
+   trunk/tools/dstat/plugins/dstat_gpfs.py
+Log:
+Small changes
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2006-04-29 21:40:36 UTC (rev 4340)
++++ trunk/tools/dstat/ChangeLog	2006-04-30 12:31:36 UTC (rev 4341)
+@@ -1,3 +1,8 @@
++* 0.6.3 - ... - release ../../....
++- Reduced width for 1024 or 1000 base values from 4 to 3
++- Added load to default output (since we have extra space for it)
++- Changed default (silver) color of delimiter to gray
++
+ * 0.6.2 - Cumbernauld - released 08/03/2006
+ - Fixed situation where no TERM environment variable was set (William Webber)
+ - Print out terminal debug info (TERM env and terminal type)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-04-29 21:40:36 UTC (rev 4340)
++++ trunk/tools/dstat/dstat	2006-04-30 12:31:36 UTC (rev 4341)
+@@ -155,7 +155,7 @@
+ 				self.modlist.append('sys')
+ 
+ 			elif opt in ['-a', '--all']:
+-				self.modlist = self.modlist + [ 'cpu', 'disk', 'net', 'page', 'sys' ]
++				self.modlist = self.modlist + [ 'cpu', 'disk', 'net', 'page', 'sys', 'load' ]
+ 			elif opt in ['-v', '--vmstat']:
+ 				self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+ 			elif opt in ['-f', '--full']:
+@@ -181,7 +181,7 @@
+ 				exit(0)
+ 
+ 		if not self.modlist:
+-			self.modlist = [ 'cpu', 'disk', 'net', 'page', 'sys' ]
++			self.modlist = [ 'cpu', 'disk', 'net', 'page', 'sys', 'load' ]
+ 
+ 		try:
+ 			if len(args) &gt; 0: self.delay = int(args[0])
+@@ -325,7 +325,7 @@
+ 				for j, nick in enumerate(self.nick):
+ 					ret = ret + ansi['blue'] + nick.center(self.format[1]).replace(' ', '_')
+ 					if j + 1 != len(self.nick): ret = ret + char['space']
+-				if i + 1 != len(self.name): ret = ret + ansi['default'] + char['colon']
++				if i + 1 != len(self.name): ret = ret + ansi['gray'] + char['colon']
+ 			return ansi['blue'] + ret
+ 
+ 	def titlecsv(self, nr):
+@@ -379,7 +379,7 @@
+ 		for i, name in enumerate(self.vars):
+ 			if isinstance(self.val[name], types.TupleType) or isinstance(self.val[name], types.ListType):
+ 				line = line + cprintlist(self.val[name], self.format)
+-				sep = ansi['default'] + char['colon']
++				sep = ansi['gray'] + char['colon']
+ 			else:
+ 				line = line + cprint(self.val[name], self.format)
+ 				sep = char['space']
+@@ -389,9 +389,9 @@
+ 
+ 	def showend(self, totlist, vislist):
+ 		if self is not vislist[-1]:
+-			return ansi['default'] + char['pipe']
++			return ansi['gray'] + char['pipe']
+ 		elif totlist != vislist:
+-			return ansi['default'] + char['gt']
++			return ansi['gray'] + char['gt']
+ 		return ''
+ 
+ 	def showcsv(self):
+@@ -544,11 +544,11 @@
+ 
+ class dstat_disk(dstat):
+ 	def __init__(self):
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/diskstats')
+-		self.nick = ('read', 'write')
++		self.nick = ('read', 'writ')
+ 		self.vars = self.vars()
+-		self.name = ['disk/'+name for name in self.vars]
++		self.name = ['dsk/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+ 
+ 	def discover(self, *list):
+@@ -607,13 +607,13 @@
+ 
+ class dstat_disk24(dstat):
+ 	def __init__(self):
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/partitions')
+-		self.nick = ('read', 'write')
++		self.nick = ('read', 'writ')
+ 		self.vars = self.vars()
+ 		if self.fd and not self.discover():
+ 			raise Exception, 'kernel is not compiled with CONFIG_BLK_STATS'
+-		self.name = ['disk/'+sysfs_dev(name) for name in self.vars]
++		self.name = ['dsk/'+sysfs_dev(name) for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+ 
+ 	def discover(self, *list):
+@@ -669,12 +669,12 @@
+ ### FIXME: Needs rework, does anyone care ?
+ class dstat_disk24old(dstat):
+ 	def __init__(self):
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/stat')
+-		self.nick = ('read', 'write')
++		self.nick = ('read', 'writ')
+ 		self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
+ 		self.vars = self.vars()
+-		self.name = ['disk/'+name for name in self.vars]
++		self.name = ['dsk/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+ 
+ 	def discover(self, *list):
+@@ -746,7 +746,7 @@
+ class dstat_int(dstat):
+ 	def __init__(self):
+ 		self.name = 'interrupts'
+-		self.format = ('d', 5, 1000)
++		self.format = ('d', 4, 1000)
+ 		self.open('/proc/stat')
+ 		self.intmap = self.intmap()
+ 		self.vars = self.vars()
+@@ -816,7 +816,7 @@
+ class dstat_int24(dstat):
+ 	def __init__(self):
+ 		self.name = 'interrupts'
+-		self.format = ('d', 5, 1000)
++		self.format = ('d', 4, 1000)
+ 		self.open('/proc/interrupts')
+ 		self.vars = self.vars()
+ 		self.nick = self.vars
+@@ -948,7 +948,7 @@
+ class dstat_mem(dstat):
+ 	def __init__(self):
+ 		self.name = 'memory usage'
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/meminfo')
+ 		self.nick = ('used', 'buff', 'cach', 'free')
+ 		self.vars = ('MemUsed', 'Buffers', 'Cached', 'MemFree')
+@@ -967,7 +967,7 @@
+ 
+ class dstat_net(dstat):
+ 	def __init__(self):
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/net/dev')
+ 		self.nick = ('recv', 'send')
+ 		self.vars = self.vars()
+@@ -1027,7 +1027,7 @@
+ class dstat_page(dstat):
+ 	def __init__(self):
+ 		self.name = 'paging'
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/vmstat')
+ 		self.nick = ('in', 'out')
+ 		self.vars = ('pswpin', 'pswpout')
+@@ -1049,7 +1049,7 @@
+ class dstat_page24(dstat):
+ 	def __init__(self):
+ 		self.name = 'paging'
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/stat')
+ 		self.nick = ('in', 'out')
+ 		self.vars = ('pswpin', 'pswpout')
+@@ -1116,7 +1116,7 @@
+ class dstat_swap(dstat):
+ 	def __init__(self):
+ 		self.name = 'swap'
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/proc/meminfo')
+ 		self.nick = ('used', 'free')
+ 		self.vars = ('SwapUsed', 'SwapFree')
+@@ -1135,7 +1135,7 @@
+ class dstat_sys(dstat):
+ 	def __init__(self):
+ 		self.name = 'system'
+-		self.format = ('d', 5, 1000)
++		self.format = ('d', 4, 1000)
+ 		self.open('/proc/stat')
+ 		self.nick = ('int', 'csw')
+ 		self.vars = ('intr', 'ctxt')
+@@ -1733,7 +1733,7 @@
+ 				info(1, 'Terminal width too small, trimming output.')
+ 			showheader = False
+ 			showtitle(1, totlist, vislist, ansi['darkblue'] + char['space'], ansi['darkblue'] + char['gt'])
+-			showtitle(2, totlist, vislist, ansi['silver'] + char['pipe'], ansi['darkblue'] + char['gt'])
++			showtitle(2, totlist, vislist, ansi['gray'] + char['pipe'], ansi['darkblue'] + char['gt'])
+ 
+ 		oldvislist = vislist
+ 
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2006-04-29 21:40:36 UTC (rev 4340)
++++ trunk/tools/dstat/dstat.spec	2006-04-30 12:31:36 UTC (rev 4341)
+@@ -53,7 +53,7 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README* TODO examples/ *.conf
++%doc AUTHORS ChangeLog COPYING README* TODO *.conf *.html examples/
+ %doc %{_mandir}/man1/dstat.1*
+ #%config(noreplace) %{_sysconfdir}/dstat.conf
+ %{_bindir}/dstat
+
+Modified: trunk/tools/dstat/plugins/dstat_freespace.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_freespace.py	2006-04-29 21:40:36 UTC (rev 4340)
++++ trunk/tools/dstat/plugins/dstat_freespace.py	2006-04-30 12:31:36 UTC (rev 4341)
+@@ -7,7 +7,7 @@
+ 
+ class dstat_freespace(dstat):
+ 	def __init__(self):
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.open('/etc/mtab')
+ 		self.vars = self.vars()
+ #		self.name = ['/' + os.path.basename(name) for name in self.vars]
+
+Modified: trunk/tools/dstat/plugins/dstat_gpfs.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_gpfs.py	2006-04-29 21:40:36 UTC (rev 4340)
++++ trunk/tools/dstat/plugins/dstat_gpfs.py	2006-04-30 12:31:36 UTC (rev 4341)
+@@ -4,7 +4,7 @@
+ class dstat_gpfs(dstat):
+ 	def __init__(self):
+ 		self.name = 'gpfs i/o'
+-		self.format = ('f', 5, 1024)
++		self.format = ('f', 4, 1024)
+ 		self.vars = ('_br_', '_bw_')
+ 		self.nick = ('read', 'write')
+ 		self.init(self.vars, 1)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003140.html">[svn] r4340 - trunk/rpms/driftnet
+</A></li>
+	<LI>Next message: <A HREF="003142.html">[svn] r4342 - trunk/rpms/clamav
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3141">[ date ]</a>
+              <a href="thread.html#3141">[ thread ]</a>
+              <a href="subject.html#3141">[ subject ]</a>
+              <a href="author.html#3141">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

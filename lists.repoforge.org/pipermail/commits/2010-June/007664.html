@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8869 - /trunk/rpms/rrdtool/rrdtool.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8869%20-%20/trunk/rpms/rrdtool/rrdtool.spec&In-Reply-To=%3C201006111145.o5BBjZnV010784%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007663.html">
+   <LINK REL="Next"  HREF="007665.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8869 - /trunk/rpms/rrdtool/rrdtool.spec</H1>
+    <B>Christoph Maser</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8869%20-%20/trunk/rpms/rrdtool/rrdtool.spec&In-Reply-To=%3C201006111145.o5BBjZnV010784%40surya.karan.org%3E"
+       TITLE="[svn] r8869 - /trunk/rpms/rrdtool/rrdtool.spec">cmr at financial.com
+       </A><BR>
+    <I>Fri Jun 11 13:45:35 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007663.html">[svn] r8868 - /trunk/rpms/rrdtool/rrdcached.sysconfig
+</A></li>
+        <LI>Next message: <A HREF="007665.html">[svn] r8870 - /trunk/rpms/mpd/mpd.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7664">[ date ]</a>
+              <a href="thread.html#7664">[ thread ]</a>
+              <a href="subject.html#7664">[ subject ]</a>
+              <a href="author.html#7664">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: Fri Jun 11 12:45:34 2010
+New Revision: 8869
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=8869&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=8869&amp;view=rev</A>
+Log:
+- create rrdcached user
+- add directory for rrdcached data and socket
+- add init script and sysconfig for rrdcached
+
+
+Modified:
+    trunk/rpms/rrdtool/rrdtool.spec
+
+Modified: trunk/rpms/rrdtool/rrdtool.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/rrdtool/rrdtool.spec?rev=8869&amp;r1=8868&amp;r2=8869&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/rrdtool/rrdtool.spec?rev=8869&amp;r1=8868&amp;r2=8869&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/rrdtool/rrdtool.spec (original)
++++ trunk/rpms/rrdtool/rrdtool.spec Fri Jun 11 12:45:34 2010
+@@ -13,12 +13,14 @@
+ Summary: Round Robin Database Tool to store and display time-series data
+ Name: rrdtool
+ Version: 1.4.3
+-Release: 2%{?dist}
++Release: 3%{?dist}
+ License: GPL
+ Group: Applications/Databases
+ URL: <A HREF="http://people.ee.ethz.ch/~oetiker/webtools/rrdtool/">http://people.ee.ethz.ch/~oetiker/webtools/rrdtool/</A>
+ 
+ Source: <A HREF="http://oss.oetiker.ch/rrdtool/pub/rrdtool-%{version">http://oss.oetiker.ch/rrdtool/pub/rrdtool-%{version</A>}.tar.gz
++Source1: rrdcached.init
++Source2: rrdcached.sysconfig
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: cairo-devel
+@@ -148,8 +150,33 @@
+ %{__rm} -f %{buildroot}%{perl_archlib}/perllocal.pod
+ %{__rm} -f %{buildroot}%{perl_vendorarch}/ntmake.pl
+ 
++# Init script/sysconfig for rrfdcached
++%{__mkdir} -p %{buildroot}%{_initrddir}
++%{__cp} %{SOURCE1} %{buildroot}%{_initrddir}/rrdcached
++%{__mkdir} -p %{buildroot}%{_sysconfdir}/sysconfig
++%{__cp} %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/rrdcached
++
++# Create dir for rrdcached data and unix socket
++%{__mkdir} -p %{buildroot}%{_localstatedir}/rrdtool/rrdcached
++
+ %clean
+ %{__rm} -rf %{buildroot}
++
++%pre 
++# Add the &quot;rrdcached&quot; user
++/usr/sbin/useradd -c &quot;rrdcached&quot; \
++	-s /sbin/nologin -r -d %{_localstatedir}/rrdtool/rrdcached rrdcached  2&gt; /dev/null || :
++
++%post 
++# Register the rrdcached service
++/sbin/chkconfig --add rrdcached
++
++%preun 
++if [ $1 = 0 ]; then
++	/sbin/service rrdcached stop &gt; /dev/null 2&gt;&amp;1
++	/sbin/chkconfig --del rrdcached
++fi
++
+ 
+ %files
+ %defattr(-, root, root, 0755)
+@@ -157,6 +184,8 @@
+ %doc examples/
+ %doc %{_mandir}/man1/*.1*
+ %doc %{_mandir}/man3/librrd.3*
++%{_initrddir}/rrdcached
++%{_sysconfdir}/sysconfig/rrdcached
+ %{_bindir}/rrdcached
+ %{_bindir}/rrdcgi
+ %{_bindir}/rrdtool
+@@ -164,6 +193,7 @@
+ %{_datadir}/rrdtool/
+ %{_libdir}/librrd.so.*
+ %{_libdir}/librrd_th.so.*
++%attr(775,rrdcached,rrdcached) %dir %{_localstatedir}/rrdtool/rrdcached
+ 
+ %files devel
+ %defattr(-, root, root, 0755)
+@@ -209,6 +239,11 @@
+ %{_libdir}/lua/
+ 
+ %changelog
++* Fri Jun 11 2010 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmaser at gmx.de</A>&gt; - 1.4.3-3
++- create rrdcached user
++- add directory for rrdcached data and socket
++- add init script and sysconfig for rrdcached
++
+ * Fri May 14 2010 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmaser at gmx.de</A>&gt; - 1.4.3-2
+ - evaluating perl version will not work in mock
+ - lua fixes
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007663.html">[svn] r8868 - /trunk/rpms/rrdtool/rrdcached.sysconfig
+</A></li>
+	<LI>Next message: <A HREF="007665.html">[svn] r8870 - /trunk/rpms/mpd/mpd.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7664">[ date ]</a>
+              <a href="thread.html#7664">[ thread ]</a>
+              <a href="subject.html#7664">[ subject ]</a>
+              <a href="author.html#7664">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

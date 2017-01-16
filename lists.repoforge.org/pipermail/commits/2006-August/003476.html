@@ -1,0 +1,265 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4676 - in trunk/tools/yam: . config
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4676%20-%20in%20trunk/tools/yam%3A%20.%20config&In-Reply-To=%3C20060820002124.3A13F944AA3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003475.html">
+   <LINK REL="Next"  HREF="003477.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4676 - in trunk/tools/yam: . config</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4676%20-%20in%20trunk/tools/yam%3A%20.%20config&In-Reply-To=%3C20060820002124.3A13F944AA3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4676 - in trunk/tools/yam: . config">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Aug 20 02:21:24 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003475.html">[svn] r4675 - in trunk/rpms: . perl-GnuPG-Interface synbak
+</A></li>
+        <LI>Next message: <A HREF="003477.html">[svn] r4677 - in trunk/tools/yam: . config config/dists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3476">[ date ]</a>
+              <a href="thread.html#3476">[ thread ]</a>
+              <a href="subject.html#3476">[ subject ]</a>
+              <a href="author.html#3476">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-20 02:21:13 +0200 (Sun, 20 Aug 2006)
+New Revision: 4676
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/Makefile
+   trunk/tools/yam/config/yam.conf
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Added /etc/yam.conf.d/. Make createrepo cache dist/repo independent.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-08-19 23:45:35 UTC (rev 4675)
++++ trunk/tools/yam/ChangeLog	2006-08-20 00:21:13 UTC (rev 4676)
+@@ -37,6 +37,8 @@
+ - Improved debug output to understand where Yam is looking for ISO files (Frederik Kaputa)
+ - Improved finding ISO files
+ - Added locking support so that running multiple Yam instances is possible
++- Added /etc/yam.conf.d/ to allow configuration components to reside in seperate files
++- Make seperate createrepo cachedir for dist/repo (Craig Trader)
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/Makefile
+===================================================================
+--- trunk/tools/yam/Makefile	2006-08-19 23:45:35 UTC (rev 4675)
++++ trunk/tools/yam/Makefile	2006-08-20 00:21:13 UTC (rev 4676)
+@@ -21,21 +21,22 @@
+ all: install
+ 
+ install:
+-	install -D -m0755 yam $(DESTDIR)$(bindir)/yam
+-	install -D -m0755 gensystemid $(DESTDIR)$(bindir)/gensystemid
++	install -Dp -m0755 yam $(DESTDIR)$(bindir)/yam
++	install -Dp -m0755 gensystemid $(DESTDIR)$(bindir)/gensystemid
+ 	[ ! -f $(DESTDIR)$(sysconfdir)/yam.conf ] &amp;&amp; install -D -m0600 config/yam.conf $(DESTDIR)$(sysconfdir)/yam.conf || :
+-	install -D -m0644 config/httpd/yam.conf $(DESTDIR)$(httpddir)/yam.conf
+-	install -D -m0755 config/yam $(DESTDIR)$(initrddir)/yam
++	install -d -m0755 $(DESTDIR)$(sysconfdir)/yam.conf.d/
++	install -Dp -m0644 config/httpd/yam.conf $(DESTDIR)$(httpddir)/yam.conf
++	install -Dp -m0755 config/yam $(DESTDIR)$(initrddir)/yam
+ 
+ 	install -d -m0755 $(DESTDIR)$(htmldir)
+-	install -m0644 html/* $(DESTDIR)$(htmldir)
++	install -p -m0644 html/* $(DESTDIR)$(htmldir)
+ 
+ 	install -d -m0755 $(DESTDIR)$(srcdir)/all/local/
+ 	install -d -m0755 $(DESTDIR)$(wwwdir)
+ 	install -d -m0755 $(DESTDIR)$(cachedir)
+ 
+-	[ -d &quot;$(sysconfdir)/sysconfig&quot; -a ! -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -D -m0644 yam.sysconfig $(DESTDIR)$(sysconfdir)/sysconfig/yam || :
+-	[ -d &quot;$(sysconfdir)/sysconfig&quot; -a -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -D -m0755 yam.cron $(DESTDIR)$(sysconfdir)/cron.daily/yam || :
++	[ -d &quot;$(sysconfdir)/sysconfig&quot; -a ! -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -Dp -m0644 yam.sysconfig $(DESTDIR)$(sysconfdir)/sysconfig/yam || :
++	[ -d &quot;$(sysconfdir)/sysconfig&quot; -a -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -Dp -m0755 yam.cron $(DESTDIR)$(sysconfdir)/cron.daily/yam || :
+ 	
+ 	@if [ -z &quot;$(DESTDIR)&quot; -a -x &quot;/sbin/chkconfig&quot; ]; then \
+ 		/sbin/chkconfig --add yam; \
+
+Modified: trunk/tools/yam/config/yam.conf
+===================================================================
+--- trunk/tools/yam/config/yam.conf	2006-08-19 23:45:35 UTC (rev 4675)
++++ trunk/tools/yam/config/yam.conf	2006-08-20 00:21:13 UTC (rev 4676)
+@@ -5,6 +5,7 @@
+ [main]
+ srcdir = /var/yam
+ wwwdir = /var/www/yam
++confdir = /etc/yam.conf.d
+ arch = i386
+ #rhnlogin = username:password
+ 
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-08-19 23:45:35 UTC (rev 4675)
++++ trunk/tools/yam/yam	2006-08-20 00:21:13 UTC (rev 4676)
+@@ -141,26 +141,10 @@
+ 
+ class Config:
+ 	def __init__(self):
+-		self.configfile = op.configfile
+-		self.cfg = ConfigParser.ConfigParser()
++		self.read(op.configfile)
+ 
+-		(s,b,p,q,f,o) = urlparse.urlparse(self.configfile)
+-		if s in ('http', 'ftp', 'file'):
+-			configfh = urllib.urlopen(self.configfile)
+-			try:
+-				self.cfg.readfp(configfh)
+-			except ConfigParser.MissingSectionHeaderError, e:
+-				die(6, 'Error accessing URL: %s' % self.configfile)
+-		else:
+-			if os.access(self.configfile, os.R_OK):
+-				try:
+-					self.cfg.read(self.configfile)
+-				except:
+-					die(7, 'Syntax error reading file: %s' % self.configfile)
+-			else:
+-				die(6, 'Error accessing file: %s' % self.configfile)
+-
+ 		self.cachedir = self.getoption('main', 'cachedir', '/var/cache/yam')
++		self.confdir = self.getoption('main', 'confdir', None)
+ 		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/yam/html')
+ #		self.lockfile = self.getoption('main', 'lockfile', '/var/run/yam.pid')
+ 		self.pxelinux = self.getoption('main', 'pxelinux', '/usr/lib/syslinux/pxelinux.0')
+@@ -221,6 +205,30 @@
+ 
+ 		self.dists = []
+ 
++		self.update(op.configfile)
++
++	def read(self, configfile):
++		self.cfg = ConfigParser.ConfigParser()
++
++		info(4, 'Reading config file %s' % (configfile))
++
++		(s,b,p,q,f,o) = urlparse.urlparse(configfile)
++		if s in ('http', 'ftp', 'file'):
++			configfh = urllib.urlopen(configfile)
++			try:
++				self.cfg.readfp(configfh)
++			except ConfigParser.MissingSectionHeaderError, e:
++				die(6, 'Error accessing URL: %s' % configfile)
++		else:
++			if os.access(configfile, os.R_OK):
++				try:
++					self.cfg.read(configfile)
++				except:
++					die(7, 'Syntax error reading file: %s' % configfile)
++			else:
++				die(6, 'Error accessing file: %s' % configfile)
++
++	def update(self, configfile):
+ 		for section in ('variables', 'vars', 'DEFAULT'):
+ 			if section in self.cfg.sections():
+ 				for option in self.cfg.options(section):
+@@ -267,7 +275,7 @@
+ 			var = self.cfg.get(section, option)
+ 			info(2, 'Setting option %s in section [%s] to: %s' % (option, section, var))
+ 		except ConfigParser.NoSectionError, e:
+-			error(5, 'Failed to find section [%s] in %s' % (section, op.configfile))
++			error(5, 'Failed to find section [%s]' % section)
+ 		except ConfigParser.NoOptionError, e:
+ #			error(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
+ 			info(5, 'Setting option %s in section [%s] to: %s (default)' % (option, section, var))
+@@ -562,18 +570,20 @@
+ 			opts = ' -q' + opts
+ 		elif op.verbose &gt;= 4:
+ 			opts = ' -v' + opts
+-		if cf.cachedir:
+-			opts = opts + ' --cachedir &quot;%s&quot;' % cf.cachedir
+ 		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.isdir(repodir):
++				repoopts = opts
++				if cf.cachedir:
++					cachedir = os.path.join(cf.cachedir, self.dist, repo)
++					repoopts = repoopts + ' --cachedir &quot;%s&quot;' % cachedir
+ 				if os.path.isdir(os.path.join(repodir, '.olddata')):
+ 					remove(os.path.join(repodir, '.olddata'))
+ 				srcdir = os.path.join(cf.srcdir, self.nick, repo)
+ 				if os.path.isfile(os.path.join(cf.srcdir, self.nick, repo + '-comps.xml')):
+-						opts = opts + ' -g &quot;%s&quot;' % os.path.join(cf.srcdir, self.nick, repo + '-comps.xml')
++						repoopts = repoopts + ' -g &quot;%s&quot;' % os.path.join(cf.srcdir, self.nick, repo + '-comps.xml')
+ 				info(2, '%s: Create repomd repository for %s' % (self.nick, repo))
+-				run('%s %s %s' % (cf.cmd['createrepo'], opts, repodir))
++				run('%s %s %s' % (cf.cmd['createrepo'], repoopts, repodir))
+ 
+ 	def repoview(self):
+ 		&quot;Create a repoview index&quot;
+@@ -1198,7 +1208,7 @@
+ 					dists.append(dist)
+ 					append = True
+ 			if not append:
+-				error(1, 'Distribution %s not found in %s' % (name, op.configfile))
++				error(1, 'Distribution %s not defined' % name)
+ 
+ 	### Mounting and mirroring available distributions/repositories
+ 	for dist in dists:
+@@ -1341,6 +1351,12 @@
+ 	exitcode = 0
+ 	op = Options(sys.argv[1:])
+ 	cf = Config()
++	if cf.confdir and os.path.isdir(cf.confdir):
++		files = glob.glob(os.path.join(cf.confdir, '*.conf'))
++		files.sort()
++		for configfile in files:
++			cf.read(configfile)
++			cf.update(configfile)
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-08-19 23:45:35 UTC (rev 4675)
++++ trunk/tools/yam/yam.spec	2006-08-20 00:21:13 UTC (rev 4676)
+@@ -91,6 +91,7 @@
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS ChangeLog COPYING README THANKS TODO WISHLIST config/ docs/
+ %config(noreplace) %{_sysconfdir}/yam.conf
++%config(noreplace) %{_sysconfdir}/yam.conf.d/
+ %config(noreplace) %{_sysconfdir}/httpd/conf.d/yam.conf
+ %config(noreplace) %{_sysconfdir}/sysconfig/yam
+ %config %{_initrddir}/yam
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003475.html">[svn] r4675 - in trunk/rpms: . perl-GnuPG-Interface synbak
+</A></li>
+	<LI>Next message: <A HREF="003477.html">[svn] r4677 - in trunk/tools/yam: . config config/dists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3476">[ date ]</a>
+              <a href="thread.html#3476">[ thread ]</a>
+              <a href="subject.html#3476">[ subject ]</a>
+              <a href="author.html#3476">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

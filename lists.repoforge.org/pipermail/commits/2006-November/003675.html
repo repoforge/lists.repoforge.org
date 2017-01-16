@@ -1,0 +1,209 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4875 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4875%20-%20trunk/tools/yam&In-Reply-To=%3C20061111053724.3AAD4944A79%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003674.html">
+   <LINK REL="Next"  HREF="003676.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4875 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4875%20-%20trunk/tools/yam&In-Reply-To=%3C20061111053724.3AAD4944A79%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4875 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Nov 11 06:37:24 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003674.html">[svn] r4874 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="003676.html">[svn] r4876 - in trunk/rpms: asciidoc clamav ffmpeg fio fish gnochm	htpdate httping iodine libnxml lshw memcached pktstat	python-chm python-paramiko rsstool rsync testdisk trac unfs3	upx xine-lib xosd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3675">[ date ]</a>
+              <a href="thread.html#3675">[ thread ]</a>
+              <a href="subject.html#3675">[ subject ]</a>
+              <a href="author.html#3675">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-11-11 06:37:22 +0100 (Sat, 11 Nov 2006)
+New Revision: 4875
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/rhnget
+   trunk/tools/yam/yam
+Log:
+Updates
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-11-11 02:55:21 UTC (rev 4874)
++++ trunk/tools/yam/ChangeLog	2006-11-11 05:37:22 UTC (rev 4875)
+@@ -4,6 +4,8 @@
+ - Fixed a problem when locking during a dry-run (David Lutterkort)
+ - Improved a lot of dist configs
+ - Added proxy support to rhnget (no need anymore to tweak /etc/sysconfig/rhn/up2date)
++- Remove obsolete RHN packages (rhnget-cleanup/--delete option)
++- Added mailfrom directive to overwrite the sender address for mail reports (Jason Kim)
+ 
+ * 0.8.3 - Van Eyck - released 15/10/2006
+ - Fixed a problem with specific python versions (Justin B Hochstetler)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-11-11 02:55:21 UTC (rev 4874)
++++ trunk/tools/yam/TODO	2006-11-11 05:37:22 UTC (rev 4875)
+@@ -81,7 +81,6 @@
+ + Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+ + Allow rhnget to create new systems (register) in RHN on demand (gensystemid functionality)
+ + Handle channel subscription one way or the other
+-+ Remove unavailable RHN packages (rhnget-cleanup/--delete option)
+ + Reimplement using python xmlrpc instead of up2date
+ + Allow to download packages based on a glob (--include, --exclude)
+ + Add a --source option to allow for downloading source-packages
+
+Modified: trunk/tools/yam/rhnget
+===================================================================
+--- trunk/tools/yam/rhnget	2006-11-11 02:55:21 UTC (rev 4874)
++++ trunk/tools/yam/rhnget	2006-11-11 05:37:22 UTC (rev 4875)
+@@ -15,7 +15,7 @@
+ ### Copyright 2004-2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ import os, sys, shutil, getopt, ConfigParser, urlparse, types
+-import signal, xmlrpclib, getpass
++import signal, xmlrpclib, getpass, glob
+ 
+ if os.path.exists('/usr/share/rhn/') and os.path.exists('/usr/share/rhn/up2date_client/'):
+ 	sys.path.insert(0, '/usr/share/rhn/')
+@@ -123,6 +123,7 @@
+ 
+ rhnget options:
+       --delete            delete files that are not on the sender side
++      --download-all      download all package versions available
+   -n, --dry-run           show what would have been done
+   -q, --quiet             minimal output
+   -r, --release=release   specify the RHN release (if different from the systemid)
+@@ -131,6 +132,34 @@
+   -vv, -vvv, -vvvv..      increase verbosity more
+ '''
+ 
++class Set:
++	def __init__(self):
++		self.list = []
++
++	def add(self, input):
++		if input not in self.list:
++			self.list.append(input)
++    
++	def delete(self, input):
++		if input in self.list:
++			self.list.removed(input)
++    
++	def difference(self, other):
++		newlist = Set()
++		for element in self.list:
++			if element not in other.list:
++				newlist.add(element)
++		return newlist
++
++	def sort(self):
++		return self.list.sort()
++    
++	def __str__(self):
++		return '\n\t' + '\n\t'.join([element[0] for element in self.list])
++
++	def __len__(self):
++		return len(self.list)
++
+ class MirrorException(Exception):
+ 	def __init__(self, value):
+ 		self.value = value
+@@ -387,7 +416,33 @@
+ 			error(0, 'TypeError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
+ 		except up2dateErrors.CommunicationError, e:
+ 			error(0, 'CommunicationError: Error downloading package %s from %s. Skipping.\n%s' % (filename, label, e))
+-			
++
++	### Remove packages on the receiver side that are not on the sender side
++	if op.rhngetcleanup:
++
++		### Collect receiver side
++		receiver = Set()
++		for file in glob.glob(os.path.join(path, '*.rpm')):
++			if os.path.exists(file):
++				filename = os.path.basename(file)
++				size = os.stat(file).st_size
++				receiver.add( (filename, size) )
++		receiver.sort()
++
++		### Collect sender side
++		sender = Set()
++		for pkg in package_list:
++			filename = '%s-%s-%s.%s.rpm' % (pkg[0], pkg[1], pkg[2], pkg[4])
++			size = int(pkg[5])
++			sender.add( (filename, size) )
++		sender.sort()
++
++		### Remove difference between receiver and sender
++		cleanse = receiver.difference(sender)
++		for filename, size in cleanse.list:
++			info(3, 'Cleaning up obsolete file %s (%d kiB)' % (filename, size))
++			remove(os.path.join(path, filename))
++
+ def main():
+ 	mirrorrhn(op.uri, op.destination)
+ 
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-11-11 02:55:21 UTC (rev 4874)
++++ trunk/tools/yam/yam	2006-11-11 05:37:22 UTC (rev 4875)
+@@ -162,6 +162,7 @@
+ 		self.logfile = self.getoption('main', 'logfile', '/var/log/yam.log')
+ 
+ 		self.mailto = self.getoption('main', 'mailto', None)
++		self.mailfrom = self.getoption('main', 'mailfrom', 'yam@%s' % os.uname()[1])
+ 		self.smtpserver = self.getoption('main', 'smtp-server', 'localhost')
+ 
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+@@ -1249,7 +1250,7 @@
+ #		server.set_debuglevel(1)
+ 		msg = 'Subject: [yam] %s\n\n%s' % (subject, msg)
+ 		for email in cf.mailto.split():
+-			smtp.sendmail('yam@%s' % os.uname()[1], email, 'To: %s\n%s' % (email, msg))
++			smtp.sendmail(cf.mailfrom, email, 'To: %s\n%s' % (email, msg))
+ 		smtp.quit()
+ 	except:
+ 		info(1, 'Sending mail via %s failed.' % cf.smtpserver)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003674.html">[svn] r4874 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="003676.html">[svn] r4876 - in trunk/rpms: asciidoc clamav ffmpeg fio fish gnochm	htpdate httping iodine libnxml lshw memcached pktstat	python-chm python-paramiko rsstool rsync testdisk trac unfs3	upx xine-lib xosd
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3675">[ date ]</a>
+              <a href="thread.html#3675">[ thread ]</a>
+              <a href="subject.html#3675">[ subject ]</a>
+              <a href="author.html#3675">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

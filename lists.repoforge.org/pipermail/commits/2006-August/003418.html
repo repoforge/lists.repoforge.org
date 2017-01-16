@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4618 - trunk/tools/dwscan
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4618%20-%20trunk/tools/dwscan&In-Reply-To=%3C20060805125537.9B36994CD7E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003417.html">
+   <LINK REL="Next"  HREF="003419.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4618 - trunk/tools/dwscan</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4618%20-%20trunk/tools/dwscan&In-Reply-To=%3C20060805125537.9B36994CD7E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4618 - trunk/tools/dwscan">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Aug  5 14:55:37 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003417.html">[svn] r4617 - in trunk/rpms: abcm2ps mathomatic smb4k
+</A></li>
+        <LI>Next message: <A HREF="003419.html">[svn] r4619 - in trunk/rpms: . libsnet liferea lshw radmind viewvc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3418">[ date ]</a>
+              <a href="thread.html#3418">[ thread ]</a>
+              <a href="subject.html#3418">[ subject ]</a>
+              <a href="author.html#3418">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-05 14:55:36 +0200 (Sat, 05 Aug 2006)
+New Revision: 4618
+
+Modified:
+   trunk/tools/dwscan/ChangeLog
+   trunk/tools/dwscan/TODO
+   trunk/tools/dwscan/dwscan
+Log:
+Added IP and module information.
+
+Modified: trunk/tools/dwscan/ChangeLog
+===================================================================
+--- trunk/tools/dwscan/ChangeLog	2006-08-05 11:17:44 UTC (rev 4617)
++++ trunk/tools/dwscan/ChangeLog	2006-08-05 12:55:36 UTC (rev 4618)
+@@ -4,6 +4,7 @@
+ - Base default sort order on 15sec average quality
+ - Change default update delay to 200ms
+ - Show 15sec average quality
++- Added IP address and module name information
+ 
+ * 0.2 - Gentse Fiesten - release 16/07/2006
+ - Added 15sec and 30sec signal-to-noise ratio averages
+
+Modified: trunk/tools/dwscan/TODO
+===================================================================
+--- trunk/tools/dwscan/TODO	2006-08-05 11:17:44 UTC (rev 4617)
++++ trunk/tools/dwscan/TODO	2006-08-05 12:55:36 UTC (rev 4618)
+@@ -15,8 +15,8 @@
+ + Use ncurses
+ + Allow for sorting on name, HW address, Last beacon and channel
+ + Ability to select access point and configure essid, ap and channel
+-+ Show non-wireless interfaces and IP information as well
+-+ Show per interface device driver information (ipw2200, airo, ...)
+++ Show non-wireless interfaces
+++ Show gateway and gateway interface
+ 
+ ### Export/Graph
+ + Automatically save and restore information
+
+Modified: trunk/tools/dwscan/dwscan
+===================================================================
+--- trunk/tools/dwscan/dwscan	2006-08-05 11:17:44 UTC (rev 4617)
++++ trunk/tools/dwscan/dwscan	2006-08-05 12:55:36 UTC (rev 4618)
+@@ -16,6 +16,7 @@
+ 
+ import sys, signal, re, time, string
+ from pythonwifi import iwlibs
++from rhpl import ethtool
+ 
+ VERSION = '0.2svn'
+ 
+@@ -145,6 +146,18 @@
+ 		signalname = 'Not Assoc'
+ 	return ecol + signalname
+ 
++def interface(iface):
++	try:
++		ip = ethtool.get_ipaddr(iface)
++		# netmask = ethtool.get_netmask(iface)
++	except Exception:
++		ip = ''
++	try:
++		module = ethtool.get_module(iface)
++	except Exception:
++		module = ''
++	return ip, module
++
+ if not iwlibs.getNICnames():
+ 	print &quot;No wireless interfaces found on the system.&quot;
+ 	sys.exit(1)
+@@ -198,6 +211,8 @@
+ 
+ #			print ifobj.getFrequency()
+ 
++			ip, module = interface(iface)
++
+ 			assaps[iface] = {
+ 				'avgsnr': avgsnr,
+ 				'avgsnr15': avgsnr15,
+@@ -209,6 +224,8 @@
+ 				'essid': ifobj.getEssid(),
+ #				'frequency': ifobj.getFrequency(),
+ 				'iface': iface,
++				'ip': ip,
++				'module': module,
+ 				'missed_beacon': missed_beacon,
+ 				'noise': quality.noiselevel,
+ 				'stats': stats,
+@@ -271,13 +288,13 @@
+ 				}
+ 
+ 		### Display Association information
+-		print ansi['home'] + ansi['blue'] + ' %(iface)-5s  %(essid)-20s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4s  %(avgsnr15)4s  %(signalname)-10s' % { 'iface': 'Iface', 'essid': 'ESSID/Name', 'signal': 'Sgnl', 'noise': 'Nois', 'snr': 'SNR', 'avgsnr': 'Avg', 'avgsnr15': 'Av15', 'bitrate': 'Cur rate', 'missed_beacon': 'Mis', 'signalname': 'Strength' }
++		print ansi['home'] + ansi['blue'] + ' %(iface)-5s  %(module)-10s  %(essid)-20s  %(ip)-15s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4s  %(avgsnr15)4s  %(signalname)-10s' % { 'iface': 'Iface', 'module': 'Module', 'essid': 'ESSID/Name', 'ip': 'IP address', 'signal': 'Sgnl', 'noise': 'Nois', 'snr': 'SNR', 'avgsnr': 'Avg', 'avgsnr15': 'Av15', 'bitrate': 'Cur rate', 'missed_beacon': 'Mis', 'signalname': 'Strength' }
+ #		print ansi['blue'] + &quot;%-5s  %-20s  %4s  %4s  %3s  %8s  %3s  %-10s&quot; % ('Iface', 'ESSID/Name', 'Sgnl', 'Nois', 'SNR', 'Cur rate', 'Mis', 'Strength')
+ 		ifaces = assaps.keys()
+ 		ifaces.sort()
+ 		for iface in ifaces:
+ 			obj = assaps[iface]
+-			print ansi['default'] + (' %(iface)-5s  %(essid)-20s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4.1f  %(avgsnr15)4.1f  %(strength)-10s' % obj) + ansi['silver'] + ansi['cleareol']
++			print ansi['default'] + (' %(iface)-5s  %(module)-10s  %(essid)-20s  %(ip)-15s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4.1f  %(avgsnr15)4.1f  %(strength)-10s' % obj) + ansi['silver'] + ansi['cleareol']
+ 
+ 		print ansi['clearline']
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003417.html">[svn] r4617 - in trunk/rpms: abcm2ps mathomatic smb4k
+</A></li>
+	<LI>Next message: <A HREF="003419.html">[svn] r4619 - in trunk/rpms: . libsnet liferea lshw radmind viewvc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3418">[ date ]</a>
+              <a href="thread.html#3418">[ thread ]</a>
+              <a href="subject.html#3418">[ subject ]</a>
+              <a href="author.html#3418">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

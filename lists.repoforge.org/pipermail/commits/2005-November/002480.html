@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3680 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3680%20-%20trunk/tools/dstat&In-Reply-To=%3C20051104090415.2EACC50AB6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002479.html">
+   <LINK REL="Next"  HREF="002481.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3680 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3680%20-%20trunk/tools/dstat&In-Reply-To=%3C20051104090415.2EACC50AB6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3680 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Nov  4 10:04:15 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002479.html">[svn] r3679 - trunk/rpms/ntop
+</A></li>
+        <LI>Next message: <A HREF="002481.html">[svn] r3681 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2480">[ date ]</a>
+              <a href="thread.html#2480">[ thread ]</a>
+              <a href="subject.html#2480">[ subject ]</a>
+              <a href="author.html#2480">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-11-04 10:04:11 +0100 (Fri, 04 Nov 2005)
+New Revision: 3680
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Fixes/changes to terminal type handling and reporting
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-11-03 20:23:00 UTC (rev 3679)
++++ trunk/tools/dstat/ChangeLog	2005-11-04 09:04:11 UTC (rev 3680)
+@@ -1,5 +1,6 @@
+ * 0.6.2 - ? - released ??/??/2005
+ - Fixed situation where no TERM environment variable was set (William Webber)
++- Print out terminal debug info (TERM env and terminal type)
+ - Added SwapCached value to Cached (Bert de Bruijn)
+ 
+ * 0.6.1 - Fishkill - released 05/09/2005
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-11-03 20:23:00 UTC (rev 3679)
++++ trunk/tools/dstat/dstat	2005-11-04 09:04:11 UTC (rev 3680)
+@@ -203,7 +203,9 @@
+ 		print 'Kernel %s' % os.uname()[2]
+ 		print 'Python %s' % sys.version
+ 		print
+-		print 'Terminal: %d lines, %d columns' % getwinsize()
++		rows, cols = getwinsize()
++		print 'Terminal type:', os.getenv('TERM') + '/' + termtype
++		print 'Terminal: %d lines, %d columns' % (rows, cols)
+ 		print
+ 		print 'Processors: %d' % getcpunr()
+ 		print 'Pagesize: %d' % resource.getpagesize()
+@@ -1475,19 +1477,24 @@
+ 	&quot;Return the terminal geometry using several methods&quot;
+ #	if op.nolimit:
+ #		return 1024, 1024
++	global termtype
++	termtype = 'curses'
+ 	try:
+ 		curses.setupterm()
+ 		return curses.tigetnum('lines'), curses.tigetnum('cols')
+ 	except:
++		termtype = 'fcntl'
+ 		try:
+ 			import fcntl, struct, termios
+ 			s = struct.pack('HHHH', 0, 0, 0, 0)
+ 			x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+ 			return struct.unpack('HHHH', x)[:2]
+ 		except:
++			termtype = 'env'
+ 			try:
+ 				return int(os.getenv('LINES')), int(os.getenv('COLUMNS'))
+ 			except:
++				termtype = 'none'
+ 				return 25, 80
+ 
+ def getcpunr():
+@@ -1578,7 +1585,7 @@
+ 		print
+ 
+ def main():
+-	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile, tick, cols
++	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile, tick, cols, termtype
+ 
+ 	loop = update = 0
+ 	step = op.delay
+@@ -1591,19 +1598,20 @@
+ 	user = getpass.getuser()
+ 	hostname = os.uname()[1].split('.')[0]
+ 
++	rows, cols = getwinsize()
++
+ 	### Write term-title
+ 	term = os.getenv('TERM')
+ 	if term and re.compile('(screen*|xterm*)').match(term):
+ 		sys.stdout.write('\033]0;(%s@%s) %s %s\007' % (user, hostname, os.path.basename(sys.argv[0]), ' '.join(op.args)))
+ 
+ 	### Check terminal capabilities
+-	if sys.stdout.isatty():
+-		if 'curses' in sys.modules.keys() and hasattr(curses, 'tigetnum') and curses.tigetnum('colors') &lt; 0:
+-			op.color = False
+-	else:
++	if not sys.stdout.isatty():
+ 		op.color = False
+ 		op.nolimit = True
+ 		op.update = False
++	elif termtype!='curses' or not hasattr(curses, 'tigetnum') or curses.tigetnum('colors') &lt; 0:
++			op.color = False
+ 
+ 	if op.output:
+ 		if os.path.exists(op.output):
+@@ -1617,8 +1625,6 @@
+ 		outputfile.write('&quot;Host:&quot;,&quot;%s&quot;,,,,&quot;User:&quot;,&quot;%s&quot;\n' % (hostname, user))
+ 		outputfile.write('&quot;Cmdline:&quot;,&quot;dstat %s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;\n\n' % (' '.join(op.args), time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime())))
+ 
+-	rows, cols = getwinsize()
+-
+ 	### Empty ansi database if no colors are requested
+ 	if not op.color:
+ 		op.update = False
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002479.html">[svn] r3679 - trunk/rpms/ntop
+</A></li>
+	<LI>Next message: <A HREF="002481.html">[svn] r3681 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2480">[ date ]</a>
+              <a href="thread.html#2480">[ thread ]</a>
+              <a href="subject.html#2480">[ subject ]</a>
+              <a href="author.html#2480">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

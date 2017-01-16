@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1280 - trunk/rpms/mixxx
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1280%20-%20trunk/rpms/mixxx&In-Reply-To=%3C20040609151121.C538A1FC8B%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000088.html">
+   <LINK REL="Next"  HREF="000090.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1280 - trunk/rpms/mixxx</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1280%20-%20trunk/rpms/mixxx&In-Reply-To=%3C20040609151121.C538A1FC8B%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1280 - trunk/rpms/mixxx">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Jun  9 17:11:21 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000088.html">[SVN] r1279 - in trunk/rpms: frozen-bubble perl-SDL smpeg
+</A></li>
+        <LI>Next message: <A HREF="000090.html">[SVN] r1281 - in trunk/rpms: . gtweakui
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#89">[ date ]</a>
+              <a href="thread.html#89">[ thread ]</a>
+              <a href="subject.html#89">[ subject ]</a>
+              <a href="author.html#89">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-06-09 17:11:19 +0200 (Wed, 09 Jun 2004)
+New Revision: 1280
+
+Modified:
+   trunk/rpms/mixxx/mixxx.spec
+Log:
+Update to 1.3 and major spec file changes.
+
+
+Modified: trunk/rpms/mixxx/mixxx.spec
+===================================================================
+--- trunk/rpms/mixxx/mixxx.spec	2004-06-09 11:15:33 UTC (rev 1279)
++++ trunk/rpms/mixxx/mixxx.spec	2004-06-09 15:11:19 UTC (rev 1280)
+@@ -1,10 +1,11 @@
+ # $Id$
+-
+ # Authority: dag
+ 
++%define desktop_vendor dag
++
+ Summary: DJ software emulating an analog mixer with two playback devices
+ Name: mixxx
+-Version: 1.2.1
++Version: 1.3
+ Release: 0
+ License: GPL
+ Group: Applications/Multimedia
+@@ -16,41 +17,92 @@
+ Source: <A HREF="http://dl.sf.net/mixxx/mixxx-%{version">http://dl.sf.net/mixxx/mixxx-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-BuildRequires: glibc-devel, XFree86-devel, qt3-devel
+-BuildRequires: audiofile-devel, libmad-devel, portaudio
+-BuildRequires: fftw-devel
++BuildRequires: glibc-devel, XFree86-devel, qt3-devel, glib-devel
++BuildRequires: audiofile-devel, libmad-devel, libid3tag-devel
++BuildRequires: libvorbis-devel, libogg-devel, libsndfile-devel
++BuildRequires: portaudio, alsa-lib-devel, fftw-devel
++%{!?_without_freedesktop:BuildRequires: desktop-file-utils}
+ 
+ %description
+-Mixxx is DJ software emulating an analog mixer with two playback devices.
++Press play. Mixxx gives you full access to your digital sound library. Go
++ahead and use Ogg Vorbis, MP3 and wave files in your live DJ mix. Pitch the
++sound with same high sound quality as on your good old Technics 1210.
++Beat track and automatic tempo sync makes beat mixing a breeeze, waveform
++displays makes visual sync possible, and FishEye view mode gives you a tight
++startup.
++Use mouse, keyboard, MIDI equipment, PowerMates, and joystics to interact with
++Mixxx. Low latency operation and hardware controllers makes the big difference
++in a live gig. Mixxx supports it all.
+ 
+ %prep
+ %setup
+ 
+ %build
+ source &quot;%{_sysconfdir}/profile.d/qt.sh&quot;
+-cd src
+-qmake -makefile -unix
+-%{__make} %{?_smp_mflags}
++# The PWD thing is an ugly hack since relative paths mess everything up...
++pushd src
++    # Alsa doesn't seem to get enabled for now (unimplemented?)
++    ./configure --prefix=&quot;${PWD}%{_prefix}&quot; --enable-features=&quot;Alsa&quot;
++    %{__perl} -pi.orig -e &quot;s|${PWD}||g&quot; Makefile
++    %{__make} %{?_smp_mflags}
++popd
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__install} -d -m0755 %{buildroot}%{_bindir} \
+-			%{buildroot}%{_datadir}/mixxx/
+-%{__install} -m0755 src/mixxx %{buildroot}%{_bindir}
+-%{__cp} -auvx src/keyboard/ %{buildroot}%{_datadir}/mixxx/
+-%{__cp} -auvx src/midi/ %{buildroot}%{_datadir}/mixxx/
+-%{__cp} -auvx src/skins/ %{buildroot}%{_datadir}/mixxx/
++pushd src
++    # That trailing slash is mandatory because of &quot;$(INSTALL_ROOT)usr&quot; lines
++    %{__make} install INSTALL_ROOT=&quot;%{buildroot}/&quot;
++popd
+ 
++# Install menu entry
++%{__cat} &gt; %{name}.desktop &lt;&lt; EOF
++[Desktop Entry]
++Name=Mixxx
++Comment=DJ mixing software
++Icon=mixxx.png
++Exec=mixxx
++Terminal=false
++Type=Application
++Categories=Application;AudioVideo;
++Encoding=UTF-8
++EOF
++                                                                                
++%if %{!?_without_freedesktop:1}0
++%{__mkdir_p} %{buildroot}%{_datadir}/applications
++desktop-file-install \
++    --vendor %{desktop_vendor} \
++    --dir %{buildroot}%{_datadir}/applications \
++    %{name}.desktop
++%else
++%{__install} -D -m 0644 %{name}.desktop \
++    %{buildroot}%{_sysconfdir}/X11/applnk/Multimedia/%{name}.desktop
++%endif
++
++# Install icon for the menu entry
++%{__install} -D -m 644 src/icon.png %{buildroot}%{_datadir}/pixmaps/mixxx.png
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc COPYING LICENCE README *.txt
++%doc COPYING LICENSE README Mixxx-Manual.pdf
+ %{_bindir}/*
+ %{_datadir}/mixxx/
++%{_datadir}/pixmaps/mixxx.png
++%if %{!?_without_freedesktop:1}0
++%{_datadir}/applications/%{desktop_vendor}-%{name}.desktop
++%else
++%{_sysconfdir}/X11/applnk/Multimedia/%{name}.desktop
++%endif
+ 
+ %changelog
++* Wed Jun  9 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.3-0
++- Update to 1.3.
++- Added missing build requirements.
++- Updated description.
++- Switched to the new configure/make (still weird, though) build method.
++
+ * Sun Jan 04 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.2.1-0
+ - Updated to release 1.2.1.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000088.html">[SVN] r1279 - in trunk/rpms: frozen-bubble perl-SDL smpeg
+</A></li>
+	<LI>Next message: <A HREF="000090.html">[SVN] r1281 - in trunk/rpms: . gtweakui
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#89">[ date ]</a>
+              <a href="thread.html#89">[ thread ]</a>
+              <a href="subject.html#89">[ subject ]</a>
+              <a href="author.html#89">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

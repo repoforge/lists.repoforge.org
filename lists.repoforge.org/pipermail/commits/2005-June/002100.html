@@ -1,0 +1,453 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3298 - in trunk/tools/pydar2: . bin pydar sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3298%20-%20in%20trunk/tools/pydar2%3A%20.%20bin%20pydar%20sql&In-Reply-To=%3C20050610214535.148FF1D03F1%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002099.html">
+   <LINK REL="Next"  HREF="002101.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3298 - in trunk/tools/pydar2: . bin pydar sql</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3298%20-%20in%20trunk/tools/pydar2%3A%20.%20bin%20pydar%20sql&In-Reply-To=%3C20050610214535.148FF1D03F1%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3298 - in trunk/tools/pydar2: . bin pydar sql">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jun 10 23:45:35 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002099.html">[svn] r3297 - in trunk/rpms: amyedit cwirc dirac dspam elmo enca	eternallands exiftags kile perl-Inline-Octave pydar2 scilab	umbrello wesnoth
+</A></li>
+        <LI>Next message: <A HREF="002101.html">[svn] r3299 - in trunk/tools/pydar2: . dries pydar scripts sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2100">[ date ]</a>
+              <a href="thread.html#2100">[ thread ]</a>
+              <a href="subject.html#2100">[ subject ]</a>
+              <a href="author.html#2100">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-10 23:45:32 +0200 (Fri, 10 Jun 2005)
+New Revision: 3298
+
+Added:
+   trunk/tools/pydar2/bin/
+   trunk/tools/pydar2/bin/pydar-buildserver-master
+   trunk/tools/pydar2/bin/pydar-buildserver-slave
+   trunk/tools/pydar2/bin/pydar-master-autoqueue
+   trunk/tools/pydar2/bin/pydar-master-movecommandresults
+   trunk/tools/pydar2/bin/pydar-master-targetupdate
+   trunk/tools/pydar2/bin/pydar-master-update
+   trunk/tools/pydar2/bin/pydar-remote
+   trunk/tools/pydar2/pydar-master-targetupdate.py
+Modified:
+   trunk/tools/pydar2/Makefile
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar/pydarclient.py
+   trunk/tools/pydar2/pydar/rights.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/pydar/yumbasedbuildroot.py
+   trunk/tools/pydar2/sql/master.sql
+Log:
+update
+
+Modified: trunk/tools/pydar2/Makefile
+===================================================================
+--- trunk/tools/pydar2/Makefile	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/Makefile	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -4,10 +4,11 @@
+ sysconfdir=/etc
+ localstatedir=/var
+ 
+-DIST_PYSCRIPTS=pydar-buildserver-master.py pydar-buildserver-slave.py pydar-remote.py pydar-master-update.py pydar-master-autoqueue.py pydar-master-movecommandresults.py
++DIST_PYSCRIPTS=pydar-buildserver-master.py pydar-buildserver-slave.py pydar-remote.py pydar-master-update.py pydar-master-autoqueue.py pydar-master-movecommandresults.py pydar-master-targetupdate.py
+ DIST_ETCFILES=etc/master.conf etc/client.conf etc/slave.conf etc/specrepositories.conf etc/targets.conf etc/accounts.conf
+ #DIST_SHSCRIPTS=dar-remote
+ #DIST_INITSCRIPTS=pydar-buildserver-master pydar-buildserver-slave
++DIST_BASHSCRIPTS=bin/pydar-buildserver-master bin/pydar-buildserver-slave bin/pydar-master-autoqueue bin/pydar-master-movecommandresults bin/pydar-master-update bin/pydar-remote bin/pydar-master-targetupdate
+ 
+ DESTDIR=
+ 
+@@ -34,6 +35,7 @@
+ 		$(DESTDIR)$(datadir)/pydar2/scripts
+ 	install -m0755 $(DIST_PYSCRIPTS) log4py.conf $(DESTDIR)$(datadir)/pydar2/
+ 	install -m0755 $(DIST_ETCFILES) $(DESTDIR)$(sysconfdir)/pydar2/
++	install -m0755 $(DIST_BASHSCRIPTS) $(DESTDIR)$(bindir)
+ 	install -m0755 etc/yum/*.conf $(DESTDIR)$(sysconfdir)/pydar2/yum/
+ 	#install -m0755 $(DIST_SHSCRIPTS) $(DESTDIR)$(bindir)
+ 	install -m0755 pydar/*.py $(DESTDIR)$(datadir)/pydar2/pydar
+@@ -47,4 +49,3 @@
+ 	#install -m0755 defaults.conf $(DESTDIR)$(datadir)/pydar/
+ 	#install -m0755 pydar.conf $(DESTDIR)$(sysconfdir)/pydar/
+ 	#install -m0755 dbinit.sql $(DESTDIR)$(datadir)/pydar/
+-
+
+Added: trunk/tools/pydar2/bin/pydar-buildserver-master
+===================================================================
+--- trunk/tools/pydar2/bin/pydar-buildserver-master	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/bin/pydar-buildserver-master	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd /usr/share/pydar2
++./pydar-buildserver-master.py
+
+
+Property changes on: trunk/tools/pydar2/bin/pydar-buildserver-master
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/pydar2/bin/pydar-buildserver-slave
+===================================================================
+--- trunk/tools/pydar2/bin/pydar-buildserver-slave	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/bin/pydar-buildserver-slave	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd /usr/share/pydar2
++./pydar-buildserver-slave.py
+
+
+Property changes on: trunk/tools/pydar2/bin/pydar-buildserver-slave
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/pydar2/bin/pydar-master-autoqueue
+===================================================================
+--- trunk/tools/pydar2/bin/pydar-master-autoqueue	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/bin/pydar-master-autoqueue	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd /usr/share/pydar2
++./pydar-master-autoqueue.py
+
+
+Property changes on: trunk/tools/pydar2/bin/pydar-master-autoqueue
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/pydar2/bin/pydar-master-movecommandresults
+===================================================================
+--- trunk/tools/pydar2/bin/pydar-master-movecommandresults	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/bin/pydar-master-movecommandresults	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd /usr/share/pydar2
++./pydar-master-movecommandresults.py
+
+
+Property changes on: trunk/tools/pydar2/bin/pydar-master-movecommandresults
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/pydar2/bin/pydar-master-targetupdate
+===================================================================
+--- trunk/tools/pydar2/bin/pydar-master-targetupdate	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/bin/pydar-master-targetupdate	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd /usr/share/pydar2
++./pydar-master-targetupdate.py
+
+
+Property changes on: trunk/tools/pydar2/bin/pydar-master-targetupdate
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/pydar2/bin/pydar-master-update
+===================================================================
+--- trunk/tools/pydar2/bin/pydar-master-update	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/bin/pydar-master-update	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd /usr/share/pydar2
++./pydar-master-update.py
+
+
+Property changes on: trunk/tools/pydar2/bin/pydar-master-update
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/pydar2/bin/pydar-remote
+===================================================================
+--- trunk/tools/pydar2/bin/pydar-remote	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/bin/pydar-remote	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd /usr/share/pydar2
++./pydar-remote.py
+
+
+Property changes on: trunk/tools/pydar2/bin/pydar-remote
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/pydar2/pydar/pydarclient.py
+===================================================================
+--- trunk/tools/pydar2/pydar/pydarclient.py	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/pydar/pydarclient.py	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -64,3 +64,8 @@
+         myserverclient = Server(self.buildmasterurl)
+         retval = myserverclient.callMoveCommandResultsScript(userId,password, commandId)
+         return retval
++    
++    def updateTargetFileList(self, userId, password, targetName, mailTo):
++        myserverclient = Server(self.buildmasterurl)
++        retval = myserverclient.updateTargetFileList(userId, password, targetName, mailTo)
++        return retval
+
+Modified: trunk/tools/pydar2/pydar/rights.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rights.py	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/pydar/rights.py	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -34,4 +34,6 @@
+     GET_NUMBER_OF_NOTYETSTARTED_COMMANDS = &quot;GET_NUMBER_OF_NOTYETSTARTED_COMMANDS&quot;
+     AUTO_QUEUE = &quot;AUTO_QUEUE&quot;
+     MOVE_COMMAND_RESULTS =&quot;MOVE_COMMAND_RESULTS&quot;
++    UPDATE_TARGET_FILE_LIST = &quot;UPDATE_TARGET_FILE_LIST&quot;
+     
++    
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/pydar/target.py	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -22,6 +22,12 @@
+ from log4py import Logger
+ from preparespecfilescriptlist import PrepareSpecFileScriptList
+ import posixpath, posix, string, os, sha
++from buildrootresult import BuildRootResult
++import smtplib
++from email.MIMEText import MIMEText
++from email.MIMEMultipart import MIMEMultipart
++from email.MIMEBase import MIMEBase
++from email import Encoders
+ 
+ class Target:
+     def __init__(self, name):
+@@ -77,13 +83,21 @@
+     def setMoveCommandResultsScript(self,newScript):
+         self.__moveCommandResultsScript = newScript
+ 
+-    def autoQueue(self, mailTo, userName, priority, specRepository, distroArchTag):
++    def updateTargetFileList(self, userId, mailTo):
+         self.__cat.debug(&quot;start&quot;)
+         self.__storage = storagefactory.StorageFactory.getStorage()
+         if not self.supportsAutoQueueing():
+             return
+         self.__updateListOfRpms()
+         self.__cat.debug(&quot;updateListOfRpms is done&quot;)
++        
++        
++    def autoQueue(self, mailTo, userName, priority, specRepository, distroArchTag):
++        self.__cat.debug(&quot;start&quot;)
++        self.__storage = storagefactory.StorageFactory.getStorage()
++        if not self.supportsAutoQueueing():
++            return
++        self.__cat.debug(&quot;updateListOfRpms not done&quot;)
+         self.__autoQueueByDistroArchTag(distroArchTag,mailTo,userName,priority,specRepository)
+         
+     def autoQueueOld(self, mailTo, userName, priority, specRepository):
+@@ -91,30 +105,58 @@
+         self.__storage = storagefactory.StorageFactory.getStorage()
+         if not self.supportsAutoQueueing():
+             return
+-        self.__updateListOfRpms()
+-        self.__cat.debug(&quot;updateListOfRpms is done&quot;)
+         for datag in self.__storage.getDistroArchTags():
+             self.__cat.debug(&quot;going to autoqueue for distroarchtag:&quot; + datag)
+             self.__autoQueueByDistroArchTag(datag, mailTo, userName, priority, specRepository)
+             
+     def __autoQueueByDistroArchTag(self,datag, mailTo, userName, priority, specRepository):
+         self.__cat.debug(&quot;start, datag=&quot; + datag)
++        brr = BuildRootResult(None)
++        brr.logDebugLine(&quot;autoQueue log for DistroArchTag:&quot; + str(datag) + &quot;,mailTo:&quot; + str(mailTo) + &quot;,userName:&quot;+ str(userName) + &quot;,priority:&quot; + str(priority) + &quot;,specRepository.name:&quot; + specRepository.getName() + &quot;,target.name:&quot;+ self.getName())
+         # create a hash which contains:   specfileid -&gt; version   for each specfile in the specrepository
+         # create a hash which contains:   a specfileid -&gt; version for each rpm in the list of rpms of this target, when a specfileid can be found
+         
+         specRepoSpecFileIdsToVersions = self.__storage.getSpecFileIdsToVersions(specRepository)
+         targetRpmsSpecFileIdsToVersions = self.__storage.getTargetRpmsSpecFileIdsToVersions(self, datag,specRepository)
+         for spid in specRepoSpecFileIdsToVersions.keys():
+-            if spid not in targetRpmsSpecFileIdsToVersions.keys() or specRepoSpecFileIdsToVersions[spid] &gt; targetRpmsSpecFileIdsToVersions[spid]:
+-                self.autoQueueOne(spid, datag, mailTo, userName, priority, specRepository)
++            if (spid not in targetRpmsSpecFileIdsToVersions.keys()) or (specRepoSpecFileIdsToVersions[spid] &gt; targetRpmsSpecFileIdsToVersions[spid]):
++                self.autoQueueOne(spid, datag, mailTo, userName, priority, specRepository, brr)
+             else:
+                 self.__cat.debug(&quot;not queuing: specFileId=&quot; + str(spid) + &quot;,distroArchTag=&quot; + datag + &quot;,mailto=&quot; + mailTo + &quot;,userName=&quot; + userName + &quot;,priority=&quot; +str(priority) +&quot;,specRepository=&quot; + str(specRepository))
++                targetVersion = &quot;NONE&quot;
++                if spid in targetRpmsSpecFileIdsToVersions.keys():
++                    targetVersion = targetRpmsSpecFileIdsToVersions[spid]
++                brr.logDebugLine(&quot;specRepoSpecId &quot; + str(spid) + &quot; not queued: &quot; + &quot;specRepo version: &quot; + str(specRepoSpecFileIdsToVersions[spid]) + &quot;,targetRpm Version:&quot; + str(targetVersion) + &quot;,path:&quot; + str(specRepository.getSpecRepositorySpecFileById(spid).getPathFromRoot()))
++        self.__informClientAfterAutoQueueByDistroArchTag(brr, mailTo, datag)
++                
++    def __informClientAfterAutoQueueByDistroArchTag(self, brr, mailTo, datag):
++        self.__cat.debug(&quot;start&quot;)
++        subject = &quot;pydar2:: autoqueue: &quot; + str(datag)
++        self.__cat.debug(&quot;subject set&quot;)
++        output = brr.getContainsErrorsText() + &quot;\n&quot;
++        self.__cat.debug(&quot;errors descr added&quot;)
++        output = output + &quot;\nLog:\n&quot;
++        output = output + brr.getLog() + &quot;\n&quot;
++        msg = MIMEMultipart()
++        msg['Subject'] = subject
++        msg['From'] = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        msg['To'] = mailTo
++        me = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        you = mailTo
++        msg.attach(MIMEText(output))
++        s = smtplib.SMTP(&quot;127.0.0.1&quot;)
++        s.sendmail(me, [you], msg.as_string())
++        s.close()
++
+         
+-    def autoQueueOne(self, specFileId, distroArchTag, mailTo, userName, priority, specRepository):
++    def autoQueueOne(self, specFileId, distroArchTag, mailTo, userName, priority, specRepository, brr):
+         self.__cat.debug(&quot;start, specFileId=&quot; + str(specFileId) + &quot;,distroArchTag=&quot; + distroArchTag + &quot;,mailto=&quot; + mailTo + &quot;,userName=&quot; + userName + &quot;,priority=&quot; +str(priority) +&quot;,specRepository=&quot; + str(specRepository))
+         testCommand = MasterCommand(&quot;BUILDSPECBYPATH&quot;,userName,specRepository.getId(),specFileId,mailTo,distroArchTag,priority,self.getId())
+         if self.acceptCommand(testCommand):
+             config.Config.getInstance().getCommandList().addCommand(&quot;BUILDSPECBYPATH&quot;,userName,specRepository.getName(),specRepository.getSpecRepositorySpecFileById(specFileId).getPathFromRoot(),mailTo,distroArchTag,priority,self.getName())
++            brr.logDebugLine(&quot;accepted: id: &quot; + str(specFileId) + &quot;, path: &quot; + str(specRepository.getSpecRepositorySpecFileById(specFileId).getPathFromRoot()))
++        else:
++            brr.logDebugLine(&quot;not accepted: id: &quot; + str(specFileId) + &quot;, path: &quot; + str(specRepository.getSpecRepositorySpecFileById(specFileId).getPathFromRoot()))
+         
+         
+     # get some data from an srpm
+
+Modified: trunk/tools/pydar2/pydar/yumbasedbuildroot.py
+===================================================================
+--- trunk/tools/pydar2/pydar/yumbasedbuildroot.py	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/pydar/yumbasedbuildroot.py	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -132,7 +132,7 @@
+         output = re.sub('\r',&quot;&quot;,output)
+         brr.logDebugLine(&quot;CMD: output:&quot; + str(output))
+         if status != 0:
+-            brr.logErrorLine(&quot;CMD: status is not 0 !&quot;)
++            brr.logErrorLine(&quot;CMD: status (&quot; + str(status) + &quot;) is not 0 !&quot;)
+         
+     def logCommandWithoutErrors(self,cmd,brr):
+         brr.logDebugLine(&quot;CMD: Command line:&quot; + cmd)
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -159,6 +159,18 @@
+         else:
+             raise Exception(&quot;UNKNOWN USERID&quot;)
+ 
++    def updateTargetFileList(self, userId, password, targetName, mailTo):
++        self.__cat.debug(&quot;start,userId=&quot; + str(userId))
++        if self.__storage.checkIfValidUserId(userId, password, Rights.UPDATE_TARGET_FILE_LIST):
++            target = self.__config.getTargetList().getTargetByName(targetName)
++            if target != None:
++                target.updateTargetFileList(userId, mailTo)
++            else:
++                raise Exception(&quot;target unknown&quot;)
++            return &quot;OK&quot;
++        else:
++            raise Exception(&quot;UNKNOWN USERID&quot;)
++        
+     def autoQueue(self,userId, password, targetName, mailTo, priority, specRepoName, distroArchTag):
+         self.__cat.debug(&quot;start,userId=&quot; + str(userId))
+         if self.__storage.checkIfValidUserId(userId, password, Rights.AUTO_QUEUE):
+
+Added: trunk/tools/pydar2/pydar-master-targetupdate.py
+===================================================================
+--- trunk/tools/pydar2/pydar-master-targetupdate.py	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/pydar-master-targetupdate.py	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -0,0 +1,44 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; targetupdate: update the list of rpms in a target &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import ConfigParser, os, posixpath, sys, commands
++from optparse import OptionParser
++sys.path.append(&quot;.&quot;)
++sys.path.append(&quot;pydar&quot;)
++sys.path.append(&quot;/usr/share/pydar2/pydar&quot;)
++
++
++from pydarclient import PydarClient
++from config import Config
++
++conf = Config.getInstance()
++
++parser = OptionParser(usage=&quot;usage: pydar-master-targetupdate.py [targetName] [mailTo]&quot;)
++parser.add_option(&quot;-c&quot;, &quot;--clientconfig&quot;, default=None, dest=&quot;clientconfig&quot;, help=&quot;specify configuration file&quot;, metavar=&quot;FILE&quot;)
++(options, args) = parser.parse_args()
++conf.specifyGetOptOptions(options)
++password = conf.getClientPassword()
++
++pc = PydarClient(conf.getBuildMasterUrlClient())
++targetName = args[0] #&quot;dries&quot;
++mailTo = args[1] # '<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>'
++priority = 0
++
++commandlines = pc.updateTargetFileList(conf.getClientUserId(), password, targetName, mailTo)
++
+
+
+Property changes on: trunk/tools/pydar2/pydar-master-targetupdate.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/pydar2/sql/master.sql
+===================================================================
+--- trunk/tools/pydar2/sql/master.sql	2005-06-09 17:23:50 UTC (rev 3297)
++++ trunk/tools/pydar2/sql/master.sql	2005-06-10 21:45:32 UTC (rev 3298)
+@@ -254,4 +254,5 @@
+ insert into pydar2_rights (id, abbrev, description) values (10, 'GET_NUMBER_OF_NOTYETSTARTED_COMMANDS', 'get the number of commands which are not yet reserved or finished');
+ insert into pydar2_rights (id, abbrev, description) values (11, 'AUTO_QUEUE', 'auto queue commands');
+ insert into pydar2_rights (id, abbrev, description) values (12, 'MOVE_COMMAND_RESULTS', 'move the results of a command');
++insert into pydar2_rights (id, abbrev, description) values (13, 'UPDATE_TARGET_FILE_LIST', 'update the list of rpms of a target');
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002099.html">[svn] r3297 - in trunk/rpms: amyedit cwirc dirac dspam elmo enca	eternallands exiftags kile perl-Inline-Octave pydar2 scilab	umbrello wesnoth
+</A></li>
+	<LI>Next message: <A HREF="002101.html">[svn] r3299 - in trunk/tools/pydar2: . dries pydar scripts sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2100">[ date ]</a>
+              <a href="thread.html#2100">[ thread ]</a>
+              <a href="subject.html#2100">[ subject ]</a>
+              <a href="author.html#2100">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1784 - trunk/rpms/thunderbird
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1784%20-%20trunk/rpms/thunderbird&In-Reply-To=%3C20040728134236.87CA71FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000592.html">
+   <LINK REL="Next"  HREF="000594.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1784 - trunk/rpms/thunderbird</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1784%20-%20trunk/rpms/thunderbird&In-Reply-To=%3C20040728134236.87CA71FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1784 - trunk/rpms/thunderbird">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Jul 28 15:42:36 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000592.html">[SVN] r1783 - trunk/rpms/firefox
+</A></li>
+        <LI>Next message: <A HREF="000594.html">[SVN] r1785 - in trunk/rpms: gstreamer-ffmpeg gstreamer-plugins	gstreamer-plugins-extras
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#593">[ date ]</a>
+              <a href="thread.html#593">[ thread ]</a>
+              <a href="subject.html#593">[ subject ]</a>
+              <a href="author.html#593">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-07-28 15:42:34 +0200 (Wed, 28 Jul 2004)
+New Revision: 1784
+
+Modified:
+   trunk/rpms/thunderbird/thunderbird.spec
+Log:
+Further fixes and improvements.
+
+
+Modified: trunk/rpms/thunderbird/thunderbird.spec
+===================================================================
+--- trunk/rpms/thunderbird/thunderbird.spec	2004-07-28 13:18:05 UTC (rev 1783)
++++ trunk/rpms/thunderbird/thunderbird.spec	2004-07-28 13:42:34 UTC (rev 1784)
+@@ -11,7 +11,7 @@
+ Summary: Mozilla Thunderbird mail/news client
+ Name: thunderbird
+ Version: 0.7.2
+-Release: 1
++Release: 0
+ License: MPL/GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.mozilla.org/projects/thunderbird/">http://www.mozilla.org/projects/thunderbird/</A>
+@@ -27,7 +27,7 @@
+ 
+ BuildRequires: XFree86-devel, zlib-devel, zip
+ BuildRequires: gtk+-devel, libpng-devel, libmng-devel, libjpeg-devel
+-BuildRequires: ORBit-devel, vim-enhanced, csh, gcc-c++
++BuildRequires: ORBit-devel, vim-enhanced, csh, gcc-c++, krb5-devel
+ %{!?_without_freedesktop:BuildRequires: desktop-file-utils}
+ %{!?_without_gtk2:BuildRequires: gtk2-devel, libIDL-devel, gnome-vfs2-devel}
+ %{?_without_gtk2:BuildRequires: gtk+-devel}
+@@ -48,23 +48,18 @@
+ 
+ ### FIXME: Shouldn't the default thunderbird config be part of original source ?
+ %{__cat} &lt;&lt;EOF &gt;.mozconfig
+-export MOZ_THUNDERBIRD=&quot;1&quot;
+-mk_add_options MOZ_THUNDERBIRD=&quot;1&quot;
+ ac_add_options --x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot;
+ ac_add_options --disable-debug
+-#ac_add_options --disable-freetype2
+ ac_add_options --disable-installer
+ ac_add_options --disable-jsd
+ ac_add_options --disable-profilesharing
+ ac_add_options --disable-tests
+ ac_add_options --enable-crypto
+-#ac_add_options --enable-extensions=&quot;cookie,gnomevfs,inspector,negotiateauth,p3p,pref,spellcheck,transformiix,typeaheadfind,universalchardet,wallet,webservices,xmlextras,xml-rpc&quot;
+-ac_add_options --enable-extensions
+-#ac_add_options --enable-image-decoders=&quot;png,gif,jpeg,bmp&quot;
+-#ac_add_options --enable-necko-protocols=&quot;http,file,jar,viewsource,res,data&quot;
++ac_add_options --enable-extensions=&quot;default&quot;
+ ac_add_options --enable-official-branding
+-ac_add_options --enable-optimize=&quot;%{optflags}&quot;
+-#ac_add_options --enable-strip
++# We want to replace -O? with -Os to optimize compilation for size
++ac_add_options --enable-optimize=&quot;-Os %(echo &quot;%{optflags}&quot; | sed 's/-O.//')&quot;
++ac_add_options --enable-single-profile
+ ac_add_options --with-pthreads
+ ac_add_options --with-system-jpeg
+ ac_add_options --with-system-png
+@@ -126,15 +121,15 @@
+ 	  -register)
+ 		if [ -x &quot;/usr/X11R6/bin/Xvfb&quot; ]; then
+ 			export HOME=&quot;$(mktemp -d /tmp/thunderbird-rpm.$$)&quot;
+-			mkdir -p $HOME/.mozilla/thunderbird/default/
+-			cp -rf $MOZILLA_FIVE_HOME/defaults/profile/* $HOME/.mozilla/thunderbird/default/
+-			echo -e &quot;[General]\nStartWithLastProfile=1\n\n[Profile0]\nName=default\nIsRelative=1\nPath=default&quot; &gt;$HOME/.mozilla/thunderbird/profiles.ini
++			mkdir -p $HOME/.thunderbird/default
++			cp -rf $MOZILLA_FIVE_HOME/defaults/profile/* $HOME/.thunderbird/default/
++			echo -e &quot;[General]\nStartWithLastProfile=1\n\n[Profile0]\nName=default\nIsRelative=1\nPath=default&quot; &gt;$HOME/.thunderbird/profiles.ini
+ 			/usr/X11R6/bin/Xvfb :69 -nolisten tcp -ac -terminate &amp;
+ 			DISPLAY=:69 $MOZILLA_FIVE_HOME/thunderbird -a thunderbird -install-global-extension -install-global-theme
+ 			rm -rf $HOME
+ 			exit 0
+ 		else
+-			echo &quot;/usr/X11R6/bin/Xvfb cannot be executed. Please run firefox once as root.&quot; &gt;&amp;2
++			echo &quot;/usr/X11R6/bin/Xvfb cannot be executed. Please run thunderbird once as root.&quot; &gt;&amp;2
+ 			exit 1
+ 		fi;;
+ 	  -remote)
+@@ -169,37 +164,27 @@
+ EOF
+ 
+ %build
+-export MOZ_APP_NAME=&quot;thunderbird&quot;
+-export MOZ_THUNDERBIRD=&quot;1&quot;
+-export MOZILLA_OFFICIAL=&quot;1&quot;
+-export BUILD_OFFICIAL=&quot;1&quot;
+-export CFLAGS=&quot;%{optflags}&quot;
+-export CXXFLAGS=&quot;%{optflags}&quot;
++export MOZ_THUNDERBIRD=1
+ %{__make} -f client.mk depend
+ %{__make} %{?_smp_mflags} -f client.mk libs
+ 
+-export LANG=&quot;en_US&quot;
+ pushd extensions/ipc
+-./makemake
+-%{__make} %{?_smp_mflags}
++	./makemake
++	%{__make} %{?_smp_mflags}
+ popd
+-
+ pushd extensions/enigmail
+-./makemake
+-%{__make} %{?_smp_mflags}
++	./makemake
++	%{__make} %{?_smp_mflags}
+ popd
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__install} -d -m0755 %{buildroot}%{_bindir} \
+-			%{buildroot}%{_libdir} \
+-			%{buildroot}%{_datadir}/pixmaps/
++%{__install} -d -m0755 %{buildroot}%{_libdir}
+ 
+ %{__make} -C xpinstall/packager \
+-	MOZ_PKG_APPNAME=&quot;thunderbird&quot; \
+ 	MOZILLA_BIN=&quot;\$(DIST)/bin/thunderbird-bin&quot;
+ 
+-%{__install} -m0755 thunderbird.sh %{buildroot}%{_bindir}/thunderbird
++%{__install} -D -m0755 thunderbird.sh %{buildroot}%{_bindir}/thunderbird
+ %{__install} -D -m0644 other-licenses/branding/thunderbird/mozicon50.xpm %{buildroot}%{_datadir}/pixmaps/thunderbird.xpm
+ 
+ %{__tar} -xzv -C %{buildroot}%{_libdir} -f dist/thunderbird-*-linux-gnu.tar.gz
+@@ -216,9 +201,14 @@
+ 
+ %post
+ /sbin/ldconfig 2&gt;/dev/null
+-%{_bindir}/thunderbird -register &amp;&gt;/dev/null 2&gt;&amp;1 || :
++%{_bindir}/thunderbird -register &amp;&gt;/dev/null || :
+ %{_bindir}/update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
+ 
++%preun
++if [ $1 -eq 0 ]; then
++	%{__rm} -rf %{_libdir}/thunderbird/{chrome/overlayinfo,chrome/*.rdf,components,components.ini,extensions}
++fi
++
+ %postun
+ /sbin/ldconfig 2&gt;/dev/null
+ %{_bindir}/update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
+@@ -237,7 +227,7 @@
+ 
+ %changelog
+ * Tue Jul 27 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.7.2-0
+-- Update to 0.7.2.
++- Update to 0.7.2, major spec changes and updates.
+ - Copy all of Dag's changes to the latest Firefox package.
+ 
+ * Wed Jun  2 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.6-1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000592.html">[SVN] r1783 - trunk/rpms/firefox
+</A></li>
+	<LI>Next message: <A HREF="000594.html">[SVN] r1785 - in trunk/rpms: gstreamer-ffmpeg gstreamer-plugins	gstreamer-plugins-extras
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#593">[ date ]</a>
+              <a href="thread.html#593">[ thread ]</a>
+              <a href="subject.html#593">[ subject ]</a>
+              <a href="author.html#593">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2030 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2030%20-%20trunk/tools/yam&In-Reply-To=%3C20040817091044.3BE3E17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000835.html">
+   <LINK REL="Next"  HREF="000837.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2030 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2030%20-%20trunk/tools/yam&In-Reply-To=%3C20040817091044.3BE3E17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2030 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Aug 17 11:10:44 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000835.html">[SVN] r2029 - trunk/rpms/peeper
+</A></li>
+        <LI>Next message: <A HREF="000837.html">[SVN] r2031 - trunk/rpms/kolourpaint
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#836">[ date ]</a>
+              <a href="thread.html#836">[ thread ]</a>
+              <a href="subject.html#836">[ subject ]</a>
+              <a href="author.html#836">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-17 11:10:42 +0200 (Tue, 17 Aug 2004)
+New Revision: 2030
+
+Modified:
+   trunk/tools/yam/README.usage
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-dag.conf
+   trunk/tools/yam/yam.spec
+Log:
+Batch of changes
+
+Modified: trunk/tools/yam/README.usage
+===================================================================
+--- trunk/tools/yam/README.usage	2004-08-17 08:42:09 UTC (rev 2029)
++++ trunk/tools/yam/README.usage	2004-08-17 09:10:42 UTC (rev 2030)
+@@ -172,11 +172,14 @@
+ core=<A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ 
+ 
+-Since yam uses rsync you need to tell it to use the rsync protocol specified
+-with <A HREF="rsync://">rsync://</A> then the dir URL to the dir you want to mirror.  the $release
+-$arch $repo are specified by the release= arch= and in this case core=  
+-you can modify these files anyway you want.
++Since yam uses multiple protocols with rsync being the default protocol
++it is used in the examples.  You can specify the protocol you want
++(i.e <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> etc...) in the protocol. After the protocl then
++the URL to the dir on the server you want to mirror.  The $release, $arch,
++and $repo are specified by the release= arch= and in this case core=  
+ 
++You can modify the config anyway you want to fit your needs.
++
+ I hope that I gave you some help hints and tips on using yam
+ 
+ Mike Ramirez
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-17 08:42:09 UTC (rev 2029)
++++ trunk/tools/yam/yam	2004-08-17 09:10:42 UTC (rev 2030)
+@@ -287,7 +287,7 @@
+ 		elif op.verbose &gt;= 4: opts = ' -vv' + opts
+ 		info(1, '%s: Create old-style Yum repository' % self.nick)
+ 		os.system('%s %s -l %s' % (cf.cmd['yumarch'], opts, distdir + '/RPMS'))
+-		for repo in self.repos.keys():
++		for repo in self.repos.keys() + ['local']:
+ 			if os.path.exists(distdir + '/RPMS.' + repo):
+ 				info(1, '%s: Create old-style Yum repository for %s' % (self.nick, repo))
+ 				os.system('%s %s -l %s' % (cf.cmd['yumarch'], opts, distdir + '/RPMS.' + repo))
+@@ -301,7 +301,7 @@
+ 		elif op.verbose &gt;= 3: opts = ' -v' + opts
+ 		info(1, '%s: Create new-style Yum repository' % self.nick)
+ 		os.system('%s %s %s' % (cf.cmd['createrepo'], opts, distdir + '/RPMS'))
+-		for repo in self.repos.keys():
++		for repo in self.repos.keys() + ['local']:
+ 			if os.path.exists(distdir + '/RPMS.' + repo):
+ 				info(1, '%s: Create new-style Yum repository for %s' % (self.nick, repo))
+ 				os.system('%s %s %s' % (cf.cmd['createrepo'], opts, distdir + '/RPMS.' + repo))
+@@ -454,7 +454,7 @@
+ 		mkdir(cf.wwwdir + '/' + dist.nick + '/RPMS.' + repo)
+ 		mkdir(cf.wwwdir + '/' + dist.nick + '/RPMS')
+ 		if archs.has_key(dist.arch): as=archs[dist.arch] + ['noarch']
+-		else: as=[dist.arch] + ['noarch']
++		else: as=[dist.arch, 'noarch']
+ 		for arch in as:
+ 			rpmmatch='.+\.' + arch + '\.rpm$'
+ 			for file in filelist:
+@@ -468,8 +468,8 @@
+ 		mkdir(cf.wwwdir + '/' + dist.nick + '/RPMS.' + repo)
+ 		mkdir(cf.wwwdir + '/' + dist.nick + '/RPMS')
+ 		for tag in dist.tag + [ '0' ]:
+-			if archs.has_key(dist.arch): as=archs[dist.arch]+ ['noarch']
+-			else: as=[dist.arch] + ['noarch']
++			if archs.has_key(dist.arch): as=archs[dist.arch] + ['noarch']
++			else: as=[dist.arch, 'noarch']
+ 			for arch in as:
+ 				rpmmatch='.+\.' + tag + '\..+\.' + arch + '\.rpm$'
+ 				for file in filelist:
+@@ -539,7 +539,7 @@
+ 				info(3, '%s: %s ignored, not requested' % (dist.nick, dist.name))
+ 				continue
+ 
+-		info(1, '%s: Generating distribution meta-data' % dist.nick)
++		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+ 		distdir = cf.wwwdir + '/' + dist.nick
+ 		dist.html()
+ 
+
+Modified: trunk/tools/yam/yam-dag.conf
+===================================================================
+--- trunk/tools/yam/yam-dag.conf	2004-08-17 08:42:09 UTC (rev 2029)
++++ trunk/tools/yam/yam-dag.conf	2004-08-17 09:10:42 UTC (rev 2030)
+@@ -1,7 +1,7 @@
+ ### Configuration file for Yam
+ 
+ [main]
+-htmldir=/var/www/yam
++wwwdir=/var/www/yam
+ srcdir=/var/yam
+ arch=i386
+ 
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2004-08-17 08:42:09 UTC (rev 2029)
++++ trunk/tools/yam/yam.spec	2004-08-17 09:10:42 UTC (rev 2030)
+@@ -1,6 +1,6 @@
+-# $Id: _template.spec 471 2004-05-03 19:42:19Z dag $
++# $Id: yam.spec 471 2004-05-03 19:42:19Z dag $
+ # Authority: dag
+-# Upstream: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++# Upstream: Dag Wieers &lt;dag$wieers,com&gt;
+ 
+ Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, ftp, ...)
+ Name: yam
+@@ -16,6 +16,7 @@
+ Source: <A HREF="http://dag.wieers.com/home-made/yam/yam-%{version">http://dag.wieers.com/home-made/yam/yam-%{version</A>}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
++BuildArch: noarch
+ Requires: python &gt;= 2.0
+ 
+ %description
+@@ -33,8 +34,7 @@
+ %prep
+ %setup
+ 
+-%{__perl} -pi.orig -e 's|/usr/lib|%{_libdir}|' yam.conf
+-%{__perl} -pi.orig -e 's|VERSION|&quot;%{version}&quot;|' yam
++%{__perl} -pi.orig -e 's|\% VERSION|\% &quot;%{version}&quot;|' yam
+ 
+ %build
+ 
+@@ -52,7 +52,7 @@
+ %config(noreplace) %{_sysconfdir}/httpd/conf.d/yam.conf
+ %config %{_initrddir}/yam
+ %{_bindir}/yam
+-%{_libdir}/yam/
++%{_datadir}/yam/
+ %{_localstatedir}/yam/
+ %{_localstatedir}/www/yam/
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000835.html">[SVN] r2029 - trunk/rpms/peeper
+</A></li>
+	<LI>Next message: <A HREF="000837.html">[SVN] r2031 - trunk/rpms/kolourpaint
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#836">[ date ]</a>
+              <a href="thread.html#836">[ thread ]</a>
+              <a href="subject.html#836">[ subject ]</a>
+              <a href="author.html#836">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

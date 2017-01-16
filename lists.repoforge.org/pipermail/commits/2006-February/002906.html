@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4106 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4106%20-%20trunk/tools/yam&In-Reply-To=%3C20060223143214.2E1ED31821D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002905.html">
+   <LINK REL="Next"  HREF="002907.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4106 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4106%20-%20trunk/tools/yam&In-Reply-To=%3C20060223143214.2E1ED31821D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4106 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Feb 23 15:32:14 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002905.html">[svn] r4105 - in trunk/rpms: gstreamer-plugins-bad	gstreamer-plugins-ugly
+</A></li>
+        <LI>Next message: <A HREF="002907.html">[svn] r4107 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2906">[ date ]</a>
+              <a href="thread.html#2906">[ thread ]</a>
+              <a href="subject.html#2906">[ subject ]</a>
+              <a href="author.html#2906">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-02-23 15:32:12 +0100 (Thu, 23 Feb 2006)
+New Revision: 4106
+
+Modified:
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Fixes for the .sha1sum generation
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-02-22 18:52:32 UTC (rev 4105)
++++ trunk/tools/yam/TODO	2006-02-23 14:32:12 UTC (rev 4106)
+@@ -14,13 +14,13 @@
+ ### Back-end support
+ + Add support for SRPM files (just put them into one directory /SRPMS)
+ + Allow to symlink the whole ISO disc in order to replace package-lists
+-+ Allow to mirror rawhide when eg. rawhide=yes
+ + Check files that do not match the regexp and compare filename to rpm headers
+ + Make rsync/lftp download requests from the same server into 1 request (hardlinks)
+ + Symlink files with a relative directory instead of absolute directory
+ + Use mirrorlist option from .repo files as a source (for http)
+ + Autocreate yum .repo files and apt .list files to be used by local clients
+ + Add support for other remote synchronising tools (sitecopy, wget)
+++ Check existence of RHN updates on ISO discs
+ 
+ ### RHN support
+ + Fix the 'cached' logininfo which causes old channel information to be present (relogin, logout ?)
+@@ -34,7 +34,7 @@
+ + Create group information (createrepo -g comps.xml RPMS.os)   
+ + Complain when a required tool is not available
+ + Increase generation speed by using filecache better (processing per repo vs per metadata)
+-+ Create a python-tool to generate apt/yum/createrepo repositories in one run
+++ Make .sha1sum also use filesizes
+ + Renamed RPMS.local to RPMS.custom (is this better ?)
+ 
+ ### Reporting utility
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-02-22 18:52:32 UTC (rev 4105)
++++ trunk/tools/yam/yam	2006-02-23 14:32:12 UTC (rev 4106)
+@@ -356,45 +356,48 @@
+ 				run('%s %s' % (cf.cmd['umount'], mount))
+ 
+ 	def checkrepos(self):
+-		&quot;Return what repositories require an update&quot;
++		&quot;Return what repositories require an update and write .newsha1sum&quot;
+ 		self.newrepos = []
+-		for repo in self.repos.keys() + ['all', 'local', ]:
++		for repo in self.repos.keys() + ['all', 'local']:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if not os.path.isdir(repodir):
++				continue
++			sha1file = os.path.join(repodir, '.sha1sum')
++			remove(sha1file + '.tmp')
++			cursha1 = sha1dir(repodir)
++			if op.force:
+ 				pass
+-			elif op.force:
+-				self.newrepos.append(repo)
+-			elif os.path.isfile(repodir + '/.sha1sum'):
+-				oldsha1 = open(repodir + '/.sha1sum').read()
+-				newsha1 = sha1dir(repodir)
+-				if oldsha1 != newsha1:
++			elif os.path.isfile(sha1file):
++				oldsha1 = open(sha1file).read()
++				if cursha1 != oldsha1:
+ 					info(2, 'Repository %s has new packages.' % repo)
+-					if not op.dryrun:
+-						open(repodir + '/.newsha1sum', 'w').write(newsha1)
+-					self.newrepos.append(repo)
+ 				else:
+ 					info(5, 'Repository %s has not changed. Skipping.' % repo)
++					continue
+ 			else:
+ 				info(5, 'New repository %s detected.' % repo)
+-				self.newrepos.append(repo)
++			writesha1(sha1file + '.tmp', cursha1)
++			self.newrepos.append(repo)
+ 		if self.newrepos:
+ 			self.newrepos.append('all')
+ 			self.newrepos.sort()
+ 
+ 	def writereposha1(self):
+-		&quot;Write a .sha1sum file per repository&quot;
+-		for repo in self.repos.keys() + ['all', 'local', ]:
++		&quot;Verify .newsha1sum and write a .sha1sum file per repository&quot;
++		for repo in self.repos.keys() + ['all', 'local']:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+-			if os.path.isfile(repodir + '/.newsha1sum'):
+-					newsha1 = open(repodir + '/.newsha1sum').read()
+-					remove(repodir + '/.newsha1sum')
+-					tmpsha1 = sha1dir(repodir)
+-					if newsha1 == tmpsha1:
+-						if not op.dryrun:
+-							open(repodir + '/.sha1sum', 'w').write(newsha1)
+-					else:
+-						info(5, 'Checksum is different. expect: %s, got: %s' % (newsha1, tmpsha1))
+-						info(1, 'Directory changed during generating %s repo, please generate again.' % repo)
++			sha1file = os.path.join(repodir, '.sha1sum')
++			if os.path.isfile(sha1file + '.tmp'):
++				cursha1 = sha1dir(repodir)
++				tmpsha1 = open(sha1file + '.tmp').read()
++				remove(sha1file + '.tmp')
++				if cursha1 == tmpsha1:
++					writesha1(sha1file, cursha1)
++				else:
++					info(5, 'Checksum is different. expect: %s, got: %s' % (newsha1, tmpsha1))
++					info(1, 'Directory changed during generating %s repo, please generate again.' % repo)
++			else:
++				info(1, 'ERROR: This should never happen.')
+ 
+ 	def apt(self):
+ 		&quot;Create an Apt repository&quot;
+@@ -421,6 +424,8 @@
+ 		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
++				if os.path.isdir(os.path.join(repodir, '.oldheaders')):
++					remove(os.path.join(repodir, '.oldheaders'))
+ 				info(2, '%s: Create old-style Yum repository for %s' % (self.nick, repo))
+ 				run('%s %s -l %s' % (cf.cmd['yumarch'], opts, repodir))
+ 
+@@ -479,6 +484,14 @@
+ 	files.sort()
+ 	return sha.new(' '.join(files)).hexdigest()
+ 
++def writesha1(file, sha1sum=None):
++	&quot;Write out sha1sum&quot;
++	repodir = os.path.dirname(file)
++	if not sha1sum:
++		sha1sum = sha1dir(repodir)
++	if not op.dryrun:
++		open(file, 'w').write(sha1sum)
++
+ def error(level, str):
+ 	&quot;Output error message&quot;
+ 	if level &lt;= op.verbose:
+@@ -496,7 +509,7 @@
+ 
+ def run(str, dryrun=False):
+ 	&quot;Run command, accept user input, and print output when needed.&quot;
+-	if op.verbose &lt; 2:
++	if op.verbose &lt;= 2:
+ 		str = str + '&gt;/dev/null'
+ 	if not op.dryrun or dryrun:
+ 		info(5, 'Execute: %s' % str)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002905.html">[svn] r4105 - in trunk/rpms: gstreamer-plugins-bad	gstreamer-plugins-ugly
+</A></li>
+	<LI>Next message: <A HREF="002907.html">[svn] r4107 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2906">[ date ]</a>
+              <a href="thread.html#2906">[ thread ]</a>
+              <a href="subject.html#2906">[ subject ]</a>
+              <a href="author.html#2906">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

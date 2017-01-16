@@ -1,0 +1,1606 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8642 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8642%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C201002111304.o1BD4BFF028007%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007436.html">
+   <LINK REL="Next"  HREF="007438.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8642 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8642%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C201002111304.o1BD4BFF028007%40surya.karan.org%3E"
+       TITLE="[svn] r8642 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Feb 11 14:04:11 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007436.html">[svn] r8641 - in trunk/rpms: . mod_auth_tkt perl-Apache-AuthTkt
+</A></li>
+        <LI>Next message: <A HREF="007438.html">[svn] r8643 - in trunk/rpms: . perl-DateTime-Format-Duration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7437">[ date ]</a>
+              <a href="thread.html#7437">[ thread ]</a>
+              <a href="subject.html#7437">[ subject ]</a>
+              <a href="author.html#7437">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2010-02-11 13:04:11 +0000 (Thu, 11 Feb 2010)
+New Revision: 8642
+
+Added:
+   trunk/tools/dstat/plugins/dstat_top_childwait.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/README
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/docs/counter-rollovers.html
+   trunk/tools/dstat/docs/counter-rollovers.txt
+   trunk/tools/dstat/docs/dstat.1
+   trunk/tools/dstat/docs/dstat.1.html
+   trunk/tools/dstat/docs/dstat.1.txt
+   trunk/tools/dstat/docs/examples.html
+   trunk/tools/dstat/docs/examples.txt
+   trunk/tools/dstat/docs/performance.html
+   trunk/tools/dstat/docs/performance.txt
+   trunk/tools/dstat/docs/screen.html
+   trunk/tools/dstat/docs/screen.txt
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_dstat.py
+   trunk/tools/dstat/plugins/dstat_top_bio.py
+   trunk/tools/dstat/plugins/dstat_top_cpu.py
+   trunk/tools/dstat/plugins/dstat_top_cputime.py
+   trunk/tools/dstat/plugins/dstat_top_cputime_avg.py
+   trunk/tools/dstat/plugins/dstat_top_io.py
+   trunk/tools/dstat/plugins/dstat_top_latency.py
+   trunk/tools/dstat/plugins/dstat_top_latency_avg.py
+   trunk/tools/dstat/plugins/dstat_top_mem.py
+   trunk/tools/dstat/plugins/dstat_top_oom.py
+Log:
+- Introduced proc_readline() and proc_spitline() using linecache for top-plugins
+- Introduced proc_readlines() and proc_splitlines() using linecache for top-plugins
+- Introduced proc_pidlist() for top-plugins
+- New tchg() function to format the time depending on width
+
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/ChangeLog	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -1,4 +1,4 @@
+-* 0.7.0svn - ... - release 26/11/2009
++* 0.7.0svn - ... - release 10/02/2009
+ - Fix external plugins on python 2.2 and older (eg. RHEL3)
+ - Documentation improvements
+ - Implement linecache for top-plugins (caching for statistics)
+@@ -7,6 +7,10 @@
+ - Added --profile option to get profiling statistics when you exit dstat
+ - Show a message with the default options when no stats are being specified
+ - Improved page allocation numbers in vm plugin (Hirofumi Ogawa)
++- Introduced proc_readline() and proc_spitline() using linecache for top-plugins
++- Introduced proc_readlines() and proc_splitlines() using linecache for top-plugins
++- Introduced proc_pidlist() for top-plugins
++- New tchg() function to format the time depending on width
+ 
+ * 0.7.0 - Tokyo - release 25/11/2009
+ - Fixed dstat_disk plugin for total calculation on 2.6.25+ kernels (Noel J. Bergman)
+
+Modified: trunk/tools/dstat/README
+===================================================================
+--- trunk/tools/dstat/README	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/README	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -32,4 +32,4 @@
+ 
+ If you have improvements or bugreports, please send them to:
+ 
+-	&lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++    &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/TODO	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -19,7 +19,6 @@
+ + Look into adding sched_setscheduler() calls for improved priority
+ 
+ ### General improvements
+-+ Base debug runtime stats on schedstat of own pid (when possible), make plugin out of it
+ + Implement better (?) protection against counter rollovers (see mail from Sebastien Prud'homme)
+ 
+ ### Documentation (help welcome!)
+
+Modified: trunk/tools/dstat/docs/counter-rollovers.html
+===================================================================
+--- trunk/tools/dstat/docs/counter-rollovers.html	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/counter-rollovers.html	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -4,7 +4,7 @@
+ &lt;head&gt;
+ &lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot; /&gt;
+ &lt;meta name=&quot;generator&quot; content=&quot;AsciiDoc 8.5.1&quot; /&gt;
+-&lt;title&gt;All you ever wanted to know about counter-rollovers and dstat&lt;/title&gt;
++&lt;title&gt;All you ever wanted to know about counter-rollovers in Dstat&lt;/title&gt;
+ &lt;style type=&quot;text/css&quot;&gt;
+ /* Debug borders */
+ p, li, dt, dd, div, pre, h1, h2, h3, h4, h5, h6 {
+@@ -544,12 +544,12 @@
+ &lt;/head&gt;
+ &lt;body&gt;
+ &lt;div id=&quot;header&quot;&gt;
+-&lt;h1&gt;All you ever wanted to know about counter-rollovers and dstat&lt;/h1&gt;
++&lt;h1&gt;All you ever wanted to know about counter-rollovers in Dstat&lt;/h1&gt;
+ &lt;/div&gt;
+ &lt;div id=&quot;content&quot;&gt;
+ &lt;h2 id=&quot;_what_you_need_to_know_about_counter_rollovers&quot;&gt;What you need to know about counter rollovers&lt;/h2&gt;
+ &lt;div class=&quot;sectionbody&quot;&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Unfortunately, dstat is susceptible for counter rollovers, which may give
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Unfortunately, Dstat is susceptible for counter rollovers, which may give
+ you bogus performance output. Linux currently implements counters as 32bit
+ values (not sure on 64bit platforms). This means a counter can go up to
+ 2^32 (= 4294967296 = 4G) values.&lt;/p&gt;&lt;/div&gt;
+@@ -559,19 +559,19 @@
+ interfaces, this happens after 1.6 seconds.&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Since /proc is updated every second, this becomes almost impossible to catch.&lt;/p&gt;&lt;/div&gt;
+ &lt;/div&gt;
+-&lt;h2 id=&quot;_how_does_this_impact_dstat&quot;&gt;How does this impact dstat ?&lt;/h2&gt;
++&lt;h2 id=&quot;_how_does_this_impact_dstat&quot;&gt;How does this impact Dstat ?&lt;/h2&gt;
+ &lt;div class=&quot;sectionbody&quot;&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Currently dstat has a problem if you specify delays that are too big. I.e.
+-using 60 or 120 seconds delay in dstat will make dstat check these counters
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Currently Dstat has a problem if you specify delays that are too big. I.e.
++using 60 or 120 seconds delay in Dstat will make Dstat check these counters
+ only once per minute or every two minutes. In the case the value is reset,
+ it might be lower than the previous value (which causes negative values) or
+ worse, the value is actually higher (which will go unnoticed and you get
+-bogus information and dstat won&amp;#8217;t know).&lt;/p&gt;&lt;/div&gt;
++bogus information and Dstat won&amp;#8217;t know).&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;This is very problematic, and it&amp;#8217;s important you are aware of this.&lt;/p&gt;&lt;/div&gt;
+ &lt;/div&gt;
+ &lt;h2 id=&quot;_what_are_the_solutions&quot;&gt;What are the solutions ?&lt;/h2&gt;
+ &lt;div class=&quot;sectionbody&quot;&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;The only fix for dstat is to check more often than the specified delay.
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;The only fix for Dstat is to check more often than the specified delay.
+ Unfortunately, this requires a re-design (or an ugly hack).&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;There are plans to use 64bit counters on Linux and/or changing the output from
+ using bytes to kbytes. None of this is sure. (add pointers to threads)&lt;/p&gt;&lt;/div&gt;
+@@ -583,9 +583,9 @@
+ &lt;h2 id=&quot;_what_can_i_do&quot;&gt;What can I do ?&lt;/h2&gt;
+ &lt;div class=&quot;sectionbody&quot;&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Since this is Open Source, you are free to fix this and send me the fix. Or
+-help with a redesign of dstat to overcome this problem. Also look at the
+-TODO file to see what other changes are expected in a redesign of dstat.&lt;/p&gt;&lt;/div&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Since I have a lot of other responsibilities and am currently not using dstat
++help with a redesign of Dstat to overcome this problem. Also look at the
++TODO file to see what other changes are expected in a redesign of Dstat.&lt;/p&gt;&lt;/div&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Since I have a lot of other responsibilities and am currently not using Dstat
+ for something where this problem matters much, I will have no time to look at
+ it closely (unless the fix or the redesign is made fairly simple). It all
+ depends on how quick I think I can fix/redesign it and how much time I have.&lt;/p&gt;&lt;/div&gt;
+@@ -603,7 +603,7 @@
+ &lt;div id=&quot;footnotes&quot;&gt;&lt;hr /&gt;&lt;/div&gt;
+ &lt;div id=&quot;footer&quot;&gt;
+ &lt;div id=&quot;footer-text&quot;&gt;
+-Last updated 2006-12-12 16:38:30 CEST
++Last updated 2010-02-11 11:26:02 CEST
+ &lt;/div&gt;
+ &lt;/div&gt;
+ &lt;/body&gt;
+
+Modified: trunk/tools/dstat/docs/counter-rollovers.txt
+===================================================================
+--- trunk/tools/dstat/docs/counter-rollovers.txt	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/counter-rollovers.txt	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -1,9 +1,7 @@
+-All you ever wanted to know about counter-rollovers and dstat
+-=============================================================
++= All you ever wanted to know about counter-rollovers in Dstat
+ 
+-What you need to know about counter rollovers
+----------------------------------------------
+-Unfortunately, dstat is susceptible for counter rollovers, which may give
++== What you need to know about counter rollovers
++Unfortunately, Dstat is susceptible for counter rollovers, which may give
+ you bogus performance output. Linux currently implements counters as 32bit
+ values (not sure on 64bit platforms). This means a counter can go up to
+ 2^32 (= 4294967296 = 4G) values.
+@@ -16,21 +14,19 @@
+ Since /proc is updated every second, this becomes almost impossible to catch.
+ 
+ 
+-How does this impact dstat ?
+-----------------------------
+-Currently dstat has a problem if you specify delays that are too big. I.e.
+-using 60 or 120 seconds delay in dstat will make dstat check these counters
++== How does this impact Dstat ?
++Currently Dstat has a problem if you specify delays that are too big. I.e.
++using 60 or 120 seconds delay in Dstat will make Dstat check these counters
+ only once per minute or every two minutes. In the case the value is reset,
+ it might be lower than the previous value (which causes negative values) or
+ worse, the value is actually higher (which will go unnoticed and you get
+-bogus information and dstat won't know).
++bogus information and Dstat won't know).
+ 
+ This is very problematic, and it's important you are aware of this.
+ 
+ 
+-What are the solutions ?
+-------------------------
+-The only fix for dstat is to check more often than the specified delay.
++== What are the solutions ?
++The only fix for Dstat is to check more often than the specified delay.
+ Unfortunately, this requires a re-design (or an ugly hack).
+ 
+ There are plans to use 64bit counters on Linux and/or changing the output from
+@@ -43,13 +39,12 @@
+ If the rollovers happen only sporadically, you can just ignore those values.
+ 
+ 
+-What can I do ?
+----------------
++== What can I do ?
+ Since this is Open Source, you are free to fix this and send me the fix. Or
+-help with a redesign of dstat to overcome this problem. Also look at the
+-TODO file to see what other changes are expected in a redesign of dstat.
++help with a redesign of Dstat to overcome this problem. Also look at the
++TODO file to see what other changes are expected in a redesign of Dstat.
+ 
+-Since I have a lot of other responsibilities and am currently not using dstat
++Since I have a lot of other responsibilities and am currently not using Dstat
+ for something where this problem matters much, I will have no time to look at
+ it closely (unless the fix or the redesign is made fairly simple). It all
+ depends on how quick I think I can fix/redesign it and how much time I have.
+
+Modified: trunk/tools/dstat/docs/dstat.1
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/dstat.1	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -2,7 +2,7 @@
+ .\&quot; It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+ .\&quot; Instead of manually editing it, you probably should edit the DocBook XML
+ .\&quot; source for it and then use the DocBook XSL Stylesheets to regenerate it.
+-.TH &quot;DSTAT&quot; &quot;1&quot; &quot;11/26/2009&quot; &quot;\  0.7.0&quot; &quot;\ &quot;
++.TH &quot;DSTAT&quot; &quot;1&quot; &quot;02/11/2010&quot; &quot;\  0.7.0&quot; &quot;\ &quot;
+ .\&quot; disable hyphenation
+ .nh
+ .\&quot; disable justification (adjust text to left margin only)
+@@ -37,13 +37,13 @@
+ enable cpu stats (system, user, idle, wait, hardware interrupt, software interrupt)
+ .TP
+ \-C 0,3,total
+-include cpu0, cpu3 and total
++include cpu0, cpu3 and total (when using \-c/\-\-cpu)
+ .TP
+ \-d, \-\-disk
+ enable disk stats (read, write)
+ .TP
+ \-D total,hda
+-include hda and total
++include total and hda (when using \-d/\-\-disk)
+ .TP
+ \-g, \-\-page
+ enable page stats (page in, page out)
+@@ -52,7 +52,7 @@
+ enable interrupt stats
+ .TP
+ \-I 5,10
+-include interrupt 5 and 10
++include interrupt 5 and 10 (when using \-i/\-\-int)
+ .TP
+ \-l, \-\-load
+ enable load average stats (1 min, 5 mins, 15mins)
+@@ -64,7 +64,7 @@
+ enable network stats (receive, send)
+ .TP
+ \-N eth1,total
+-include eth1 and total
++include eth1 and total (when using \-n/\-\-net)
+ .TP
+ \-p, \-\-proc
+ enable process stats (runnable, uninterruptible, new)
+@@ -76,7 +76,7 @@
+ enable swap stats (used, free)
+ .TP
+ \-S swap1,total
+-include swap1 and total
++include swap1 and total (when using \-s/\-\-swap)
+ .TP
+ \-t, \-\-time
+ enable time/date output
+@@ -160,6 +160,9 @@
+ .TP
+ \-\-output file
+ write CSV output to file
++.TP
++\-\-profile
++show profiling statistics when exiting dstat
+ .SH &quot;PLUGINS&quot;
+ While anyone can create their own dstat plugins (and contribute them) dstat ships with a number of plugins already that extend its capabilities greatly. Here is an overview of the plugins dstat ships with:
+ .sp
+@@ -179,6 +182,9 @@
+ \-\-disk\-util
+ per disk utilization in percentage
+ .TP
++\-\-dstat
++show dstat cputime consumption and latency
++.TP
+ \-\-fan
+ fan speed (needs ACPI)
+ .TP
+@@ -254,6 +260,9 @@
+ \-\-proc\-count
+ show total number of processes
+ .TP
++\-\-qmail
++show qmail queue sizes (needs qmail)
++.TP
+ \-\-rpc
+ show RPC client calls stats
+ .TP
+@@ -275,6 +284,9 @@
+ \-\-top\-bio
+ show most expensive block I/O process
+ .TP
++\-\-top\-childwait
++show process waiting for child the most
++.TP
+ \-\-top\-cpu
+ show most expensive CPU process
+ .TP
+
+Modified: trunk/tools/dstat/docs/dstat.1.html
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1.html	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/dstat.1.html	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -622,7 +622,7 @@
+ &lt;/dt&gt;
+ &lt;dd&gt;
+ &lt;p&gt;
+-    include cpu0, cpu3 and total
++    include cpu0, cpu3 and total (when using -c/--cpu)
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
+@@ -638,7 +638,7 @@
+ &lt;/dt&gt;
+ &lt;dd&gt;
+ &lt;p&gt;
+-    include hda and total
++    include total and hda (when using -d/--disk)
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
+@@ -662,7 +662,7 @@
+ &lt;/dt&gt;
+ &lt;dd&gt;
+ &lt;p&gt;
+-    include interrupt 5 and 10
++    include interrupt 5 and 10 (when using -i/--int)
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
+@@ -694,7 +694,7 @@
+ &lt;/dt&gt;
+ &lt;dd&gt;
+ &lt;p&gt;
+-    include eth1 and total
++    include eth1 and total (when using -n/--net)
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
+@@ -726,7 +726,7 @@
+ &lt;/dt&gt;
+ &lt;dd&gt;
+ &lt;p&gt;
+-    include swap1 and total
++    include swap1 and total (when using -s/--swap)
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
+@@ -939,6 +939,14 @@
+     write CSV output to file
+ &lt;/p&gt;
+ &lt;/dd&gt;
++&lt;dt class=&quot;hdlist1&quot;&gt;
++--profile
++&lt;/dt&gt;
++&lt;dd&gt;
++&lt;p&gt;
++    show profiling statistics when exiting dstat
++&lt;/p&gt;
++&lt;/dd&gt;
+ &lt;/dl&gt;&lt;/div&gt;
+ &lt;/div&gt;
+ &lt;h2 id=&quot;_plugins&quot;&gt;PLUGINS&lt;/h2&gt;
+@@ -988,6 +996,14 @@
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
++--dstat
++&lt;/dt&gt;
++&lt;dd&gt;
++&lt;p&gt;
++    show dstat cputime consumption and latency
++&lt;/p&gt;
++&lt;/dd&gt;
++&lt;dt class=&quot;hdlist1&quot;&gt;
+ --fan
+ &lt;/dt&gt;
+ &lt;dd&gt;
+@@ -1188,6 +1204,14 @@
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
++--qmail
++&lt;/dt&gt;
++&lt;dd&gt;
++&lt;p&gt;
++    show qmail queue sizes (needs qmail)
++&lt;/p&gt;
++&lt;/dd&gt;
++&lt;dt class=&quot;hdlist1&quot;&gt;
+ --rpc
+ &lt;/dt&gt;
+ &lt;dd&gt;
+@@ -1244,6 +1268,14 @@
+ &lt;/p&gt;
+ &lt;/dd&gt;
+ &lt;dt class=&quot;hdlist1&quot;&gt;
++--top-childwait
++&lt;/dt&gt;
++&lt;dd&gt;
++&lt;p&gt;
++    show process waiting for child the most
++&lt;/p&gt;
++&lt;/dd&gt;
++&lt;dt class=&quot;hdlist1&quot;&gt;
+ --top-cpu
+ &lt;/dt&gt;
+ &lt;dd&gt;
+@@ -1511,7 +1543,7 @@
+ &lt;div id=&quot;footer&quot;&gt;
+ &lt;div id=&quot;footer-text&quot;&gt;
+ Version 0.7.0&lt;br /&gt;
+-Last updated 2009-11-26 03:35:03 CEST
++Last updated 2010-02-11 14:02:23 CEST
+ &lt;/div&gt;
+ &lt;/div&gt;
+ &lt;/body&gt;
+
+Modified: trunk/tools/dstat/docs/dstat.1.txt
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1.txt	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/dstat.1.txt	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -44,13 +44,13 @@
+     interrupt)
+ 
+ -C 0,3,total::
+-    include cpu0, cpu3 and total
++    include cpu0, cpu3 and total (when using -c/--cpu)
+ 
+ -d, --disk::
+     enable disk stats (read, write)
+ 
+ -D total,hda::
+-    include hda and total
++    include total and hda (when using -d/--disk)
+ 
+ -g, --page::
+     enable page stats (page in, page out)
+@@ -59,7 +59,7 @@
+     enable interrupt stats
+ 
+ -I 5,10::
+-    include interrupt 5 and 10
++    include interrupt 5 and 10 (when using -i/--int)
+ 
+ -l, --load::
+     enable load average stats (1 min, 5 mins, 15mins)
+@@ -71,7 +71,7 @@
+     enable network stats (receive, send)
+ 
+ -N eth1,total::
+-    include eth1 and total
++    include eth1 and total (when using -n/--net)
+ 
+ -p, --proc::
+     enable process stats (runnable, uninterruptible, new)
+@@ -83,7 +83,7 @@
+     enable swap stats (used, free)
+ 
+ -S swap1,total::
+-    include swap1 and total
++    include swap1 and total (when using -s/--swap)
+ 
+ -t, --time::
+     enable time/date output
+@@ -189,6 +189,9 @@
+ --disk-util::
+     per disk utilization in percentage
+ 
++--dstat::
++    show dstat cputime consumption and latency
++
+ --fan::
+     fan speed (needs ACPI)
+ 
+@@ -288,6 +291,9 @@
+ --top-bio::
+     show most expensive block I/O process
+ 
++--top-childwait::
++    show process waiting for child the most
++
+ --top-cpu::
+     show most expensive CPU process
+ 
+
+Modified: trunk/tools/dstat/docs/examples.html
+===================================================================
+--- trunk/tools/dstat/docs/examples.html	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/examples.html	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -549,16 +549,16 @@
+ &lt;div id=&quot;content&quot;&gt;
+ &lt;div id=&quot;preamble&quot;&gt;
+ &lt;div class=&quot;sectionbody&quot;&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;I&amp;#8217;ve written a few examples that make use of the dstat classes.&lt;/p&gt;&lt;/div&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;I&amp;#8217;ve written a few examples that make use of the Dstat classes.&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;The following examples currently exist:&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;literalblock&quot;&gt;
+ &lt;div class=&quot;content&quot;&gt;
+-&lt;pre&gt;&lt;tt&gt;read.py - shows how to access dstat data
+-mstat.py - small sub-second ministat tool&lt;/tt&gt;&lt;/pre&gt;
++&lt;pre&gt;&lt;tt&gt;read.py   - shows how to access dstat data
++mstat.py  - small sub-second ministat tool&lt;/tt&gt;&lt;/pre&gt;
+ &lt;/div&gt;&lt;/div&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Please send other examples or tools that make use of dstat classes
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Please send other examples or tools that make use of Dstat classes
+ or changes to extend the current infrastructure.&lt;/p&gt;&lt;/div&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;I&amp;#8217;m not particularly happy with the current interface to dstat,
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;I&amp;#8217;m not particularly happy with the current interface to Dstat,
+ so any hints on how to improve it are welcome. Also look at the
+ TODO for future changes.&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;admonitionblock&quot;&gt;
+@@ -575,7 +575,7 @@
+ &lt;div id=&quot;footnotes&quot;&gt;&lt;hr /&gt;&lt;/div&gt;
+ &lt;div id=&quot;footer&quot;&gt;
+ &lt;div id=&quot;footer-text&quot;&gt;
+-Last updated 2006-06-16 09:01:03 CEST
++Last updated 2010-02-11 11:26:39 CEST
+ &lt;/div&gt;
+ &lt;/div&gt;
+ &lt;/body&gt;
+
+Modified: trunk/tools/dstat/docs/examples.txt
+===================================================================
+--- trunk/tools/dstat/docs/examples.txt	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/examples.txt	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -1,17 +1,16 @@
+-Dstat examples
+-==============
++= Dstat examples
+ 
+-I've written a few examples that make use of the dstat classes.
++I've written a few examples that make use of the Dstat classes.
+ 
+ The following examples currently exist:
+ 
+-	read.py	- shows how to access dstat data
+-	mstat.py - small sub-second ministat tool
++    read.py   - shows how to access dstat data
++    mstat.py  - small sub-second ministat tool
+ 
+-Please send other examples or tools that make use of dstat classes
++Please send other examples or tools that make use of Dstat classes
+ or changes to extend the current infrastructure.
+ 
+-I'm not particularly happy with the current interface to dstat,
++I'm not particularly happy with the current interface to Dstat,
+ so any hints on how to improve it are welcome. Also look at the
+ TODO for future changes.
+ 
+
+Modified: trunk/tools/dstat/docs/performance.html
+===================================================================
+--- trunk/tools/dstat/docs/performance.html	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/performance.html	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -549,27 +549,64 @@
+ &lt;div id=&quot;content&quot;&gt;
+ &lt;h2 id=&quot;_introduction&quot;&gt;Introduction&lt;/h2&gt;
+ &lt;div class=&quot;sectionbody&quot;&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Since dstat is written in python, it is not optimized for performance.&lt;/p&gt;&lt;/div&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;When doing performance analysis, it is always important to verify that
+-the monitoring tool is not messing with the performance numbers.
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Since Dstat is written in python, it is not optimized for performance.
++But that doesn&amp;#8217;t mean that Dstat performs bad, it performs quite good
++given its written in python and a lot of dedication went into profiling
++and optimizing Dstat and Dstat plugins.&lt;/p&gt;&lt;/div&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;But when doing performance analysis, it is always important to verify
++that the monitoring tool is not interfering with the performance numbers.
+ (eg. writing to disk, using cpu/memory/network, increasing load)&lt;/p&gt;&lt;/div&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Depending on the stats being used and the load on the server itself
++&lt;/div&gt;
++&lt;h2 id=&quot;_compare_with_baseline&quot;&gt;Compare with baseline&lt;/h2&gt;
++&lt;div class=&quot;sectionbody&quot;&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Depending on the plugins being used and the load on the server itself
+ the impact Dstat has on the system you are monitoring might be
+ considerable. A lot of plugins are pretty fast (less than 0.1ms on
+-an modest 1.2Ghz laptop, but some plugins may use up to 3ms using
+-up to 2% of your CPU).&lt;/p&gt;&lt;/div&gt;
++an modest 1.2Ghz laptop), but some plugins may use up to 3ms or even
++up to 2% of your CPU. (eg. each top-plugin scans the process-list)&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Before performing any tests please verify for yourself what impact
+ Dstat has on your test results and keep that in mind when analysing
+-the results afterwards.&lt;/p&gt;&lt;/div&gt;
+-&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;In case the impact is higher than expected, reduce the number of stats
+-and remove expensive stats or even look at the plugin you&amp;#8217;re using and
+-send me optimisations.&lt;/p&gt;&lt;/div&gt;
++the results afterwards. Especially if you suspect Dstat to be
++influencing your results, do a baseline with and without the Dstat
++commandline.&lt;/p&gt;&lt;/div&gt;
++&lt;/div&gt;
++&lt;h2 id=&quot;_selection_of_plugins&quot;&gt;Selection of plugins&lt;/h2&gt;
++&lt;div class=&quot;sectionbody&quot;&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;In case the impact is higher than expected, reduce the number of plugins
++and remove expensive plugins, or even better, look at the plugin you&amp;#8217;re
++using and send me optimizations.&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Newer python versions are also faster than older ones, and hardware is
+ only becoming faster at a pace that these considerations may not hold
+ anylonger.&lt;/p&gt;&lt;/div&gt;
++&lt;/div&gt;
++&lt;h2 id=&quot;_debugging_and_profiling_dstat&quot;&gt;Debugging and profiling Dstat&lt;/h2&gt;
++&lt;div class=&quot;sectionbody&quot;&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;If you need feedback about plugin performance, use the --debug option
+ to profile different plugins. If you use -t together with --debug, you
+ can see the time deviation on your system in relation to load/plugins.&lt;/p&gt;&lt;/div&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;If you want to profile certain plugins, you can use the --profile option
++which provides you with detailed information of the function calls that
++are the most expensive.&lt;/p&gt;&lt;/div&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;You can also run the dstat plugin (--dstat) to look what overhead (cputime)
++and response (latency) Dstat has during runtime, which can be very useful
++to compare with your baseline and the system in idle state.&lt;/p&gt;&lt;/div&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;One common way to profile a single plugin is to use the following
++commandline:&lt;/p&gt;&lt;/div&gt;
++&lt;div class=&quot;literalblock&quot;&gt;
++&lt;div class=&quot;content&quot;&gt;
++&lt;pre&gt;&lt;tt&gt;dstat -t --dstat --debug --profile
++dstat -t --dstat --top-cpu --debug --profile&lt;/tt&gt;&lt;/pre&gt;
++&lt;/div&gt;&lt;/div&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;The default profiling infrastructure is quite expensive, so it is important
++that you first make a baseline including the profiling itself, then
++compare it against the same commandline including the plugin you want to
++profile.&lt;/p&gt;&lt;/div&gt;
++&lt;/div&gt;
++&lt;h2 id=&quot;_improving_dstat_8217_s_footprint_even_more&quot;&gt;Improving Dstat&amp;#8217;s footprint even more&lt;/h2&gt;
++&lt;div class=&quot;sectionbody&quot;&gt;
++&lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Another way to win a few CPU cycles is to pre-compile the Dstat plugins
++by running the compileall.py script that comes with python on your
++plugins directory. It can save about 10% in execution time.&lt;/p&gt;&lt;/div&gt;
+ &lt;div class=&quot;paragraph&quot;&gt;&lt;p&gt;Remember that invisible plugins (that run out of your terminal window)
+ do take up cycles because the information is still being collected and
+ possibly written to CSV output.&lt;/p&gt;&lt;/div&gt;
+@@ -600,7 +637,7 @@
+ &lt;div id=&quot;footnotes&quot;&gt;&lt;hr /&gt;&lt;/div&gt;
+ &lt;div id=&quot;footer&quot;&gt;
+ &lt;div id=&quot;footer-text&quot;&gt;
+-Last updated 2009-11-24 02:49:07 CEST
++Last updated 2010-02-11 11:24:41 CEST
+ &lt;/div&gt;
+ &lt;/div&gt;
+ &lt;/body&gt;
+
+Modified: trunk/tools/dstat/docs/performance.txt
+===================================================================
+--- trunk/tools/dstat/docs/performance.txt	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/performance.txt	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -1,36 +1,66 @@
+-Dstat performance
+-=================
++= Dstat performance
+ 
+-Introduction
+-------------
+-Since dstat is written in python, it is not optimized for performance.
++== Introduction
++Since Dstat is written in python, it is not optimized for performance.
++But that doesn't mean that Dstat performs bad, it performs quite good
++given its written in python and a lot of dedication went into profiling
++and optimizing Dstat and Dstat plugins.
+ 
+-When doing performance analysis, it is always important to verify that
+-the monitoring tool is not messing with the performance numbers.
++But when doing performance analysis, it is always important to verify
++that the monitoring tool is not interfering with the performance numbers.
+ (eg. writing to disk, using cpu/memory/network, increasing load)
+ 
+-Depending on the stats being used and the load on the server itself
++== Compare with baseline
++Depending on the plugins being used and the load on the server itself
+ the impact Dstat has on the system you are monitoring might be
+ considerable. A lot of plugins are pretty fast (less than 0.1ms on
+-an modest 1.2Ghz laptop, but some plugins may use up to 3ms using
+-up to 2% of your CPU).
++an modest 1.2Ghz laptop), but some plugins may use up to 3ms or even
++up to 2% of your CPU. (eg. each top-plugin scans the process-list)
+ 
+ Before performing any tests please verify for yourself what impact
+ Dstat has on your test results and keep that in mind when analysing
+-the results afterwards.
++the results afterwards. Especially if you suspect Dstat to be
++influencing your results, do a baseline with and without the Dstat
++commandline.
+ 
+-In case the impact is higher than expected, reduce the number of stats
+-and remove expensive stats or even look at the plugin you're using and
+-send me optimisations.
++== Selection of plugins
++In case the impact is higher than expected, reduce the number of plugins
++and remove expensive plugins, or even better, look at the plugin you're
++using and send me optimizations.
+ 
+ Newer python versions are also faster than older ones, and hardware is
+ only becoming faster at a pace that these considerations may not hold
+ anylonger.
+ 
++== Debugging and profiling Dstat
+ If you need feedback about plugin performance, use the --debug option
+ to profile different plugins. If you use -t together with --debug, you
+ can see the time deviation on your system in relation to load/plugins.
+ 
++If you want to profile certain plugins, you can use the --profile option
++which provides you with detailed information of the function calls that
++are the most expensive.
++
++You can also run the dstat plugin (--dstat) to look what overhead (cputime)
++and response (latency) Dstat has during runtime, which can be very useful
++to compare with your baseline and the system in idle state.
++
++One common way to profile a single plugin is to use the following
++commandline:
++
++    dstat -t --dstat --debug --profile
++    dstat -t --dstat --top-cpu --debug --profile
++
++The default profiling infrastructure is quite expensive, so it is important
++that you first make a baseline including the profiling itself, then
++compare it against the same commandline including the plugin you want to
++profile.
++
++== Improving Dstat's footprint even more
++Another way to win a few CPU cycles is to pre-compile the Dstat plugins
++by running the compileall.py script that comes with python on your
++plugins directory. It can save about 10% in execution time.
++
+ Remember that invisible plugins (that run out of your terminal window)
+ do take up cycles because the information is still being collected and
+ possibly written to CSV output.
+@@ -40,8 +70,7 @@
+ Any feedback on this is welcomed.
+ 
+ 
+-Performance tuning
+-------------------
++== Performance tuning
+ The following documents may be useful to tune a system for performance
+ 
+  * <A HREF="http://people.redhat.com/alikins/system_tuning.html[">http://people.redhat.com/alikins/system_tuning.html[</A>]
+
+Modified: trunk/tools/dstat/docs/screen.html
+===================================================================
+--- trunk/tools/dstat/docs/screen.html	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/screen.html	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -603,7 +603,7 @@
+ &lt;div id=&quot;footnotes&quot;&gt;&lt;hr /&gt;&lt;/div&gt;
+ &lt;div id=&quot;footer&quot;&gt;
+ &lt;div id=&quot;footer-text&quot;&gt;
+-Last updated 2006-12-12 16:39:55 CEST
++Last updated 2010-02-11 13:58:16 CEST
+ &lt;/div&gt;
+ &lt;/div&gt;
+ &lt;/body&gt;
+
+Modified: trunk/tools/dstat/docs/screen.txt
+===================================================================
+--- trunk/tools/dstat/docs/screen.txt	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/docs/screen.txt	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -1,5 +1,4 @@
+-Configuring screen to display multiple dstat for different systems
+-==================================================================
++= Configuring screen to display multiple dstat for different systems
+ 
+ Here is an example of how I monitor 5 nodes in a cluster with a minimum
+ of effort using screen:
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/dstat	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -17,7 +17,7 @@
+ from __future__ import generators
+ 
+ try:
+-    import sys, os, time, sched, re
++    import sys, os, time, sched, re, getopt
+     import types, resource, getpass, glob, linecache
+ except KeyboardInterrupt:
+     pass
+@@ -111,10 +111,9 @@
+         }
+ 
+         try:
+-            import getopt
+             opts, args = getopt.getopt(args, 'acdfghilmno:prstTvyC:D:I:M:N:S:V',
+                 ['all', 'all-plugins', 'bw', 'blackonwhite', 'debug',
+-                 'filesystem', 'float', 'full', 'gonuts', 'help', 'integer',
++                 'filesystem', 'float', 'full', 'help', 'integer',
+                  'list', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate',
+                  'output=', 'pidfile=', 'profile', 'version', 'vmstat'] + allplugins)
+         except getopt.error, exc:
+@@ -1605,6 +1604,7 @@
+ }
+ 
+ def set_theme():
++    &quot;Provide a set of colors to use&quot;
+     if op.blackonwhite:
+         theme = {
+             'title': ansi['darkblue'],
+@@ -1741,7 +1741,11 @@
+         raise Exception, 'Nothing found during matchpipe data collection'
+     return None
+ 
+-def linecache_readlines(filename):
++def proc_readlines(filename):
++    &quot;Return the lines of a file, one by one&quot;
++#    for line in open(filename).readlines():
++#       yield line
++
+     ### Implemented linecache (for top-plugins)
+     i = 1
+     while True:
+@@ -1750,7 +1754,11 @@
+         yield line
+         i += 1
+ 
+-def linecache_splitlines(filename):
++def proc_splitlines(filename):
++    &quot;Return the splitted lines of a file, one by one&quot;
++#    for line in open(filename).readlines():
++#       yield line.split()
++
+     ### Implemented linecache (for top-plugins)
+     i = 1
+     while True:
+@@ -1759,6 +1767,33 @@
+         yield line.split()
+         i += 1
+ 
++def proc_readline(filename):
++    &quot;Return the first line of a file&quot;
++#    return open(filename).read()
++    return linecache.getline(filename, 1)
++
++def proc_splitline(filename):
++    &quot;Return the first line of a file splitted&quot;
++#    return open(filename).read().split()
++    return linecache.getline(filename, 1).split()
++
++### FIXME: Should we cache this within every step ?
++def proc_pidlist():
++    &quot;Return a list of process IDs&quot;
++    dstat_pid = str(os.getpid())
++    for pid in os.listdir('/proc/'):
++        try:
++            ### Is it a pid ?
++            int(pid)
++
++            ### Filter out dstat
++            if pid == dstat_pid: continue
++
++            yield pid
++
++        except ValueError:
++            continue
++
+ def dchg(var, width, base):
+     &quot;Convert decimal to string given base and length&quot;
+     c = 0
+@@ -1798,6 +1833,17 @@
+         c = -1
+     return ret, c
+ 
++def tchg(var, width):
++    &quot;Convert time string to given length&quot;
++    ret = '%2dh%02d' % (var / 60, var % 60)
++    if len(ret) &gt; width:
++        ret = '%2dh' % (var / 60)
++        if len(ret) &gt; width:
++            ret = '%2dd' % (var / 60 / 24)
++            if len(ret) &gt; width:
++                ret = '%2dw' % (var / 60 / 24 / 7)
++    return ret
++
+ def cprintlist(varlist, type, width, scale):
+     &quot;Return all columns color printed&quot;
+     ret = sep = ''
+@@ -1852,7 +1898,7 @@
+     elif type in ('s'):
+         ret, c = str(var), ctext
+     elif type in ('t'):
+-        ret, c = '%2dh%02d' % (var / 60, var % 60), ctext
++        ret, c = tchg(var, width), ctext
+     else:
+         raise Exception, 'Type %s not known to dstat.' % type
+ 
+@@ -1886,6 +1932,7 @@
+     return ret
+ 
+ def header(totlist, vislist):
++    &quot;Return the header for a set of module counters&quot;
+     line = ''
+     ### Process title
+     for o in vislist:
+@@ -1905,6 +1952,7 @@
+     return line + '\n'
+ 
+ def csvheader(totlist):
++    &quot;Return the CVS header for a set of module counters&quot;
+     line = ''
+     ### Process title
+     for o in totlist:
+@@ -1972,6 +2020,7 @@
+     return termsize
+ 
+ def gettermcolor(color=True):
++    &quot;Return whether the system can use colors or not&quot;
+     if color and sys.stdout.isatty():
+         try:
+             import curses
+@@ -1985,11 +2034,13 @@
+ 
+ ### We only want to filter out paths, not ksoftirqd/1
+ def basename(name):
++    &quot;Perform basename on paths only&quot;
+     if name[0] in ('/', '.'):
+         return os.path.basename(name)
+     return name
+ 
+ def getnamebypid(pid, name):
++    &quot;Return the name of a process by taking best guesses and exclusion&quot;
+     ret = None
+     try:
+ #        cmdline = open('/proc/%s/cmdline' % pid).read().split('\0')
+@@ -2106,6 +2157,19 @@
+ 
+ def exit(ret):
+     sys.stdout.write(ansi['reset'])
++
++    if op.profile:
++        rows, cols = gettermsize()
++        import pstats
++        p = pstats.Stats('dstat_profile.log')
++#        p.sort_stats('name')
++#        p.print_stats()
++        p.sort_stats('cumulative').print_stats(rows - 12)
++#        p.sort_stats('time').print_stats(rows - 12)
++#        p.sort_stats('file').print_stats('__init__')
++#        p.sort_stats('time', 'cum').print_stats(.5, 'init')
++#        p.print_callees()
++
+     sys.exit(ret)
+ 
+ def listplugins():
+@@ -2158,6 +2222,7 @@
+         print mod
+ 
+ def main():
++    &quot;Initialization of the program, terminal, internal structures&quot;
+     global pagesize, cpunr, hz, ansi, theme, outputfile
+     global totlist, inittime
+     global update, missed
+@@ -2318,6 +2383,7 @@
+         sys.stdout.write('\n')
+ 
+ def perform(update):
++        &quot;Inner loop that calculates counters and constructs output&quot;
+         global totlist, oldvislist, vislist, showheader, rows, cols
+         global elapsed, totaltime, starttime
+         global loop, step, missed
+@@ -2453,17 +2519,6 @@
+     if op.pidfile and os.path.exists(op.pidfile):
+         os.remove(op.pidfile)
+ 
+-    if op.profile:
+-        rows, cols = gettermsize()
+-        import pstats
+-        p = pstats.Stats('dstat_profile.log')
+-#        p.sort_stats('name')
+-#        p.print_stats()
+-        p.sort_stats('cumulative').print_stats(rows - 12)
+-#        p.sort_stats('time').print_stats(rows - 12)
+-#        p.sort_stats('file').print_stats('__init__')
+-#        p.sort_stats('time', 'cum').print_stats(.5, 'init')
+-#        p.print_callees()
+     exit(0)
+ else:
+     op = Options('')
+
+Modified: trunk/tools/dstat/plugins/dstat_dstat.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_dstat.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_dstat.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -2,11 +2,14 @@
+ 
+ class dstat_plugin(dstat):
+     &quot;&quot;&quot;
+-    Provide more information related to the dstat process
++    Provide more information related to the dstat process.
++
++    The dstat cputime is the total cputime dstat requires per second. On a
++    system with one cpu and one core, the total cputime is 1000ms. On a system
++    with 2 cores the total is 2000ms.
+     &quot;&quot;&quot;
+     def __init__(self):
+         self.name = 'dstat'
+-        self.nick = ('time', 'latency')
+         self.vars = ('cputime', 'latency')
+         self.type = 'd'
+         self.width = 4
+
+Modified: trunk/tools/dstat/plugins/dstat_top_bio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_bio.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_bio.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -12,7 +12,6 @@
+         self.type = 's'
+         self.width = 22
+         self.scale = 0
+-        self.pid = str(os.getpid())
+         self.pidset1 = {}; self.pidset2 = {}
+ 
+     def check(self):
+@@ -22,14 +21,8 @@
+     def extract(self):
+         self.val['usage'] = 0.0
+         self.val['block i/o process'] = ''
+-        for pid in os.listdir('/proc/'):
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Reset values
+                 if not self.pidset2.has_key(pid):
+                     self.pidset2[pid] = {'read_bytes:': 0, 'write_bytes:': 0}
+@@ -37,20 +30,16 @@
+                     self.pidset1[pid] = {'read_bytes:': 0, 'write_bytes:': 0}
+ 
+                 ### Extract name
+-#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
+-                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
++                name = proc_splitline('/proc/%s/stat' % pid)[1][1:-1]
+ 
+                 ### Extract counters
+-#                for line in open('/proc/%s/io' % pid).readlines():
+-#                l = line.split()
+-                for l in linecache_splitlines('/proc/%s/io' % pid):
++                for l in proc_splitlines('/proc/%s/io' % pid):
+                     if len(l) != 2: continue
+                     self.pidset2[pid][l[0]] = int(l[1])
+-
+-            except ValueError:
+-                continue
+             except IOError:
+                 continue
++            except IndexError:
++                continue
+ 
+             read_usage = (self.pidset2[pid]['read_bytes:'] - self.pidset1[pid]['read_bytes:']) * 1.0 / elapsed
+             write_usage = (self.pidset2[pid]['write_bytes:'] - self.pidset1[pid]['write_bytes:']) * 1.0 / elapsed
+
+Added: trunk/tools/dstat/plugins/dstat_top_childwait.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_childwait.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_top_childwait.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -0,0 +1,56 @@
++### Dstat most expensive process plugin
++### Displays the name of the most expensive process
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++global cpunr
++
++class dstat_plugin(dstat):
++    def __init__(self):
++        self.name = 'most waiting for'
++        self.vars = ('child process',)
++        self.type = 's'
++        self.width = 16
++        self.scale = 0
++
++    def extract(self):
++        self.val['max'] = 0.0
++        for pid in proc_pidlist():
++            try:
++                ### Using dopen() will cause too many open files
++                l = proc_splitline('/proc/%s/stat' % pid)
++            except IOError:
++                continue
++
++            if len(l) &lt; 15: continue
++
++            ### Reset previous value if it doesn't exist
++            if not self.set1.has_key(pid):
++                self.set1[pid] = 0
++
++            self.set2[pid] = int(l[15]) + int(l[16])
++            usage = (self.set2[pid] - self.set1[pid]) * 1.0 / elapsed / cpunr
++
++            ### Is it a new topper ?
++            if usage &lt;= self.val['max']: continue
++
++            self.val['max'] = usage
++            self.val['name'] = getnamebypid(pid, l[1][1:-1])
++            self.val['pid'] = pid
++
++        ### Debug (show PID)
++#       self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++
++        if step == op.delay:
++            self.set1.update(self.set2)
++
++    def show(self):
++        if self.val['max'] == 0.0:
++            return '%-*s' % (self.width, '')
++        else:
++            return '%s%-*s%s' % (theme['default'], self.width-3, self.val['name'][0:self.width-3], cprint(self.val['max'], 'p', 3, 34))
++
++    def showcsv(self):
++        return '%s / %d%%' % (self.val['name'], self.val['max'])
++
++# vim:ts=4:sw=4:et
+
+Modified: trunk/tools/dstat/plugins/dstat_top_cpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_cpu.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_cpu.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -14,26 +14,15 @@
+         self.type = 's'
+         self.width = 16
+         self.scale = 0
+-        self.pid = str(os.getpid())
+         self.pidset1 = {}; self.pidset2 = {}
+ 
+     def extract(self):
+         self.val['max'] = 0.0
+         self.val['cpu process'] = ''
+-        for pid in os.listdir('/proc/'):
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Using dopen() will cause too many open files
+-#                l = open('/proc/%s/stat' % pid).read().split()
+-                l = linecache.getline('/proc/%s/stat' % pid, 1).split()
+-
+-            except ValueError:
+-                continue
++                l = proc_splitline('/proc/%s/stat' % pid)
+             except IOError:
+                 continue
+ 
+@@ -53,8 +42,8 @@
+ 
+             self.val['max'] = usage
+             self.val['pid'] = pid
+-#            self.val['name'] = getnamebypid(pid, name)
+-            self.val['name'] = name
++            self.val['name'] = getnamebypid(pid, name)
++#            self.val['name'] = name
+ 
+         if self.val['max'] != 0.0:
+             self.val['cpu process'] = '%-*s%s' % (self.width-3, self.val['name'][0:self.width-3], cprint(self.val['max'], 'f', 3, 34))
+
+Modified: trunk/tools/dstat/plugins/dstat_top_cputime.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_cputime.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_cputime.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -7,6 +7,9 @@
+     &quot;&quot;&quot;
+     Name and total amount of CPU time consumed in milliseconds of the process
+     that has the highest total amount of cputime for the measured timeframe.
++
++    On a system with one CPU and one core, the total cputime is 1000ms. On a
++    system with two cores the total cputime is 2000ms.
+     &quot;&quot;&quot;
+ 
+     def __init__(self):
+@@ -15,7 +18,6 @@
+         self.type = 's'
+         self.width = 17
+         self.scale = 0
+-        self.pid = str(os.getpid())
+         self.pidset1 = {}; self.pidset2 = {}
+ 
+     def check(self):
+@@ -24,31 +26,22 @@
+ 
+     def extract(self):
+         self.val['result'] = 0
+-        self.val['process'] = ''
+-        for pid in os.listdir('/proc/'):
++        self.val['cputime process'] = ''
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Reset values
+                 if not self.pidset1.has_key(pid):
+                     self.pidset1[pid] = {'run_ticks': 0}
+ 
+                 ### Extract name
+-#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
+-                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
++                name = proc_splitline('/proc/%s/stat' % pid)[1][1:-1]
+ 
+                 ### Extract counters
+-#                l = open('/proc/%s/schedstat' % pid).read().split()
+-                l = linecache.getline('/proc/%s/schedstat' % pid, 1).split()
+-
+-            except ValueError:
+-                continue
++                l = proc_splitline('/proc/%s/schedstat' % pid)
+             except IOError:
+                 continue
++            except IndexError:
++                continue
+ 
+             if len(l) != 3: continue
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_top_cputime_avg.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_cputime_avg.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_cputime_avg.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -7,13 +7,21 @@
+ ###     <A HREF="http://eaglet.rain.com/rick/linux/schedstat/">http://eaglet.rain.com/rick/linux/schedstat/</A>
+ 
+ class dstat_plugin(dstat):
++    &quot;&quot;&quot;
++    Name and average amount of CPU time consumed in milliseconds of the process
++    that has the highest average amount of cputime for the different slices for
++    the measured timeframe.
++
++    On a system with one CPU and one core, the total cputime is 1000ms. On a
++    system with two cores the total cputime is 2000ms.
++    &quot;&quot;&quot;
++
+     def __init__(self):
+         self.name = 'highest average'
+         self.vars = ('cputime process',)
+         self.type = 's'
+         self.width = 17
+         self.scale = 0
+-        self.pid = str(os.getpid())
+         self.pidset1 = {}; self.pidset2 = {}
+ 
+     def check(self):
+@@ -22,31 +30,22 @@
+ 
+     def extract(self):
+         self.val['result'] = 0
+-        self.val['process'] = ''
+-        for pid in os.listdir('/proc/'):
++        self.val['cputime process'] = ''
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Reset values
+                 if not self.pidset1.has_key(pid):
+                     self.pidset1[pid] = {'run_ticks': 0, 'ran': 0}
+ 
+                 ### Extract name
+-#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
+-                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
++                name = proc_splitline('/proc/%s/stat' % pid)[1][1:-1]
+ 
+                 ### Extract counters
+-#                l = open('/proc/%s/schedstat' % pid).read().split()
+-                l = linecache.getline('/proc/%s/schedstat' % pid, 1).split()
+-
+-            except ValueError:
+-                continue
++                l = proc_splitline('/proc/%s/schedstat' % pid)
+             except IOError:
+                 continue
++            except IndexError:
++                continue
+ 
+             if len(l) != 3: continue
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_top_io.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_io.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_io.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -10,7 +10,6 @@
+         self.type = 's'
+         self.width = 22
+         self.scale = 0
+-        self.pid = str(os.getpid())
+         self.pidset1 = {}; self.pidset2 = {}
+ 
+     def check(self):
+@@ -20,14 +19,8 @@
+     def extract(self):
+         self.val['usage'] = 0.0
+         self.val['i/o process'] = ''
+-        for pid in os.listdir('/proc/'):
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Reset values
+                 if not self.pidset2.has_key(pid):
+                     self.pidset2[pid] = {'rchar:': 0, 'wchar:': 0}
+@@ -35,20 +28,16 @@
+                     self.pidset1[pid] = {'rchar:': 0, 'wchar:': 0}
+ 
+                 ### Extract name
+-#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
+-                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
++                name = proc_splitline('/proc/%s/stat' % pid)[1][1:-1]
+ 
+                 ### Extract counters
+-#                for line in open('/proc/%s/io' % pid).readlines():
+-#                    l = line.split()
+-                for l in linecache_splitlines('/proc/%s/io' % pid):
++                for l in proc_splitlines('/proc/%s/io' % pid):
+                     if len(l) != 2: continue
+                     self.pidset2[pid][l[0]] = int(l[1])
+-
+-            except ValueError:
+-                continue
+             except IOError:
+                 continue
++            except IndexError:
++                continue
+ 
+             read_usage = (self.pidset2[pid]['rchar:'] - self.pidset1[pid]['rchar:']) * 1.0 / elapsed
+             write_usage = (self.pidset2[pid]['wchar:'] - self.pidset1[pid]['wchar:']) * 1.0 / elapsed
+@@ -72,7 +61,7 @@
+             self.val['i/o process'] = '%-*s%s %s' % (self.width-11, self.val['name'][0:self.width-11], cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024))
+ 
+         ### Debug (show PID)
+-#       self.val['i/o process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++#        self.val['i/o process'] = '%*s %-*s%s %s' % (5, self.val['pid'], self.width-17, self.val['name'][0:self.width-17], cprint(self.val['read_usage'], 'd', 5, 1024), cprint(self.val['write_usage'], 'd', 5, 1024))
+ 
+     def showcsv(self):
+         return '%s / %d:%d' % (self.val['name'], self.val['read_usage'], self.val['write_usage'])
+
+Modified: trunk/tools/dstat/plugins/dstat_top_latency.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_latency.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_latency.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -19,7 +19,6 @@
+         self.type = 's'
+         self.width = 17
+         self.scale = 0
+-        self.pid = str(os.getpid())
+         self.pidset1 = {}; self.pidset2 = {}
+ 
+     def check(self):
+@@ -28,31 +27,22 @@
+ 
+     def extract(self):
+         self.val['result'] = 0
+-        self.val['process'] = ''
+-        for pid in os.listdir('/proc/'):
++        self.val['latency process'] = ''
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Reset values
+                 if not self.pidset1.has_key(pid):
+                     self.pidset1[pid] = {'wait_ticks': 0}
+ 
+                 ### Extract name
+-#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
+-                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
++                name = proc_splitline('/proc/%s/stat' % pid)[1][1:-1]
+ 
+                 ### Extract counters
+-#                l = open('/proc/%s/schedstat' % pid).read().split()
+-                l = linecache.getline('/proc/%s/schedstat' % pid, 1).split()
+-
+-            except ValueError:
+-                continue
++                l = proc_splitline('/proc/%s/schedstat' % pid)
+             except IOError:
+                 continue
++            except IndexError:
++                continue
+ 
+             if len(l) != 3: continue
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_top_latency_avg.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_latency_avg.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_latency_avg.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -13,7 +13,6 @@
+         self.type = 's'
+         self.width = 17
+         self.scale = 0
+-        self.pid = str(os.getpid())
+         self.pidset1 = {}; self.pidset2 = {}
+ 
+     def check(self):
+@@ -22,31 +21,22 @@
+ 
+     def extract(self):
+         self.val['result'] = 0
+-        self.val['process'] = ''
+-        for pid in os.listdir('/proc/'):
++        self.val['latency process'] = ''
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Reset values
+                 if not self.pidset1.has_key(pid):
+                     self.pidset1[pid] = {'wait_ticks': 0, 'ran': 0}
+ 
+                 ### Extract name
+-#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
+-                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
++                name = proc_splitline('/proc/%s/stat' % pid)[1][1:-1]
+ 
+                 ### Extract counters
+-#                l = open('/proc/%s/schedstat' % pid).read().split()
+-                l = linecache.getline('/proc/%s/stat' % pid, 1).split()
+-
+-            except ValueError:
+-                continue
++                l = proc_splitline('/proc/%s/schedstat' % pid)
+             except IOError:
+                 continue
++            except IndexError:
++                continue
+ 
+             if len(l) != 3: continue
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_top_mem.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_mem.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_mem.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -14,24 +14,13 @@
+         self.type = 's'
+         self.width = 17
+         self.scale = 0
+-        self.pid = str(os.getpid())
+ 
+     def extract(self):
+         self.val['max'] = 0.0
+-        for pid in os.listdir('/proc/'):
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Using dopen() will cause too many open files
+-#                l = open('/proc/%s/stat' % pid).read().split()
+-                l = linecache.getline('/proc/%s/stat' % pid, 1).split()
+-
+-            except ValueError:
+-                continue
++                l = proc_splitline('/proc/%s/stat' % pid)
+             except IOError:
+                 continue
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_top_oom.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_oom.py	2010-02-10 16:24:35 UTC (rev 8641)
++++ trunk/tools/dstat/plugins/dstat_top_oom.py	2010-02-11 13:04:11 UTC (rev 8642)
+@@ -13,7 +13,6 @@
+         self.type = 's'
+         self.width = 18
+         self.scale = 0
+-        self.pid = str(os.getpid())
+ 
+     def check(self):
+         if not os.access('/proc/self/oom_score', os.R_OK):
+@@ -22,26 +21,17 @@
+     def extract(self):
+         self.val['max'] = 0.0
+         self.val['kill score'] = ''
+-        for pid in os.listdir('/proc/'):
++        for pid in proc_pidlist():
+             try:
+-                ### Is it a pid ?
+-                int(pid)
+-
+-                ### Filter out dstat
+-                if pid == self.pid: continue
+-
+                 ### Extract name
+-#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
+-                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
++                name = proc_splitline('/proc/%s/stat' % pid)[1][1:-1]
+ 
+                 ### Using dopen() will cause too many open files
+-#                l = open('/proc/%s/oom_score' % pid).read().split()
+-                l = linecache.getline('/proc/%s/oom_score' % pid, 1).split()
+-
+-            except ValueError:
+-                continue
++                l = proc_splitline('/proc/%s/oom_score' % pid)
+             except IOError:
+                 continue
++            except IndexError:
++                continue
+ 
+             if len(l) &lt; 1: continue
+             oom_score = int(l[0])
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007436.html">[svn] r8641 - in trunk/rpms: . mod_auth_tkt perl-Apache-AuthTkt
+</A></li>
+	<LI>Next message: <A HREF="007438.html">[svn] r8643 - in trunk/rpms: . perl-DateTime-Format-Duration
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7437">[ date ]</a>
+              <a href="thread.html#7437">[ thread ]</a>
+              <a href="subject.html#7437">[ subject ]</a>
+              <a href="author.html#7437">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

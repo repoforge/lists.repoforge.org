@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7922 - trunk/tools/perl-stuff
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7922%20-%20trunk/tools/perl-stuff&In-Reply-To=%3C200910160835.n9G8Z7UM002922%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006717.html">
+   <LINK REL="Next"  HREF="006719.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7922 - trunk/tools/perl-stuff</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7922%20-%20trunk/tools/perl-stuff&In-Reply-To=%3C200910160835.n9G8Z7UM002922%40surya.karan.org%3E"
+       TITLE="[svn] r7922 - trunk/tools/perl-stuff">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Oct 16 10:35:07 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006717.html">[svn] r7921 - trunk/rpms/perl-Date-Calc
+</A></li>
+        <LI>Next message: <A HREF="006719.html">[svn] r7923 - trunk/rpms/perl-Yahoo-Marketing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6718">[ date ]</a>
+              <a href="thread.html#6718">[ thread ]</a>
+              <a href="subject.html#6718">[ subject ]</a>
+              <a href="author.html#6718">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: 2009-10-16 09:35:07 +0100 (Fri, 16 Oct 2009)
+New Revision: 7922
+
+Added:
+   trunk/tools/perl-stuff/mcsfb.pl
+Log:
+initial
+
+
+Added: trunk/tools/perl-stuff/mcsfb.pl
+===================================================================
+--- trunk/tools/perl-stuff/mcsfb.pl	                        (rev 0)
++++ trunk/tools/perl-stuff/mcsfb.pl	2009-10-16 08:35:07 UTC (rev 7922)
+@@ -0,0 +1,84 @@
++# Meiers cpan spec file builder 
++
++
++use strict;
++
++use CPANPLUS::Backend;
++use CPAN::FindDependencies;
++use Data::Dumper;
++use LWP::Simple;
++
++#use YAML::Tiny;
++use YAML::Syck;
++use version;
++
++
++
++my $name = $ARGV[0];
++$name =~ s/::/-/g;
++
++my $cb      = CPANPLUS::Backend-&gt;new or die loc(&quot;Could not create new CPANPLUS::Backend object&quot;);                
++my $module = $cb-&gt;parse_module( module =&gt; $name ) or die &quot;Cannot make a module object out of $name\n&quot;;
++
++my $package_name = $module-&gt;package_name();
++
++if ( $name ne $package_name) { die &quot;Given Name does not match package name\nSeareched for $name but found $package_name\n&quot;; };
++
++my $yaml_url = &quot;<A HREF="http://search.cpan.org/src/">http://search.cpan.org/src/</A>&quot; . $module-&gt;author-&gt;cpanid . &quot;/&quot; . $name . &quot;-&quot; . $module-&gt;package_version . &quot;/META.yml&quot;;
++print &quot;$yaml_url\n&quot;;
++
++my $yaml_file = get($yaml_url);
++my $results = Load($yaml_file);
++
++
++# Merge build_requires and requires in one hash
++my %merged = ();
++while ( my ($k,$v) = each(%{$results-&gt;{'build_requires'}}) ) {
++    $merged{$k} = $v;
++}
++while ( my ($k,$v) = each(%{$results-&gt;{'requires'}}) ) {
++    $merged{$k} = $v;
++}
++
++# Print BuildRequires
++foreach my $key (sort keys %merged )  {
++		if ( $key eq &quot;perl&quot; ) {
++			print &quot;BuildRequires: $key &gt;= &quot; . $merged{$key} . &quot;\n&quot;;
++		} else {
++			print &quot;BuildRequires: perl($key)&quot;;
++			if ( $merged{$key} != 0 ) {
++					print  &quot; &gt;= &quot; . $merged{$key};
++			}  
++			print &quot;\n&quot;;
++		}
++}
++
++# Print Requires
++foreach my $key (sort keys %{$results-&gt;{'requires'}} )  {
++		if ( $key eq &quot;perl&quot; ) {
++			print &quot;Requires: $key &gt;= &quot; .$results-&gt;{'requires'}{$key} . &quot;\n&quot;;
++		} else {
++			print &quot;Requires: perl($key)&quot;;
++			if ( $results-&gt;{'requires'}{$key} != 0 ) {
++					print  &quot; &gt;= &quot; . $results-&gt;{'requires'}{$key};
++			}  
++			print &quot;\n&quot;;
++		}
++}
++
++print &quot;\n%filter_from_requires /^perl*/d\n&quot;;
++print &quot;%filter_setup\n&quot;;
++
++
++#foreach my $key (sort keys %{$results-&gt;{'recommends'}} )  {
++#                if ( $key eq &quot;perl&quot; ) {
++#                        print &quot;BuildRequires: $key &gt;= &quot; .$results-&gt;{'recommends'}{$key} . &quot;\n&quot;;
++#                } else {
++#                        print &quot;BuildRequires: perl($key)&quot;;
++#                        if ( $results-&gt;{'requires'}{$key} != 0 ) {
++#                                        print  &quot; &gt;= &quot; . $results-&gt;{'recomemnds'}{$key};
++#                        }
++#                        print &quot;\n&quot;;
++#                }
++#}
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006717.html">[svn] r7921 - trunk/rpms/perl-Date-Calc
+</A></li>
+	<LI>Next message: <A HREF="006719.html">[svn] r7923 - trunk/rpms/perl-Yahoo-Marketing
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6718">[ date ]</a>
+              <a href="thread.html#6718">[ thread ]</a>
+              <a href="subject.html#6718">[ subject ]</a>
+              <a href="author.html#6718">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

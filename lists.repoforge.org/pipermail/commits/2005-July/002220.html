@@ -1,0 +1,324 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3418 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3418%20-%20trunk/tools/dstat&In-Reply-To=%3C20050721160240.DC618318032%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002219.html">
+   <LINK REL="Next"  HREF="002221.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3418 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3418%20-%20trunk/tools/dstat&In-Reply-To=%3C20050721160240.DC618318032%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3418 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jul 21 18:02:40 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002219.html">[svn] r3417 - trunk/rpms/multitail
+</A></li>
+        <LI>Next message: <A HREF="002221.html">[svn] r3419 - in trunk/rpms: blender cwirc dansguardian dspam	gnokii gtksql kig libextractor php-jpgraph python-mad	regexxer seahorse swfdec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2220">[ date ]</a>
+              <a href="thread.html#2220">[ thread ]</a>
+              <a href="subject.html#2220">[ subject ]</a>
+              <a href="author.html#2220">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-07-21 18:02:30 +0200 (Thu, 21 Jul 2005)
+New Revision: 3418
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat15
+Log:
+Small updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-07-21 14:19:27 UTC (rev 3417)
++++ trunk/tools/dstat/ChangeLog	2005-07-21 16:02:30 UTC (rev 3418)
+@@ -3,6 +3,7 @@
+ - Added -M list to show the list of available modules per path
+ - Fixed a bug in dpopen causing gpfs/gpfsop to fail after a while
+ - Change terminal title (if terminal supports it)
++- Don't trim the cpulist to 2 items when -f (S&#233;bastien Prud'homme)
+ 
+ * 0.6.0 - Bettiesbaai - released 29/05/2005
+ - Removed keyboard input prevention patch. (Dbt 304673, Marc Lehmann)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-07-21 14:19:27 UTC (rev 3417)
++++ trunk/tools/dstat/dstat	2005-07-21 16:02:30 UTC (rev 3418)
+@@ -243,7 +243,7 @@
+      --mods stat1,stat2
+ 
+   -a, --all              equals -cdngy (default)
+-  -f, --full             expand -D, -I and -N discovery lists
++  -f, --full             expand -C, -D, -I and -N discovery lists
+   -v, --vmstat           equals -pmgdsc -D total
+ 
+   --integer              show integer values
+@@ -452,7 +452,7 @@
+ 			while cpu &lt; cpunr:
+ 				list.append(str(cpu))
+ 				cpu = cpu + 1
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+ 			if name in self.discover(''):
+ 				ret.append(name)
+@@ -513,7 +513,7 @@
+ 			while cpu &lt; cpunr:
+ 				list.append(str(cpu))
+ 				cpu = cpu + 1
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+ 			if name in self.discover(''):
+ 				ret.append(name)
+@@ -1488,18 +1488,16 @@
+ ### FIXME: Add scsi support too and improve
+ def sysfs_dev(device):
+ 	&quot;Convert sysfs device names into device names&quot;
+-	ide_re = re.compile('ide/host([0-9])/bus([0-9])/target([0-9])/lun([0-9])/disc')
+-	scsi_re = re.compile('placeholder')
+-	m = ide_re.match(device)
++	m = re.match('ide/host([0-9])/bus([0-9])/target([0-9])/lun([0-9])/disc', device)
+ 	if m:
+ 		l = m.groups()
+ 		# ide/host0/bus0/target0/lun0/disc -&gt; 0 -&gt; hda
+ 		# ide/host0/bus1/target0/lun0/disc -&gt; 2 -&gt; hdc
+ 		nr = int(l[1]) * 2 + int(l[3])
+ 		return 'hd' + chr(ord('a') + nr)
+-	m = scsi_re.match(device)
++	m = re.match('placeholder', device)
+ 	if m:
+-		return 'scsi'
++		return 'sdX'
+ 	return device
+ 
+ def scsi_dev(nr):
+@@ -1542,7 +1540,6 @@
+ 	sys.stdout.write(ansi['reset'])
+ 	if 'signal' in sys.modules.keys():
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-#	termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ 	sys.exit(ret)
+ 
+ def listmodules():
+@@ -1579,7 +1576,7 @@
+ 	user = getpass.getuser()
+ 	hostname = os.uname()[1].split('.')[0]
+ 	if re.compile('(screen|xterm*)').match(os.getenv('TERM')):
+-		sys.stdout.write('\033]0;(%s@%s) %s %s\007' % (user, hostname, 'dstat', ' '.join(op.args)))
++		sys.stdout.write('\033]0;(%s@%s) %s %s\007' % (user, hostname, os.path.basename(sys.argv[0]), ' '.join(op.args)))
+ 
+ 	if op.output:
+ 		if os.path.exists(op.output):
+@@ -1771,13 +1768,6 @@
+ 		except:
+ 			pass
+ 
+-		### Prevent keyboard input
+-#		fd = sys.stdin.fileno()
+-#		old = termios.tcgetattr(fd)
+-#		new = termios.tcgetattr(fd)
+-#		new[3] = new[3] &amp; ~termios.ECHO
+-#		termios.tcsetattr(fd, termios.TCSADRAIN, new)
+-
+ 		op = Options(sys.argv[1:])
+ 		main()
+ 	except KeyboardInterrupt, e:
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-07-21 14:19:27 UTC (rev 3417)
++++ trunk/tools/dstat/dstat15	2005-07-21 16:02:30 UTC (rev 3418)
+@@ -18,11 +18,12 @@
+ 
+ try:
+ 	import sys, signal, os, re, time, string
+-	import types, signal, resource
+-	pwd = os.path.dirname(sys.argv[0])
++	import types, signal, resource, getpass
++	cwd = os.path.abspath(os.path.dirname(sys.argv[0]))
+ 	sys.path.insert(0, os.getenv('HOME') + '/.dstat/')
+-	sys.path.insert(1, pwd)
+-	sys.path.insert(2, pwd + '/plugins/')
++	if cwd in sys.path: sys.path.remove(cwd)
++	sys.path.insert(1, cwd)
++	sys.path.insert(2, cwd + '/plugins/')
+ 	sys.path.insert(3, '/usr/share/dstat/')
+ 	sys.path.insert(4, '/usr/local/share/dstat/')
+ except KeyboardInterrupt, e:
+@@ -56,7 +57,7 @@
+ 	True = 1
+ 	False = 0
+ 
+-VERSION = '0.6.0'
++VERSION = '0.6.1'
+ 
+ class Options:
+ 	def __init__(self, args):
+@@ -196,7 +197,12 @@
+ 		print 'Processors: %d' % getcpunr()
+ 		print 'Pagesize: %d' % resource.getpagesize()
+ 		print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
++		print
+ 
++		global op
++		op = self
++		listmodules()
++
+ 	def usage(self):
+ 		print 'Usage: dstat [-afv] [options..] [delay [count]]'
+ 
+@@ -230,7 +236,7 @@
+      --mods stat1,stat2
+ 
+   -a, --all              equals -cdngy (default)
+-  -f, --full             expand -D, -I and -N discovery lists
++  -f, --full             expand -C, -D, -I and -N discovery lists
+   -v, --vmstat           equals -pmgdsc -D total
+ 
+   --integer              show integer values
+@@ -439,7 +445,7 @@
+ 			while cpu &lt; cpunr:
+ 				list.append(str(cpu))
+ 				cpu = cpu + 1
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+ 			if name in self.discover(''):
+ 				ret.append(name)
+@@ -500,7 +506,7 @@
+ 			while cpu &lt; cpunr:
+ 				list.append(str(cpu))
+ 				cpu = cpu + 1
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+ 			if name in self.discover(''):
+ 				ret.append(name)
+@@ -1313,7 +1319,7 @@
+ 	global pipes
+ 	if 'pipes' not in globals().keys(): pipes = {}
+ 	if cmd not in pipes.keys():
+-		pipes[cmd] = os.popen3('/usr/lpp/mmfs/bin/mmpmon -p', 't', 0)
++		pipes[cmd] = os.popen3(cmd, 't', 0)
+ 	return pipes[cmd]
+ 
+ def readpipe(file, tmout = 0.001):
+@@ -1491,18 +1497,16 @@
+ ### FIXME: Add scsi support too and improve
+ def sysfs_dev(device):
+ 	&quot;Convert sysfs device names into device names&quot;
+-	ide_re = re.compile('ide/host([0-9])/bus([0-9])/target([0-9])/lun([0-9])/disc')
+-	scsi_re = re.compile('placeholder')
+-	m = ide_re.match(device)
++	m = re.match('ide/host([0-9])/bus([0-9])/target([0-9])/lun([0-9])/disc', device)
+ 	if m:
+ 		l = m.groups()
+ 		# ide/host0/bus0/target0/lun0/disc -&gt; 0 -&gt; hda
+ 		# ide/host0/bus1/target0/lun0/disc -&gt; 2 -&gt; hdc
+ 		nr = int(l[1]) * 2 + int(l[3])
+ 		return 'hd' + chr(ord('a') + nr)
+-	m = scsi_re.match(device)
++	m = re.match('placeholder', device)
+ 	if m:
+-		return 'scsi'
++		return 'sdX'
+ 	return device
+ 
+ def scsi_dev(nr):
+@@ -1545,7 +1549,6 @@
+ 	sys.stdout.write(ansi['reset'])
+ 	if 'signal' in sys.modules.keys():
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-#	termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ 	sys.exit(ret)
+ 
+ def main():
+@@ -1559,6 +1562,11 @@
+ #	hz = os.sysconf('SC_CLK_TCK')
+ 	interval = 1
+ 
++	user = getpass.getuser()
++	hostname = string.split(os.uname()[1], '.')[0]
++	if re.compile('(screen|xterm*)').match(os.getenv('TERM')):
++		sys.stdout.write('\033]0;(%s@%s) %s %s\007' % (user, hostname, os.path.basename(sys.argv[0]), ' '.join(op.args)))
++
+ 	if op.output:
+ 		if os.path.exists(op.output):
+ 			outputfile = open(op.output, 'a', 0)
+@@ -1568,9 +1576,7 @@
+ 			outputfile.write('&quot;Dstat %s CSV output&quot;\n' % VERSION)
+ 			outputfile.write('&quot;Author:&quot;,&quot;Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;&quot;,,,,&quot;URL:&quot;,&quot;<A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>&quot;\n')
+ 
+-		### FIXME: Get rid of socket()
+-		import socket
+-		outputfile.write('&quot;Host:&quot;,&quot;%s&quot;\n' % (socket.gethostbyaddr(socket.gethostname())[0]))
++		outputfile.write('&quot;Host:&quot;,&quot;%s&quot;,,,,&quot;User:&quot;,&quot;%s&quot;\n' % (hostname, user))
+ 		outputfile.write('&quot;Cmdline:&quot;,&quot;dstat %s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;\n\n' % (' '.join(op.args), time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime())))
+ 
+ 	### Check terminal capabilities
+@@ -1598,7 +1604,10 @@
+ 	oldvislist = []
+ 	totlist = []
+ 	for module in op.modlist:
+-		if module == 'cpu':    mods = ( 'cpu', 'cpu24' )
++		if module in ('list', 'help'):
++			listmodules()
++			exit(0)
++		elif module == 'cpu':  mods = ( 'cpu', 'cpu24' )
+ 		elif module == 'disk': mods = ( 'disk', 'disk24', 'disk24old' )
+ 		elif module == 'int':  mods = ( 'int', 'int24' )
+ 		elif module == 'page': mods = ( 'page', 'page24' )
+@@ -1747,13 +1756,6 @@
+ 		except:
+ 			pass
+ 
+-		### Prevent keyboard input
+-#		fd = sys.stdin.fileno()
+-#		old = termios.tcgetattr(fd)
+-#		new = termios.tcgetattr(fd)
+-#		new[3] = new[3] &amp; ~termios.ECHO
+-#		termios.tcsetattr(fd, termios.TCSADRAIN, new)
+-
+ 		op = Options(sys.argv[1:])
+ 		main()
+ 	except KeyboardInterrupt, e:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002219.html">[svn] r3417 - trunk/rpms/multitail
+</A></li>
+	<LI>Next message: <A HREF="002221.html">[svn] r3419 - in trunk/rpms: blender cwirc dansguardian dspam	gnokii gtksql kig libextractor php-jpgraph python-mad	regexxer seahorse swfdec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2220">[ date ]</a>
+              <a href="thread.html#2220">[ thread ]</a>
+              <a href="subject.html#2220">[ subject ]</a>
+              <a href="author.html#2220">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

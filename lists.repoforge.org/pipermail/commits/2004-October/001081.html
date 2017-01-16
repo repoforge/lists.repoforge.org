@@ -1,0 +1,255 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2275 - in trunk/tools/pydar2: pydar sql tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2275%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql%20tests&In-Reply-To=%3C20041013122650.43E731802F%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001080.html">
+   <LINK REL="Next"  HREF="001082.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2275 - in trunk/tools/pydar2: pydar sql tests</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2275%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql%20tests&In-Reply-To=%3C20041013122650.43E731802F%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2275 - in trunk/tools/pydar2: pydar sql tests">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Oct 13 14:26:50 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001080.html">[SVN] r2274 - in trunk/rpms: sylpheed xvidcore zapping
+</A></li>
+        <LI>Next message: <A HREF="001082.html">[SVN] r2276 - in trunk/tools/pydar2: pydar sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1081">[ date ]</a>
+              <a href="thread.html#1081">[ thread ]</a>
+              <a href="subject.html#1081">[ subject ]</a>
+              <a href="author.html#1081">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-10-13 14:26:47 +0200 (Wed, 13 Oct 2004)
+New Revision: 2275
+
+Added:
+   trunk/tools/pydar2/tests/rpmscheck-test.py
+   trunk/tools/pydar2/tests/rpmscheck-test.sh
+Modified:
+   trunk/tools/pydar2/pydar/rpmfile.py
+   trunk/tools/pydar2/pydar/rpmscheck.py
+   trunk/tools/pydar2/pydar/tagsfile.py
+   trunk/tools/pydar2/sql/rpmscheck.sql
+Log:
+fixes, update
+
+Modified: trunk/tools/pydar2/pydar/rpmfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmfile.py	2004-10-13 11:09:38 UTC (rev 2274)
++++ trunk/tools/pydar2/pydar/rpmfile.py	2004-10-13 12:26:47 UTC (rev 2275)
+@@ -30,5 +30,5 @@
+     # rpmfile: a path to a rpm file like /a/b/c.spec
+     # defineargs: a string which can be used on the commandline 
+     # like '--define &quot;fc2 1&quot;'
+-    def __init__(self, specfile, defineargs):
+-        TagsFile.__init__(self,defineargs, &quot; &quot;, rpmfile)
+\ No newline at end of file
++    def __init__(self, rpmfile, defineargs):
++        TagsFile.__init__(self,defineargs, &quot; -p &quot;, rpmfile)
+\ No newline at end of file
+
+Modified: trunk/tools/pydar2/pydar/rpmscheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-13 11:09:38 UTC (rev 2274)
++++ trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-13 12:26:47 UTC (rev 2275)
+@@ -38,8 +38,9 @@
+     # so call this function for every directory which contains rpms
+     def check(self, rpmsDir,dbconnectstring):
+         self.cat.debug(&quot;start, rpmsDir=&quot; + rpmsDir)
+-        locationId = getRpmLocationId(rpmsDir)
+         self.dbconnectstring = dbconnectstring
++        self.cat.debug(&quot;self.dbconnectstring set to: &quot; + self.dbconnectstring)
++        locationId = self.getRpmLocationId(rpmsDir)
+         # let's check every spec file we can find in the repository
+         rpmsDirList = posix.listdir(rpmsDir)
+         for file in rpmsDirList:
+@@ -48,7 +49,7 @@
+                 self.cat.debug(&quot;rpm match, file=&quot; + file)
+                 self.checkRpmFile(rpmsDir,file,locationId);
+ 
+-    def getRpmLocationId(rpmsDir):
++    def getRpmLocationId(self,rpmsDir):
+         # inserts a new one if needed!
+         conn = pgdb.connect(self.dbconnectstring)
+         cursor = conn.cursor()
+@@ -78,10 +79,10 @@
+         # specrpmrelease : specRpmRelease
+         fileMd5s = rf.standardtags['FILEMD5S']
+         # filemd5s : fileMd5s
+-        chlogLine = rf.stardardtags['CHANGELOGNAME']
++        chlogLine = rf.standardtags['CHANGELOGNAME']
+         regexp = '.*#([0-9]*)$'
+         regex = re.compile(regexp)
+-        result = regex.match(inputstring)
++        result = regex.match(chlogLine)
+         svnCmtRev = &quot;null&quot;;
+         specFileId = &quot;null&quot;;
+         if result:
+@@ -96,7 +97,7 @@
+         self.cat.debug('start,fileName=' + fileName + &quot;,svnCmtRev=&quot; + svnCmtRev + &quot;,specFileId=&quot; + specFileId)
+         
+     def getSpecFileId(self,svnCmtRev,specRpmName,specRpmRelease):
+-        sqlStr = &quot;select v.specfileid from pydar_specfile_version v, pydar2_specfile_tags t1 where t1.name = 'NAME' and t1.specfileid=v.specfileid and t1.svncmtrev=v.svncmtrev and v.svncmtrev=&quot; + svnCmtRev + &quot; and '&quot; + specRpmName + &quot;' like t1.value || '%' order by t1.value desc&quot;
++        sqlStr = &quot;select v.specfileid from pydar2_specfile_version v, pydar2_specfile_tags t1 where t1.name = 'NAME' and t1.specfileid=v.specfileid and t1.svncmtrev=v.svncmtrev and v.svncmtrev=&quot; + svnCmtRev + &quot; and '&quot; + specRpmName + &quot;' like t1.value || '%' order by t1.value desc&quot;
+         self.cat.debug('sqlStr: ' + sqlStr)
+         conn = pgdb.connect(self.dbconnectstring)
+         cursor = conn.cursor()
+@@ -106,7 +107,7 @@
+             retval = rs[0]
+             cursor.close()
+             conn.close()
+-            self.cat.debug('retval:' + retval)
++            self.cat.debug('retval:' + str(retval))
+             return str(retval)
+         else:
+             retval = &quot;null&quot;
+
+Modified: trunk/tools/pydar2/pydar/tagsfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/tagsfile.py	2004-10-13 11:09:38 UTC (rev 2274)
++++ trunk/tools/pydar2/pydar/tagsfile.py	2004-10-13 12:26:47 UTC (rev 2275)
+@@ -43,9 +43,10 @@
+         self.cat.debug(&quot;start&quot;)
+         queryformat = self.getQueryFormatString()
+         self.cat.debug(&quot;queryformat=&quot; + str(queryformat))
+-        commandline = &quot;rpm -q &quot; + self.defineargs + &quot; --queryformat '&quot; + queryformat + self.addToCommandLine + self.filename
++        commandline = &quot;rpm -q &quot; + self.defineargs + &quot; --queryformat '&quot; + queryformat + &quot;' &quot; + self.addToCommandLine + self.filename
+         self.cat.debug(&quot;commandline=&quot; + commandline)
+         result = commands.getoutput(commandline)
++        self.cat.debug(&quot;result: &quot; + result)
+         self.parseStandardTags(result)       
+ 
+     def getQueryFormatString(self):
+@@ -59,7 +60,7 @@
+         self.cat.debug(&quot;start, inputstring=&quot; + inputstring)
+         for tag in self.queryformattags:
+             self.cat.debug(&quot;tag: &quot; + tag)
+-            regexp = '.*#####'+tag+'#####(.*)#####'+tag+'#####.*'
++            regexp = '.*?#####'+tag+'#####(.*?)#####'+tag+'#####.*'
+             regex = re.compile(regexp,re.MULTILINE | re.DOTALL)
+             #self.cat.debug(&quot;regexp: &quot;+ regexp)
+             #self.cat.debug(&quot;inputstring:&quot;+inputstring)
+
+Modified: trunk/tools/pydar2/sql/rpmscheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/rpmscheck.sql	2004-10-13 11:09:38 UTC (rev 2274)
++++ trunk/tools/pydar2/sql/rpmscheck.sql	2004-10-13 12:26:47 UTC (rev 2275)
+@@ -8,7 +8,7 @@
+ drop table pydar2_rpmfile;
+ 
+ create table pydar2_rpmlocation (
+-    id integer unique not null default nextval('pydar2_rpmlocation_idseq');
++    id integer unique not null default nextval('pydar2_rpmlocation_idseq'),
+     path varchar(512) not null
+ );
+ 
+@@ -23,7 +23,6 @@
+     specrpmversion varchar(128) not null,
+     specrpmrelease varchar(128),
+     filemd5s varchar(512) not null,
+-    
+-    svncmtrev int,
+-    specfileid int
++    svncmtrev integer,
++    specfileid integer
+ );
+\ No newline at end of file
+
+Added: trunk/tools/pydar2/tests/rpmscheck-test.py
+===================================================================
+--- trunk/tools/pydar2/tests/rpmscheck-test.py	2004-10-13 11:09:38 UTC (rev 2274)
++++ trunk/tools/pydar2/tests/rpmscheck-test.py	2004-10-13 12:26:47 UTC (rev 2275)
+@@ -0,0 +1,35 @@
++
++&quot;&quot;&quot; Tests for pydar/rpmscheck.py &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++
++
++
++# ATTENTION: RPMSCHECK CHANGES YOUR DATABASE CONTENTS IF IT IS ABLE TO CONNECT
++# WATCH OUT WITH THIS TEST
++
++import re, sys
++from log4py import Logger
++sys.path.append(&quot;tools/pydar2/pydar&quot;)
++from rpmscheck import RpmsCheck
++
++# all paths relative to svn/trunk directory
++
++sc = RpmsCheck()
++sc.check('/home/pydar/svnroot/svn/trunk/rpms/ayo/aurora/1.92/sparc/RPMS.dries',&quot;localhost:rpmforge:rpmforge&quot;)
++
++
+
+Added: trunk/tools/pydar2/tests/rpmscheck-test.sh
+===================================================================
+--- trunk/tools/pydar2/tests/rpmscheck-test.sh	2004-10-13 11:09:38 UTC (rev 2274)
++++ trunk/tools/pydar2/tests/rpmscheck-test.sh	2004-10-13 12:26:47 UTC (rev 2275)
+@@ -0,0 +1,9 @@
++#!/bin/bash
++
++# start from svn/trunk/tools/pydar2/tests/ directory
++
++cd ../../../
++
++echo current working directory is `pwd`
++
++python tools/pydar2/tests/rpmscheck-test.py
+
+
+Property changes on: trunk/tools/pydar2/tests/rpmscheck-test.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001080.html">[SVN] r2274 - in trunk/rpms: sylpheed xvidcore zapping
+</A></li>
+	<LI>Next message: <A HREF="001082.html">[SVN] r2276 - in trunk/tools/pydar2: pydar sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1081">[ date ]</a>
+              <a href="thread.html#1081">[ thread ]</a>
+              <a href="subject.html#1081">[ subject ]</a>
+              <a href="author.html#1081">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

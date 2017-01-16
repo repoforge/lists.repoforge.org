@@ -1,0 +1,294 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5758 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5758%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20070819172604.EDFD2944B58%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004556.html">
+   <LINK REL="Next"  HREF="004558.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5758 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5758%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20070819172604.EDFD2944B58%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5758 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Aug 19 19:26:04 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004556.html">[svn] r5757 - in trunk/rpms: perl-Gtk2-GladeXML	perl-Net-IMAP-Simple perl-Sub-Uplevel perl-Term-UI	perl-Test-MockObject perl-Text-vCard	perl-Thread-Conveyor-Monitored perl-Thread-Serialize	perl-X11-Protocol
+</A></li>
+        <LI>Next message: <A HREF="004558.html">[svn] r5759 - in trunk/rpms: . perl-Apache-Logmonster
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4557">[ date ]</a>
+              <a href="thread.html#4557">[ thread ]</a>
+              <a href="subject.html#4557">[ subject ]</a>
+              <a href="author.html#4557">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-08-19 19:26:03 +0200 (Sun, 19 Aug 2007)
+New Revision: 5758
+
+Added:
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topio.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+Log:
+Added topio and topbio plugins.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2007-08-19 12:26:51 UTC (rev 5757)
++++ trunk/tools/dstat/ChangeLog	2007-08-19 17:26:03 UTC (rev 5758)
+@@ -11,6 +11,7 @@
+ - Fixed a few inaccuracies in the man page. (John Goggan)
+ - Fixed opening vanished files in /proc in dstat_topcpu.
+ - Fixed formatting bug in dstat_topcpu.
++- Added external dstat_topio and dstat_topbio plugins
+ 
+ * 0.6.6 - Unemployed - released 28/04/2007
+ - Removed SwapCached from the Cached counter (Dbt 418326, Peter Rabbitson)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2007-08-19 12:26:51 UTC (rev 5757)
++++ trunk/tools/dstat/TODO	2007-08-19 17:26:03 UTC (rev 5758)
+@@ -39,8 +39,9 @@
+ + Add i2c plugin (see /sys/class/i2c-adapter/i2c-*/*/*/*/*/*)
+ + Allow for SNMP counters to be added
+ + Add LVM stats
+++ Add 'most expensive io app' based on /proc/pid/io (topio_ops)
+++ Add 'most expensive X app' (look at xrestop)
+ + Add number of (active) X sessions and X clients
+-+ Add 'most expensive io app' and 'most expensive X app'
+ + Allow to have multiple '1st expensive ... app' and '2nd expensive ... app'
+ 
+ ### Documentation (help welcome!)
+@@ -58,10 +59,8 @@
+ + When stdout is suspend (Ctrl-S) you get: IOError: [Errno 4] Interrupted system call (Dbt 309953, Marc Lehmann, <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">supastuff at freenode</A>)
+ 
+ ### Plugin issues
+-+ app plugin: reasonably slow
+-+ app plugin: has problem opening too many files [Errno 24]
+++ plugins that use /proc/pid are reasonably slow
+ + app plugin: takes second argument when finding known interpreter (is wrong when second argument
+-+ app plugin: prints ANSI characters to CSV
+ + disk plugin: /proc/partitions can have negative numbers, seen on systems with long uptime. dstat handles this except for calculating the very first stat, no work-around possible?
+ + proc plugin: (run and blk) does not work on 2.4.24+, to be confirmed
+ + proc plugin: seem to be off-by-one compared to vmstat (some of the time, this is what I get from /proc/stat)
+
+Added: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2007-08-19 17:26:03 UTC (rev 5758)
+@@ -0,0 +1,85 @@
++### Dstat most expensive block I/O process plugin
++### Displays the name of the most expensive block I/O process
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++global string
++import string
++
++class dstat_topbio(dstat):
++    def __init__(self):
++        self.name = 'most expensive'
++        self.format = ('s', 22, 1024)
++        self.nick = ('block i/o process',)
++        self.vars = self.nick
++        self.pid = str(os.getpid())
++        self.cn1 = {}; self.cn2 = {}; self.val = {}
++
++    def check(self):
++        try:
++            open('/proc/self/io')
++        except:
++            raise Exception, 'Kernel has no I/O accounting, use at least 2.6.20.'
++        return True
++
++    def extract(self):
++        self.val['usage'] = 0.0
++        for pid in os.listdir('/proc/'):
++            try:
++                int(pid)
++                if pid == self.pid: continue
++                if not self.cn2.has_key(pid):
++                    self.cn2[pid] = {'read_bytes:': 0, 'write_bytes:': 0}
++                if not self.cn1.has_key(pid):
++                    self.cn1[pid] = {'read_bytes:': 0, 'write_bytes:': 0}
++
++                for line in open('/proc/%s/io' % pid).readlines():
++                    l = string.split(line)
++                    if len(l) != 2: continue
++                    self.cn2[pid][l[0]] = int(l[1])
++            except ValueError:
++                continue
++
++            read_usage = (self.cn2[pid]['read_bytes:'] - self.cn1[pid]['read_bytes:']) * 1.0 / tick
++            write_usage = (self.cn2[pid]['write_bytes:'] - self.cn1[pid]['write_bytes:']) * 1.0 / tick
++            usage = read_usage + write_usage
++
++            ### Get the process that spends the most jiffies
++            if usage &gt; self.val['usage']:
++                self.val['usage'] = usage
++                self.val['read_usage'] = read_usage
++                self.val['write_usage'] = write_usage
++                self.val['pid'] = pid
++                st = os.stat(&quot;/proc/%s&quot; % pid)
++
++        if self.val['usage'] == 0.0:
++            self.val['process'] = ''
++        else:
++            l = string.split(open('/proc/%s/stat' % self.val['pid']).read())
++            self.val['name'] = l[1][1:-1]
++            ### If the name is a known interpreter, take the second argument from the cmdline
++            if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
++                ### Using dopen() will cause too many open files
++#               l = string.split(dopen('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
++                l = string.split(open('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
++                if len(l) &gt; 2:
++                    self.val['process'] = os.path.basename(l[1])
++            else:
++                self.val['process'] = self.val['name']
++
++            ### Debug (show PID)
++#           self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.format[1]-6, self.val['name'])
++
++        if step == op.delay:
++            self.cn1.update(self.cn2)
++
++    def show(self):
++        if self.val['usage'] == 0.0:
++            return '%-*s' % (self.format[1], '')
++        else:
++            return '%s%-*s%s:%s' % (ansi['default'], self.format[1]-11, self.val['process'][0:self.format[1]-11], cprint(self.val['read_usage'], ('f', 5, 1024)), cprint(self.val['write_usage'], ('f', 5, 1024)))
++
++    def showcsv(self):
++        return '%s / %d:%d' % (self.val['name'], self.val['read_usage'], selv.val['write_usage'])
++
++# vim:ts=4:sw=4:et
+
+Added: trunk/tools/dstat/plugins/dstat_topio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topio.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_topio.py	2007-08-19 17:26:03 UTC (rev 5758)
+@@ -0,0 +1,87 @@
++### Dstat most expensive I/O process plugin
++### Displays the name of the most expensive I/O process
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++global string
++import string
++
++class dstat_topio(dstat):
++    def __init__(self):
++        self.name = 'most expensive'
++        self.format = ('s', 22, 1024)
++        self.nick = ('i/o process',)
++        self.vars = self.nick
++        self.pid = str(os.getpid())
++        self.cn1 = {}; self.cn2 = {}; self.val = {}
++
++    def check(self):
++        try:
++            open('/proc/self/io')
++        except:
++            raise Exception, 'Kernel has no I/O accounting, use at least 2.6.20.'
++        return True
++
++    def extract(self):
++        self.val['usage'] = 0.0
++        for pid in os.listdir('/proc/'):
++            try:
++                int(pid)
++                if pid == self.pid: continue
++                if not self.cn2.has_key(pid):
++                    self.cn2[pid] = {'rchar:': 0, 'wchar:': 0}
++                if not self.cn1.has_key(pid):
++                    self.cn1[pid] = {'rchar:': 0, 'wchar:': 0}
++
++                for line in open('/proc/%s/io' % pid).readlines():
++                    l = string.split(line)
++                    if len(l) != 2: continue
++                    self.cn2[pid][l[0]] = int(l[1])
++            except ValueError:
++                continue
++
++            read_usage = (self.cn2[pid]['rchar:'] - self.cn1[pid]['rchar:']) * 1.0 / tick
++            write_usage = (self.cn2[pid]['wchar:'] - self.cn1[pid]['wchar:']) * 1.0 / tick
++            usage = read_usage + write_usage
++#            if usage &gt; 0.0:
++#                print '%s %s:%s' % (pid, read_usage, write_usage)
++
++            ### Get the process that spends the most jiffies
++            if usage &gt; self.val['usage']:
++                self.val['usage'] = usage
++                self.val['read_usage'] = read_usage
++                self.val['write_usage'] = write_usage
++                self.val['pid'] = pid
++                st = os.stat(&quot;/proc/%s&quot; % pid)
++
++        if self.val['usage'] == 0.0:
++            self.val['process'] = ''
++        else:
++            l = string.split(open('/proc/%s/stat' % self.val['pid']).read())
++            self.val['name'] = l[1][1:-1]
++            ### If the name is a known interpreter, take the second argument from the cmdline
++            if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
++                ### Using dopen() will cause too many open files
++#               l = string.split(dopen('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
++                l = string.split(open('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
++                if len(l) &gt; 2:
++                    self.val['process'] = os.path.basename(l[1])
++            else:
++                self.val['process'] = self.val['name']
++
++            ### Debug (show PID)
++#           self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.format[1]-6, self.val['name'])
++
++        if step == op.delay:
++            self.cn1.update(self.cn2)
++
++    def show(self):
++        if self.val['usage'] == 0.0:
++            return '%-*s' % (self.format[1], '')
++        else:
++            return '%s%-*s%s:%s' % (ansi['default'], self.format[1]-11, self.val['process'][0:self.format[1]-11], cprint(self.val['read_usage'], ('f', 5, 1024)), cprint(self.val['write_usage'], ('f', 5, 1024)))
++
++    def showcsv(self):
++        return '%s / %d:%d' % (self.val['name'], self.val['read_usage'], selv.val['write_usage'])
++
++# vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004556.html">[svn] r5757 - in trunk/rpms: perl-Gtk2-GladeXML	perl-Net-IMAP-Simple perl-Sub-Uplevel perl-Term-UI	perl-Test-MockObject perl-Text-vCard	perl-Thread-Conveyor-Monitored perl-Thread-Serialize	perl-X11-Protocol
+</A></li>
+	<LI>Next message: <A HREF="004558.html">[svn] r5759 - in trunk/rpms: . perl-Apache-Logmonster
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4557">[ date ]</a>
+              <a href="thread.html#4557">[ thread ]</a>
+              <a href="subject.html#4557">[ subject ]</a>
+              <a href="author.html#4557">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

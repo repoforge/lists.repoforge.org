@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3138 - trunk/tools/pydar2/pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3138%20-%20trunk/tools/pydar2/pydar&In-Reply-To=%3C20050418203856.6F8865C40E5%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001939.html">
+   <LINK REL="Next"  HREF="001941.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3138 - trunk/tools/pydar2/pydar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3138%20-%20trunk/tools/pydar2/pydar&In-Reply-To=%3C20050418203856.6F8865C40E5%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3138 - trunk/tools/pydar2/pydar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Apr 18 22:38:56 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001939.html">[svn] r3137 - in trunk/tools/pydar2: . perlpackages php pydar sql
+</A></li>
+        <LI>Next message: <A HREF="001941.html">[svn] r3139 - trunk/web/freshrpms.net/docs/x1
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1940">[ date ]</a>
+              <a href="thread.html#1940">[ thread ]</a>
+              <a href="subject.html#1940">[ subject ]</a>
+              <a href="author.html#1940">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-04-18 22:38:54 +0200 (Mon, 18 Apr 2005)
+New Revision: 3138
+
+Removed:
+   trunk/tools/pydar2/pydar/store.py
+Log:
+
+
+Deleted: trunk/tools/pydar2/pydar/store.py
+===================================================================
+--- trunk/tools/pydar2/pydar/store.py	2005-04-18 20:36:17 UTC (rev 3137)
++++ trunk/tools/pydar2/pydar/store.py	2005-04-18 20:38:54 UTC (rev 3138)
+@@ -1,135 +0,0 @@
+-
+-&quot;&quot;&quot; This class contains all the functions for storing stuff in the database &quot;&quot;&quot;
+-
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU General Public License as published by
+-# the Free Software Foundation; either version 2 of the License, or
+-# (at your option) any later version.
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-# GNU Library General Public License for more details.
+-#
+-# You should have received a copy of the GNU General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-# Copyright 2004 Dries Verachtert
+-
+-# if you want to have a pydar which works without a database, then you have to replace 
+-# this class with something else
+-
+-
+-from command import Command
+-from log4py import Logger
+-import pgdb
+-
+-class Store:
+-    def __init__(self,myconfig):
+-        self.cat = Logger().get_instance(self)
+-        self.config = myconfig
+-        self.cat.debug(&quot;initialized&quot;)
+-
+-    def createCommand(self,commandName,userId,specName,toEmail,releaseTag,machRoot,priority):
+-        # spec name can also be the contents of a specfile...
+-        self.cat.debug(&quot;start&quot;)
+-        aCommand = Command(commandName,userId,specName,toEmail,releaseTag,machRoot,priority)
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;insert into pydar_commands (commandname,userid,specname,toemail,releasetag,machroot,priority) values ('&quot;
+-        + aCommand.commandName + &quot;','&quot;
+-        + aCommand.userId + &quot;','&quot;
+-        + aCommand.specName + &quot;','&quot;
+-        + aCommand.toEmail + &quot;','&quot;
+-        + aCommand.releaseTag + &quot;','&quot;
+-        + aCommand.machRoot + &quot;',&quot;
+-        + aCommand.priority + &quot;)&quot;)
+-        conn.commit()
+-        cursor.close()
+-        conn.close()
+-
+-    def checkIfValidUserId(self, userId):
+-        self.cat.debug(&quot;start, userId=&quot; + userId)
+-        retval = 0
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;select * from pydar_users where id='&quot; + userId + &quot;'&quot;)
+-        if cursor.rowcount &gt; 0:
+-            retval = 1
+-        cursor.close()
+-        conn.close()
+-        self.cat.debug(&quot;retval=&quot; + str(retval))
+-        return retval
+-
+-    def checkIfValidBuildMachineId(self, buildmachineid):
+-        self.cat.debug(&quot;start, id=&quot; + buildmachineid)
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        retval = 0
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;select * from pydar_buildmachines where id='&quot; + buildmachineid + &quot;'&quot;)
+-        if cursor.rowcount &gt; 0:
+-            retval = 1
+-        cursor.close()
+-        conn.close()
+-        self.cat.debug(&quot;retval=&quot; + str(retval))
+-        return retval
+-
+-    def registerSlave(self, buildmachineid):
+-        self.cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;insert into pydar_buildmachine_registrations (id) values ('&quot; + buildmachineid + &quot;')&quot;)
+-        cursor.execute(&quot;delete from pydar_buildmachine_machroots where buildmachineid='&quot; + buildmachineid + &quot;'&quot;)
+-        conn.commit()
+-        cursor.close()
+-        conn.close()
+-
+-    def addMachRoot(self, buildmachineid, machroot):
+-        self.cat.debug(&quot;start, id=&quot; + buildmachineid + &quot;,machroot=&quot; + machroot)
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;insert into pydar_buildmachine_machroots (buildmachineid,machroot) values ('&quot; + buildmachineid + &quot;','&quot; + machroot + &quot;')&quot;)
+-        conn.commit()
+-        cursor.close()
+-        conn.close()
+-
+-    def addResultFileName(self,buildmachineid,commandId,fileName):
+-        # no check on buildmachineid yet...
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;insert into pydar_actions_files (commandid,filename) values (&quot; + str(commandId) + &quot;,'&quot; + fileName + &quot;')&quot;)
+-        conn.commit()
+-        cursor.close()
+-        conn.close()
+-
+-    def setBuildResult(self,buildmachineid,commandId,buildResult):
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;insert into pydar_actions (buildmachineid,commandid,statusid) values ('&quot; + buildmachineid + &quot;',&quot; + str(commandId) + &quot;,&quot; + str(buildResult+1) + &quot;)&quot;)
+-        cursor.execute(&quot;update pydar_commands set handled=true,inprogress=false where id=&quot; + str(commandId))
+-        conn.commit()
+-        cursor.close()
+-        conn.close()
+-
+-
+-    def reserveCommand(self, buildmachineid):
+-        self.cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
+-        conn = pgdb.connect(self.config.dbconnectstring)
+-        cursor = conn.cursor()
+-        cursor.execute(&quot;select pc.id, pc.specname, pc.toemail, pc.releasetag, pc.machroot, pc.commandname from pydar_commands pc where (pc.commandname='BUILD' or pc.commandname='TESTBUILD') and not pc.handled and not pc.inprogress and pc.machroot in (select machroot from pydar_buildmachine_machroots where buildmachineid='&quot; + buildmachineid + &quot;')  order by pc.priority desc, pc.machroot desc, pc.id asc&quot;)
+-        retval = &quot;&quot;
+-        if cursor.rowcount &gt; 0:
+-            rs = cursor.fetchone()
+-            self.cat.debug(&quot;command found for buildmachineid=&quot; + buildmachineid + &quot;,rs=&quot; + str(rs))
+-            aCommand = Command(rs[5],'-1',rs[1],rs[2],rs[3],rs[4])
+-            aCommand.setCommandId(rs[0])
+-            cursor.execute(&quot;update pydar_commands set inprogress=true where id=&quot; + str(aCommand.commandId))
+-            cursor.execute(&quot;insert into pydar_actions (commandid, statusid, buildmachineid) values (&quot; + str(aCommand.commandId) + &quot;,0,'&quot; + buildmachineid + &quot;')&quot;)
+-            retval = aCommand
+-        else:
+-            self.cat.debug(&quot;nothing to do for buildmachineid=&quot; + buildmachineid)
+-            retval = &quot;&quot;
+-        conn.commit()
+-        cursor.close()
+-        conn.close()
+-        return retval
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001939.html">[svn] r3137 - in trunk/tools/pydar2: . perlpackages php pydar sql
+</A></li>
+	<LI>Next message: <A HREF="001941.html">[svn] r3139 - trunk/web/freshrpms.net/docs/x1
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1940">[ date ]</a>
+              <a href="thread.html#1940">[ thread ]</a>
+              <a href="subject.html#1940">[ subject ]</a>
+              <a href="author.html#1940">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

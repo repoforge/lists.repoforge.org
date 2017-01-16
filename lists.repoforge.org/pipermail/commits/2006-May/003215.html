@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4415 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4415%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060526151720.2FEF231817B%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003214.html">
+   <LINK REL="Next"  HREF="003216.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4415 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4415%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060526151720.2FEF231817B%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4415 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri May 26 17:17:20 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003214.html">[svn] r4414 - in trunk/rpms: cuiterm fox libnids nxtvepg rtorrent
+</A></li>
+        <LI>Next message: <A HREF="003216.html">[svn] r4416 - in trunk/rpms: . python-chm seismictoolkit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3215">[ date ]</a>
+              <a href="thread.html#3215">[ thread ]</a>
+              <a href="subject.html#3215">[ subject ]</a>
+              <a href="author.html#3215">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-05-26 17:17:19 +0200 (Fri, 26 May 2006)
+New Revision: 4415
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_app.py
+Log:
+More small updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2006-05-26 14:30:17 UTC (rev 4414)
++++ trunk/tools/dstat/ChangeLog	2006-05-26 15:17:19 UTC (rev 4415)
+@@ -5,6 +5,8 @@
+ - Fixed sum() and enumerate() only when it isn't there (Jesse Young)
+ - Added external plugins dstat_app
+ - Added ibm-acpi support to dstat_thermal
++- Exclude md-devices from total
++- Improved debug output somewhat
+ 
+ * 0.6.2 - Cumbernauld - released 08/03/2006
+ - Fixed situation where no TERM environment variable was set (William Webber)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-05-26 14:30:17 UTC (rev 4414)
++++ trunk/tools/dstat/dstat	2006-05-26 15:17:19 UTC (rev 4415)
+@@ -205,7 +205,7 @@
+ 		print
+ 		rows, cols = getwinsize()
+ 		print 'Terminal type:', os.getenv('TERM') + '/' + termtype
+-		print 'Terminal: %d lines, %d columns' % (rows, cols)
++		print 'Terminal size: %d lines, %d columns' % (rows, cols)
+ 		print
+ 		print 'Processors: %d' % getcpunr()
+ 		print 'Pagesize: %d' % resource.getpagesize()
+@@ -588,7 +588,7 @@
+ 			if l[5] == '0' and l[9] == '0': continue
+ 			name = l[2]
+ 			if l[3:] == ['0',] * 11: continue
+-			if not re.match('(md[0-9]+)', name):
++			if not re.match('(md[0-9]+|dm-[0-9]+)', name):
+ 				self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
+ 			if name in self.vars and name != 'total':
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[5]), self.cn2[name][1] + long(l[9]) )
+@@ -649,7 +649,7 @@
+ 			l = line.split()
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+-			if not re.match('(md[0-9]+)', name):
++			if not re.match('(md[0-9]+|dm-[0-9]+)', name):
+ 				self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]) )
+ 			if name in self.vars:
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[6]), self.cn2[name][1] + long(l[10]) )
+@@ -1763,11 +1763,11 @@
+ 
+ 		### Print debugging output
+ 		if op.debug: t2 = time.time(); tt = tt + (t2 - t1) * 1000
+-		if op.debug:
++		if op.debug == 1:
+ 			if loop == 0: tt = tt * step
+-			sys.stdout.write(' %6.3f' % (tt / step))
++			sys.stdout.write('%6.2fms' % (tt / step))
+ 		if op.debug &gt; 1:
+-			sys.stdout.write(' [%d:%d:%d] ' % (loop, update, step))
++			sys.stdout.write('%6.2f [%d:%d:%d]' % (tt/step, loop, update, step))
+ 
+ 		### If intermediate results, update increases with 1 sec (=interval)
+ 		update = update + interval
+@@ -1784,7 +1784,7 @@
+ 			if step == op.delay:
+ 				sys.stdout.write('\n' + ansi['reset'] + ansi['clearline'] + ansi['save'])
+ 			else:
+-				sys.stdout.write(ansi['clearline'] + ansi['restore'])
++				sys.stdout.write(ansi['restore'])
+ 
+ 		loop = (update + op.delay - 1) / op.delay
+ 		step = ((update - 1) % op.delay) + 1
+
+Modified: trunk/tools/dstat/plugins/dstat_app.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_app.py	2006-05-26 14:30:17 UTC (rev 4414)
++++ trunk/tools/dstat/plugins/dstat_app.py	2006-05-26 15:17:19 UTC (rev 4415)
+@@ -3,8 +3,6 @@
+ ###
+ ### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
+ 
+-### FIXME: The val, cn1 and cn2 will only grow and consume more memory.
+-
+ global string
+ import string
+ 
+@@ -25,31 +23,34 @@
+ 				if not self.cn1.has_key(pid):
+ 					self.cn1[pid] = 0
+ 
+-				for line in dopen('/proc/%s/stat' % pid).readlines():
+-					l = string.split(line)
+-					if len(l) &lt; 15: continue
+-					self.cn2[pid] = int(l[13]) + int(l[14])
+-				self.val[pid] = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
++				l = string.split(dopen('/proc/%s/stat' % pid).read())
++				if len(l) &lt; 15: continue
++				self.cn2[pid] = int(l[13]) + int(l[14])
++				usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
+ 
+ 				### Get the process that spends the most jiffies
+-				if self.val[pid] &gt; max:
+-					max = self.val[pid]
++				if usage &gt; max:
++					max = usage
+ 					self.val['process'] = l[1][1:-1]
+ 
+-					### Debug
+-#					self.val['process'] = self.val['process'] + ' ' + str(max)
+-#					self.val['process'] = self.val['process'] + ' ' + l[13] + ':' + l[14]
++					### If the name is a known interpreter, take the second argument from the cmdline
++					if self.val['process'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
++						for line in dopen('/proc/%s/cmdline' % pid).readlines():
++							self.val['process'] = os.path.basename(string.split(line, '\0')[1])
+ 
++					### Debug (show PID)
++#					self.val['process'] = '%s %s' % (pid, self.val['process'])
++
++					### Debug (show CPU usage)
++#					self.val['process'] = '%s %d' % (self.val['process'], usage)
++
++					### Debug (show CPU kernel/user values)
++#					self.val['process'] = '%s %d:%d' % (self.val['process'], int(l[13]) / tick, int(l[14]) / tick)
++
+ 				### Garbage collect sort off
+-#				if self.val[pid] == 0:
+-#					del(self.cn1[pid]); del(self.cn2[pid]); del(self.val[pid])
++#				if value == 0:
++#					del(self.cn1[pid]); del(self.cn2[pid])
+ 
+-				### If the name is a known interpreter, take the second argument from the cmdline
+-				if self.val['process'] in ('perl', 'python', 'sh', 'bash'):
+-					for line in dopen('/proc/%s/cmdline' % pid).readlines():
+-						l = string.split(line, '\0')
+-						self.val['process'] = os.path.basename(l[1])
+-
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003214.html">[svn] r4414 - in trunk/rpms: cuiterm fox libnids nxtvepg rtorrent
+</A></li>
+	<LI>Next message: <A HREF="003216.html">[svn] r4416 - in trunk/rpms: . python-chm seismictoolkit
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3215">[ date ]</a>
+              <a href="thread.html#3215">[ thread ]</a>
+              <a href="subject.html#3215">[ subject ]</a>
+              <a href="author.html#3215">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

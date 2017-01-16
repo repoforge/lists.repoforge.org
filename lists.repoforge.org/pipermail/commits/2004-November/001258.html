@@ -1,0 +1,132 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2452 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2452%20-%20trunk/tools/dstat&In-Reply-To=%3C20041108215505.E797217F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001257.html">
+   <LINK REL="Next"  HREF="001259.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2452 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2452%20-%20trunk/tools/dstat&In-Reply-To=%3C20041108215505.E797217F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2452 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Nov  8 22:55:05 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001257.html">[SVN] r2451 - in trunk/rpms: kasablanca kbirthday kiosktool	klvemkdvd kmymoney kolourpaint krusader kvirc kxmleditor	kxstitch snmpbrowser
+</A></li>
+        <LI>Next message: <A HREF="001259.html">[SVN] r2453 - trunk/rpms/stardust
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1258">[ date ]</a>
+              <a href="thread.html#1258">[ thread ]</a>
+              <a href="subject.html#1258">[ subject ]</a>
+              <a href="author.html#1258">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-08 22:55:04 +0100 (Mon, 08 Nov 2004)
+New Revision: 2452
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+More updates.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-08 21:30:09 UTC (rev 2451)
++++ trunk/tools/dstat/ChangeLog	2004-11-08 21:55:04 UTC (rev 2452)
+@@ -1,6 +1,7 @@
+ * 0.5
+ - Changed some more int()'s into float()'s. (Pasi Pirhonen)
+ - Fixed the cpu out of index, /proc instability. (Pasi Pirhonen)
++- Improved the rounding function
+ 
+ * 0.4
+ - Added interrupt stats
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-11-08 21:30:09 UTC (rev 2451)
++++ trunk/tools/dstat/TODO	2004-11-08 21:55:04 UTC (rev 2452)
+@@ -4,6 +4,7 @@
+ + Add -o/--output option
+ + Maybe add colors to indicate units better (may become ugly)
+ + Allow to force to given magnitude
+++ Allow to see floats (eg. 10MB -&gt; 10.1MB)
+ 
+ ### Extensions
+ + Add all stats to seperate modules and allow people to plugin their own modules
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-08 21:30:09 UTC (rev 2451)
++++ trunk/tools/dstat/dstat	2004-11-08 21:55:04 UTC (rev 2452)
+@@ -238,8 +238,8 @@
+ 			self.vars = self.discover()
+ 		self.diskset = {
+ 			'local': ('sda', 'hda', 'hdc'),
+-			'lores': ('sdl', 'sdm', 'sdn', 'sdo', 'sdp', 'sdq', 'sdr', 'sds', 'sdt', 'sdu', 'sdv', 'sdw', 'sdx', 'sdy', 'sdz', 'sdaa', 'sdab', 'sdac', 'sdad'),
+-			'hires': ('sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj', 'sdk' ),
++			'lores': ('sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj', 'sdk', 'sdl', 'sdm', 'sdn', 'sdo', 'sdp', 'sdq', 'sdr', 'sds', 'sdt'),
++			'hires': ('sdu', 'sdv', 'sdw', 'sdx', 'sdy', 'sdz', 'sdaa', 'sdab', 'sdac', 'sdad' ),
+ 		}
+ 		self.nick = self.vars
+ 		self.init()
+@@ -309,7 +309,7 @@
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split()
+-			if len(l) &gt; 8 and ( l[0] == 'cpu0' or l[0] == 'cpu' ):
++			if len(l) &gt; 7 and ( l[0] == 'cpu0' or l[0] == 'cpu' ):
+ 				self.uptime2 = int(l[1]) + int(l[2]) + int(l[3]) + int(l[4]) + int(l[5]) + int(l[6]) + int(l[7])
+ #				self.uptime2 = sum(map(int, l[1-7]))
+ 
+@@ -648,9 +648,10 @@
+ 	### lowercase (b) is better for the eyes than uppercase
+ 	units = ('B', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+ 	c = 0
+-	var = int(var * 1.0)
+-	while len(str(var)) &gt; max-1:
+-		var = int(var / base * 1.0)
++#	var = int(var * 1.0)
++	var = var * 1.0
++	while len(str(int(var))) &gt; max-1:
++		var = var / base * 1.0
+ 		c = c + 1
+ 	if var != 0:
+ 		return str(int(round(var))).rjust(max-1) + units[c]
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001257.html">[SVN] r2451 - in trunk/rpms: kasablanca kbirthday kiosktool	klvemkdvd kmymoney kolourpaint krusader kvirc kxmleditor	kxstitch snmpbrowser
+</A></li>
+	<LI>Next message: <A HREF="001259.html">[SVN] r2453 - trunk/rpms/stardust
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1258">[ date ]</a>
+              <a href="thread.html#1258">[ thread ]</a>
+              <a href="subject.html#1258">[ subject ]</a>
+              <a href="author.html#1258">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

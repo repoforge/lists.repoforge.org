@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1508 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1508%20-%20trunk/tools/dar&In-Reply-To=%3C20040707221649.CAD3B1FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000316.html">
+   <LINK REL="Next"  HREF="000318.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1508 - trunk/tools/dar</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1508%20-%20trunk/tools/dar&In-Reply-To=%3C20040707221649.CAD3B1FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1508 - trunk/tools/dar">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Jul  8 00:16:49 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000316.html">[SVN] r1507 - trunk/rpms/apt
+</A></li>
+        <LI>Next message: <A HREF="000318.html">[SVN] r1509 - trunk/rpms/mbrowse
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#317">[ date ]</a>
+              <a href="thread.html#317">[ thread ]</a>
+              <a href="subject.html#317">[ subject ]</a>
+              <a href="author.html#317">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-07-08 00:16:47 +0200 (Thu, 08 Jul 2004)
+New Revision: 1508
+
+Modified:
+   trunk/tools/dar/ChangeLog
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-sync
+   trunk/tools/dar/dar.conf
+Log:
+- Integrated RSYNC_LIMIT option better
+- Added el3a (el3/x86_64)
+- Fixes to ExclusiveDist implementation
+- Apply macro magic only on first 64 lines of SPEC files
+- Small fixes
+
+
+Modified: trunk/tools/dar/ChangeLog
+===================================================================
+--- trunk/tools/dar/ChangeLog	2004-07-07 19:42:00 UTC (rev 1507)
++++ trunk/tools/dar/ChangeLog	2004-07-07 22:16:47 UTC (rev 1508)
+@@ -15,6 +15,7 @@
+ - dar-build: Better detection of old builds (2 version schemes x all known disttags)
+ - dar-build: Use rpmdb -E if possible for resolving macros (thanks to Jeff Pitman)
+ - dar-build: Check for existance of distribution build environment
++- dar-functions: Use lftpget instead of wget
+ 
+ Version 0.6.0
+ - dar.conf: Removed DISTSMAP, added it to dists specific section
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2004-07-07 19:42:00 UTC (rev 1507)
++++ trunk/tools/dar/dar-build	2004-07-07 22:16:47 UTC (rev 1508)
+@@ -18,8 +18,8 @@
+ for app in $PKGS; do
+ 	DARBUILDRC=1
+ 
++	SPECDIR=&quot;$(dirname $app)&quot;
+ 	app=&quot;$(basename $app .spec)&quot;
+-	SPECDIR=&quot;$(dirname $app)&quot;
+ 	SPECFILE=&quot;$app.spec&quot;
+ 
+ 	if [ &quot;$SPECDIR&quot; == &quot;.&quot; ]; then
+@@ -57,7 +57,8 @@
+ 	RELEASE=&quot;$(rpmconf Release)&quot;
+ 
+ 	if [ -z &quot;$app&quot; ]; then
+-		die &quot;Problem with specfile \&quot;$SPECFILE\&quot;. (Name is empty)&quot;
++		error &quot;Problem with specfile \&quot;$SPECFILE\&quot;. (Name is empty)&quot;
++		continue
+ 	fi
+ 
+ 	if [ -z &quot;$VERSION&quot; ]; then
+@@ -100,18 +101,24 @@
+ 		fi
+ 
+ 		for exclude_dist in $EXCLUDE_DIST; do
+-			if [ &quot;$DISTNAME&quot; == &quot;$exclude_dist&quot; -o &quot;$DISTNICK&quot; == &quot;$exclude_dist&quot; ]; then
++			if [ &quot;$exclude_dist&quot; == &quot;$DISTNAME&quot; -o &quot;$exclude_dist&quot; == &quot;$DISTNICK&quot; ]; then
+ 				warning &quot;Distribution $DISTNAME/$DISTARCH is excluded for package $app. Aborting.&quot;
+ 				continue 2
+ 			fi
+ 		done
+ 
+-		for exclusive_dist in $EXCLUSIVE_DIST; do
+-			if [ &quot;$DISTNAME&quot; != &quot;$exclusive_dist&quot; -a &quot;$DISTNICK&quot; != &quot;$exclusive_dist&quot; ]; then
++		if [ &quot;$EXCLUSIVE_DIST&quot; ]; then
++			EXCLUSIVE=0
++			for exclusive_dist in $EXCLUSIVE_DIST; do
++				if [ &quot;$exclusive_dist&quot; == &quot;$DISTNAME&quot; -o &quot;$exclusive_dist&quot; == &quot;$DISTNICK&quot; ]; then
++					EXCLUSIVE=1
++				fi
++			done
++			if [ $EXCLUSIVE -ne 1 ]; then
+ 				warning &quot;Distribution $DISTNAME/$DISTARCH is excluded for package $app. Aborting.&quot;
+-				continue 2
++				continue
+ 			fi
+-		done
++		fi
+ 
+ 		### Export RPMVER to rpmconf
+ 		export RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK /bin/su - -m $BUILD_USER -c &quot;rpm --version&quot; | cut -d' ' -f3)&quot;
+@@ -261,7 +268,7 @@
+ 					--define \&quot;_sourcedir $SPECDIR\&quot; \
+ 					--define \&quot;_builddir $BUILDDIR\&quot; \
+ 					--define \&quot;_tmppath $TEMPDIR\&quot; \
+-					--define \&quot;dist $DISTNICK\&quot;
++					--define \&quot;dist $DISTNAME\&quot;
+ 					--define \&quot;$DISTNAME 1\&quot;
+ 					--define \&quot;$DISTNICK 1\&quot; \&quot;$NEWSPECFILE\&quot;&quot;
+ 
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2004-07-07 19:42:00 UTC (rev 1507)
++++ trunk/tools/dar/dar-functions	2004-07-07 22:16:47 UTC (rev 1508)
+@@ -70,7 +70,7 @@
+ 	fi
+ 
+ 	(
+-	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su - -m $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNICK\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;DISTNAME 1\&quot; -E \&quot;%{expand:%(cat $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
++	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su - -m $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNICK\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n64 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 		if ! grep -i &quot;^ *$CONFIG *:&quot; $SPECFILE | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 			debug &quot;Config $CONFIG not found in $SPECFILE&quot;
+ 		fi
+@@ -234,11 +234,13 @@
+ 	for url in $(spectool -l &quot;$SPECFILE&quot; 2&gt;/dev/null | cut -f2 -d' '); do
+ 		filename=&quot;$SPECSDIR/$app/$(basename $url)&quot;
+ 		if [ ! -s &quot;$filename&quot; ]; then
+-			warning &quot;Source \&quot;$filename\&quot; not found, downloading.&quot;
++			warning &quot;Source \&quot;$(basename $filename)\&quot; not found, downloading [$url].&quot;
+ 			local i=1
+ 			RC=1
+ 			while [ $RC -ne 0 -a $i -lt 4 ]; do
+ 				wget -q -T 10 -O &quot;$filename&quot; &quot;$url&quot;
++#				lftpget &quot;$url&quot; -o &quot;$filename&quot;
++#				lftpget &quot;$url&quot; -O &quot;$(dirname $filename)&quot;
+ 				RC=$?
+ 				i=$((i+1))
+ 			done
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2004-07-07 19:42:00 UTC (rev 1507)
++++ trunk/tools/dar/dar-sync	2004-07-07 22:16:47 UTC (rev 1508)
+@@ -67,5 +67,9 @@
+ echo -n &quot;Press enter to start remote synchronisation.&quot;
+ read
+ echo &quot;Starting remote synchronisation.&quot;
+-#rsync -anvzHL --progress --delete-after --bwlimit=&quot;$RSYNC_LIMIT&quot; -e /usr/bin/ssh $PACKAGEDIR $FTPDIR $RSYNC_TARGET
+-rsync -avHL --progress --delete-after --bwlimit=&quot;$RSYNC_LIMIT&quot; -e &quot;/usr/bin/ssh -oCompression=no&quot; $PACKAGEDIR $FTPDIR $RSYNC_TARGET
++RSYNC_OPTIONS=&quot;&quot;
++if [ $RSYNC_LIMIT ]; then
++	RSYNC_OPTIONS=&quot;--bwlimit=&quot;$RSYNC_LIMIT&quot;&quot;
++fi
++#rsync -anvzHL --progress --delete-after $RSYNC_OPTIONS -e /usr/bin/ssh $PACKAGEDIR $FTPDIR $RSYNC_TARGET
++rsync -avHL --progress --delete-after $RSYNC_OPTIONS -e &quot;/usr/bin/ssh -oCompression=no&quot; $PACKAGEDIR $FTPDIR $RSYNC_TARGET
+
+Modified: trunk/tools/dar/dar.conf
+===================================================================
+--- trunk/tools/dar/dar.conf	2004-07-07 19:42:00 UTC (rev 1507)
++++ trunk/tools/dar/dar.conf	2004-07-07 22:16:47 UTC (rev 1508)
+@@ -9,7 +9,7 @@
+ BUILDDIR=&quot;$ROOT/build&quot;
+ TEMPDIR=&quot;$ROOT/tmp&quot;
+ 
+-DEFAULT_DISTS=&quot;fc2a fc2i fc1i el3i rh9i rh8i rh7i el2i rh6i&quot;
++DEFAULT_DISTS=&quot;fc2a fc2i fc1i el3a el3i rh9i rh8i rh7i el2i rh6i&quot;
+ DEFAULT_SOURCE_DISTS=&quot;fc2i&quot;
+ DEFAULT_ARCHS=&quot;i386&quot;
+ DEFAULT_TAG=&quot;dag&quot;
+@@ -26,6 +26,7 @@
+ 
+ ### Variables for dar-sync
+ RSYNC_TARGET=&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>:dag.wieers.com/&quot;
+-RSYNC_LIMIT=&quot;8&quot;
++### Use wondershaper
++#RSYNC_LIMIT=&quot;8&quot;
+ GPG_PATH=&quot;/home/dag/.gnupg&quot;
+ GPG_NAME=&quot;Dag Wieers (Dag Apt Repository v1.0)&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000316.html">[SVN] r1507 - trunk/rpms/apt
+</A></li>
+	<LI>Next message: <A HREF="000318.html">[SVN] r1509 - trunk/rpms/mbrowse
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#317">[ date ]</a>
+              <a href="thread.html#317">[ thread ]</a>
+              <a href="subject.html#317">[ subject ]</a>
+              <a href="author.html#317">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

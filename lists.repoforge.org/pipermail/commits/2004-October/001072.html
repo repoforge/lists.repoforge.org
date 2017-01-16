@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2266 - in trunk/tools/pydar: . pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2266%20-%20in%20trunk/tools/pydar%3A%20.%20pydar&In-Reply-To=%3C20041011184357.A8FAC17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001071.html">
+   <LINK REL="Next"  HREF="001073.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2266 - in trunk/tools/pydar: . pydar</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2266%20-%20in%20trunk/tools/pydar%3A%20.%20pydar&In-Reply-To=%3C20041011184357.A8FAC17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2266 - in trunk/tools/pydar: . pydar">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Oct 11 20:43:57 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001071.html">[SVN] r2265 - trunk/tools/pydar
+</A></li>
+        <LI>Next message: <A HREF="001073.html">[SVN] r2267 - in trunk/tools/pydar: . pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1072">[ date ]</a>
+              <a href="thread.html#1072">[ thread ]</a>
+              <a href="subject.html#1072">[ subject ]</a>
+              <a href="author.html#1072">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-10-11 20:43:56 +0200 (Mon, 11 Oct 2004)
+New Revision: 2266
+
+Modified:
+   trunk/tools/pydar/pydar-buildserver-slave.py
+   trunk/tools/pydar/pydar/mach.py
+   trunk/tools/pydar/pydar/svnwrapper.py
+Log:
+tests
+
+Modified: trunk/tools/pydar/pydar/mach.py
+===================================================================
+--- trunk/tools/pydar/pydar/mach.py	2004-10-11 17:57:22 UTC (rev 2265)
++++ trunk/tools/pydar/pydar/mach.py	2004-10-11 18:43:56 UTC (rev 2266)
+@@ -870,6 +870,10 @@
+             # copy specfile to resultdir
+             shutil.copy2 (os.path.join (self.rootdir, 'tmp', specfile), resultdir)
+             # mangle spec file if requested
++            if self.config['lastchangedsvnrevid']:
++                command = 'perl -i -npe \'if ($ch==1) {chomp; $_ = $_ . &quot; #' + self.config['lastchangedsvnrevid']  + '\n&quot;; $ch=0;} if (/\%changelog/) {$ch=1;}\' /tmp/' + specfile
++                debug(&quot;setting lastchangedsvnrevid with %s&quot; % command)
++                self.do_chroot(command)
+             if self.config['release']:
+                 # first check if it doesn't already comply !
+                 # FIXME: since fedora.us now uses .1 as a disttag,
+
+Modified: trunk/tools/pydar/pydar/svnwrapper.py
+===================================================================
+--- trunk/tools/pydar/pydar/svnwrapper.py	2004-10-11 17:57:22 UTC (rev 2265)
++++ trunk/tools/pydar/pydar/svnwrapper.py	2004-10-11 18:43:56 UTC (rev 2266)
+@@ -73,6 +73,15 @@
+         result = svn.client.svn_client_update(self.config.mastersvnrpmsdir,myRevision, 1,myContext, self.pool)
+         self.log.debug(METHOD_NAME + &quot;result of update=&quot; + str(result))
+         
++    def getLastCommitRev(self,dirpath,fullpath):
++        #self.cat.debug(&quot;start,dirpath=&quot; + dirpath + &quot;,fullpath=&quot;+fullpath)
++        adm_baton = svn.wc.svn_wc_adm_open(None,dirpath,False,True,self.pool)
++        entry = svn.wc.svn_wc_entry(fullpath,adm_baton,0,self.pool)
++        #self.cat.debug(&quot;entry: &quot; + str(entry))
++        #self.cat.debug(&quot;cmtRev: &quot; + str(entry.cmt_rev))
++        svn.wc.svn_wc_adm_close(adm_baton)
++        return entry.cmt_rev
++
+         
+     def update_callback(self):
+         METHOD_NAME = &quot;update_callback(..) - &quot;
+
+Modified: trunk/tools/pydar/pydar-buildserver-slave.py
+===================================================================
+--- trunk/tools/pydar/pydar-buildserver-slave.py	2004-10-11 17:57:22 UTC (rev 2265)
++++ trunk/tools/pydar/pydar-buildserver-slave.py	2004-10-11 18:43:56 UTC (rev 2266)
+@@ -73,10 +73,10 @@
+     def doCheckAllSpecs(self):
+         METHOD_NAME = &quot;Slave::doCheckAllSpecs(..) - &quot;
+         self.log.debug(METHOD_NAME + &quot;start&quot;)
+-	self.dirMapping = {}
++        self.dirMapping = {}
+         rpmsDirList = posix.listdir(self.config.mastersvnrpmsdir)
+         for rpmDir in rpmsDirList:
+-            self.log.debug(METHOD_NAME + &quot;rpmDir=&quot; + rpmDir)
++            #self.log.debug(METHOD_NAME + &quot;rpmDir=&quot; + rpmDir)
+             fullRpmDir = posixpath.join(self.config.mastersvnrpmsdir,rpmDir)
+             if posixpath.isdir(fullRpmDir):
+                 #self.log.debug(METHOD_NAME + &quot;it's a dir!&quot;)
+@@ -86,16 +86,24 @@
+                     #self.log.debug(METHOD_NAME + &quot;part2:&quot; + str(len(file) - len('.spec')))
+                     rindex = string.rfind(file,'.spec')
+                     if rindex &gt; 0 and rindex == len(file) - len('.spec'):
+-                        self.log.debug(METHOD_NAME + &quot;spec match, file=&quot; + file)
++                        #self.log.debug(METHOD_NAME + &quot;spec match, file=&quot; + file)
+                         self.doCheckSpec(rpmDir, fullRpmDir, file)
+ 
+     def doCheckSpec(self,rpmDirName,fullRpmDir,specFileName):
+         METHOD_NAME = &quot;Slave::doCheckSpec(..) - &quot;
+-        self.log.debug(METHOD_NAME + &quot;start, specFileName=&quot; + specFileName)
++        #self.log.debug(METHOD_NAME + &quot;start, specFileName=&quot; + specFileName)
+         self.dirMapping[specFileName] = fullRpmDir;
+ 
++    def getLastChangedSvnRevId(self, dirName, specName):
++        svnwrap = SvnWrapper(self.log,self.config)
++        svnwrap.startTransaction()
++        retval = svnwrap.getLastCommitRev(dirName,dirName + &quot;/&quot; + specName)
++        svnwrap.stopTransaction()
++        return str(retval)
++
+     def doBuildSpec(self,command):
+         specFileName=command.specName
++        lastChangedSvnRevId = self.getLastChangedSvnRevId(self.dirMapping[specFileName], command.specName)
+         finalOutputDir = &quot;&quot;
+         METHOD_NAME = &quot;Slave::doBuildSpec(..) - &quot;
+         self.log.debug(METHOD_NAME + &quot;start, specFileName=&quot; + specFileName)
+@@ -108,6 +116,7 @@
+             self.log.debug(METHOD_NAME + &quot;dir will be: &quot; + self.dirMapping[specFileName])
+             mach.config['quiet'] = 1
+             mach.config['release'] = command.releaseTag
++            mach.config['lastchangedsvnrevid'] = lastChangedSvnRevId
+             mach.config['defaultroot'] = command.machRoot
+             self.log.debug(METHOD_NAME + &quot;mach config set to quiet&quot;)
+             os.chdir(self.dirMapping[specFileName])
+@@ -151,7 +160,7 @@
+         self.log.debug(METHOD_NAME + &quot;buffer contains: &quot;)
+         tempbuf = &quot;&quot;
+         for line in buffer.readlines():
+-            self.log.debug(METHOD_NAME + &quot;line: &quot; + line)
++            #self.log.debug(METHOD_NAME + &quot;line: &quot; + line)
+             tempbuf = tempbuf + line
+         #  blabla to server
+         self.informMasterAfterRebuild(buildResult, tempbuf, srpm, rpms, command, self.dirMapping[specFileName])
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001071.html">[SVN] r2265 - trunk/tools/pydar
+</A></li>
+	<LI>Next message: <A HREF="001073.html">[SVN] r2267 - in trunk/tools/pydar: . pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1072">[ date ]</a>
+              <a href="thread.html#1072">[ thread ]</a>
+              <a href="subject.html#1072">[ subject ]</a>
+              <a href="author.html#1072">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

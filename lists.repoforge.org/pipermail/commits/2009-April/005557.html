@@ -1,0 +1,294 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6758 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6758%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200904101907.n3AJ7Fpd002339%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005556.html">
+   <LINK REL="Next"  HREF="005558.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6758 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6758%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200904101907.n3AJ7Fpd002339%40surya.karan.org%3E"
+       TITLE="[svn] r6758 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Apr 10 21:07:15 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005556.html">[svn] r6757 - in trunk/tools/wiipresent: . docs
+</A></li>
+        <LI>Next message: <A HREF="005558.html">[svn] r6759 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5557">[ date ]</a>
+              <a href="thread.html#5557">[ thread ]</a>
+              <a href="subject.html#5557">[ subject ]</a>
+              <a href="author.html#5557">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-04-10 20:07:15 +0100 (Fri, 10 Apr 2009)
+New Revision: 6758
+
+Modified:
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Support for gxine.
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-04-10 12:28:43 UTC (rev 6757)
++++ trunk/tools/wiipresent/TODO	2009-04-10 19:07:15 UTC (rev 6758)
+@@ -26,7 +26,7 @@
+   (and fast auto-reconnect)
+ 
+ == Bugs
+-- Known bug where for some windows we fail to find an application name
++- Known bug where for the root window (0x01) we find no application name
+   - qiv and vlc when going into fullscreen
+ 
+ == Bugs in libwiimote
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-04-10 12:28:43 UTC (rev 6757)
++++ trunk/tools/wiipresent/wiipresent.c	2009-04-10 19:07:15 UTC (rev 6758)
+@@ -129,7 +129,7 @@
+ 
+ static int IgnoreDeadWindow(Display *display, XErrorEvent *error) {
+    if (error-&gt;error_code == BadWindow)
+-      if (verbose &gt;= 1) printf(&quot;Received BadWindow for window 0x08%x.\n&quot;, error-&gt;resourceid);
++      if (verbose &gt;= 1) printf(&quot;Received BadWindow for window 0x%08x.\n&quot;, (int) error-&gt;resourceid);
+    return 0;
+ }
+ 
+@@ -175,36 +175,57 @@
+     Window *children_window;
+     unsigned int nchildrens;
+ 
+-    // FIXME: Try children too !
+     if (XQueryTree(display, window, &amp;root_window, &amp;parent_window, &amp;children_window, &amp;nchildrens) != 0) {
+         if (parent_window) {
+             if (XQueryCommand(display, parent_window, name) != 0) {
+-                if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%08x) using parent window.\n&quot;, *name, (unsigned int) parent_window);
+-            } else if (try_property(display, window, XA_WM_NAME, name)) {
+-                if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%08x) using XA_WM_NAME.\n&quot;, *name, (unsigned int) window);
+-            } else {
+-                return 0;
++                if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s using parent window. (0x%08x)\n&quot;, *name, (unsigned int) parent_window);
++            } else if (try_family(display, parent_window, name)) {
++                return 1;
+             }
+-            return 1;
+         }
++    // FIXME: Try children too without looping !
++/*
++        if (nchildrens &gt; 0) {
++            int i;
++            for (i = 0; i &lt; nchildrens; i++) {
++                if (XQueryCommand(display, children_window[i], name) != 0) {
++                    if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s using child window (0x%08x).\n&quot;, *name, (unsigned int) parent_window);
++                }
++            }
++        }
++*/
+     }
+     return 0;
+ }
+ 
+ Status XQueryCommand(Display *display, Window window, char **name) {
++
++    // If root-window, use previous name
++    if (window == 0x01 ) {
++        if (verbose &gt;= 2) fprintf(stderr, &quot;Use previous name %s for root-window.\n&quot;, *name);
++        return 1;
++    }
++
++    // Free name as we look for a new one
++//    if (name != NULL) XFree(name);
++
+     // Low window ids are guaranteed to be wrong
+     if (window &lt; 0xff ) return 0;
+ 
+     if (verbose &gt;= 3) fprintf(stderr, &quot;Working with window (0x%08x).\n&quot;, (unsigned int) window);
+ 
+     if (try_classhint(display, window, name)) {
+-        if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x08%x) using XGetClassHint.\n&quot;, *name, (unsigned int) window);
++        if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%08x) using XGetClassHint.\n&quot;, *name, (unsigned int) window);
++    } else if (try_property(display, window, XA_WM_NAME, name)) {
++        if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%08x) using XA_WM_NAME.\n&quot;, *name, (unsigned int) window);
+     } else if (try_property(display, window, XA_WM_COMMAND, name)) {
+-        if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x08%x) using XA_WM_COMMAND.\n&quot;, *name, (unsigned int) window);
++        if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%08x) using XA_WM_COMMAND.\n&quot;, *name, (unsigned int) window);
++    } else if (try_property(display, window, XA_WM_ICON_NAME, name)) {
++        if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%08x) using XA_WM_ICON_NAME.\n&quot;, *name, (unsigned int) window);
+     } else if (try_guessed(display, window, name)) {
+-        if (verbose &gt;= 2) fprintf(stderr, &quot;Found application %s using guessed parent window (0x08%x).\n&quot;, *name, (unsigned int) (window - window % 0x100000 + 1));
++        if (verbose &gt;= 2) fprintf(stderr, &quot;Found application %s using guessed parent window (0x%08x).\n&quot;, *name, (unsigned int) (window - window % 0x100000 + 1));
+     } else if (try_family(display, window, name)) {
+-        return 1;
++        ;
+     } else {
+         return 0;
+     }
+@@ -396,7 +417,7 @@
+ 
+         int mousemode = False;
+ 
+-        char *name;
++        char *name = NULL;
+         XGetInputFocus(display, &amp;window, &amp;revert);
+         XQueryCommand(display, window, &amp;name);
+         oldwindow = window;
+@@ -412,12 +433,11 @@
+ 
+             // Handle focus changes
+             if (window != oldwindow) {
+-                if (name) XFree(name);
+                 if (XQueryCommand(display, window, &amp;name) != 0) {
+-                    if (verbose &gt;= 2) fprintf(stderr, &quot;Focus on application %s (0x08%x)\n&quot;, name, (unsigned int) window);
++                    if (verbose &gt;= 2) fprintf(stderr, &quot;Focus on application %s (0x%08x)\n&quot;, name, (unsigned int) window);
+                 } else {
+                     name = strdup(&quot;(unknown)&quot;);
+-                    fprintf(stderr, &quot;ERROR: Unable to find application name for window 0x08%x\n&quot;, (unsigned int) window);
++                    fprintf(stderr, &quot;ERROR: Unable to find application name for window 0x%08x\n&quot;, (unsigned int) window);
+                 }
+                 oldwindow = window;
+             }
+@@ -525,6 +545,8 @@
+                         XKeycode(XK_Page_Up, 0);
+                     } else if (strcasestr(name, &quot;xterm&quot;) == name) {
+                         XKeycode(XK_Page_Up, ShiftMask);
++                    } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) {
++                        XKeycode(XK_Page_Up, 0);
+                     }
+                 }
+ 
+@@ -536,6 +558,8 @@
+                         XKeycode(XK_Page_Down, 0);
+                     } else if (strcasestr(name, &quot;xterm&quot;) == name) {
+                         XKeycode(XK_Page_Down, ShiftMask);
++                    } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) {
++                        XKeycode(XK_Page_Down, 0);
+                     }
+                 }
+ 
+@@ -671,12 +695,12 @@
+                         XKeycode(XK_space, ControlMask); 
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_p, 0);
++                    } else if (strcasestr(name, &quot;gxine&quot;) == name) {
++                        XKeycode(XK_space, 0);
+                     } else if (strcasestr(name, &quot;xine&quot;) == name) {
+                         XKeycode(XK_space, 0);
+                     } else if (strcasestr(name, &quot;tvtime&quot;) == name) {
+-                        XKeycode(XK_a, 0); // Change screen ratio
+-                    } else if (strcasestr(name, &quot;totem&quot;) == name) {
+-                        XKeycode(XK_a, 0); // Change screen ratio
++                        XKeycode(XK_i, 0); // Change input source
+                     } else if (strcasestr(name, &quot;qiv&quot;) == name) {
+                         XKeycode(XK_m, 0);  // Maximize
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+@@ -726,6 +750,8 @@
+                         XKeycode(XK_f, 0);
+                     } else if (strcasestr(name, &quot;vlc&quot;) == name) {
+                         XKeycode(XK_f, 0);
++                    } else if (strcasestr(name, &quot;gxine&quot;) == name) {
++                        XKeycode(XK_f, ControlMask);
+                     } else if (strcasestr(name, &quot;xine&quot;) == name) {
+                         XKeycode(XK_f, 0);
+                     } else if (strcasestr(name, &quot;gnome-terminal&quot;) == name) {
+@@ -736,9 +762,16 @@
+                     fullscreentoggle = ! fullscreentoggle;
+                 }
+ 
++                // change screen ratio
+                 if (wmote.keys.two) {
+                     if (strcasestr(name, &quot;tvtime&quot;) == name) {
+-                        XKeycode(XK_i, 0);
++                        XKeycode(XK_a, 0);
++                    } else if (strcasestr(name, &quot;totem&quot;) == name) {
++                        XKeycode(XK_a, 0);
++                    } else if (strcasestr(name, &quot;gxine&quot;) == name) {
++                        XKeycode(XK_a, 0);
++                    } else if (strcasestr(name, &quot;xine&quot;) == name) {
++                        XKeycode(XK_a, 0);
+                     } else {
+                         if (verbose) fprintf(stderr, &quot;No two-key support for application %s.\n&quot;, name);
+                     }
+@@ -770,9 +803,8 @@
+                         XKeycode(XK_V, ShiftMask);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_0, ShiftMask);
+-                    // FIXME: This does not work
+                     } else if (strcasestr(name, &quot;gqview&quot;) == name) {
+-                        XKeycode(XK_bracketright, 0);
++                        XKeycode(XK_bracketright, 0); // FIXME: This does not work
+                     } else if (strcasestr(name, &quot;qiv&quot;) == name) {
+                         XKeycode(XK_k, 0);
+                     } else if (strcasestr(name, &quot;eog&quot;) == name) {
+@@ -815,14 +847,12 @@
+                         XKeycode(XK_v, 0);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_9, ShiftMask);
+-                    // FIXME: This does not work
+                     } else if (strcasestr(name, &quot;gqview&quot;) == name) {
+-                        XKeycode(XK_bracketleft, 0);
++                        XKeycode(XK_bracketleft, 0); // FIXME: This does not work
+                     } else if (strcasestr(name, &quot;qiv&quot;) == name) {
+                         XKeycode(XK_l, 0);
+-                    // FIXME: No key in eog for rotating counter clockwise ?
+                     } else if (strcasestr(name, &quot;eog&quot;) == name) {
+-                        XKeycode(XK_r, ShiftMask | ControlMask);
++                        XKeycode(XK_r, ShiftMask | ControlMask); // FIXME: No key in eog for rotating counter clockwise ?
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+                         XKeycode(XK_Down, 0);
+                     } else if (strcasestr(name, &quot;xterm&quot;) == name) {
+@@ -870,6 +900,8 @@
+                         XKeycode(XK_Right, Mod1Mask);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_Right, 0);
++                    } else if (strcasestr(name, &quot;gxine&quot;) == name) {
++                        XKeycode(XK_Right, 0);
+                     } else if (strcasestr(name, &quot;xine&quot;) == name) {
+                         XKeycode(XK_Right, ControlMask);
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+@@ -919,6 +951,8 @@
+                         XKeycode(XK_Left, Mod1Mask);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_Left, 0);
++                    } else if (strcasestr(name, &quot;gxine&quot;) == name) {
++                        XKeycode(XK_Left, 0);
+                     } else if (strcasestr(name, &quot;xine&quot;) == name) {
+                         XKeycode(XK_Left, ControlMask);
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005556.html">[svn] r6757 - in trunk/tools/wiipresent: . docs
+</A></li>
+	<LI>Next message: <A HREF="005558.html">[svn] r6759 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5557">[ date ]</a>
+              <a href="thread.html#5557">[ thread ]</a>
+              <a href="subject.html#5557">[ subject ]</a>
+              <a href="author.html#5557">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

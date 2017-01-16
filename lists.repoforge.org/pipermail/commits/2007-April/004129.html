@@ -1,0 +1,208 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5330 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5330%20-%20trunk/tools/dar&In-Reply-To=%3C20070429194903.152AA944AD0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004128.html">
+   <LINK REL="Next"  HREF="004130.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5330 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5330%20-%20trunk/tools/dar&In-Reply-To=%3C20070429194903.152AA944AD0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5330 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Apr 29 21:49:03 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004128.html">[svn] r5329 - in trunk/rpms: . perl-Algorithm-Annotate	perl-Algorithm-Dependency perl-Image-Info perl-Params-Util
+</A></li>
+        <LI>Next message: <A HREF="004130.html">[svn] r5331 - in trunk/rpms: . perl-Authen-Radius
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4129">[ date ]</a>
+              <a href="thread.html#4129">[ thread ]</a>
+              <a href="subject.html#4129">[ subject ]</a>
+              <a href="author.html#4129">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-04-29 21:49:02 +0200 (Sun, 29 Apr 2007)
+New Revision: 5330
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+dar-perl.py now checks CPAN.
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-04-29 19:48:24 UTC (rev 5329)
++++ trunk/tools/dar/dar-perl.py	2007-04-29 19:49:02 UTC (rev 5330)
+@@ -1,13 +1,12 @@
+ #!/usr/bin/python
+ 
+-import sys, os, time
++import sys, os, time, getopt, urllib2, gzip
+ 
+ args = sys.argv[1:]
+ logname = os.getlogin()
+ noarch = False
+ 
+ try:
+-	import getopt
+ 	opts, args = getopt.getopt (args, 'hnv',
+ 		['help', 'noarch', 'version'])
+ except getopt.error, exc:
+@@ -27,34 +26,61 @@
+ else:
+ 	module = 'RPMforge-Template'
+ 
++if module.startswith('perl-'):
++	l = module.split('-')
++	module = '-'.join(l[1:])
++
+ modparts = module.split('-')
++pmodule = '::'.join(modparts)
+ 
+-#os.mkdir(&quot;/dar/rpms/%s&quot; % module, &quot;0755&quot;)
++if not os.path.exists('/dar/tmp/02packages.details.txt.gz'):
++	req = urllib2.Request('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>')
++	fdin = urllib2.urlopen(req)
++	fdout = open('/dar/tmp/02packages.details.txt.gz', 'w')
++	fdout.write(fdin.read())
++	fdout.close()
+ 
++fd = gzip.open('/dar/tmp/02packages.details.txt.gz', 'r')
++
++for line in fd.readlines():
++	pinfo = line.split()
++	if len(pinfo) &gt; 2 and pmodule == pinfo[0]:
++		break
++else:
++	print 'Module not found in CPAN.'
++	sys.exit(1)
++	
++version = pinfo[1]
++location = pinfo[2]
++
++print &gt;&gt;sys.stderr, module, version
++print &gt;&gt;sys.stderr, &quot;<A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
++
+ print '# $Id$'
+ print '# Authority:', logname
+ 
+-### FIXME: Get Author from CPAN
++### FIXME: Link module/02packages info with authors/00whois.xml for name and email
+ print '# Upstream:'
+ print
+-print '%define perl_vendorlib %(eval &quot;`perl -V:installvendorlib`&quot;; echo $installvendorlib)'
+-print '%define perl_vendorarch %(eval &quot;`perl -V:installvendorarch`&quot;; echo $installvendorarch)'
++print '%define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)'
++print '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'
+ print
+-print '%define real_name ', module
++print '%define real_name', module
+ print
+ 
+-### FIXME: Get Summary from CPAN
+-print 'Summary: '
++### FIXME: Get Summary from CPAN or Archive
++print &quot;Summary: %s module for perl&quot; % module
+ print &quot;Name: perl-%s&quot; % module
+-print 'Version: '
++print 'Version:', version
+ print 'Release: 1'
+ 
+-### FIXME: Get License from CPAN
++### FIXME: Get License from CPAN or Archive
+ print 'License: Artistic'
+ print 'Group: Applications/CPAN'
+ print &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+ print
+ print &quot;Source: <A HREF="http://www.cpan.org/modules/by-module/%s/%s-%%{version">http://www.cpan.org/modules/by-module/%s/%s-%%{version</A>}.tar.gz&quot; % (modparts[0], module)
++print &quot;#Source: <A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
+ print 'BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root'
+ print
+ if noarch:
+@@ -63,16 +89,16 @@
+ print &quot;Requires: perl&quot;
+ print
+ 
+-### FIXME: Get Description from CPAN
++### FIXME: Get Description from CPAN or Archive
+ print &quot;%description&quot;
+-print &quot;%s&quot; % module
++print &quot;%s module for perl.&quot; % module
+ print
+ print &quot;%prep&quot;
+ print &quot;%setup -n %{real_name}-%{version}&quot;
+ print
+ print &quot;%build&quot;
+ if noarch:
+-	print '%{__perl} Makefile.PL PREFIX=&quot;%{buildroot}%{_prefix}&quot; \ INSTALLDIRS=&quot;vendor&quot;'
++	print '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+ 	print '%{__make} %{?_smp_mflags}'
+ else:
+ 	print 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+@@ -95,7 +121,9 @@
+ ### FIXME: Create filelist based on test-build or source-tree ?
+ print '%files'
+ print '%defattr(-, root, root, 0755)'
+-print '%doc Changes MANIFEST README TODO'
++### Check DOCS in archive from &quot;grep -h '^%doc' /dar/rpms/perl*/perl*.spec | grep -v mandir | xargs -n 1 | sort | uniq&quot;
++print '%doc Changes LICENSE MANIFEST META.yml README'
++print &quot;#%%doc %%{_mandir}/man3/%s.3pm*&quot; % pmodule
+ print '%doc %{_mandir}/man3/*.3pm*'
+ #print '%{_bindir}/dave'
+ 
+@@ -129,9 +157,9 @@
+ 
+ 	### Print module directory
+ 	str = '%{perl_vendorarch}/'
+-	for nr, part in enumerate(modparts):
++	for nr, part in enumerate(modparts[:-1]):
+ 		str = str + &quot;%s/&quot; % modparts[nr]
+-	print str
++	print str + &quot;%s.pm&quot; % modparts[-1]
+ 
+ 	### Print auto directory entries (if any)
+ 	if modparts[:-1]:
+@@ -148,7 +176,7 @@
+ 
+ print
+ print '%changelog'
+-print '%s Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; -' % time.strftime('%a %b %d %Y', time.localtime())
++print '* %s Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - %s-1' % (time.strftime('%a %b %d %Y', time.localtime()), version)
+ print '- Initial package. (using DAR)'
+ 
+ sys.exit(0)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004128.html">[svn] r5329 - in trunk/rpms: . perl-Algorithm-Annotate	perl-Algorithm-Dependency perl-Image-Info perl-Params-Util
+</A></li>
+	<LI>Next message: <A HREF="004130.html">[svn] r5331 - in trunk/rpms: . perl-Authen-Radius
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4129">[ date ]</a>
+              <a href="thread.html#4129">[ thread ]</a>
+              <a href="subject.html#4129">[ subject ]</a>
+              <a href="author.html#4129">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,379 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9069 - in /trunk/rpms/voicechatter: voicechatter-1.4.2_VCServerManager.patch voicechatter-1.4.2_init-script.patch voicechatter.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9069%20-%20in%20/trunk/rpms/voicechatter%3A%0A%20voicechatter-1.4.2_VCServerManager.patch%0A%20voicechatter-1.4.2_init-script.patch%20voicechatter.spec&In-Reply-To=%3C201008191343.o7JDhYxQ023408%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007861.html">
+   <LINK REL="Next"  HREF="007863.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9069 - in /trunk/rpms/voicechatter: voicechatter-1.4.2_VCServerManager.patch voicechatter-1.4.2_init-script.patch voicechatter.spec</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9069%20-%20in%20/trunk/rpms/voicechatter%3A%0A%20voicechatter-1.4.2_VCServerManager.patch%0A%20voicechatter-1.4.2_init-script.patch%20voicechatter.spec&In-Reply-To=%3C201008191343.o7JDhYxQ023408%40surya.karan.org%3E"
+       TITLE="[svn] r9069 - in /trunk/rpms/voicechatter: voicechatter-1.4.2_VCServerManager.patch voicechatter-1.4.2_init-script.patch voicechatter.spec">shuff at vecna.org
+       </A><BR>
+    <I>Thu Aug 19 15:43:34 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007861.html">[svn] r9068 - in /trunk/rpms/perl-Net-OpenID-Server: ./	perl-Net-OpenID-Server.spec
+</A></li>
+        <LI>Next message: <A HREF="007863.html">[svn] r9070 - in /trunk/rpms: dd_rescue/dd_rescue.spec dd_rhelp/dd_rhelp.spec duplicity/duplicity.spec etherape/etherape-0.9.7.spec etherape/etherape.spec libssh2/libssh2.spec lighttpd/lighttpd.spec memtest86+/memtest86+.spec wine/wine-test.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7862">[ date ]</a>
+              <a href="thread.html#7862">[ thread ]</a>
+              <a href="subject.html#7862">[ subject ]</a>
+              <a href="author.html#7862">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: Thu Aug 19 14:43:34 2010
+New Revision: 9069
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9069&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9069&amp;view=rev</A>
+Log:
+merged patches from Steven Haigh (<A HREF="http://lists.rpmforge.net/pipermail/users/2010-August/003173.html">http://lists.rpmforge.net/pipermail/users/2010-August/003173.html</A>)
+
+Added:
+    trunk/rpms/voicechatter/voicechatter-1.4.2_VCServerManager.patch
+Modified:
+    trunk/rpms/voicechatter/voicechatter-1.4.2_init-script.patch
+    trunk/rpms/voicechatter/voicechatter.spec
+
+Added: trunk/rpms/voicechatter/voicechatter-1.4.2_VCServerManager.patch
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/voicechatter/voicechatter-1.4.2_VCServerManager.patch?rev=9069&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/voicechatter/voicechatter-1.4.2_VCServerManager.patch?rev=9069&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/voicechatter/voicechatter-1.4.2_VCServerManager.patch (added)
++++ trunk/rpms/voicechatter/voicechatter-1.4.2_VCServerManager.patch Thu Aug 19 14:43:34 2010
+@@ -1,0 +1,158 @@
++--- VoiceChatter-1.4.2-orig/VCServerManager/VCServerManager.cpp	2009-08-30 10:42:12.000000000 +1000
+++++ VoiceChatter-1.4.2/VCServerManager/VCServerManager.cpp	2010-08-18 09:41:00.000000000 +1000
++@@ -1,5 +1,6 @@
++ #include &lt;stdio.h&gt;
++ #include &lt;sys/types.h&gt;
+++#include &lt;sys/wait.h&gt;
++ #include &lt;unistd.h&gt;
++ #include &lt;string&gt;
++ #include &lt;vector&gt;
++@@ -8,16 +9,19 @@
++ #include &lt;stdlib.h&gt;
++ 
++ 
++-char daemonDir[1024] = {0};
++-const char* VCServerExecutable = &quot;voicechatterserver&quot;;
+++char gConfigDir[1024] = {0};
+++char gExecutablePath[1024] = {0};
+++char gExecutableName[1024];
++ 
++ struct VCServer
++ {
++    VCServer()
++    {
+++      mOldPID = -1;
++       mPID = -1;
++    }
++ 
+++   pid_t mOldPID;
++    pid_t mPID;
++    std::string mConfigFile;
++ };
++@@ -31,11 +35,9 @@
++    if (pid == 0)
++    {
++       //child - execute the server
++-      char commandLine[1024];
++-      snprintf(commandLine, 1024, &quot;%s/%s&quot;, daemonDir, VCServerExecutable);
++-      char* args[] = { (char*)VCServerExecutable, //&quot;--daemon&quot;,
+++      char* args[] = { (char*)gExecutableName, //&quot;--daemon&quot;,
++          &quot;--config&quot;, (char*)server.mConfigFile.c_str(), 0};
++-      printf(&quot;Executing \'%s\' with args&quot;, commandLine);
+++      printf(&quot;Executing \'%s\' with args&quot;, gExecutablePath);
++       for (int i = 0; args[i] != NULL; i++)
++          printf(&quot; %s&quot;, args[i]);
++       printf(&quot;\n&quot;);
++@@ -63,14 +65,15 @@
++          if (fd &gt; 2)
++             close(fd);
++       }
++-      execvp(commandLine, args);
+++      execvp(gExecutablePath, args);
++    }
+++   server.mPID = pid;
++ }
++ 
++ void PopulateServers()
++ {
++    char buffer[1024];
++-   sprintf(buffer, &quot;ls -1 %s/*.conf&quot;, daemonDir);
+++   sprintf(buffer, &quot;ls -1 %s/*.conf&quot;, gConfigDir);
++    
++    //search the daemon dir for conf files
++    FILE* pipeFile = popen(buffer, &quot;r&quot;);
++@@ -89,7 +92,7 @@
++       if (buffer[len-1] == '\r' || buffer[len-1] == '\n')
++          buffer[--len] = '\0';
++       server.mConfigFile = buffer;
++-      //server.mConfigFile = daemonDir;
+++      //server.mConfigFile = gConfigDir;
++       //server.mConfigFile += &quot;/&quot;;
++       //server.mConfigFile += buffer;
++       gServers.push_back(server);
++@@ -109,7 +112,7 @@
++    while (fgets(buffer, 1024, pipeFile))
++    {
++       //only look at VC servers in the process list
++-      if (!strstr(buffer, VCServerExecutable))
+++      if (!strstr(buffer, gExecutableName))
++          continue;
++ 
++       for (size_t i = 0; i &lt; gServers.size(); i++)
++@@ -156,6 +159,7 @@
++    for (size_t i = 0; i &lt; gServers.size(); i++)
++    {
++       VCServer&amp; server = gServers[i];
+++      server.mOldPID = server.mPID;
++       server.mPID = -1;
++    }
++    //and find them again
++@@ -163,7 +167,7 @@
++    while (fgets(buff, 1024, file))
++    {
++       //printf(&quot;::%s\n&quot;, buff);
++-      if (!strstr(buff, VCServerExecutable))
+++      if (!strstr(buff, gExecutableName))
++          continue;
++       for (size_t i = 0; i &lt; gServers.size(); i++)
++       {
++@@ -185,6 +189,13 @@
++       if (server.mPID &gt; 0)
++          continue;
++       printf(&quot;%s is NOT running!\n&quot;, server.mConfigFile.c_str());
+++      //wait on the child process so that it doesn't become a zombie
+++      if (server.mOldPID &gt; 0)
+++      {
+++         int status;
+++         waitpid(server.mOldPID, &amp;status, WNOHANG);
+++         server.mOldPID = -1;
+++      }
++       StartServer(server);
++    }
++ }
++@@ -245,9 +256,15 @@
++ 
++ int main(int argc, char** argv)
++ {
++-   strcpy(daemonDir, &quot;/etc/voicechatterserver/&quot;);
++-   char cwd[1024];
++-   getcwd(cwd, 1024);
+++   strcpy(gConfigDir, &quot;/etc/voicechatterserver/&quot;);
+++   strcpy(gExecutableName, &quot;voicechatterserver&quot;);
+++
+++   getcwd(gExecutablePath, 1024);
+++   size_t pathLen = strlen(gExecutablePath);
+++   if (gExecutablePath[pathLen-1] != '/')
+++      gExecutablePath[pathLen++] = '/';
+++   strncat(gExecutablePath, gExecutableName, 1023-pathLen);
+++   
++ //   printf(&quot;main: CWD = %s\n&quot;, cwd);
++ //   printf(&quot;argv0 is %s\n&quot;, argv[0]);
++ 
++@@ -261,14 +278,24 @@
++       if (strstr(argv[i], &quot;--servers&quot;) &amp;&amp; i+1 &lt; argc)
++       {
++          i++;
++-         strncpy(daemonDir, argv[i], 1023);
+++         strncpy(gConfigDir, argv[i], 1023);
+++      }
+++      if (strstr(argv[i], &quot;--exec&quot;) &amp;&amp; i+1 &lt; argc)
+++      {
+++        i++;
+++        strncpy(gExecutablePath, argv[i], 1023);
+++        char* nameStart = strrchr(gExecutablePath, '/');
+++        if (nameStart)
+++           strncpy(gExecutableName, nameStart+1, 1023);
+++        else
+++           strncpy(gExecutableName, gExecutablePath, 1023);
++       }
++    }
++ 
++    PopulateServers();
++    while (true)
++    {
++-      sleep(60);
+++      sleep(15);
++       CheckProcesses();
++    }
++    return 0;
+
+Modified: trunk/rpms/voicechatter/voicechatter-1.4.2_init-script.patch
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/voicechatter/voicechatter-1.4.2_init-script.patch?rev=9069&amp;r1=9068&amp;r2=9069&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/voicechatter/voicechatter-1.4.2_init-script.patch?rev=9069&amp;r1=9068&amp;r2=9069&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/voicechatter/voicechatter-1.4.2_init-script.patch (original)
++++ trunk/rpms/voicechatter/voicechatter-1.4.2_init-script.patch Thu Aug 19 14:43:34 2010
+@@ -1,9 +1,10 @@
+-diff -Naur VoiceChatter-1.4.2-orig/VCServerManager/vcsm VoiceChatter-1.4.2/VCServerManager/vcsm
+---- VoiceChatter-1.4.2-orig/VCServerManager/vcsm	2009-06-13 11:23:47.000000000 -0400
+-+++ VoiceChatter-1.4.2/VCServerManager/vcsm	2010-07-09 16:48:46.000000000 -0400
+-@@ -2,20 +2,20 @@
++--- VoiceChatter-1.4.2-orig/VCServerManager/vcsm	2009-06-14 01:23:47.000000000 +1000
+++++ VoiceChatter-1.4.2/VCServerManager/vcsm	2010-08-18 09:46:28.000000000 +1000
++@@ -1,26 +1,30 @@
++ #! /bin/bash
+  #
+- # VCServerManager             Start/Stop the VoiceChatter Master Server
++-# VCServerManager             Start/Stop the VoiceChatter Master Server
+++# VCServerManager             Start/Stop the VoiceChatter Server Manager
+  #
+ -# chkconfig: 2345 80 05
+ -# description: VCServerManager - Example init.d script for the VoiceChatter Master Server
+@@ -15,20 +16,42 @@
+  
+ -DAEMONDIR=&quot;/home/vcs/vcs&quot;
+ -DAEMON=&quot;/home/vcs/vcs/VCServerManager&quot;
+-+DAEMONDIR=&quot;/etc/voicechatterserver&quot;
++-NAME=&quot;VoiceChatter Master Server&quot;
++-RUNDIR=&quot;/var/run&quot;
++-USER=&quot;vcs&quot;
+++#set this to the directory containing your server config file(s)
+++CONFIGDIR=&quot;/etc/voicechatterserver&quot;
+++#set this to the path to the VCServerManager executable
+ +DAEMON=&quot;/usr/sbin/VCServerManager&quot;
+- NAME=&quot;VoiceChatter Master Server&quot;
+- RUNDIR=&quot;/var/run&quot;
+--USER=&quot;vcs&quot;
+++#set this to the path to the VoiceChatter server executable
+++SERVER=&quot;/usr/sbin/voicechatterserver&quot;
+++#this is purely aesthetic
+++NAME=&quot;VoiceChatter Server Manager&quot;
+++#set this to the file for this daemon
+++PIDFILE=&quot;/var/run/VCServerManager.pid&quot;
+++#set this to the user that should run the VC servers
+ +USER=&quot;daemon&quot;
+  
+  
+ -ARGS=&quot;--daemon --servers /home/vcs/vcs&quot;
+-+ARGS=&quot;--daemon --servers ${DAEMONDIR}&quot;
+++ARGS=&quot;--daemon --servers $CONFIGDIR --exec $SERVER&quot;
+  #echo &quot;Args: $ARGS&quot;
+  
+- PIDFILE=&quot;$RUNDIR/VCServerManager.pid&quot;
+-@@ -38,7 +38,7 @@
++-PIDFILE=&quot;$RUNDIR/VCServerManager.pid&quot;
++-#echo &quot;Pid File: $PIDFILE&quot;
++-
++ test -x $DAEMON || exit 0
++ 
++ start() {
++@@ -31,18 +35,18 @@
++ 			local PIDLIST=`ps -e | grep $PID`
++ 			#echo &quot;pidlist = \&quot;$PIDLIST\&quot;&quot;
++ 			if test -n &quot;$PIDLIST&quot; ; then
++-				echo &quot;VoiceChatter Master Server is already started&quot;
+++				echo &quot;$NAME is already started&quot;
++ 				return
++ 			fi
++ 		fi
+  	fi
+  
+  #	start-stop-daemon --start --chuid $USER --pidfile $PIDFILE --exec $DAEMON -- $ARGS
+@@ -37,8 +60,26 @@
+  	pgrep -n -f $DAEMON &gt; $PIDFILE
+  #	NEWPID=`cat $PIDFILE`
+  #	echo &quot;New PID: $NEWPID&quot;
+-@@ -80,4 +80,3 @@
+- 	echo $&quot;Usage: $0 {start|stop|restart}&quot;
+- 	exit 1
+- esac
+--
++-	echo &quot;Started VoiceChatter Master Server&quot;
+++	echo &quot;Started $NAME&quot;
++ }
++ 
++ stop() {
++@@ -52,14 +56,14 @@
++ 			local PIDLIST=`ps -e | grep $PID`
++ 			if test -n PIDLIST ; then			
++ 				kill $PID
++-				echo &quot;Killed the VoiceChatter Master Server&quot;
+++				echo &quot;Killed the $NAME&quot;
++ 			else
++-				echo &quot;VoiceChatter Master Server not found&quot;
+++				echo &quot;$NAME not found&quot;
++ 			fi
++ 		fi
++ 		rm $PIDFILE
++ 	else
++-		echo &quot;VoiceChatter Master Server not found&quot;
+++		echo &quot;$NAME not found&quot;
++ 	fi
++ 	
++ }
+
+Modified: trunk/rpms/voicechatter/voicechatter.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/voicechatter/voicechatter.spec?rev=9069&amp;r1=9068&amp;r2=9069&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/voicechatter/voicechatter.spec?rev=9069&amp;r1=9068&amp;r2=9069&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/voicechatter/voicechatter.spec (original)
++++ trunk/rpms/voicechatter/voicechatter.spec Thu Aug 19 14:43:34 2010
+@@ -7,7 +7,7 @@
+ Summary: VoiceChatter (cross-platform voice communication) client
+ Name: voicechatter
+ Version: 1.4.2
+-Release: 1%{?dist}
++Release: 2%{?dist}
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://www.voicechatter.org/">http://www.voicechatter.org/</A>
+@@ -15,6 +15,7 @@
+ Source: <A HREF="http://voicechatter.net/files/source/VoiceChatter-src-%{version">http://voicechatter.net/files/source/VoiceChatter-src-%{version</A>}.tar.gz
+ Patch0: voicechatter-1.4.2_libsndfile-flac.patch
+ Patch1: voicechatter-1.4.2_init-script.patch
++Patch2: voicechatter-1.4.2_VCServerManager.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: atk-devel
+@@ -57,6 +58,7 @@
+ %setup -n %{real_name}-%{version}
+ %patch0 -p1
+ %patch1 -p1
++%patch2 -p1
+ 
+ %build
+ CFLAGS=&quot;%{optflags}&quot; %configure
+@@ -107,5 +109,8 @@
+ %{_sysconfdir}/voicechatterserver
+ 
+ %changelog
++* Thu Aug 19 2010 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 1.4.2-2
++- Init script and VCServerManager patches from Steven Haigh.
++
+ * Fri Jul 9 2010 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 1.4.2-1
+ - Initial package.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007861.html">[svn] r9068 - in /trunk/rpms/perl-Net-OpenID-Server: ./	perl-Net-OpenID-Server.spec
+</A></li>
+	<LI>Next message: <A HREF="007863.html">[svn] r9070 - in /trunk/rpms: dd_rescue/dd_rescue.spec dd_rhelp/dd_rhelp.spec duplicity/duplicity.spec etherape/etherape-0.9.7.spec etherape/etherape.spec libssh2/libssh2.spec lighttpd/lighttpd.spec memtest86+/memtest86+.spec wine/wine-test.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7862">[ date ]</a>
+              <a href="thread.html#7862">[ thread ]</a>
+              <a href="subject.html#7862">[ subject ]</a>
+              <a href="author.html#7862">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

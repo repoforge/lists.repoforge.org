@@ -1,0 +1,224 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3358 - in trunk/rpms: . 855resolution
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3358%20-%20in%20trunk/rpms%3A%20.%20855resolution&In-Reply-To=%3C20050705081714.0199E31802B%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002159.html">
+   <LINK REL="Next"  HREF="002161.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3358 - in trunk/rpms: . 855resolution</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3358%20-%20in%20trunk/rpms%3A%20.%20855resolution&In-Reply-To=%3C20050705081714.0199E31802B%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3358 - in trunk/rpms: . 855resolution">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jul  5 10:17:14 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002159.html">[svn] r3357 - trunk/rpms/xine
+</A></li>
+        <LI>Next message: <A HREF="002161.html">[svn] r3359 - trunk/rpms/cgilib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2160">[ date ]</a>
+              <a href="thread.html#2160">[ thread ]</a>
+              <a href="subject.html#2160">[ subject ]</a>
+              <a href="author.html#2160">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-07-05 10:17:13 +0200 (Tue, 05 Jul 2005)
+New Revision: 3358
+
+Added:
+   trunk/rpms/855resolution/
+   trunk/rpms/855resolution/855resolution.init
+   trunk/rpms/855resolution/855resolution.spec
+Log:
+Initial import of 855resolution.
+
+
+Added: trunk/rpms/855resolution/855resolution.init
+===================================================================
+--- trunk/rpms/855resolution/855resolution.init	2005-07-04 22:52:37 UTC (rev 3357)
++++ trunk/rpms/855resolution/855resolution.init	2005-07-05 08:17:13 UTC (rev 3358)
+@@ -0,0 +1,52 @@
++#!/bin/sh
++# $Id$
++#
++# 855resolution	This shell script takes care of overwriting an existing video
++#		mode with a custom one.
++#
++# chkconfig: - 10 10
++# description: Overwrite an existing video mode with a custom one.
++# config: /etc/sysconfig/855resolution
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++# Source configuration
++. /etc/sysconfig/855resolution
++
++RETVAL=0
++
++prog=&quot;855resolution&quot;
++
++[ -z &quot;$MODE&quot; -o -z &quot;$RESOLUTION&quot; ] &amp;&amp; exit 1
++
++start() {
++	# &quot;Mode 50 : 640x480, 32 bits/pixel&quot; -&gt; &quot;640x480&quot;
++	CURRENT_RESOLUTION=&quot;`$prog -l | grep &quot;^Mode $MODE : &quot; | cut -d ' ' -f 4 | tr -d ','`&quot;
++	# &quot;640 480&quot; -&gt; &quot;640x480&quot;
++	NEW_RESOLUTION=&quot;`echo $RESOLUTION | tr ' ' x`&quot;
++	echo -n $&quot;Overriding video bios mode $MODE from $CURRENT_RESOLUTION to $NEW_RESOLUTION: &quot;
++	SET_CMD=&quot;$prog $MODE $RESOLUTION&quot;
++	if [ &quot;$BOOTUP&quot; = &quot;color&quot; ]; then
++	    $SET_CMD | grep complete &gt;/dev/null &amp;&amp; echo_success || echo_failure
++	else
++	    $SET_CMD | grep complete &gt;/dev/null
++	fi
++	RETVAL=$?
++	echo
++}
++
++# See how we were called.
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	exit 0
++	;;
++  *)
++	echo &quot;Usage: $prog {start|stop}&quot;
++	exit 1
++esac
++
++exit $RETVAL
+
+
+Property changes on: trunk/rpms/855resolution/855resolution.init
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/rpms/855resolution/855resolution.spec
+===================================================================
+--- trunk/rpms/855resolution/855resolution.spec	2005-07-04 22:52:37 UTC (rev 3357)
++++ trunk/rpms/855resolution/855resolution.spec	2005-07-05 08:17:13 UTC (rev 3358)
+@@ -0,0 +1,80 @@
++# $Id$
++# Authority: matthias
++
++Summary: Change video bios resolutions on laptops with Intel graphic chipsets
++Name: 855resolution
++Version: 0.4
++Release: 1
++License: Public Domain
++Group: Applications/System
++URL: <A HREF="http://perso.wanadoo.fr/apoirier/">http://perso.wanadoo.fr/apoirier/</A>
++Source0: <A HREF="http://perso.wanadoo.fr/apoirier/855resolution-%{version">http://perso.wanadoo.fr/apoirier/855resolution-%{version</A>}.tgz
++Source1: 855resolution.init
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++%description
++This software changes the resolution of an available vbios mode. It is useful
++when the native screen resolution isn't advertised as available by the video
++bios by default.
++
++It patches only the RAM version of the video bios so the new resolution is
++lost after each reboot. If you want to have the resolution set after each
++boot, then you need to edit %{_sysconfdir}/sysconfig/855resolution.
++
++
++%prep
++%setup -n %{name}
++# Add OPTFLAGS to CFLAGS
++%{__perl} -pi -e 's|-Wall|-Wall \${OPTFLAGS}|g' Makefile
++
++
++%build
++%{__make} %{?_smp_mflags} OPTFLAGS=&quot;%{optflags}&quot;
++
++
++%install
++%{__rm} -rf %{buildroot}
++
++# Manually install the binary
++%{__install} -D -m 0755  855resolution %{buildroot}%{_sbindir}/855resolution
++
++# Init script
++%{__install} -D -m 0755 %{SOURCE1} \
++    %{buildroot}%{_sysconfdir}/rc.d/init.d/855resolution
++
++# Default sysconfig entry.
++%{__mkdir_p} %{buildroot}%{_sysconfdir}/sysconfig/
++%{__cat} &gt; %{buildroot}%{_sysconfdir}/sysconfig/855resolution &lt;&lt; EOF
++# Mode to overwrite (use &quot;855resolution -l&quot; to see all available modes)
++MODE=&quot;49&quot;
++# Resolution to set (i.e. &quot;1280 768&quot;, no &quot;x&quot;, only a space as the separator)
++RESOLUTION=&quot;1280 768&quot;
++EOF
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++if [ $1 -eq 1 ]; then
++    /sbin/chkconfig --add 855resolution
++fi
++
++%preun
++if [ $1 -eq 0 ]; then
++    /sbin/chkconfig --del 855resolution
++fi
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc CHANGES.txt LICENSE.txt README.txt
++%config %{_sysconfdir}/rc.d/init.d/855resolution
++%config(noreplace) %{_sysconfdir}/sysconfig/855resolution
++%{_sbindir}/855resolution
++
++
++%changelog
++* Mon Jul  4 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.4-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/855resolution/855resolution.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002159.html">[svn] r3357 - trunk/rpms/xine
+</A></li>
+	<LI>Next message: <A HREF="002161.html">[svn] r3359 - trunk/rpms/cgilib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2160">[ date ]</a>
+              <a href="thread.html#2160">[ thread ]</a>
+              <a href="subject.html#2160">[ subject ]</a>
+              <a href="author.html#2160">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

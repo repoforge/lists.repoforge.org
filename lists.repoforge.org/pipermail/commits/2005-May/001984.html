@@ -1,0 +1,583 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3182 - trunk/rpms/ffmpeg
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3182%20-%20trunk/rpms/ffmpeg&In-Reply-To=%3C20050503005309.8E9FB94CB10%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001983.html">
+   <LINK REL="Next"  HREF="001985.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3182 - trunk/rpms/ffmpeg</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3182%20-%20trunk/rpms/ffmpeg&In-Reply-To=%3C20050503005309.8E9FB94CB10%40lists.rpmforge.net%3E"
+       TITLE="[svn] r3182 - trunk/rpms/ffmpeg">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue May  3 02:53:09 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001983.html">[svn] r3181 - in trunk/tools/pydar2: . pydar
+</A></li>
+        <LI>Next message: <A HREF="001985.html">[svn] r3183 - trunk/rpms/xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1984">[ date ]</a>
+              <a href="thread.html#1984">[ thread ]</a>
+              <a href="subject.html#1984">[ subject ]</a>
+              <a href="author.html#1984">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-05-03 02:53:08 +0200 (Tue, 03 May 2005)
+New Revision: 3182
+
+Added:
+   trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-a52link.patch
+   trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-av_log.patch
+   trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-gcc4.patch
+Removed:
+   trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-nostrip.patch
+   trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-pic.patch
+   trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-sharedppfix.patch
+   trunk/rpms/ffmpeg/ffmpeg-dag.spec
+Modified:
+   trunk/rpms/ffmpeg/ffmpeg.spec
+Log:
+Update to 0.4.9  20050502 and include all required gcc4 fixes.
+
+
+Added: trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-a52link.patch
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-a52link.patch	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-a52link.patch	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -0,0 +1,13 @@
++--- libavcodec/Makefile~	2005-04-20 12:40:04.000000000 +0300
+++++ libavcodec/Makefile	2005-04-29 20:26:08.000000000 +0300
++@@ -73,7 +73,9 @@
++ OBJS+= a52dec.o
++ 
++ # using builtin liba52 or runtime linked liba52.so.0
++-ifneq ($(CONFIG_A52BIN),yes)
+++ifeq ($(CONFIG_A52BIN),yes)
+++EXTRALIBS += -la52
+++else
++ OBJS+= liba52/bit_allocate.o liba52/bitstream.o liba52/downmix.o \
++ 	liba52/imdct.o  liba52/parse.o liba52/crc.o liba52/resample.o
++ endif
+
+Added: trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-av_log.patch
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-av_log.patch	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-av_log.patch	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -0,0 +1,11 @@
++--- libavcodec/common.h.orig	2005-04-27 12:59:59.400853307 +0200
+++++ libavcodec/common.h	2005-04-27 13:00:46.144678217 +0200
++@@ -511,8 +511,6 @@
++ #define sprintf sprintf_is_forbidden_due_to_security_issues_use_snprintf
++ #define strcat strcat_is_forbidden_due_to_security_issues_use_pstrcat
++ #if !(defined(LIBAVFORMAT_BUILD) || defined(_FRAMEHOOK_H))
++-#define printf please_use_av_log
++-#define fprintf please_use_av_log
++ #endif
++ 
++ #define CHECKED_ALLOCZ(p, size)\
+
+Added: trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-gcc4.patch
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-gcc4.patch	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg-0.4.9-20050427-gcc4.patch	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -0,0 +1,19 @@
++--- libavcodec/libpostproc/postprocess_template.c.gcc4	2005-02-27 09:56:26.000000000 +0100
+++++ libavcodec/libpostproc/postprocess_template.c	2005-04-28 20:52:39.000000000 +0200
++@@ -2898,6 +2898,7 @@
++ 
++ 		src+= step; // src points to begin of the 8x8 Block
++ 
+++		uint64_t tmp = dc_mask &amp; eq_mask;
++ 		asm volatile(
++ 		&quot;movq %4, %%mm6					\n\t&quot;
++ 		&quot;pcmpeqb %%mm5, %%mm5				\n\t&quot;
++@@ -2930,7 +2931,7 @@
++ 		&quot; js 1b						\n\t&quot;
++ 
++ 		: &quot;+r&quot;(offset), &quot;+r&quot;(temp_sums)
++-		: &quot;r&quot; ((long)step), &quot;r&quot;(src - offset), &quot;m&quot;(dc_mask &amp; eq_mask)
+++		: &quot;r&quot; ((long)step), &quot;r&quot;(src - offset), &quot;m&quot;(tmp)
++ 		);
++ 	}else
++ 		src+= step; // src points to begin of the 8x8 Block
+
+Deleted: trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-nostrip.patch
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-nostrip.patch	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-nostrip.patch	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -1,63 +0,0 @@
+-diff -Naru ffmpeg-0.4.9-pre1.orig/libavcodec/libpostproc/Makefile ffmpeg-0.4.9-pre1/libavcodec/libpostproc/Makefile
+---- ffmpeg-0.4.9-pre1.orig/libavcodec/libpostproc/Makefile	2003-05-11 14:26:35.000000000 +0300
+-+++ ffmpeg-0.4.9-pre1/libavcodec/libpostproc/Makefile	2004-07-29 14:27:29.471838988 +0300
+-@@ -50,7 +50,7 @@
+- install: all
+- ifeq ($(SHARED_PP),yes)
+- 	install -d $(prefix)/lib
+--	install -s -m 755 $(SPPLIB) $(prefix)/lib/$(SPPLIB).$(SPPVERSION)
+-+	install -m 755 $(SPPLIB) $(prefix)/lib/$(SPPLIB).$(SPPVERSION)
+- 	ln -sf $(SPPLIB).$(SPPVERSION) $(prefix)/lib/$(SPPLIB)
+- 	ldconfig || true
+- 	mkdir -p $(prefix)/include/postproc
+-diff -Naru ffmpeg-0.4.9-pre1.orig/libavcodec/Makefile ffmpeg-0.4.9-pre1/libavcodec/Makefile
+---- ffmpeg-0.4.9-pre1.orig/libavcodec/Makefile	2004-06-18 16:11:15.000000000 +0300
+-+++ ffmpeg-0.4.9-pre1/libavcodec/Makefile	2004-07-29 14:27:35.447923035 +0300
+-@@ -266,10 +266,10 @@
+- ifeq ($(BUILD_SHARED),yes)
+- install: all install-headers
+- ifeq ($(CONFIG_WIN32),yes)
+--	install -s -m 755 $(SLIB) &quot;$(prefix)&quot;
+-+	install -m 755 $(SLIB) &quot;$(prefix)&quot;
+- else
+- 	install -d $(prefix)/lib
+--	install -s -m 755 $(SLIB) $(prefix)/lib/libavcodec-$(VERSION).so
+-+	install -m 755 $(SLIB) $(prefix)/lib/libavcodec-$(VERSION).so
+- 	ln -sf libavcodec-$(VERSION).so $(prefix)/lib/libavcodec.so
+- 	ldconfig || true
+- endif
+-diff -Naru ffmpeg-0.4.9-pre1.orig/libavformat/Makefile ffmpeg-0.4.9-pre1/libavformat/Makefile
+---- ffmpeg-0.4.9-pre1.orig/libavformat/Makefile	2004-04-24 18:16:23.000000000 +0300
+-+++ ffmpeg-0.4.9-pre1/libavformat/Makefile	2004-07-29 14:27:24.069570995 +0300
+-@@ -102,10 +102,10 @@
+- ifeq ($(BUILD_SHARED),yes)
+- install: all install-headers
+- ifeq ($(CONFIG_WIN32),yes)
+--	install -s -m 755 $(SLIB) &quot;$(prefix)&quot;
+-+	install -m 755 $(SLIB) &quot;$(prefix)&quot;
+- else
+- 	install -d $(prefix)/lib
+--	install -s -m 755 $(SLIB) $(prefix)/lib/libavformat-$(VERSION).so
+-+	install -m 755 $(SLIB) $(prefix)/lib/libavformat-$(VERSION).so
+- 	ln -sf libavformat-$(VERSION).so $(prefix)/lib/libavformat.so
+- 	ldconfig || true
+- endif
+-diff -Naru ffmpeg-0.4.9-pre1.orig/Makefile ffmpeg-0.4.9-pre1/Makefile
+---- ffmpeg-0.4.9-pre1.orig/Makefile	2004-07-08 14:02:04.000000000 +0300
+-+++ ffmpeg-0.4.9-pre1/Makefile	2004-07-29 14:26:49.039802320 +0300
+-@@ -89,7 +89,6 @@
+- 
+- ffmpeg$(EXESUF): ffmpeg_g$(EXESUF)
+- 	cp -p $&lt; $@
+--	$(STRIP) $@
+- 
+- ffserver$(EXESUF): ffserver.o .libs
+- 	$(CC) $(LDFLAGS) $(FFSLDFLAGS) -o $@ ffserver.o $(FFLIBS) $(EXTRALIBS) 
+-@@ -99,7 +98,6 @@
+- 
+- ffplay$(EXESUF): ffplay_g$(EXESUF)
+- 	cp -p $&lt; $@
+--	$(STRIP) $@
+- 
+- output_example$(EXESUF): output_example.o .libs
+- 	$(CC) $(LDFLAGS) -o $@ output_example.o $(FFLIBS) $(EXTRALIBS)
+
+Deleted: trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-pic.patch
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-pic.patch	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-pic.patch	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -1,45 +0,0 @@
+-diff -Naupr ffmpeg-0.4.9-pre1.orig/libavcodec/i386/dsputil_mmx.c ffmpeg-0.4.9-pre1/libavcodec/i386/dsputil_mmx.c
+---- ffmpeg-0.4.9-pre1.orig/libavcodec/i386/dsputil_mmx.c	2004-06-08 04:13:44.000000000 +0200
+-+++ ffmpeg-0.4.9-pre1/libavcodec/i386/dsputil_mmx.c	2004-10-29 16:12:45.849678584 +0200
+-@@ -57,7 +57,7 @@ static const uint64_t ff_pb_FC attribute
+-     &quot;pcmpeqd %%&quot; #regd &quot;, %%&quot; #regd &quot; \n\t&quot;\
+-     &quot;paddb %%&quot; #regd &quot;, %%&quot; #regd &quot; \n\t&quot; ::)
+- 
+--#ifndef PIC
+-+#ifndef __PIC__
+- #define MOVQ_BONE(regd)  __asm __volatile (&quot;movq %0, %%&quot; #regd &quot; \n\t&quot; ::&quot;m&quot;(mm_bone))
+- #define MOVQ_WTWO(regd)  __asm __volatile (&quot;movq %0, %%&quot; #regd &quot; \n\t&quot; ::&quot;m&quot;(mm_wtwo))
+- #else
+-diff -Naupr ffmpeg-0.4.9-pre1.orig/libavcodec/i386/dsputil_mmx_rnd.h ffmpeg-0.4.9-pre1/libavcodec/i386/dsputil_mmx_rnd.h
+---- ffmpeg-0.4.9-pre1.orig/libavcodec/i386/dsputil_mmx_rnd.h	2004-05-18 19:09:46.000000000 +0200
+-+++ ffmpeg-0.4.9-pre1/libavcodec/i386/dsputil_mmx_rnd.h	2004-10-29 16:13:06.325565776 +0200
+-@@ -96,7 +96,7 @@ static void DEF(put, pixels8_l2)(uint8_t
+- 	&quot;addl	%5, %3			\n\t&quot;
+- 	&quot;subl	$4, %0			\n\t&quot;
+- 	&quot;jnz	1b			\n\t&quot;
+--#ifdef PIC //Note &quot;+bm&quot; and &quot;+mb&quot; are buggy too (with gcc 3.2.2 at least) and cant be used
+-+#ifdef __PIC__ //Note &quot;+bm&quot; and &quot;+mb&quot; are buggy too (with gcc 3.2.2 at least) and cant be used
+-         :&quot;+m&quot;(h), &quot;+a&quot;(src1), &quot;+c&quot;(src2), &quot;+d&quot;(dst)
+- #else
+-         :&quot;+b&quot;(h), &quot;+a&quot;(src1), &quot;+c&quot;(src2), &quot;+d&quot;(dst)
+-@@ -191,7 +191,7 @@ static void DEF(put, pixels16_l2)(uint8_
+- 	&quot;addl	$32, %2			\n\t&quot;
+- 	&quot;subl	$2, %0			\n\t&quot;
+- 	&quot;jnz	1b			\n\t&quot;
+--#ifdef PIC //Note &quot;+bm&quot; and &quot;+mb&quot; are buggy too (with gcc 3.2.2 at least) and cant be used
+-+#ifdef __PIC__ //Note &quot;+bm&quot; and &quot;+mb&quot; are buggy too (with gcc 3.2.2 at least) and cant be used
+- 	:&quot;+m&quot;(h), &quot;+a&quot;(src1), &quot;+c&quot;(src2), &quot;+d&quot;(dst)
+- #else
+- 	:&quot;+b&quot;(h), &quot;+a&quot;(src1), &quot;+c&quot;(src2), &quot;+d&quot;(dst)
+-diff -Naupr ffmpeg-0.4.9-pre1.orig/libavcodec/msmpeg4.c ffmpeg-0.4.9-pre1/libavcodec/msmpeg4.c
+---- ffmpeg-0.4.9-pre1.orig/libavcodec/msmpeg4.c	2004-05-25 20:07:24.000000000 +0200
+-+++ ffmpeg-0.4.9-pre1/libavcodec/msmpeg4.c	2004-10-29 16:13:30.652867464 +0200
+-@@ -716,7 +716,7 @@ static inline int msmpeg4_pred_dc(MpegEn
+-        necessitate to modify mpegvideo.c. The problem comes from the
+-        fact they decided to store the quantized DC (which would lead
+-        to problems if Q could vary !) */
+--#if defined ARCH_X86 &amp;&amp; !defined PIC
+-+#if defined ARCH_X86 &amp;&amp; !defined __PIC__
+-     asm volatile(
+-         &quot;movl %3, %%eax		\n\t&quot;
+- 	&quot;shrl $1, %%eax		\n\t&quot;
+
+Deleted: trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-sharedppfix.patch
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-sharedppfix.patch	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg-0.4.9-pre1-sharedppfix.patch	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -1,25 +0,0 @@
+-diff -Naru ffmpeg-0.4.9-pre1.orig/libavcodec/Makefile ffmpeg-0.4.9-pre1/libavcodec/Makefile
+---- ffmpeg-0.4.9-pre1.orig/libavcodec/Makefile	2004-06-18 16:11:15.000000000 +0300
+-+++ ffmpeg-0.4.9-pre1/libavcodec/Makefile	2004-08-31 21:35:15.922873172 +0300
+-@@ -89,7 +89,7 @@
+- 
+- ifeq ($(CONFIG_PP),yes)
+- ifeq ($(SHARED_PP),yes)
+--EXTRALIBS += -lpostproc
+-+EXTRALIBS += -Llibpostproc -lpostproc
+- else
+- # LIBS += libpostproc/libpostproc.a ... should be fixed
+- OBJS += libpostproc/postprocess.o
+-diff -Naru ffmpeg-0.4.9-pre1.orig/Makefile ffmpeg-0.4.9-pre1/Makefile
+---- ffmpeg-0.4.9-pre1.orig/Makefile	2004-07-08 14:02:04.000000000 +0300
+-+++ ffmpeg-0.4.9-pre1/Makefile	2004-08-31 21:34:43.092347004 +0300
+-@@ -77,6 +77,9 @@
+- OBJS = ffmpeg.o ffserver.o cmdutils.o ffplay.o
+- SRCS = $(OBJS:.o=.c) $(ASM_OBJS:.o=.s)
+- FFLIBS = -L./libavformat -lavformat -L./libavcodec -lavcodec
+-+ifeq ($(SHARED_PP),yes)
+-+FFLIBS += -L./libavcodec/libpostproc -lpostproc
+-+endif
+- 
+- all: lib $(PROG) $(PROGTEST) $(VHOOK) $(QTFASTSTART) $(DOC)
+- 
+
+Deleted: trunk/rpms/ffmpeg/ffmpeg-dag.spec
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg-dag.spec	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg-dag.spec	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -1,112 +0,0 @@
+-# $Id$
+-# Authority: matthias
+-
+-%define real_version cvs-2003-07-01
+-
+-Summary: Hyper fast MPEG1/MPEG4/H263/RV and AC3/MPEG audio encoder and decoder
+-Name: ffmpeg
+-Version: 0.4.7
+-Release: 0.20030701
+-License: GPL
+-Group: Applications/Multimedia
+-URL: <A HREF="http://ffmpeg.sourceforge.net/">http://ffmpeg.sourceforge.net/</A>
+-
+-Source: <A HREF="http://dl.sf.net/ffmpeg/ffmpeg-%{real_version">http://dl.sf.net/ffmpeg/ffmpeg-%{real_version</A>}.tar.gz
+-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-
+-BuildRequires: imlib2-devel, libvorbis-devel, a52dec-devel, lame-devel, zlib-devel
+-BuildRequires: faad2-devel, imlib2-devel, SDL-devel, freetype-devel, faac-devel
+-Provides: libavcodec.so
+-Provides: libavcodec-CVS-2003-07-01.so
+-
+-%description
+-FFmpeg is the first complete and free Internet Live Audio and Video
+-Broadcasting solution. FFMpeg aims at being the command line tool to
+-handle audio and video. It is a &quot;three-in-one&quot; solution.
+-
+-FFmpeg includes a soft VCR capable of encoding in many different
+-formats simultaneously, a streaming server for Netcasting multimedia
+-and is available under the GNU General Public License.
+-
+-FFmpeg generates streaming files, in many popular formats
+-simultaneously, faster than any other solution.
+-
+-%package devel
+-Summary: Header files, libraries and development documentation for %{name}
+-Group: Development/Libraries
+-Requires: %{name} = %{version}-%{release}
+-
+-%description devel
+-This package contains the header files, static libraries and development
+-documentation for %{name}. If you like to develop programs using %{name},
+-you will need to install %{name}-devel.
+-
+-%prep
+-%setup -n %{name}-%{real_version}
+-
+-%build
+-%configure \
+-	--enable-a52bin \
+-	--enable-faac \
+-	--enable-faad \
+-	--enable-faadbin \
+-	--enable-mp3lame \
+-	--enable-vorbis \
+-	--enable-shared \
+-	--enable-pp \
+-	--disable-mmx
+-### FIXME: Disable MMX to make it build. (Please fix upstream)
+-%{__make} %{?_smp_mflags}
+-
+-%install
+-%{__rm} -rf %{buildroot}
+-%makeinstall
+-%{__install} -m0644 libavcodec/libavcodec.a %{buildroot}%{_libdir}
+-
+-%{__install} -d -m0755 %{buildroot}%{_libdir}/{libavcodec,libavformat}/
+-%{__ln_s} -f %{_libdir}/libavcodec.a %{buildroot}%{_libdir}/libavcodec/
+-%{__ln_s} -f %{_libdir}/libavformat.a %{buildroot}%{_libdir}/libavformat/
+-
+-### Clean up docroot
+-%{__rm} -f doc/Makefile doc/*.1
+-
+-%post
+-/sbin/ldconfig 2&gt;/dev/null
+-
+-%postun
+-/sbin/ldconfig 2&gt;/dev/null
+-
+-%clean
+-%{__rm} -rf %{buildroot}
+-
+-%files
+-%defattr(-, root, root, 0755)
+-%doc Changelog COPYING CREDITS README VERSION doc/*
+-%{_bindir}/*
+-%{_libdir}/*.so
+-%{_libdir}/vhook/
+-
+-%files devel
+-%defattr(-, root, root, 0755)
+-%{_includedir}/ffmpeg/
+-%{_libdir}/*.a
+-%{_libdir}/libavcodec/
+-%{_libdir}/libavformat/
+-
+-%changelog
+-* Thu Sep 18 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.7-0.20030701
+-- Updated to release cvs-2003-07-01.
+-- Resync with Matthias Saou (FreshRPMS).
+-
+-* Thu Feb 20 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.6-2
+-- Added link for compatibility.
+-
+-* Wed Feb 19 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.6-1
+-- Added devel package and shared library.
+-- Build against new lame-3.93.1-1 package.
+-
+-* Sun Feb 09 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.6-0
+-- Updated to 0.4.6. (using DAR)
+-
+-* Sun Aug 19 2001 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.5-1
+-- Initial package
+
+Modified: trunk/rpms/ffmpeg/ffmpeg.spec
+===================================================================
+--- trunk/rpms/ffmpeg/ffmpeg.spec	2005-05-02 18:18:38 UTC (rev 3181)
++++ trunk/rpms/ffmpeg/ffmpeg.spec	2005-05-03 00:53:08 UTC (rev 3182)
+@@ -3,43 +3,31 @@
+ 
+ %{?dist: %{expand: %%define %dist 1}}
+ 
+-%{?rh9:%define _without_fast_memcpy 1}
+-%{?rh8:%define _without_fast_memcpy 1}
+ %{?rh7:%define _without_faac 1}
+-%{?rh7:%define _without_fast_memcpy 1}
+ %{?el2:%define _without_faac 1}
+-%{?el2:%define _without_fast_memcpy 1}
+ %{?el2:%define _without_vorbis 1}
+ 
+-%define date   2004-11-10
++%define date   20050502
+ #define prever pre1
+-%{?date: %define sqdate %(echo %{date} | tr -d '-')}
+ 
+ Summary: Hyper fast MPEG1/MPEG4/H263/RV and AC3/MPEG audio encoder and decoder
+ Name: ffmpeg
+ Version: 0.4.9
+-Release: %{?date:0.%{sqdate}.}%{?prever:0.%{prever}.}3
++Release: 0.1%{?date:.%{date}}%{?prever:.%{prever}}
+ License: GPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://ffmpeg.sourceforge.net/">http://ffmpeg.sourceforge.net/</A>
+ %if %{?date:0}%{!?date:1}
+ Source: <A HREF="http://dl.sf.net/ffmpeg/ffmpeg-%{version">http://dl.sf.net/ffmpeg/ffmpeg-%{version</A>}%{?prever:-%{prever}}.tar.gz
+ %else
+-Source: <A HREF="http://ffmpeg.sourceforge.net/cvs/%{name">http://ffmpeg.sourceforge.net/cvs/%{name</A>}-cvs-%{date}.tar.gz
++Source: <A HREF="http://mplayerhq.hu/MPlayer/cvs/FFMpeg-%{date">http://mplayerhq.hu/MPlayer/cvs/FFMpeg-%{date</A>}.tar.bz2
+ %endif
+-Patch0: ffmpeg-0.4.9-pre1-sharedppfix.patch
+-Patch2: ffmpeg-0.4.9-pre1-pic.patch
+-Patch3: ffmpeg-cvs-ldlibs.patch
++Patch0: ffmpeg-0.4.9-20050427-gcc4.patch
++Patch1: ffmpeg-0.4.9-20050427-av_log.patch
++Patch2: ffmpeg-0.4.9-20050427-a52link.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-# Seems like automatic req/provs _really_ don't work well on this package
+-%{!?_without_lame:BuildRequires: lame}
+-%{!?_without_vorbis:BuildRequires: libogg, libvorbis}
+-%{!?_without_faad:BuildRequires: faad2}
+-%{!?_without_faac:BuildRequires: faac}
+-%{!?_without_xvid:BuildRequires: xvidcore}
+-%{!?_without_a52dec:BuildRequires: a52dec}
+ BuildRequires: imlib2-devel, SDL-devel, freetype-devel, zlib-devel
+-BuildRequires: tetex
++BuildRequires: /usr/bin/texi2html
+ %{!?_without_lame:BuildRequires: lame-devel}
+ %{!?_without_vorbis:BuildRequires: libogg-devel, libvorbis-devel}
+ %{!?_without_faad:BuildRequires: faad2-devel}
+@@ -48,11 +36,12 @@
+ %{!?_without_a52dec:BuildRequires: a52dec-devel}
+ # We need those as autoreqprov adds them as a requirement to the package
+ # (0.4.8, still true in 0.4.9-pre1)
+-Provides: libavcodec.so
+-Provides: libavformat.so
+ %ifarch x86_64
+ Provides: libavcodec.so()(64bit)
+ Provides: libavformat.so()(64bit)
++%else
++Provides: libavcodec.so
++Provides: libavformat.so
+ %endif
+ 
+ %description
+@@ -110,58 +99,46 @@
+ 
+ 
+ %prep
+-%setup -n %{name}-%{?date:cvs-%{date}}%{!?date:%{version}%{?prever:-%{prever}}}
+-#patch0 -p1 -b .sharedpp
+-#patch2 -p1 -b .pic
+-%patch3
++%setup -n %{?date:FFMpeg-%{date}}%{!?date:%{name}-%{version}%{?prever:-%{prever}}}
++%patch0 -p0 -b .gcc4
++%patch1 -p0 -b .av_log
++%patch2 -p0 -b .a52link
+ 
+-### FIXME: Make Makefile use autotool directory standard. (Please fix upstream)
+-%{__perl} -pi -e 's|\$\(prefix\)/lib|\$(libdir)|g;
+-                  s|\$\(prefix\)/include|\$(includedir)|g' \
+-                  Makefile */Makefile */*/Makefile
+ 
+-
+ %build
+ %configure \
+ %ifnarch %{ix86}
+     --disable-mmx \
+-    --extra-cflags=&quot;%{optflags} -fPIC&quot; \
+-%else
+-    --extra-cflags=&quot;%{optflags}&quot; \
+ %endif
+-    %{!?_without_lame: --enable-mp3lame} \
+-    %{!?_without_vorbis: --enable-vorbis} \
+-    %{!?_without_faad: --enable-faad} \
+-    %{!?_without_faac: --enable-faac} \
+-    %{!?_without_xvid: --enable-xvid} \
++%ifarch x86_64
++    --extra-cflags=&quot;-fPIC&quot; \
++%endif
++    %{!?_without_lame:   --enable-mp3lame} \
++    %{!?_without_vorbis: --enable-libogg --enable-vorbis} \
++    %{!?_without_faad:   --enable-faad} \
++    %{!?_without_faac:   --enable-faac} \
++    %{!?_without_xvid:   --enable-xvid} \
++    %{!?_without_a52:    --enable-a52 --enable-a52bin} \
+     --enable-pp \
+     --enable-shared-pp \
+     --enable-shared \
+     --enable-gpl \
++    --disable-opts \
+     --disable-strip
+-#   %{!?_without_a52: --enable-a52} \
+-# Make!
+-%{__make} %{?_smp_mflags} -C libavcodec/libpostproc
+ %{__make} %{?_smp_mflags}
+-#%{?_without_fast_memcpy:OPTFLAGS=&quot;-fPIC -fomit-frame-pointer %{optflags} -UUSE_FASTMEMCPY&quot;}
+-%{__make} documentation
+-# Leftover, for reference :
+-# OPTFLAGS=&quot;-fPIC -fomit-frame-pointer %{optflags} -UUSE_FASTMEMCPY&quot;
+ 
+ 
+ %install
+-%{__rm} -rf %{buildroot}
+-%makeinstall -C libavcodec/libpostproc
++%{__rm} -rf %{buildroot} _docs
+ %makeinstall
+ 
+-### Make installlib is broken in 0.4.6-8, so we do it by hand
+-%{__install} -Dp -m0644 libavcodec/libavcodec.a \
+-    %{buildroot}%{_libdir}/libavcodec.a
+-%{__install} -Dp -m0644 libavformat/libavformat.a \
+-    %{buildroot}%{_libdir}/libavformat.a
++# Make installlib is broken in 0.4.6-8 (20050502 too), so we do it by hand
++%{__install} -m 0644 libavcodec/libavcodec.a libavformat/libavformat.a \
++    %{buildroot}%{_libdir}/
+ 
+-### Remove from the included docs
+-%{__rm} -rf doc/{CVS,Makefile}
++# Remove unwanted files from the included docs
++%{__cp} -a doc _docs
++%{__rm} -rf _docs/{CVS,Makefile,*.1,*.texi,*.pl}
+ 
+ 
+ %clean
+@@ -192,7 +169,7 @@
+ 
+ %files devel
+ %defattr(-, root, root, 0755)
+-%doc doc/*
++%doc _docs/*
+ %{_includedir}/ffmpeg/
+ %{_libdir}/*.a
+ 
+@@ -203,6 +180,17 @@
+ 
+ 
+ %changelog
++* Tue May  3 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.4.9-0.1.20050502
++- Update and include patches from Enrico to fix gcc4 build.
++- Remove no longer include static libs from the devel package.
++- Remove no longer required explicit requirements.
++- Clean up obsolete stuff from the build : separate libpostproc compile etc.
++
++* Sun Apr 17 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.4.9-0.1.20050417
++- Update to today's snapshot (no upgrade path, but that shouldn't matter).
++- Disable patch3 as it's nowhere to be found :-(
++- Added theora... hmm, nope, the build is broken.
++
+ * Sat Jan 15 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.9-0.20041110.3
+ - Exclude libpostproc.so* from ffmpeg package.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001983.html">[svn] r3181 - in trunk/tools/pydar2: . pydar
+</A></li>
+	<LI>Next message: <A HREF="001985.html">[svn] r3183 - trunk/rpms/xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1984">[ date ]</a>
+              <a href="thread.html#1984">[ thread ]</a>
+              <a href="subject.html#1984">[ subject ]</a>
+              <a href="author.html#1984">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

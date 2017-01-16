@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3226 - in trunk/tools/dstat: . examples
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3226%20-%20in%20trunk/tools/dstat%3A%20.%20examples&In-Reply-To=%3C20050522061425.97EDD1D02A0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002027.html">
+   <LINK REL="Next"  HREF="002029.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3226 - in trunk/tools/dstat: . examples</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3226%20-%20in%20trunk/tools/dstat%3A%20.%20examples&In-Reply-To=%3C20050522061425.97EDD1D02A0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3226 - in trunk/tools/dstat: . examples">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May 22 08:14:25 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002027.html">[svn] r3225 - in trunk/tools/dstat: . examples plugins
+</A></li>
+        <LI>Next message: <A HREF="002029.html">[svn] r3227 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2028">[ date ]</a>
+              <a href="thread.html#2028">[ thread ]</a>
+              <a href="subject.html#2028">[ subject ]</a>
+              <a href="author.html#2028">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-05-22 08:14:25 +0200 (Sun, 22 May 2005)
+New Revision: 3226
+
+Modified:
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/examples/mstat.py
+Log:
+Updates
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-05-22 05:02:04 UTC (rev 3225)
++++ trunk/tools/dstat/dstat	2005-05-22 06:14:25 UTC (rev 3226)
+@@ -572,7 +572,7 @@
+ 			name = l[2]
+ 			if self.regexp.match(name): continue
+ 			self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
+-			if name in self.vars:
++			if name in self.vars and name != 'total':
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[5]), self.cn2[name][1] + long(l[9]) )
+ 			for set in self.vars:
+ 				if set in op.diskset.keys():
+@@ -594,8 +594,8 @@
+ 		self.nick = ('read', 'write')
+ 		self.regexp = re.compile('^(ram\d+|loop\d+|name)$')
+ 		self.vars = self.vars()
+-		if not self.discover():
+-			raise Exception, 'kernel is lacking disk stat support, please compile CONFIG_BLK_STATS into your kernel'
++		if self.fd and not self.discover():
++			raise Exception, 'kernel is not compiled with CONFIG_BLK_STATS'
+ #			info(1, 'dstat_disk24: kernel is lacking disk stat support, please compile CONFIG_BLK_STATS into your kernel')
+ 		self.name = ['disk/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+@@ -632,12 +632,12 @@
+ 		self.fd.seek(0)
+ 		for line in self.fd.readlines():
+ 			l = line.split()
+-			if len(l) &lt; 15: continue
++			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			if l[6] == '0' and l[10] == '0': continue
+ 			name = l[3]
+ 			if name == 'name': continue
+ 			if self.regexp.match(name): continue
+-			self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]))
++			self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]) )
+ 			if name in self.vars:
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[6]), self.cn2[name][1] + long(l[10]) )
+ 			for set in self.vars:
+@@ -671,14 +671,15 @@
+ 			l = line.split(':')
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+-			if name == 'disk_io':
+-				for pair in line.split()[1:]:
+-					m = self.regexp.match(pair)
+-					if m:
+-						l = m.groups()
+-						if len(l) &lt; 4: continue
+-						name = dev(int(l[0]), int(l[1]))
+-						ret.append(name)
++			if name != 'disk_io': continue
++			for pair in line.split()[1:]:
++				m = self.regexp.match(pair)
++				if not m: continue
++				l = m.groups()
++				if len(l) &lt; 4: continue
++				name = dev(int(l[0]), int(l[1]))
++				ret.append(name)
++			break
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
+@@ -704,25 +705,25 @@
+ 			l = line.split(':')
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+-			if name == 'disk_io':
+-				for pair in line.split()[1:]:
+-					m = self.regexp.match(pair)
+-					if not m: continue
+-					l = m.groups()
+-					if len(l) &lt; 4: continue
+-					name = dev(int(l[0]), int(l[1]))
+-					self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
+-					if name in self.vars:
+-						self.cn2[name] = ( self.cn2[name][0] + long(l[2]), self.cn2[name][1] + long(l[3]) )
+-					for set in self.vars:
+-						if set in op.diskset.keys():
+-							for disk in op.diskset[set]:
+-								if re.match('^'+disk+'$', name):
+-									self.cn2[set] = ( self.cn2[set][0] + long(l[2]), self.cn2[set][1] + long(l[3]) )
++			if name != 'disk_io': continue
++			for pair in line.split()[1:]:
++				m = self.regexp.match(pair)
++				if not m: continue
++				l = m.groups()
++				if len(l) &lt; 4: continue
++				name = dev(int(l[0]), int(l[1]))
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
++				if name in self.vars and name != 'total':
++					self.cn2[name] = ( self.cn2[name][0] + long(l[2]), self.cn2[name][1] + long(l[3]) )
++				for set in self.vars:
++					if set in op.diskset.keys():
++						for disk in op.diskset[set]:
++							self.cn2[set] = ( self.cn2[set][0] + long(l[2]), self.cn2[set][1] + long(l[3]) )
++			break
+ 		for name in self.cn2.keys():
+ 			self.val[name] = (
+-				(self.cn2[name][0] - self.cn1[name][0]) * 1024.0 / tick,
+-				(self.cn2[name][1] - self.cn1[name][1]) * 1024.0 / tick,
++				(self.cn2[name][0] - self.cn1[name][0]) * 512.0 / tick,
++				(self.cn2[name][1] - self.cn1[name][1]) * 512.0 / tick,
+ 			)
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+@@ -1581,8 +1582,7 @@
+ 		die(8, 'None of the stats you selected are available.')
+ 
+ 	if op.debug:
+-		for o in totlist:
+-			print o
++		for o in totlist: print str(o.__class__).split('.')[1], o.file
+ 
+ 	if op.output:
+ 		showcsvtitle(1, totlist)
+
+Modified: trunk/tools/dstat/examples/mstat.py
+===================================================================
+--- trunk/tools/dstat/examples/mstat.py	2005-05-22 05:02:04 UTC (rev 3225)
++++ trunk/tools/dstat/examples/mstat.py	2005-05-22 06:14:25 UTC (rev 3226)
+@@ -18,7 +18,7 @@
+ stats = (dstat.dstat_time(), dstat.dstat_cpu(), dstat.dstat_mem(), dstat.dstat_load(), dstat.dstat_disk(), dstat.dstat_sys())
+ 
+ ### Make time stats sub-second
+-stats[0].format = ('t', 13, 0)
++stats[0].format = ('t', 14, 0)
+ 
+ ### Print headers
+ title1 = title2 = ''
+@@ -33,7 +33,7 @@
+ 	for o in stats:
+ 		o.extract()
+ 		line = line + '  ' + o.show()
+-	print line
++	print line + dstat.ansi['reset']
+ 	if dstat.update != count-1: time.sleep(delay)
+ 	dstat.tick = 1
+ print dstat.ansi['reset']
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002027.html">[svn] r3225 - in trunk/tools/dstat: . examples plugins
+</A></li>
+	<LI>Next message: <A HREF="002029.html">[svn] r3227 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2028">[ date ]</a>
+              <a href="thread.html#2028">[ thread ]</a>
+              <a href="subject.html#2028">[ subject ]</a>
+              <a href="author.html#2028">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

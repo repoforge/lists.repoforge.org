@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9436 - /trunk/rpms/_ruby-template.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9436%20-%20/trunk/rpms/_ruby-template.spec&In-Reply-To=%3C201101311616.p0VGGcve009828%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008219.html">
+   <LINK REL="Next"  HREF="008221.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9436 - /trunk/rpms/_ruby-template.spec</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9436%20-%20/trunk/rpms/_ruby-template.spec&In-Reply-To=%3C201101311616.p0VGGcve009828%40surya.karan.org%3E"
+       TITLE="[svn] r9436 - /trunk/rpms/_ruby-template.spec">shuff at vecna.org
+       </A><BR>
+    <I>Mon Jan 31 17:16:38 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008219.html">[svn] r9435 - in /trunk/rpms/rubygems: ./ rubygems-1.3.1-noarch-gemdir.patch rubygems.spec
+</A></li>
+        <LI>Next message: <A HREF="008221.html">[svn] r9437 - in /trunk/rpms/rubygem-rake: ./ rubygem-rake.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8220">[ date ]</a>
+              <a href="thread.html#8220">[ thread ]</a>
+              <a href="subject.html#8220">[ subject ]</a>
+              <a href="author.html#8220">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: Mon Jan 31 16:16:37 2011
+New Revision: 9436
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9436&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9436&amp;view=rev</A>
+Log:
+initial stab at a spec template for Ruby gems
+
+Added:
+    trunk/rpms/_ruby-template.spec   (with props)
+
+Added: trunk/rpms/_ruby-template.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/_ruby-template.spec?rev=9436&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/_ruby-template.spec?rev=9436&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/_ruby-template.spec (added)
++++ trunk/rpms/_ruby-template.spec Mon Jan 31 16:16:37 2011
+@@ -1,0 +1,77 @@
++# $Id$
++# Authority: shuff
++# Upstream: UPSTREAMTAG
++
++%define ruby_sitelib %(ruby -rrbconfig -e &quot;puts Config::CONFIG['sitelibdir']&quot;)
++%define gemdir %(ruby -rubygems -e 'puts Gem::dir' 2&gt;/dev/null)
++%define geminstdir %{gemdir}/gems/GEMNAME-%{version}
++
++%global rubyabi 1.8
++
++Summary: 
++Name: rubygem-GEMNAME
++
++Version: 
++Release: 1%{?dist}
++Group: Development/Languages
++License: GPL
++URL: <A HREF="http://rubygems.org/gems/GEMNAME/">http://rubygems.org/gems/GEMNAME/</A>
++
++Source0: <A HREF="http://rubygems.org/downloads/GEMNAME-%{version">http://rubygems.org/downloads/GEMNAME-%{version</A>}.gem
++BuildRoot: %{_tmppath}/%{name}-%{version}-root-%(%{__id_u} -n)
++BuildArch: noarch
++
++BuildRequires: ruby(rubygems)
++BuildRequires: ruby(abi) = %{rubyabi}
++Requires: ruby(rubygems)
++Requires: ruby(abi) = %{rubyabi}
++Provides: rubygem(GEMNAME) = %{version}
++
++%description
++
++
++%prep
++%setup -q -c -T
++
++%build
++%{__mkdir_p} .%{gemdir}
++gem install -V \
++	--local \
++	--install-dir $(pwd)/%{gemdir} \
++	--force --rdoc \
++	%{SOURCE0}
++
++%install
++%{__rm} -rf %{buildroot}
++%{__mkdir_p} %{buildroot}%{gemdir}
++%{__cp} -a .%{gemdir}/* %{buildroot}%{gemdir}/
++
++
++%{__mkdir_p} %{buildroot}/%{_bindir}
++%{__mv} %{buildroot}%{gemdir}/bin/* %{buildroot}/%{_bindir}
++find %{buildroot}/%{_bindir} -type f | xargs -n 1 sed -i  -e 's&quot;^#!/usr/bin/env ruby&quot;#!/usr/bin/ruby&quot;'
++%{__rm}dir %{buildroot}%{gemdir}/bin
++find %{buildroot}%{geminstdir}/{lib,test} -type f | xargs -n 1 sed -i  -e '/^#!\/usr\/bin\/env ruby/d'
++find %{buildroot}%{geminstdir}/{doc,lib,test} -type f | xargs chmod 0644
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, -)
++%doc %{geminstdir}/CHANGES %{geminstdir}/LICENSE %{geminstdir}/README
++%doc %{geminstdir}/test
++%doc %{gemdir}/doc/GEMNAME-%{version}
++%doc %{geminstdir}/doc
++%{_bindir}/*
++%{gemdir}/cache/GEMNAME-%{version}.gem
++%{gemdir}/specifications/GEMNAME-%{version}.gemspec
++%dir %{geminstdir}
++%{geminstdir}/Rakefile
++%{geminstdir}/install.rb
++%{geminstdir}/bin
++%{geminstdir}/lib
++
++%changelog
++* Mon Jan 31 2011 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 
++- Initial package.
+
+Propchange: trunk/rpms/_ruby-template.spec
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/rpms/_ruby-template.spec
+------------------------------------------------------------------------------
+    svn:keywords = Id Revision
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008219.html">[svn] r9435 - in /trunk/rpms/rubygems: ./ rubygems-1.3.1-noarch-gemdir.patch rubygems.spec
+</A></li>
+	<LI>Next message: <A HREF="008221.html">[svn] r9437 - in /trunk/rpms/rubygem-rake: ./ rubygem-rake.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8220">[ date ]</a>
+              <a href="thread.html#8220">[ thread ]</a>
+              <a href="subject.html#8220">[ subject ]</a>
+              <a href="author.html#8220">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

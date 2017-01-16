@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5804 - in trunk/tools/unoconv: . tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5804%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C20070901042213.50DAA318077%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004602.html">
+   <LINK REL="Next"  HREF="004604.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5804 - in trunk/tools/unoconv: . tests</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5804%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C20070901042213.50DAA318077%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5804 - in trunk/tools/unoconv: . tests">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Sep  1 06:22:13 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004602.html">[svn] r5803 - trunk/tools/unoconv
+</A></li>
+        <LI>Next message: <A HREF="004604.html">[svn] r5805 - trunk/rpms/tor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4603">[ date ]</a>
+              <a href="thread.html#4603">[ thread ]</a>
+              <a href="subject.html#4603">[ subject ]</a>
+              <a href="author.html#4603">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-09-01 06:22:12 +0200 (Sat, 01 Sep 2007)
+New Revision: 5804
+
+Modified:
+   trunk/tools/unoconv/TODO
+   trunk/tools/unoconv/tests/Makefile
+   trunk/tools/unoconv/unoconv
+Log:
+Small changes.
+
+Modified: trunk/tools/unoconv/TODO
+===================================================================
+--- trunk/tools/unoconv/TODO	2007-09-01 04:01:18 UTC (rev 5803)
++++ trunk/tools/unoconv/TODO	2007-09-01 04:22:12 UTC (rev 5804)
+@@ -13,11 +13,3 @@
+ ### Usability
+ - Maybe change the commandline interface to reflect ImageMagick's convert
+ - Add the list of input formats as well, and print that list too
+-
+-### OpenOffice execution
+-- If an openoffice exists, -accept modifies the existing behaviour of
+-  the running instance. In that case we need to -unaccept afterwards
+-  (and not try to kill a ghost)
+-- If a unoconv-listener has been started, and you start an openoffice
+-  gui, the openoffice gui runs as the same process as the listeners.
+-  In that case we need to -unaccept afterwards (and not kill the gui)
+
+Modified: trunk/tools/unoconv/tests/Makefile
+===================================================================
+--- trunk/tools/unoconv/tests/Makefile	2007-09-01 04:01:18 UTC (rev 5803)
++++ trunk/tools/unoconv/tests/Makefile	2007-09-01 04:22:12 UTC (rev 5804)
+@@ -11,7 +11,7 @@
+ 
+ %:
+ #	-killall ooffice soffice.bin
+-	-../unoconv -f $@ document-example.odt
++	-../unoconv -vv -f $@ document-example.odt
+ #	@ps aux | grep office
+ #	-unoconv -f $@ dag.gif
+ #	docbook2pdf -d curriculum-vitae.dsl#print curriculum-vitae-dag-wieers.xml
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2007-09-01 04:01:18 UTC (rev 5803)
++++ trunk/tools/unoconv/unoconv	2007-09-01 04:22:12 UTC (rev 5804)
+@@ -524,25 +524,27 @@
+     if str:
+         error(0, 'Error: %s' % str)
+ 
+-    ### Did we start a process and is it bound to a GUI ?
+-    if oopid and not convertor.desktop.getCurrentFrame():
+-#        error(2, 'Taking down OpenOffice with pid %s.' % oopid)
+-        try:
+-            ### FIXME: Send terminate event to perfectly good OpenOffice GUI
+-            convertor.desktop.terminate()
+-        except DisposedException:
+-            error(2, 'OpenOffice instance successfully terminated.')
++    ### Did we start an instance ?
++    if oopid:
+ 
+-    ### Otherwise -unaccept connection
+-    elif convertor.desktop.getCurrentFrame():
+-        for bin in ('soffice.bin', 'soffice', ):
++        ### If there is a GUI now attached to the instance, disable listener
++        if convertor.desktop.getCurrentFrame():
++            for bin in ('soffice.bin', 'soffice', ):
++                try:
++                    os.spawnvp(os.P_NOWAIT, bin, [bin, &quot;-nologo&quot;, &quot;-nodefault&quot;, &quot;-headless&quot;, &quot;-unaccept=%s&quot; % op.connection]);
++                    error(2, 'OpenOffice listener successfully disabled.')
++                    break
++                except Exception, e:
++                    continue
++
++        ### If there is no GUI attached to the instance, terminate instance
++        else:
+             try:
+-                os.spawnvp(os.P_NOWAIT, bin, [bin, &quot;-nologo&quot;, &quot;-nodefault&quot;, &quot;-unaccept=%s&quot; % op.connection]);
+-                error(2, 'OpenOffice listener successfully disabled.')
+-                break
+-            except Exception, e:
+-                continue
++                convertor.desktop.terminate()
++            except DisposedException:
++                error(2, 'OpenOffice instance successfully terminated.')
+ 
++#        error(2, 'Taking down OpenOffice with pid %s.' % oopid)
+ #        os.setpgid(oopid, 0)
+ #        os.killpg(os.getpgid(oopid), 15)
+ #        try:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004602.html">[svn] r5803 - trunk/tools/unoconv
+</A></li>
+	<LI>Next message: <A HREF="004604.html">[svn] r5805 - trunk/rpms/tor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4603">[ date ]</a>
+              <a href="thread.html#4603">[ thread ]</a>
+              <a href="subject.html#4603">[ subject ]</a>
+              <a href="author.html#4603">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

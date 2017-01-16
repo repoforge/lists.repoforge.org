@@ -1,0 +1,501 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4251 - in trunk/rpms: gstreamer-plugins-ugly libmms
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4251%20-%20in%20trunk/rpms%3A%20gstreamer-plugins-ugly%20libmms&In-Reply-To=%3C20060328085705.0B1CD3180A2%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003050.html">
+   <LINK REL="Next"  HREF="003052.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4251 - in trunk/rpms: gstreamer-plugins-ugly libmms</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4251%20-%20in%20trunk/rpms%3A%20gstreamer-plugins-ugly%20libmms&In-Reply-To=%3C20060328085705.0B1CD3180A2%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4251 - in trunk/rpms: gstreamer-plugins-ugly libmms">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Mar 28 10:57:05 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003050.html">[svn] r4250 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="003052.html">[svn] r4252 - trunk/rpms/transcode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3051">[ date ]</a>
+              <a href="thread.html#3051">[ thread ]</a>
+              <a href="subject.html#3051">[ subject ]</a>
+              <a href="author.html#3051">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-03-28 10:57:03 +0200 (Tue, 28 Mar 2006)
+New Revision: 4251
+
+Added:
+   trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.2-asfdemux-fixes.patch
+   trunk/rpms/libmms/libmms-0.2-proxy.patch
+Modified:
+   trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec
+   trunk/rpms/libmms/libmms.spec
+Log:
+Add HTTP_PROXY support to libmms and fix asfdemux in gstreamer-plugins-ugly.
+
+
+Added: trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.2-asfdemux-fixes.patch
+===================================================================
+--- trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.2-asfdemux-fixes.patch	2006-03-27 18:08:03 UTC (rev 4250)
++++ trunk/rpms/gstreamer-plugins-ugly/gst-plugins-ugly-0.10.2-asfdemux-fixes.patch	2006-03-28 08:57:03 UTC (rev 4251)
+@@ -0,0 +1,72 @@
++Index: gst/asfdemux/gstasfdemux.c
++===================================================================
++RCS file: /cvs/gstreamer/gst-plugins-ugly/gst/asfdemux/gstasfdemux.c,v
++retrieving revision 1.95
++retrieving revision 1.97
++diff -u -r1.95 -r1.97
++--- gst/asfdemux/gstasfdemux.c	17 Feb 2006 17:58:44 -0000	1.95
+++++ gst/asfdemux/gstasfdemux.c	27 Mar 2006 10:39:03 -0000	1.97
++@@ -828,6 +828,7 @@
++   stream-&gt;frag_offset = 0;
++   stream-&gt;sequence = 0;
++   stream-&gt;delay = 0;
+++  stream-&gt;first_pts = GST_CLOCK_TIME_NONE;
++   stream-&gt;last_pts = GST_CLOCK_TIME_NONE;
++   stream-&gt;fps_known = !is_video;        /* bit hacky for audio */
++   stream-&gt;is_video = is_video;
++@@ -1812,7 +1813,10 @@
++   if (segment_info-&gt;frag_offset == 0) {
++     /* new packet */
++     stream-&gt;sequence = segment_info-&gt;sequence;
++-    demux-&gt;pts = segment_info-&gt;frag_timestamp - demux-&gt;preroll;
+++    if (!GST_CLOCK_TIME_IS_VALID (stream-&gt;first_pts))
+++      stream-&gt;first_pts = segment_info-&gt;frag_timestamp - demux-&gt;preroll;
+++    demux-&gt;pts =
+++        segment_info-&gt;frag_timestamp - demux-&gt;preroll - stream-&gt;first_pts;
++ 
++     /*
++        if (stream-&gt;is_video) {
++@@ -1871,7 +1875,8 @@
++ #endif
++         stream-&gt;frag_offset = 0;
++       }
++-      demux-&gt;pts = segment_info-&gt;frag_timestamp - demux-&gt;preroll;
+++      demux-&gt;pts =
+++          segment_info-&gt;frag_timestamp - demux-&gt;preroll - stream-&gt;first_pts;
++ 
++       /*
++          if (stream-&gt;is_video) {
++@@ -2203,14 +2208,14 @@
++ 
++   packet_info.multiple = ((flags &amp; 0x01) == 0x01);
++ 
+++  packet_length =
+++      gst_asf_demux_get_var_length ((flags &gt;&gt; 5) &amp; 0x03, p_data, p_size);
+++
++   sequence = gst_asf_demux_get_var_length ((flags &gt;&gt; 1) &amp; 0x03, p_data, p_size);
++ 
++   packet_info.padsize =
++       gst_asf_demux_get_var_length ((flags &gt;&gt; 3) &amp; 0x03, p_data, p_size);
++ 
++-  packet_length =
++-      gst_asf_demux_get_var_length ((flags &gt;&gt; 5) &amp; 0x03, p_data, p_size);
++-
++   if (packet_length == 0)
++     packet_length = demux-&gt;packet_size;
++ 
++Index: gst/asfdemux/gstasfdemux.h
++===================================================================
++RCS file: /cvs/gstreamer/gst-plugins-ugly/gst/asfdemux/gstasfdemux.h,v
++retrieving revision 1.18
++retrieving revision 1.19
++diff -u -r1.18 -r1.19
++--- gst/asfdemux/gstasfdemux.h	15 Feb 2006 15:48:07 -0000	1.18
+++++ gst/asfdemux/gstasfdemux.h	27 Mar 2006 10:39:03 -0000	1.19
++@@ -47,6 +47,7 @@
++   guint32     frag_offset;
++   guint32     sequence;
++   guint64     delay;
+++  guint64     first_pts;
++   guint64     last_pts;
++   GstBuffer  *payload;
++ 
+
+Modified: trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec
+===================================================================
+--- trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec	2006-03-27 18:08:03 UTC (rev 4250)
++++ trunk/rpms/gstreamer-plugins-ugly/gstreamer-plugins-ugly.spec	2006-03-28 08:57:03 UTC (rev 4251)
+@@ -14,11 +14,12 @@
+ Summary: GStreamer streaming media framework &quot;ugly&quot; plug-ins
+ Name: %{gstreamer}-plugins-ugly
+ Version: 0.10.2
+-Release: 1
++Release: 2
+ License: LGPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://gstreamer.freedesktop.org/">http://gstreamer.freedesktop.org/</A>
+ Source: <A HREF="http://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-%{version">http://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-%{version</A>}.tar.bz2
++Patch0: gst-plugins-ugly-0.10.2-asfdemux-fixes.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires: %{gstreamer} &gt;= %{gst_minver}
+ BuildRequires: %{gstreamer}-devel &gt;= %{gst_minver}
+@@ -79,6 +80,7 @@
+ 
+ %prep
+ %setup -n gst-plugins-ugly-%{version}
++%patch0 -p0 -b .asfdemux-fixes
+ 
+ 
+ %build
+@@ -132,6 +134,9 @@
+ 
+ 
+ %changelog
++* Tue Mar 28 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.10.2-2
++- Include backported asfdemux fixes patch from Daniel S. Rogers.
++
+ * Wed Feb 22 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.10.2-1
+ - Update to 0.10.2.
+ - Add libgstasf.so.
+
+Added: trunk/rpms/libmms/libmms-0.2-proxy.patch
+===================================================================
+--- trunk/rpms/libmms/libmms-0.2-proxy.patch	2006-03-27 18:08:03 UTC (rev 4250)
++++ trunk/rpms/libmms/libmms-0.2-proxy.patch	2006-03-28 08:57:03 UTC (rev 4251)
+@@ -0,0 +1,273 @@
++Index: src/mmsh.c
++===================================================================
++RCS file: /cvsroot/libmms/libmms/src/mmsh.c,v
++retrieving revision 1.3
++diff -u -p -r1.3 mmsh.c
++--- src/mmsh.c	12 Dec 2005 15:08:07 -0000	1.3
+++++ src/mmsh.c	23 Mar 2006 21:33:49 -0000
++@@ -36,6 +36,7 @@
++ 
++ #include &lt;unistd.h&gt;
++ #include &lt;stdio.h&gt;
+++#include &lt;stdlib.h&gt;
++ #include &lt;sys/socket.h&gt;
++ #include &lt;netinet/in.h&gt;
++ #include &lt;netdb.h&gt;
++@@ -155,11 +156,16 @@ struct mmsh_s {
++ 
++   /* url parsing */
++   char         *url;
+++  char         *proxy_url;
++   char         *proto;
++-  char         *host;
++-  int           port;
++-  char         *user;
++-  char         *password;
+++  char         *connect_host;
+++  int           connect_port;
+++  char         *http_host;
+++  int           http_port;
+++  char         *proxy_user;
+++  char         *proxy_password;
+++  char         *host_user;
+++  char         *host_password;
++   char         *uri;
++ 
++   char          str[SCRATCH_SIZE]; /* scratch buffer to built strings */
++@@ -711,17 +717,17 @@ static int mmsh_valid_proto (char *proto
++ static int mmsh_tcp_connect(mms_io_t *io, mmsh_t *this) {
++   int progress, res;
++   
++-  if (!this-&gt;port) this-&gt;port = MMSH_PORT;
+++  if (!this-&gt;connect_port) this-&gt;connect_port = MMSH_PORT;
++   
++   /* 
++    * try to connect 
++    */
++-  lprintf(&quot;try to connect to %s on port %d \n&quot;, this-&gt;host, this-&gt;port);
+++  lprintf(&quot;try to connect to %s on port %d \n&quot;, this-&gt;connect_host, this-&gt;connect_port);
++ 
++-  this-&gt;s = io_connect (io, this-&gt;host, this-&gt;port);
+++  this-&gt;s = io_connect (io, this-&gt;connect_host, this-&gt;connect_port);
++ 
++   if (this-&gt;s == -1) {
++-    lprintf (&quot;mmsh: failed to connect '%s'\n&quot;, this-&gt;host);
+++    lprintf (&quot;mmsh: failed to connect '%s'\n&quot;, this-&gt;connect_host);
++     return 1;
++   }
++ 
++@@ -761,7 +767,7 @@ static int mmsh_connect_int (mms_io_t *i
++   lprintf(&quot;first http request\n&quot;);
++   
++   snprintf (this-&gt;str, SCRATCH_SIZE, mmsh_FirstRequest, this-&gt;uri,
++-            this-&gt;host, this-&gt;port, 1);
+++            this-&gt;http_host, this-&gt;http_port, 1);
++ 
++   if (!send_command (io, this, this-&gt;str))
++     goto fail;
++@@ -867,12 +873,12 @@ static int mmsh_connect_int (mms_io_t *i
++   switch (this-&gt;stream_type) {
++     case MMSH_SEEKABLE:
++       snprintf (this-&gt;str, SCRATCH_SIZE, mmsh_SeekableRequest, this-&gt;uri,
++-                this-&gt;host, this-&gt;port, 0, 0, 0, 2, 0,
+++                this-&gt;http_host, this-&gt;http_port, 0, 0, 0, 2, 0,
++                 this-&gt;num_stream_ids, stream_selection);
++       break;
++     case MMSH_LIVE:
++       snprintf (this-&gt;str, SCRATCH_SIZE, mmsh_LiveRequest, this-&gt;uri,
++-                this-&gt;host, this-&gt;port, 2,
+++                this-&gt;http_host, this-&gt;http_port, 2,
++                 this-&gt;num_stream_ids, stream_selection);
++       break;
++   }
++@@ -910,17 +916,36 @@ fail:
++ 
++ mmsh_t *mmsh_connect (mms_io_t *io, void *data, const char *url, int bandwidth) {
++   mmsh_t *this;
++-  GURI  *uri;
++- 
+++  GURI  *uri = NULL;
+++  GURI  *proxy_uri = NULL;
+++  char  *proxy_env;
++   if (!url)
++     return NULL;
++ 
++ //  report_progress (stream, 0);
++-
+++  /*
+++   * initializatoin is essential here.  the fail: label depends
+++   * on the various char * in our this structure to be
+++   * NULL if they haven't been assigned yet.
+++   */
++   this = (mmsh_t*) malloc (sizeof (mmsh_t));
+++  this-&gt;url=NULL;
+++  this-&gt;proxy_url = NULL;
+++  this-&gt;proto = NULL;
+++  this-&gt;connect_host = NULL;
+++  this-&gt;http_host = NULL;
+++  this-&gt;proxy_user = NULL;
+++  this-&gt;proxy_password = NULL;
+++  this-&gt;host_user = NULL;
+++  this-&gt;host_password = NULL;
+++  this-&gt;uri = NULL;
++ 
++   this-&gt;custom_data     = data;
++   this-&gt;url             = strdup(url);
+++  if ((proxy_env = getenv(&quot;http_proxy&quot;)) != NULL)
+++    this-&gt;proxy_url = strdup(proxy_env);
+++  else
+++    this-&gt;proxy_url = NULL;
++   this-&gt;s               = -1;
++   this-&gt;asf_header_len  = 0;
++   this-&gt;asf_header_read = 0;
++@@ -935,18 +960,59 @@ mmsh_t *mmsh_connect (mms_io_t *io, void
++ 
++ //  report_progress (stream, 0);
++ 
+++  if (this-&gt;proxy_url) {
+++    proxy_uri = gnet_uri_new(this-&gt;proxy_url);
+++    if (!proxy_uri) {
+++      lprintf(&quot;invalid proxy url\n&quot;);
+++      goto fail;
+++    }
+++    if (! proxy_uri-&gt;port ) {
+++      proxy_uri-&gt;port = 3128; //default squid port
+++    }
+++  }
++   uri = gnet_uri_new(this-&gt;url);
++   if (!uri) {
++     lprintf (&quot;invalid url\n&quot;);
++     goto fail;
++   }
++-  this-&gt;proto = uri-&gt;scheme;
++-  this-&gt;user = uri-&gt;user;
++-  this-&gt;host = uri-&gt;hostname;
++-  this-&gt;port = uri-&gt;port;
++-  this-&gt;password = uri-&gt;passwd;
++-  this-&gt;uri = uri-&gt;path;
++-  
+++  if (! uri-&gt;port ) {
+++    //checked in tcp_connect, but it's better to initialize it here
+++    uri-&gt;port = MMSH_PORT;
+++  }
+++  if (this-&gt;proxy_url) {
+++    this-&gt;proto = (uri-&gt;scheme) ? strdup(uri-&gt;scheme) : NULL;
+++    this-&gt;connect_host = (proxy_uri-&gt;hostname) ? strdup(proxy_uri-&gt;hostname) : NULL;
+++    this-&gt;connect_port = proxy_uri-&gt;port;
+++    this-&gt;http_host = (uri-&gt;scheme) ? strdup(uri-&gt;hostname) : NULL;
+++    this-&gt;http_port = uri-&gt;port;
+++    this-&gt;proxy_user = (proxy_uri-&gt;user) ? strdup(proxy_uri-&gt;user) : NULL;
+++    this-&gt;proxy_password = (proxy_uri-&gt;passwd) ? strdup(proxy_uri-&gt;passwd) : NULL;
+++    this-&gt;host_user = (uri-&gt;user) ? strdup(uri-&gt;user) : NULL;
+++    this-&gt;host_password = (uri-&gt;passwd) ? strdup(uri-&gt;passwd) : NULL;
+++    gnet_uri_set_scheme(uri,&quot;http&quot;);
+++    char * uri_string = gnet_uri_get_string(uri);
+++    this-&gt;uri = strdup(uri_string);
+++    g_free(uri_string);
+++  } else {
+++    this-&gt;proto = (uri-&gt;scheme) ? strdup(uri-&gt;scheme) : NULL;
+++    this-&gt;connect_host = (uri-&gt;hostname) ? strdup(uri-&gt;hostname) : NULL;
+++    this-&gt;connect_port = uri-&gt;port;
+++    this-&gt;http_host = (uri-&gt;hostname) ? strdup(uri-&gt;hostname) : NULL;
+++    this-&gt;http_port = uri-&gt;port;
+++    this-&gt;proxy_user = NULL;
+++    this-&gt;proxy_password = NULL;
+++    this-&gt;host_user =(uri-&gt;user) ?  strdup(uri-&gt;user) : NULL;
+++    this-&gt;host_password = (uri-&gt;passwd) ? strdup(uri-&gt;passwd) : NULL;
+++    this-&gt;uri = (uri-&gt;path) ? strdup(uri-&gt;path) : NULL;
+++  }
+++  if (proxy_uri) {
+++    gnet_uri_delete(proxy_uri);
+++    proxy_uri = NULL;
+++  }
+++  if (uri) {
+++    gnet_uri_delete(uri);
+++    uri = NULL;
+++  }
++   if (!mmsh_valid_proto(this-&gt;proto)) {
++     lprintf (&quot;unsupported protocol\n&quot;);
++     goto fail;
++@@ -968,18 +1034,30 @@ mmsh_t *mmsh_connect (mms_io_t *io, void
++ 
++ fail:
++   lprintf(&quot;mmsh_connect: failed\n&quot; );
+++  if (proxy_uri)
+++    gnet_uri_delete(proxy_uri);
+++  if (uri)
+++    gnet_uri_delete(uri);
++   if (this-&gt;s != -1)
++     close(this-&gt;s);
++   if (this-&gt;url)
++     free(this-&gt;url);
+++  if (this-&gt;proxy_url)
+++    free(this-&gt;proxy_url);
++   if (this-&gt;proto)
++     free(this-&gt;proto);
++-  if (this-&gt;host)
++-    free(this-&gt;host);
++-  if (this-&gt;user)
++-    free(this-&gt;user);
++-  if (this-&gt;password)
++-    free(this-&gt;password);
+++  if (this-&gt;connect_host)
+++    free(this-&gt;connect_host);
+++  if (this-&gt;http_host)
+++    free(this-&gt;http_host);
+++  if (this-&gt;proxy_user)
+++    free(this-&gt;proxy_user);
+++  if (this-&gt;proxy_password)
+++    free(this-&gt;proxy_password);
+++  if (this-&gt;host_user)
+++    free(this-&gt;host_user);
+++  if (this-&gt;host_password)
+++    free(this-&gt;host_password);
++   if (this-&gt;uri)
++     free(this-&gt;uri);
++ 
++@@ -1146,15 +1224,23 @@ void mmsh_close (mmsh_t *this) {
++   if (this-&gt;s != -1)
++     close(this-&gt;s);
++   if (this-&gt;url)
++-    free (this-&gt;url);
+++    free(this-&gt;url);
+++  if (this-&gt;proxy_url)
+++    free(this-&gt;proxy_url);
++   if (this-&gt;proto)
++     free(this-&gt;proto);
++-  if (this-&gt;host)
++-    free(this-&gt;host);
++-  if (this-&gt;user)
++-    free(this-&gt;user);
++-  if (this-&gt;password)
++-    free(this-&gt;password);
+++  if (this-&gt;connect_host)
+++    free(this-&gt;connect_host);
+++  if (this-&gt;http_host)
+++    free(this-&gt;http_host);
+++  if (this-&gt;proxy_user)
+++    free(this-&gt;proxy_user);
+++  if (this-&gt;proxy_password)
+++    free(this-&gt;proxy_password);
+++  if (this-&gt;host_user)
+++    free(this-&gt;host_user);
+++  if (this-&gt;host_password)
+++    free(this-&gt;host_password);
++   if (this-&gt;uri)
++     free(this-&gt;uri);
++   if (this)
++Index: src/mmsh.h
++===================================================================
++RCS file: /cvsroot/libmms/libmms/src/mmsh.h,v
++retrieving revision 1.2
++diff -u -p -r1.2 mmsh.h
++--- src/mmsh.h	12 Dec 2005 09:24:20 -0000	1.2
+++++ src/mmsh.h	23 Mar 2006 21:33:49 -0000
++@@ -26,6 +26,8 @@
++ #define HAVE_MMSH_H
++ 
++ #include &lt;inttypes.h&gt;
+++#include &lt;stdio.h&gt;
+++#include &lt;sys/types.h&gt;
++ #include &quot;mmsio.h&quot;
++ 
++ typedef struct mmsh_s mmsh_t;
+
+Modified: trunk/rpms/libmms/libmms.spec
+===================================================================
+--- trunk/rpms/libmms/libmms.spec	2006-03-27 18:08:03 UTC (rev 4250)
++++ trunk/rpms/libmms/libmms.spec	2006-03-28 08:57:03 UTC (rev 4251)
+@@ -4,11 +4,12 @@
+ Summary: MMS stream protocol library
+ Name: libmms
+ Version: 0.2
+-Release: 1
++Release: 2
+ License: LGPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://libmms.sourceforge.net/">http://libmms.sourceforge.net/</A>
+ Source: <A HREF="http://dl.sf.net/libmms/libmms-%{version">http://dl.sf.net/libmms/libmms-%{version</A>}.tar.gz
++Patch0: libmms-0.2-proxy.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: glib2-devel
+ 
+@@ -28,6 +29,7 @@
+ 
+ %prep
+ %setup
++%patch0 -p0 -b .proxy
+ 
+ 
+ %build
+@@ -64,6 +66,9 @@
+ 
+ 
+ %changelog
++* Tue Mar 28 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.2-2
++- Add HTTP_PROXY support patch from Daniel S. Rogers.
++
+ * Thu Mar 23 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.2-1
+ - Initial RPM release.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003050.html">[svn] r4250 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="003052.html">[svn] r4252 - trunk/rpms/transcode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3051">[ date ]</a>
+              <a href="thread.html#3051">[ thread ]</a>
+              <a href="subject.html#3051">[ subject ]</a>
+              <a href="author.html#3051">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

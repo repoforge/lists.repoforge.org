@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5608 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5608%20-%20trunk/tools/dstat&In-Reply-To=%3C20070713091857.8CCB8944BD5%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004406.html">
+   <LINK REL="Next"  HREF="004408.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5608 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5608%20-%20trunk/tools/dstat&In-Reply-To=%3C20070713091857.8CCB8944BD5%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5608 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jul 13 11:18:57 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004406.html">[svn] r5607 - trunk/tools/wascii
+</A></li>
+        <LI>Next message: <A HREF="004408.html">[svn] r5609 - trunk/tools/wascii
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4407">[ date ]</a>
+              <a href="thread.html#4407">[ thread ]</a>
+              <a href="subject.html#4407">[ subject ]</a>
+              <a href="author.html#4407">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-07-13 11:18:56 +0200 (Fri, 13 Jul 2007)
+New Revision: 5608
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Report when python-curses is missing and colors do not work (eg. on OpenSUSE)
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2007-07-13 07:20:20 UTC (rev 5607)
++++ trunk/tools/dstat/ChangeLog	2007-07-13 09:18:56 UTC (rev 5608)
+@@ -6,6 +6,8 @@
+ - Added external dstat_topmem plugin
+ - Improved dstat_topcpu CSV output
+ - Fixed a problem with asciidoc DocBook output (Dbt 427214, Michael Ablassmeier)
++- Report when python-curses is missing and colors don't work (eg. on OpenSUSE)
++- Improve --version output wrt. terminal and color support
+ 
+ * 0.6.6 - Unemployed - released 28/04/2007
+ - Removed SwapCached from the Cached counter (Dbt 418326, Peter Rabbitson)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2007-07-13 07:20:20 UTC (rev 5607)
++++ trunk/tools/dstat/dstat	2007-07-13 09:18:56 UTC (rev 5608)
+@@ -83,16 +83,16 @@
+         self.intlist = None
+         self.netlist = None
+         self.swaplist = None
+-        self.color = False
++        self.color = True
+         self.update = True
+         self.header = True
+         self.output = False
+-        self.isatty = sys.stdout.isatty()
+ 
+         ### Implicit if no terminal is used
+-        if not self.isatty:
++        if not sys.stdout.isatty():
+             self.update = False
+             self.header = False
++            self.color = False
+ 
+         ### Temporary hardcoded for my own project
+         self.diskset = {
+@@ -215,12 +215,17 @@
+         print 'Kernel %s' % os.uname()[2]
+         print 'Python %s' % sys.version
+         print
++
++        color = &quot;&quot;
++        if not gettermcolor(self.color):
++            color = &quot;no &quot;
++        print 'Terminal type: %s (%scolor support)' % (os.getenv('TERM'), color)
+         rows, cols = gettermsize()
+         print 'Terminal size: %d lines, %d columns' % (rows, cols)
+         print
+         print 'Processors: %d' % getcpunr()
+         print 'Pagesize: %d' % resource.getpagesize()
+-#       print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
++        print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
+         print
+ 
+         global op
+@@ -1610,6 +1615,18 @@
+             termsize = 25, 80
+     return termsize
+ 
++def gettermcolor(color=True):
++    if color and sys.stdout.isatty():
++        try:
++            import curses
++            curses.setupterm()
++            if curses.tigetnum('colors') &lt; 0:
++                return False
++        except:
++            info(1, 'Color support is disabled, python-curses is not installed.')
++            return False
++    return color
++
+ def getcpunr():
+     &quot;Return the number of CPUs in the system&quot;
+     cpunr = -1
+@@ -1742,7 +1759,7 @@
+     rows, cols = gettermsize()
+ 
+     ### Write term-title
+-    if op.isatty:
++    if sys.stdout.isatty():
+         shell = os.getenv('XTERM_SHELL')
+         term = os.getenv('TERM')
+         if shell == '/bin/bash' and term and re.compile('(screen*|xterm*)').match(term):
+@@ -1761,15 +1778,7 @@
+ #       print 'Background is unknown, assuming dark.'
+ 
+     ### Check terminal capabilities
+-    if op.isatty:
+-        op.color = True
+-        try:
+-            import curses
+-            curses.setupterm()
+-            if curses.tigetnum('colors') &lt; 0:
+-                op.color = False
+-        except:
+-            op.color = False
++    op.color = gettermcolor(op.color)
+ 
+     if op.output:
+         if os.path.exists(op.output):
+@@ -1891,7 +1900,7 @@
+             curwidth = 0
+ 
+         ### Trim object list to what is visible on screen
+-        if op.isatty:
++        if sys.stdout.isatty():
+             rows, cols = gettermsize()
+             vislist = []
+             for o in totlist:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004406.html">[svn] r5607 - trunk/tools/wascii
+</A></li>
+	<LI>Next message: <A HREF="004408.html">[svn] r5609 - trunk/tools/wascii
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4407">[ date ]</a>
+              <a href="thread.html#4407">[ thread ]</a>
+              <a href="subject.html#4407">[ subject ]</a>
+              <a href="author.html#4407">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

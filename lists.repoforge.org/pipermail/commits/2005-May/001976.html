@@ -1,0 +1,498 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3174 - trunk/rpms/mplayer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3174%20-%20trunk/rpms/mplayer&In-Reply-To=%3C20050502091529.65D2A318021%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001975.html">
+   <LINK REL="Next"  HREF="001977.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3174 - trunk/rpms/mplayer</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3174%20-%20trunk/rpms/mplayer&In-Reply-To=%3C20050502091529.65D2A318021%40lists.rpmforge.net%3E"
+       TITLE="[svn] r3174 - trunk/rpms/mplayer">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon May  2 11:15:29 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001975.html">[svn] r3173 - in trunk/rpms: xine xine-lib
+</A></li>
+        <LI>Next message: <A HREF="001977.html">[svn] r3175 - in trunk/rpms: ipw2200-firmware libfame linux_logo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1976">[ date ]</a>
+              <a href="thread.html#1976">[ thread ]</a>
+              <a href="subject.html#1976">[ subject ]</a>
+              <a href="author.html#1976">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-05-02 11:15:28 +0200 (Mon, 02 May 2005)
+New Revision: 3174
+
+Added:
+   trunk/rpms/mplayer/MPlayer-1.0pre7-gcc4.patch
+   trunk/rpms/mplayer/MPlayer-1.0pre7-gcc_detection.patch
+Modified:
+   trunk/rpms/mplayer/mplayer.spec
+Log:
+Update to 1.0pre7 and gcc4 fixes.
+
+
+Added: trunk/rpms/mplayer/MPlayer-1.0pre7-gcc4.patch
+===================================================================
+--- trunk/rpms/mplayer/MPlayer-1.0pre7-gcc4.patch	2005-05-02 09:14:53 UTC (rev 3173)
++++ trunk/rpms/mplayer/MPlayer-1.0pre7-gcc4.patch	2005-05-02 09:15:28 UTC (rev 3174)
+@@ -0,0 +1,187 @@
++diff -bBur MPlayer-20050413-orig/configure MPlayer-20050413/configure
++--- MPlayer-20050413-orig/configure	2005-04-06 14:57:08.000000000 +0300
+++++ MPlayer-20050413/configure	2005-04-14 16:20:41.000000000 +0300
++@@ -604,7 +604,7 @@
++       cc_version=&quot;v. ?.??, bad&quot;
++       cc_verc_fail=yes
++       ;;
++-    2.95.[2-9]|2.95.[2-9][-.]*|3.[0-9]|3.[0-9].[0-9])
+++    2.95.[2-9]|2.95.[2-9][-.]*|3.[0-9]|3.[0-9].[0-9]|4.*)
++       _cc_major=`echo $cc_version | cut -d '.' -f 1`
++       _cc_minor=`echo $cc_version | cut -d '.' -f 2`
++       _cc_mini=`echo $cc_version | cut -d '.' -f 3`
++diff -bBur MPlayer-20050413-orig/liba52/imdct.c MPlayer-20050413/liba52/imdct.c
++--- MPlayer-20050413-orig/liba52/imdct.c	2005-03-23 01:27:18.000000000 +0200
+++++ MPlayer-20050413/liba52/imdct.c	2005-04-14 16:48:54.000000000 +0300
++@@ -937,7 +937,8 @@
++     /* 4-7. iterations */
++     for (m=3; m &lt; 7; m++) {
++ 	two_m = (1 &lt;&lt; m);
++-	two_m_plus_one = two_m&lt;&lt;1;
+++	int two_m_plus_four=two_m&lt;&lt;4;
+++	complex_t* buf_plus_128=buf+128;
++ 	asm volatile(
++ 		&quot;movl %0, %%esi				\n\t&quot;
++ 		&quot;.balign 16				\n\t&quot;
++@@ -963,7 +964,7 @@
++ 		&quot;addl %2, %%esi				\n\t&quot;
++ 		&quot;cmpl %1, %%esi				\n\t&quot;
++ 		&quot; jb 1b					\n\t&quot;
++-		:: &quot;g&quot; (buf), &quot;m&quot; (buf+128), &quot;m&quot; (two_m_plus_one&lt;&lt;3), &quot;r&quot; (two_m&lt;&lt;3),
+++		:: &quot;g&quot; (buf), &quot;m&quot; (buf_plus_128), &quot;m&quot; (two_m_plus_four), &quot;r&quot; (two_m&lt;&lt;3),
++ 		   &quot;r&quot; (sseW[m])
++ 		: &quot;%esi&quot;, &quot;%edi&quot;, &quot;%edx&quot;
++ 	);
++diff -bBur MPlayer-20050413-orig/libavcodec/libpostproc/postprocess_template.c MPlayer-20050413/libavcodec/libpostproc/postprocess_template.c
++--- MPlayer-20050413-orig/libavcodec/libpostproc/postprocess_template.c	2005-02-27 10:56:26.000000000 +0200
+++++ MPlayer-20050413/libavcodec/libpostproc/postprocess_template.c	2005-04-14 16:35:07.000000000 +0300
++@@ -2648,6 +2648,8 @@
++ static always_inline void RENAME(do_a_deblock)(uint8_t *src, int step, int stride, PPContext *c){
++ 	int64_t dc_mask, eq_mask;
++ 	int64_t sums[10*8*2];
+++	int64_t dc_and_eq_mask;
+++
++ 	src+= step*3; // src points to begin of the 8x8 Block
++ //START_TIMER
++ asm volatile(
++@@ -2754,8 +2756,9 @@
++ 		: &quot;r&quot; (src), &quot;r&quot; ((long)step), &quot;m&quot; (c-&gt;pQPb), &quot;m&quot;(c-&gt;ppMode.flatnessThreshold)
++ 		: &quot;%&quot;REG_a
++ 		);
+++	dc_and_eq_mask=dc_mask &amp; eq_mask;
++ 
++-	if(dc_mask &amp; eq_mask){
+++	if(dc_and_eq_mask){
++ 		long offset= -8*step;
++ 		int64_t *temp_sums= sums;
++ 
++@@ -2930,7 +2933,7 @@
++ 		&quot; js 1b						\n\t&quot;
++ 
++ 		: &quot;+r&quot;(offset), &quot;+r&quot;(temp_sums)
++-		: &quot;r&quot; ((long)step), &quot;r&quot;(src - offset), &quot;m&quot;(dc_mask &amp; eq_mask)
+++		: &quot;r&quot; ((long)step), &quot;r&quot;(src - offset), &quot;m&quot;(dc_and_eq_mask)
++ 		);
++ 	}else
++ 		src+= step; // src points to begin of the 8x8 Block
++diff -bBur MPlayer-20050413-orig/libmpdemux/frequencies.h MPlayer-20050413/libmpdemux/frequencies.h
++--- MPlayer-20050413-orig/libmpdemux/frequencies.h	2001-11-17 00:06:48.000000000 +0200
+++++ MPlayer-20050413/libmpdemux/frequencies.h	2005-04-14 16:36:51.000000000 +0300
++@@ -104,7 +104,7 @@
++ /* --------------------------------------------------------------------- */
++ 
++ extern struct CHANLISTS   chanlists[];
++-extern struct STRTAB chanlist_names[];
+++/* extern struct STRTAB chanlist_names[]; */
++ 
++ extern int                chantab;
++ extern struct CHANLIST   *chanlist;
++diff -bBur MPlayer-20050413-orig/mmx.h MPlayer-20050413/mmx.h
++--- MPlayer-20050413-orig/mmx.h	2001-10-28 13:47:21.000000000 +0200
+++++ MPlayer-20050413/mmx.h	2005-04-14 16:22:54.000000000 +0300
++@@ -353,11 +353,11 @@
++ #define	mmx_m2r(op, mem, reg) \
++ 	__asm__ __volatile__ (#op &quot; %0, %%&quot; #reg \
++ 			      : /* nothing */ \
++-			      : &quot;X&quot; (mem))
+++			      : &quot;m&quot; (mem))
++ 
++ #define	mmx_r2m(op, reg, mem) \
++ 	__asm__ __volatile__ (#op &quot; %%&quot; #reg &quot;, %0&quot; \
++-			      : &quot;=X&quot; (mem) \
+++			      : &quot;=m&quot; (mem) \
++ 			      : /* nothing */ )
++ 
++ #define	mmx_r2r(op, regs, regd) \
++@@ -367,8 +367,8 @@
++ 	__asm__ __volatile__ (&quot;movq %0, %%mm0\n\t&quot; \
++ 			      #op &quot; %1, %%mm0\n\t&quot; \
++ 			      &quot;movq %%mm0, %0&quot; \
++-			      : &quot;=X&quot; (memd) \
++-			      : &quot;X&quot; (mems))
+++			      : &quot;=m&quot; (memd) \
+++			      : &quot;m&quot; (mems))
++ 
++ #endif
++ 
++diff -bBur MPlayer-20050413-orig/postproc/swscale_template.c MPlayer-20050413/postproc/swscale_template.c
++--- MPlayer-20050413-orig/postproc/swscale_template.c	2005-02-17 01:47:00.000000000 +0200
+++++ MPlayer-20050413/postproc/swscale_template.c	2005-04-14 16:46:12.000000000 +0300
++@@ -2136,6 +2136,7 @@
++ 	else
++ 	{
++ 		long counter= -2*dstW;
+++		uint8_t* ptr=src+filterSize;
++ //		filter-= counter*filterSize/2;
++ 		filterPos-= counter/2;
++ 		dst-= counter/2;
++@@ -2177,7 +2178,7 @@
++ 			&quot; jnc 1b			\n\t&quot;
++ 
++ 			: &quot;+r&quot; (counter), &quot;+r&quot; (filter)
++-			: &quot;m&quot; (filterPos), &quot;m&quot; (dst), &quot;m&quot;(src+filterSize),
+++			: &quot;m&quot; (filterPos), &quot;m&quot; (dst), &quot;m&quot;(ptr),
++ 			  &quot;m&quot; (src), &quot;r&quot; ((long)filterSize*2)
++ 			: &quot;%&quot;REG_b, &quot;%&quot;REG_a, &quot;%&quot;REG_c
++ 		);
++@@ -2320,6 +2321,8 @@
++ 	{
++ #endif
++ 	//NO MMX just normal asm ...
+++	  int xInc_hi=xInc&gt;&gt;16;
+++	  int xInc_lo=xInc&amp;0xffff;
++ 	asm volatile(
++ 		&quot;xor %%&quot;REG_a&quot;, %%&quot;REG_a&quot;	\n\t&quot; // i
++ 		&quot;xor %%&quot;REG_b&quot;, %%&quot;REG_b&quot;	\n\t&quot; // xx
++@@ -2356,7 +2359,7 @@
++ 		&quot; jb 1b				\n\t&quot;
++ 
++ 
++-		:: &quot;r&quot; (src), &quot;m&quot; (dst), &quot;m&quot; (dstWidth), &quot;m&quot; (xInc&gt;&gt;16), &quot;m&quot; (xInc&amp;0xFFFF)
+++		:: &quot;r&quot; (src), &quot;m&quot; (dst), &quot;m&quot; (dstWidth), &quot;m&quot; (xInc_hi), &quot;m&quot; (xInc_lo)
++ 		: &quot;%&quot;REG_a, &quot;%&quot;REG_b, &quot;%ecx&quot;, &quot;%&quot;REG_D, &quot;%esi&quot;
++ 		);
++ #ifdef HAVE_MMX2
++@@ -2515,6 +2518,8 @@
++ 	else
++ 	{
++ #endif
+++	  int xInc_hi=xInc&gt;&gt;16;
+++	  int xInc_lo=xInc&amp;0xffff;
++ 	asm volatile(
++ 		&quot;xor %%&quot;REG_a&quot;, %%&quot;REG_a&quot;	\n\t&quot; // i
++ 		&quot;xor %%&quot;REG_b&quot;, %%&quot;REG_b&quot;		\n\t&quot; // xx
++@@ -2548,7 +2553,7 @@
++ 		&quot;cmp %2, %%&quot;REG_a&quot;		\n\t&quot;
++ 		&quot; jb 1b				\n\t&quot;
++ 
++-		:: &quot;m&quot; (src1), &quot;m&quot; (dst), &quot;m&quot; ((long)dstWidth), &quot;m&quot; ((long)(xInc&gt;&gt;16)), &quot;m&quot; ((xInc&amp;0xFFFF)),
+++		:: &quot;m&quot; (src1), &quot;m&quot; (dst), &quot;m&quot; ((long)dstWidth), &quot;m&quot; ((long)(xInc_hi)), &quot;m&quot; ((xInc_lo)),
++ 		&quot;r&quot; (src2)
++ 		: &quot;%&quot;REG_a, &quot;%&quot;REG_b, &quot;%ecx&quot;, &quot;%&quot;REG_D, &quot;%esi&quot;
++ 		);
++
++--- MPlayer-1.0pre7/libvo/aclib_template.c	2005-04-25 08:26:11.000000000 +0000
+++++ MPlayer-1.0pre7.az/libvo/aclib_template.c	2005-04-25 08:26:17.000000000 +0000
++@@ -249,8 +249,8 @@
++ 		MOVNTQ&quot; %%mm6, 48(%1)\n&quot;
++ 		MOVNTQ&quot; %%mm7, 56(%1)\n&quot;
++ 		:: &quot;r&quot; (from), &quot;r&quot; (to) : &quot;memory&quot;);
++-		((const unsigned char *)from)+=64;
++-		((unsigned char *)to)+=64;
+++		from=((const unsigned char *)from)+64;
+++		to=((unsigned char *)to)+64;
++ 	}
++ 
++ //	printf(&quot; %d %d\n&quot;, (int)from&amp;1023, (int)to&amp;1023);
++@@ -338,8 +338,8 @@
++ 		MOVNTQ&quot; %%mm6, 48(%1)\n&quot;
++ 		MOVNTQ&quot; %%mm7, 56(%1)\n&quot;
++ 		:: &quot;r&quot; (from), &quot;r&quot; (to) : &quot;memory&quot;);
++-		((const unsigned char *)from)+=64;
++-		((unsigned char *)to)+=64;
+++		from=((const unsigned char *)from)+64;
+++		to=((unsigned char *)to)+64;
++ 	}
++ 
++ #endif /* Have SSE */
+
+Added: trunk/rpms/mplayer/MPlayer-1.0pre7-gcc_detection.patch
+===================================================================
+--- trunk/rpms/mplayer/MPlayer-1.0pre7-gcc_detection.patch	2005-05-02 09:14:53 UTC (rev 3173)
++++ trunk/rpms/mplayer/MPlayer-1.0pre7-gcc_detection.patch	2005-05-02 09:15:28 UTC (rev 3174)
+@@ -0,0 +1,20 @@
++--- configure.old	2005-02-19 13:11:58.000000000 +0900
+++++ configure	2005-02-19 13:20:22.538154224 +0900
++@@ -586,7 +586,7 @@
++   echocheck &quot;$_cc version&quot;
++   cc_vendor=gnu
++   cc_name=`( $_cc -v ) 2&gt;&amp;1 | _tail 1 | cut -d ' ' -f 1`
++-  cc_version=`( $_cc -dumpversion ) 2&gt;&amp;1`
+++  cc_version=`( $_cc -dumpversion | cut -f1,2 -d.) 2&gt;&amp;1`
++   if test &quot;$?&quot; -gt 0; then
++     cc_version=&quot;not found&quot;
++   fi
++@@ -595,7 +595,7 @@
++       cc_version=&quot;v. ?.??, bad&quot;
++       cc_verc_fail=yes
++       ;;
++-    2.95.[2-9]|2.95.[2-9][-.]*|3.[0-9]|3.[0-9].[0-9]|4.*)
+++    2.95.[2-9]|2.95.[2-9][-.]*|3.[0-9]|3.[0-9].[0-9]|3.[0-9][-.]*|3.[0-9].[0-9][-.]*|4.*)
++       _cc_major=`echo $cc_version | cut -d '.' -f 1`
++       _cc_minor=`echo $cc_version | cut -d '.' -f 2`
++       _cc_mini=`echo $cc_version | cut -d '.' -f 3`
+
+Modified: trunk/rpms/mplayer/mplayer.spec
+===================================================================
+--- trunk/rpms/mplayer/mplayer.spec	2005-05-02 09:14:53 UTC (rev 3173)
++++ trunk/rpms/mplayer/mplayer.spec	2005-05-02 09:15:28 UTC (rev 3174)
+@@ -34,14 +34,12 @@
+ 
+ # Is this a daily build? If so, put the date like &quot;20020808&quot; otherwise put 0
+ #define date      20041025
+-%define rcver     pre6a
++%define rcver     pre7
+ 
+-%define xmms_plugindir %(xmms-config --input-plugin-dir 2&gt;/dev/null || echo %{_libdir}/xmms/Input)
+-
+ Summary: MPlayer, the Movie Player for Linux
+ Name: mplayer
+ Version: 1.0
+-Release: 0.15%{?rcver:.%{rcver}}%{?date:.%{date}}
++Release: 0.16%{?rcver:.%{rcver}}%{?date:.%{date}}
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://mplayerhq.hu/">http://mplayerhq.hu/</A>
+@@ -58,15 +56,17 @@
+ Patch2: MPlayer-0.90pre10-redhat.patch
+ Patch10: MPlayer-1.0pre6a-fribidi.patch
+ Patch11: MPlayer-1.0pre6a-udev.patch
++Patch12: MPlayer-1.0pre7-gcc4.patch
++Patch13: MPlayer-1.0pre7-gcc_detection.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires: mplayer-fonts
+ Requires: libpostproc = %{version}-%{release}
+ BuildRequires: XFree86-devel, gtk+-devel, SDL-devel
+ BuildRequires: libpng-devel, libjpeg-devel, libungif-devel
+ BuildRequires: lame-devel, libmad-devel, flac-devel
+-BuildRequires: libogg-devel, libvorbis-devel, libmatroska-devel
+-BuildRequires: libmad-devel, xmms-devel, libdv-devel
+-%{!?_without_freedesktop:BuildRequires: desktop-file-utils}
++BuildRequires: libmatroska-devel
++BuildRequires: libmad-devel, libdv-devel
++BuildRequires: ImageMagick
+ %{?_with_samba:BuildRequires: samba-common}
+ %{?_with_dvb:BuildRequires: kernel-source}
+ %{!?_without_alsa:BuildRequires: alsa-lib-devel}
+@@ -78,7 +78,6 @@
+ %{!?_without_xvid:BuildRequires: xvidcore-devel}
+ %{!?_without_esd:BuildRequires: esound-devel}
+ %{!?_without_dvdread:BuildRequires: libdvdread-devel}
+-%{!?_without_faad2:BuildRequires: faad2-devel}
+ %{!?_without_lzo:BuildRequires: lzo-devel}
+ %{!?_without_fame:BuildRequires: libfame-devel}
+ %{!?_without_caca:BuildRequires: libcaca-devel}
+@@ -87,14 +86,16 @@
+ #{!?_without_dvdnav:BuildRequires: libdvdnav-devel}
+ 
+ %description
+-MPlayer is a movie player. It plays most video formats as well as DVDs.
++MPlayer is a multimedia player. It plays most video formats as well as DVDs.
+ Its big feature is the wide range of supported output drivers. There are also
+ nice antialiased shaded subtitles and OSD.
+ 
++On x86, additional Win32 binary codecs should be added to %{_libdir}/win32/.
++
+ Available rpmbuild rebuild options :
+ --with : samba dvb
+---without : aalib lirc cdparanoia arts xvid esd dvdread faad2 lzo libfame caca
+-            theora osdmenu gcccheck freedesktop fribidi xvmc
++--without : aalib lirc cdparanoia arts xvid esd dvdread lzo libfame caca
++            theora osdmenu gcccheck fribidi xvmc
+ 
+ 
+ %package -n libpostproc
+@@ -123,20 +124,14 @@
+ %patch2 -p0 -b .redhat
+ %patch10 -p1 -b .fribidi
+ %patch11 -p1 -b .udev
++%patch12 -p1 -b .gcc4
++%patch13 -p0 -b .gcc_detection
+ 
+-# Overwrite the system menu entry with ours
+-%{__cat} &lt;&lt;EOF &gt; etc/mplayer.desktop
+-[Desktop Entry]
+-Name=Movie Player
+-Comment=Play multimedia files and media
+-Icon=mplayer.xpm
+-Exec=gmplayer %f
+-Terminal=false
+-MimeType=video/mpeg;video/x-msvideo;video/quicktime
+-Type=Application
+-Categories=Application;AudioVideo;
+-Encoding=UTF-8
+-EOF
++# Overwrite some of the details of the provided system menu entry
++%{__perl} -pi -e 's|^Exec=gmplayer$|Exec=gmplayer %f|g;
++                  s|^Categories=.*|Categories=Application;AudioVideo;|g' \
++    etc/mplayer.desktop
++echo &quot;MimeType=video/dv;video/mpeg;video/x-mpeg;video/msvideo;video/quicktime;video/x-anim;video/x-avi;video/x-ms-asf;video/x-ms-wmv;video/x-msvideo;video/x-nsv;video/x-flc;video/x-fli;application/ogg;application/x-ogg;application/x-matroska;audio/x-mp3;audio/x-mpeg;audio/mpeg;audio/x-wav;audio/x-mpegurl;audio/x-scpls;audio/x-m4a;audio/x-ms-asf;audio/x-ms-asx;audio/x-ms-wax;application/vnd.rn-realmedia;audio/x-real-audio;audio/x-pn-realaudio;misc/ultravox;audio/vnd.rn-realaudio;audio/x-pn-aiff;audio/x-pn-au;audio/x-pn-wav;audio/x-pn-windows-acm;image/vnd.rn-realpix;video/vnd.rn-realvideo;audio/x-pn-realaudio-plugin;&quot; &gt;&gt; etc/mplayer.desktop
+ 
+ 
+ %build
+@@ -149,8 +144,6 @@
+     --enable-gui \
+     --enable-largefiles \
+     --enable-dynamic-plugins \
+-    --enable-xmms \
+-    --with-xmmsplugindir=%{xmms_plugindir} \
+ %ifarch %{ix86}
+     --enable-runtime-cpudetection \
+     --enable-win32 \
+@@ -171,8 +164,6 @@
+     %{?_without_arts:--disable-arts} \
+     %{?_without_esd:--disable-esd} \
+     %{?_without_dvdread:--disable-dvdread} \
+-    %{?_without_faad2:--disable-faad} \
+-    %{!?_without_faad2:--enable-external-faad} \
+     %{?_without_libfame:--disable-libfame} \
+     %{?_without_caca:--disable-caca} \
+     %{?_without_theora:--disable-theora} \
+@@ -190,11 +181,6 @@
+     # &quot;dvdnav disabled, it does not work&quot; (1.0pre5, still the same)
+     #{!?_without_dvdnav:--enable-dvdnav} \
+ 
+-# Fix some lib vs. lib64 issues
+-%{__perl} -pi.orig -e 's|/usr/lib/libxmms|%{_libdir}/libxmms|s' config.mak
+-%{__perl} -pi.orig -e 's|\$\(prefix\)/lib|\$(libdir)|g' \
+-    libavcodec/libpostproc/Makefile
+-
+ %{__make} %{?_smp_mflags}
+ 
+ 
+@@ -214,26 +200,22 @@
+ # The fonts are now in a separate package
+ %{__rm} -rf %{buildroot}%{_datadir}/mplayer/font || :
+ 
+-# The nicer icon used in the menu entry
+-%{__install} -Dp -m0644 Gui/mplayer/pixmaps/MPlayer_mini.xpm \
+-    %{buildroot}%{_datadir}/pixmaps/mplayer.xpm
++# Remove unwanted stuff from the docs to be included
++%{__rm} -rf DOCS/{man,xml}
+ 
+-### Install libpostproc if not already installed
+-if [ ! -e &quot;%{buildroot}%{_libdir}/libpostproc.so&quot; ]; then
+-    %makeinstall -C libavcodec/libpostproc
+-fi
++# Create empty Win32 binary codec directory
++%ifarch %{ix86}
++%{__mkdir_p} %{buildroot}%{_libdir}/win32
++%endif
+ 
+-# Clean the docs we'll include
+-%{__rm} -f `find DOCS -name .cvsignore`
+ 
+-
+ %post
+ /sbin/ldconfig
+-update-desktop-database %{_datadir}/applications &gt;/dev/null 2&gt;&amp;1 || :
++update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
+ 
+ %postun
+ /sbin/ldconfig
+-update-desktop-database %{_datadir}/applications &gt;/dev/null 2&gt;&amp;1 || :
++update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
+ 
+ %post -n libpostproc
+ /sbin/ldconfig
+@@ -248,17 +230,20 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog DOCS/ README etc/*.conf
++%doc AUTHORS ChangeLog Copyright DOCS/ LICENSE README etc/*.conf
+ %dir %{_sysconfdir}/mplayer/
+ #config %{_sysconfdir}/mplayer/mplayer.conf
+ %{_bindir}/*
++%ifarch %{ix86}
++%dir %{_libdir}/win32/
++%endif
+ %ifarch %{ix86} ppc
+ %{_libdir}/libdha.so*
+ %{_libdir}/mplayer/
+ %endif
+-%{_datadir}/applications/mplayer.desktop
++%{!?_without_freedesktop:%{_datadir}/applications/mplayer.desktop}
+ %{_datadir}/mplayer/
+-%{_datadir}/pixmaps/*
++%{_datadir}/pixmaps/mplayer-desktop.xpm
+ %{_mandir}/man1/*.1*
+ %lang(cs) %{_mandir}/cs/man1/*.1*
+ %lang(de) %{_mandir}/de/man1/*.1*
+@@ -276,6 +261,21 @@
+ 
+ 
+ %changelog
++* Sun May  1 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.16.pre7
++- Include gcc4 patches from Gentoo portage, to build on FC4..
++
++* Sun Apr 17 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.16.pre7
++- Update to 1.0pre7.
++- No longer overwrite the entire desktop file, just replace a few fields.
++- Remove libogg and libvorbis deps, ogg/vorbis now uses Tremor internally.
++- Disable xmms support, as it's been moved to Extras.
++- Disable external faad2, it changes too much, using the internal is safer.
++- Add Copyright and LICENSE files to %%doc.
++- Remove .cvsignore file removal from DOCS, there are none leftover anymore.
++- Remove manual libpostproc install, it seems fixed now.
++- Add same MimeType as totem, except flac and flash types.
++- Remove lib64 hacks, problems have been fixed.
++
+ * Thu Jan 13 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.15.pre6a
+ - Change lirc patch into more generic udev one to avoid /dev/video* detection.
+ - Enable v4l again (from the above patch).
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001975.html">[svn] r3173 - in trunk/rpms: xine xine-lib
+</A></li>
+	<LI>Next message: <A HREF="001977.html">[svn] r3175 - in trunk/rpms: ipw2200-firmware libfame linux_logo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1976">[ date ]</a>
+              <a href="thread.html#1976">[ thread ]</a>
+              <a href="subject.html#1976">[ subject ]</a>
+              <a href="author.html#1976">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

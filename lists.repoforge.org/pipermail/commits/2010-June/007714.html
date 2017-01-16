@@ -1,0 +1,127 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8920 - /trunk/rpms/asciidoc/asciidoc.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8920%20-%20/trunk/rpms/asciidoc/asciidoc.spec&In-Reply-To=%3C201006241210.o5OCAeeZ008503%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007713.html">
+   <LINK REL="Next"  HREF="007715.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8920 - /trunk/rpms/asciidoc/asciidoc.spec</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8920%20-%20/trunk/rpms/asciidoc/asciidoc.spec&In-Reply-To=%3C201006241210.o5OCAeeZ008503%40surya.karan.org%3E"
+       TITLE="[svn] r8920 - /trunk/rpms/asciidoc/asciidoc.spec">dag at wieers.com
+       </A><BR>
+    <I>Thu Jun 24 14:10:40 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007713.html">[svn] r8919 - in /trunk/tools/dstat: ./ docs/ plugins/
+</A></li>
+        <LI>Next message: <A HREF="007715.html">[svn] r8921 - in /trunk/rpms: cifs-utils/ crm114/ dkms/ dstat/ fio/ fuse-ntfs-3g/ git/ hplip/ irssi/ john/ latrace/ lftp/ libextractor/ libssh2/ mimedefang/ mpg123/ mplayer/ perl-Net-OpenSSH/ perl-Net-SSH2/ php-pecl-ssh2/ python-genshi/ rear/ subversion/ syslinux/ trac/ xorriso/
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7714">[ date ]</a>
+              <a href="thread.html#7714">[ thread ]</a>
+              <a href="subject.html#7714">[ subject ]</a>
+              <a href="author.html#7714">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Thu Jun 24 13:10:39 2010
+New Revision: 8920
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=8920&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=8920&amp;view=rev</A>
+Log:
+Fix dependency on docbook v4.5.
+
+Modified:
+    trunk/rpms/asciidoc/asciidoc.spec
+
+Modified: trunk/rpms/asciidoc/asciidoc.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/asciidoc/asciidoc.spec?rev=8920&amp;r1=8919&amp;r2=8920&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/asciidoc/asciidoc.spec?rev=8920&amp;r1=8919&amp;r2=8920&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/asciidoc/asciidoc.spec (original)
++++ trunk/rpms/asciidoc/asciidoc.spec Thu Jun 24 13:10:39 2010
+@@ -7,7 +7,7 @@
+ Summary: Tool to convert AsciiDoc text files to DocBook, HTML or Unix man pages
+ Name: asciidoc
+ Version: 8.5.3
+-Release: 2%{?dist}
++Release: 3%{?dist}
+ License: GPL
+ Group: Applications/Text
+ URL: <A HREF="http://www.methods.co.nz/asciidoc/">http://www.methods.co.nz/asciidoc/</A>
+@@ -30,23 +30,26 @@
+ %setup
+ %patch0 -p1 -b .datadir
+ 
++### Fix dependency on Docbook v4.5
++%{__perl} -pi.orig -e 's|4\.5\b|4.4|g' docbook.conf
++
+ %build
+ %configure
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+ %{__make} install DESTDIR=&quot;%{buildroot}&quot;
+-# real conf data goes to sysconfdir, rest to datadir; symlinks so asciidoc works
+-for d in dblatex docbook-xsl images javascripts stylesheets ; do
+-    mv %{buildroot}%{_sysconfdir}/asciidoc/$d \
+-        %{buildroot}%{_datadir}/asciidoc
+-    ln -s %{_datadir}/asciidoc/$d %{buildroot}%{_sysconfdir}/asciidoc/
++
++### real conf data goes to sysconfdir, rest to datadir; symlinks so asciidoc works
++for dir in dblatex/ docbook-xsl/ images/ javascripts/ stylesheets/; do
++    %{__mv} %{buildroot}%{_sysconfdir}/asciidoc/$dir %{buildroot}%{_datadir}/asciidoc
++    %{__ln_s} %{_datadir}/asciidoc/$dir %{buildroot}%{_sysconfdir}/asciidoc/
+ done
+ 
+-# Python API
+-install -Dp -m644 asciidocapi.py %{buildroot}%{python_sitelib}/asciidocapi.py
++### Python API
++%{__install} -Dp -m0644 asciidocapi.py %{buildroot}%{python_sitelib}/asciidocapi.py
+ 
+-# Make it easier to %exclude these with both rpm &lt; and &gt;= 4.7
++### Make it easier to %exclude these with both rpm &lt; and &gt;= 4.7
+ for file in %{buildroot}{%{_bindir},%{_datadir}/asciidoc/filters/*}/*.py ; do
+     touch ${file}{c,o}
+ done
+@@ -103,6 +106,9 @@
+ %exclude %{_datadir}/asciidoc/filters/*/*.py[co]
+ 
+ %changelog
++* Thu Jun 24 2010 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 8.5.4-3
++- Fix dependency on docbook v4.5.
++
+ * Thu Jun 10 2010 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 8.5.3-2
+ - Added VIM integration.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007713.html">[svn] r8919 - in /trunk/tools/dstat: ./ docs/ plugins/
+</A></li>
+	<LI>Next message: <A HREF="007715.html">[svn] r8921 - in /trunk/rpms: cifs-utils/ crm114/ dkms/ dstat/ fio/ fuse-ntfs-3g/ git/ hplip/ irssi/ john/ latrace/ lftp/ libextractor/ libssh2/ mimedefang/ mpg123/ mplayer/ perl-Net-OpenSSH/ perl-Net-SSH2/ php-pecl-ssh2/ python-genshi/ rear/ subversion/ syslinux/ trac/ xorriso/
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7714">[ date ]</a>
+              <a href="thread.html#7714">[ thread ]</a>
+              <a href="subject.html#7714">[ subject ]</a>
+              <a href="author.html#7714">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

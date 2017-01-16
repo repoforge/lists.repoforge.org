@@ -1,0 +1,265 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3670 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3670%20-%20trunk/tools/dstat&In-Reply-To=%3C20051031132734.9E01C95CA11%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002469.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3670 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3670%20-%20trunk/tools/dstat&In-Reply-To=%3C20051031132734.9E01C95CA11%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3670 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Oct 31 14:27:34 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002469.html">[svn] r3669 - trunk/rpms/xmule
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2470">[ date ]</a>
+              <a href="thread.html#2470">[ thread ]</a>
+              <a href="subject.html#2470">[ subject ]</a>
+              <a href="author.html#2470">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-10-31 14:27:33 +0100 (Mon, 31 Oct 2005)
+New Revision: 3670
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/LINKS
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1.txt
+Log:
+Updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-10-28 14:30:27 UTC (rev 3669)
++++ trunk/tools/dstat/ChangeLog	2005-10-31 13:27:33 UTC (rev 3670)
+@@ -1,5 +1,6 @@
+ * 0.6.2 - ? - released ??/??/2005
+ - Fixed situation where no TERM environment variable was set (William Webber)
++- Added SwapCached value to Cached (Bert de Bruijn)
+ 
+ * 0.6.1 - Fishkill - released 05/09/2005
+ - Look for plugins in ~/.dstat/ too
+
+Modified: trunk/tools/dstat/LINKS
+===================================================================
+--- trunk/tools/dstat/LINKS	2005-10-28 14:30:27 UTC (rev 3669)
++++ trunk/tools/dstat/LINKS	2005-10-31 13:27:33 UTC (rev 3670)
+@@ -1 +1,5 @@
++Terminal emulation
+ <A HREF="http://vt100.net/docs/vt100-ug/chapter3.html#DECSC">http://vt100.net/docs/vt100-ug/chapter3.html#DECSC</A>
++
++NFS
++<A HREF="http://www.hn.edu.cn/book/NetWork/NetworkingBookshelf_2ndEd/nfs/ch14_02.htm">http://www.hn.edu.cn/book/NetWork/NetworkingBookshelf_2ndEd/nfs/ch14_02.htm</A>
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-10-28 14:30:27 UTC (rev 3669)
++++ trunk/tools/dstat/dstat	2005-10-31 13:27:33 UTC (rev 3670)
+@@ -203,9 +203,11 @@
+ 		print 'Kernel %s' % os.uname()[2]
+ 		print 'Python %s' % sys.version
+ 		print
++		print 'Terminal: %d lines, %d columns' % getwinsize()
++		print
+ 		print 'Processors: %d' % getcpunr()
+ 		print 'Pagesize: %d' % resource.getpagesize()
+-		print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
++#		print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
+ 		print
+ 
+ 		global op
+@@ -956,8 +958,9 @@
+ 			l = line.split()
+ 			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+-			if name in self.vars + ('MemTotal',):
++			if name in self.vars + ('MemTotal', 'SwapCached'):
+ 				self.val[name] = long(l[1]) * 1024.0
++		self.val['Cached'] += self.val['SwapCached']
+ 		self.val['MemUsed'] = self.val['MemTotal'] - self.val['MemFree'] - self.val['Buffers'] - self.val['Cached']
+ 
+ class dstat_net(dstat):
+@@ -1470,8 +1473,8 @@
+ 
+ def getwinsize():
+ 	&quot;Return the terminal geometry using several methods&quot;
+-	if op.nolimit:
+-		return 1024, 1024
++#	if op.nolimit:
++#		return 1024, 1024
+ 	try:
+ 		curses.setupterm()
+ 		return curses.tigetnum('lines'), curses.tigetnum('cols')
+
+Modified: trunk/tools/dstat/dstat.1.txt
+===================================================================
+--- trunk/tools/dstat/dstat.1.txt	2005-10-28 14:30:27 UTC (rev 3669)
++++ trunk/tools/dstat/dstat.1.txt	2005-10-31 13:27:33 UTC (rev 3670)
+@@ -3,29 +3,45 @@
+ Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ v0.6.1, September 2005
+ 
++
+ NAME
+ ----
+ dstat - versatile tool for generating system resource statistics
+ 
++
+ SYNOPSIS
+ --------
+ dstat [-afv] [-cdgilmnpsty] [-D..] [-I..] [-N..] [delay [count]]
+ 
++
+ DESCRIPTION
+ -----------
+-Dstat is a versatile replacement for vmstat, iostat and ifstat. Dstat overcomes some of the limitations and adds some extra features.
++Dstat is a versatile replacement for vmstat, iostat and ifstat. Dstat
++overcomes some of the limitations and adds some extra features.
+ 
+-Dstat allows you to view all of your system resources instantly, you can eg. compare disk usage in combination with interrupts from your IDE controller, or compare the network bandwidth numbers directly with the disk throughput (in the same interval).
++Dstat allows you to view all of your system resources instantly, you
++can eg. compare disk usage in combination with interrupts from your
++IDE controller, or compare the network bandwidth numbers directly with
++the disk throughput (in the same interval).
+ 
+-Dstat also cleverly gives you the most detailed information in columns and clearly indicates in what magnitude and unit the output is displayed. Less confusion, less mistakes, more efficient.
++Dstat also cleverly gives you the most detailed information in columns
++and clearly indicates in what magnitude and unit the output is displayed.
++Less confusion, less mistakes, more efficient.
+ 
+-Dstat is unique in letting you aggregate block device throughput for a certain diskset or network bandwidth for a group of interfaces, ie.  you can see the throughput for all the block devices that make up a single filesystem or storage system.
++Dstat is unique in letting you aggregate block device throughput for a
++certain diskset or network bandwidth for a group of interfaces, ie. 
++you can see the throughput for all the block devices that make up a
++single filesystem or storage system.
+ 
+-Dstat allows its data to be directly written to a CSV file to be imported and used by OpenOffice, Gnumeric or Excel to create graphs.
++Dstat allows its data to be directly written to a CSV file to be
++imported and used by OpenOffice, Gnumeric or Excel to create graphs.
+ 
+ [NOTE]
+-Users of Sleuthkit might find Sleuthkit's dstat being renamed to datastat to avoid a name conflict. See Debian bug #283709 for more information.
++Users of Sleuthkit might find Sleuthkit's dstat being renamed to
++datastat to avoid a name conflict. See Debian bug #283709 for more
++information.
+ 
++
+ OPTIONS
+ -------
+ -c, --cpu::
+@@ -128,6 +144,7 @@
+ --output file::
+ 	write CSV output to file
+ 
++
+ ARGUMENTS
+ ---------
+ *delay* is the delay in seconds between each update
+@@ -136,25 +153,52 @@
+ 
+ The default delay is 1 and count is unspecified (unlimited)
+ 
++
+ INTERMEDIATE UPDATES
+ --------------------
+-When invoking dstat with a *delay* greater than 1 and without the *--noupdate* option, it will show intermediate updates, ie. the first time a 1 sec average, the second update a 2 second average, etc. until the delay has been reached.
++When invoking dstat with a *delay* greater than 1 and without the
++*--noupdate* option, it will show intermediate updates, ie. the first
++time a 1 sec average, the second update a 2 second average, etc. until
++the delay has been reached.
+ 
+-So in case you specified a delay of 10, *the 9 intermediate updates are NOT snapshots*, they are averages over the time that passed since the last final update. The end result is that you get a 10 second average on a new line, just like with vmstat.
++So in case you specified a delay of 10, *the 9 intermediate updates
++are NOT snapshots*, they are averages over the time that passed since
++the last final update. The end result is that you get a 10 second
++average on a new line, just like with vmstat.
+ 
++
++USAGE
++-----
++Using dstat to relate disk-throughput with network-usage (eth0), total CPU-usage and system counters:::
++.....
++dstat -dnyc -n eth0 -C total -f 5
++.....
++
++Checking dstat's behaviour and the system's impact on dstat:::
++.....
++dstat -taf --debug
++.....
++
++
+ BUGS
+ ----
+-Since it's practically impossible to test dstat on every possible permutation of kernel , python or distribution version, I need your help and your feedback to fix the remaining problems. If you have improvements or bugreports, please send them to: mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
++Since it's practically impossible to test dstat on every possible
++permutation of kernel, python or distribution version, I need your
++help and your feedback to fix the remaining problems. If you have
++improvements or bugreports, please send them to:
++mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
+ 
+ [NOTE]
+ Please see the TODO file for known bugs and future plans.
+ 
++
+ FILES
+ -----
+ Paths that may contain external dstat_* modules:
+ 
+ ~/.dstat/, ./, ./plugins/, /usr/share/dstat/
+ 
++
+ SEE ALSO
+ --------
+ Performance tools
+@@ -197,10 +241,13 @@
+ ~~~~~~~~~~~~~~~~~
+ 	proc(5)
+ 
++
+ AUTHOR
+ ------
+ Written by Dag Wieers mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
+ 
+ Homepage at <A HREF="http://dag.wieers.com/home-made/dstat/[">http://dag.wieers.com/home-made/dstat/[</A>]
+ 
+-This manpage was initially written by Andrew Pollock mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">apollock at debian.org</A>[] for the Debian GNU/Linux system, and updated by Dag Wieers mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
++This manpage was initially written by Andrew Pollock
++mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">apollock at debian.org</A>[] for the Debian GNU/Linux system, and
++updated by Dag Wieers mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002469.html">[svn] r3669 - trunk/rpms/xmule
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2470">[ date ]</a>
+              <a href="thread.html#2470">[ thread ]</a>
+              <a href="subject.html#2470">[ subject ]</a>
+              <a href="author.html#2470">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

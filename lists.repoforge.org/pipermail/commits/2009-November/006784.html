@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7989 - trunk/rpms/rtorrent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7989%20-%20trunk/rpms/rtorrent&In-Reply-To=%3C200911032057.nA3Kv8IR017355%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006783.html">
+   <LINK REL="Next"  HREF="006785.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7989 - trunk/rpms/rtorrent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7989%20-%20trunk/rpms/rtorrent&In-Reply-To=%3C200911032057.nA3Kv8IR017355%40surya.karan.org%3E"
+       TITLE="[svn] r7989 - trunk/rpms/rtorrent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Nov  3 21:57:08 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006783.html">[svn] r7988 - in trunk/rpms: . perl-Convert-Temperature
+</A></li>
+        <LI>Next message: <A HREF="006785.html">[svn] r7990 - trunk/rpms/cfengine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6784">[ date ]</a>
+              <a href="thread.html#6784">[ thread ]</a>
+              <a href="subject.html#6784">[ subject ]</a>
+              <a href="author.html#6784">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: yury
+Date: 2009-11-03 20:57:08 +0000 (Tue, 03 Nov 2009)
+New Revision: 7989
+
+Modified:
+   trunk/rpms/rtorrent/rtorrent.spec
+Log:
+Initial version of the static rtorrent build.
+
+
+
+Modified: trunk/rpms/rtorrent/rtorrent.spec
+===================================================================
+--- trunk/rpms/rtorrent/rtorrent.spec	2009-11-03 19:42:07 UTC (rev 7988)
++++ trunk/rpms/rtorrent/rtorrent.spec	2009-11-03 20:57:08 UTC (rev 7989)
+@@ -1,25 +1,38 @@
+ # $Id$
+-# Authority: dries
++# Authority: yury
+ 
+-%{?el4:%define _without_curl_pc 1}
++%define curl_version 7.19.6
+ 
+ Summary: Console based bittorrent client
+ Name: rtorrent
+ Version: 0.8.5
+-Release: 1%{?dist}
++Release: 2
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://libtorrent.rakshasa.no/">http://libtorrent.rakshasa.no/</A>
+ 
+-Source: <A HREF="http://libtorrent.rakshasa.no/downloads/rtorrent-%{version">http://libtorrent.rakshasa.no/downloads/rtorrent-%{version</A>}.tar.gz
++Source0: <A HREF="http://libtorrent.rakshasa.no/downloads/rtorrent-%{version">http://libtorrent.rakshasa.no/downloads/rtorrent-%{version</A>}.tar.gz
++Source1: <A HREF="http://curl.haxx.se/download/curl-%{curl_version">http://curl.haxx.se/download/curl-%{curl_version</A>}.tar.bz2
++
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-BuildRequires: curl-devel &gt;= 7.12
+ BuildRequires: gcc-c++
+ BuildRequires: libsigc++20-devel
+-BuildRequires: libtorrent-devel &gt;= 0.12.0
++BuildRequires: libtorrent-devel &gt;= 0.12.5
+ BuildRequires: ncurses-devel
+ 
++# Curl BuildRequires from Rawhide
++BuildRequires: krb5-devel
++BuildRequires: libidn-devel
++BuildRequires: nss-devel
++BuildRequires: openldap-devel
++BuildRequires: openssh-clients
++BuildRequires: openssh-server
++BuildRequires: pkgconfig
++BuildRequires: stunnel
++BuildRequires: valgrind
++BuildRequires: zlib-devel
++
+ %description
+ rTorrent is a console-based BitTorrent client. It aims to be a 
+ fully-featured and efficient client with the ability to run in the 
+@@ -28,13 +41,33 @@
+ 
+ %prep
+ %setup
++%setup -T -D -a 1
+ 
+ %build
+-### FIXME: Why does curl-compilation fail without the libsigc++20 includes on EL4 ?
+-%{?_without_curl_pc:export STUFF_CFLAGS=&quot;$(curl-config --cflags) $(pkg-config sigc++-2.0 --cflags)&quot;}
+-%{?_without_curl_pc:export STUFF_LIBS=&quot;$(curl-config --libs) $(pkg-config sigc++-2.0 --libs) -ltorrent&quot;}
+-%{?_without_curl_pc:export libcurl_CFLAGS=&quot;$(curl-config --cflags) $(pkg-config sigc++-2.0 --cflags)&quot;}
+-%{?_without_curl_pc:export libcurl_LIBS=&quot;$(curl-config --libs) $(pkg-config sigc++-2.0 --libs) -ltorrent&quot;}
++
++# Build curl
++cd curl-%{curl_version}
++RESULT_DIR=`pwd`/result
++
++./configure \
++	--without-ssl --with-nss --enable-ipv6 \
++	--with-ca-bundle=%{_sysconfdir}/pki/tls/certs/ca-bundle.crt \
++	--with-gssapi=%{_prefix}/kerberos --with-libidn \
++	--enable-ldaps --with-libssh2 --disable-manual \
++	--without-libssh2 \
++	--enable-static \
++	--disable-shared \
++	--prefix=&quot;$RESULT_DIR&quot; \
++	--exec-prefix=&quot;$RESULT_DIR&quot; \
++	--libdir=&quot;$RESULT_DIR/usr/%{_lib}&quot;
++
++%{__make} %{?_smp_mflags} install
++
++cd ..
++
++# Build rtorrent
++PKG_CONFIG_PATH=&quot;$RESULT_DIR/usr/%{_lib}/pkgconfig:$PKG_CONFIG_PATH&quot; ; export PKG_CONFIG_PATH
++
+ %configure
+ %{__make} %{?_smp_mflags}
+ 
+@@ -52,6 +85,9 @@
+ %{_bindir}/rtorrent
+ 
+ %changelog
++* Tue Nov 3 2009 Yury V. Zaytsev &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">yury at shurup.com</A>&gt; - 0.8.5-2
++- Static build against latest curl.
++
+ * Tue Oct 27 2009 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 0.8.5-1
+ - Updated to release 0.8.5.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006783.html">[svn] r7988 - in trunk/rpms: . perl-Convert-Temperature
+</A></li>
+	<LI>Next message: <A HREF="006785.html">[svn] r7990 - trunk/rpms/cfengine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6784">[ date ]</a>
+              <a href="thread.html#6784">[ thread ]</a>
+              <a href="subject.html#6784">[ subject ]</a>
+              <a href="author.html#6784">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

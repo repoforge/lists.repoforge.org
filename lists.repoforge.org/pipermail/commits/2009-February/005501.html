@@ -1,0 +1,140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6702 - trunk/tools/dstat/plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6702%20-%20trunk/tools/dstat/plugins&In-Reply-To=%3C200902172008.n1HK854o007699%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005500.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6702 - trunk/tools/dstat/plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6702%20-%20trunk/tools/dstat/plugins&In-Reply-To=%3C200902172008.n1HK854o007699%40surya.karan.org%3E"
+       TITLE="[svn] r6702 - trunk/tools/dstat/plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Feb 17 21:08:05 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005500.html">[svn] r6701 - in trunk/tools/dstat: . plugins
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5501">[ date ]</a>
+              <a href="thread.html#5501">[ thread ]</a>
+              <a href="subject.html#5501">[ subject ]</a>
+              <a href="author.html#5501">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-02-17 20:08:05 +0000 (Tue, 17 Feb 2009)
+New Revision: 6702
+
+Modified:
+   trunk/tools/dstat/plugins/dstat_ntp.py
+Log:
+Improvements to dstat_ntp.
+
+Modified: trunk/tools/dstat/plugins/dstat_ntp.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_ntp.py	2009-02-17 18:49:54 UTC (rev 6701)
++++ trunk/tools/dstat/plugins/dstat_ntp.py	2009-02-17 20:08:05 UTC (rev 6702)
+@@ -3,12 +3,19 @@
+ ###
+ ### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
+ 
++### Beware that this dstat plugin typically takes a lot longer to run than
++### system plugins and for that reason it is important to use an NTP server
++### located nearby as well as make sure that it does not impact your other
++### counters too much.
++
+ global socket
+ import socket
++
+ global struct
+ import struct
+ 
+ ### FIXME: Implement millisecond granularity as well
++### FIXME: Interrupts socket if data is overdue (more than 250ms ?)
+ 
+ class dstat_ntp(dstat):
+     def __init__(self):
+@@ -19,36 +26,39 @@
+         self.nick = ('date/time',)
+         self.vars = ('time',)
+         self.epoch = 2208988800L
++#        socket.setdefaulttimeout(0.25)
+         self.socket = socket.socket( socket.AF_INET, socket.SOCK_DGRAM )
++        self.socket.settimeout(0.25)
+         self.init(self.vars, 1)
+ 
+     def gettime(self):
+-        self.socket.sendto( '\x1b' + 47 * '\0', ( self.ntpserver, 123 ))
+-        data, address = self.socket.recvfrom( 1024 )
+-
+-        if data:
+-            return (struct.unpack( '!12I', data )[10] - self.epoch)
+-        else:
++        try:
++            self.socket.sendto( '\x1b' + 47 * '\0', ( self.ntpserver, 123 ))
++            data, address = self.socket.recvfrom(1024)
++        except socket.timeout:
+             return 0
++        return struct.unpack( '!12I', data )[10] - self.epoch
+ 
+     def check(self):
+         try:
+-            self.gettime()
+-        except gaierror:
++            t = self.gettime()
++        except socket.gaierror:
+             raise Exception, 'Failed to connect to NTP server.'
+-        except error:
++        except socket.error:
+             raise Exception, 'Error connecting to NTP server.'
+         return True
+ 
+     def extract(self):
+-        starttime = self.gettime()
+-        self.val['time'] = time.strftime(self.timefmt, time.localtime(starttime))
++        self.val['time'] = self.gettime()
+ 
+     def show(self):
+         if step == op.delay:
+             color = 'silver'
+         else:
+             color = 'gray'
+-        return ansi[color] + self.val['time']
++        if self.val['time']:
++            return ansi[color] + time.strftime(self.timefmt, time.localtime(self.val['time']))
++        else:
++            return ansi['white'] + ansi['redbg'] + '-'.rjust(self.format[1]-1) + ' ' + ansi['default']
+ 
+ # vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005500.html">[svn] r6701 - in trunk/tools/dstat: . plugins
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5501">[ date ]</a>
+              <a href="thread.html#5501">[ thread ]</a>
+              <a href="subject.html#5501">[ subject ]</a>
+              <a href="author.html#5501">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

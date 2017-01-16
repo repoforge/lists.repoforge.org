@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1729 - trunk/rpms/mplayer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1729%20-%20trunk/rpms/mplayer&In-Reply-To=%3C20040723082319.C0D7C1FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000537.html">
+   <LINK REL="Next"  HREF="000539.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1729 - trunk/rpms/mplayer</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1729%20-%20trunk/rpms/mplayer&In-Reply-To=%3C20040723082319.C0D7C1FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1729 - trunk/rpms/mplayer">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Jul 23 10:23:19 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000537.html">[SVN] r1728 - trunk/rpms/kannel
+</A></li>
+        <LI>Next message: <A HREF="000539.html">[SVN] r1730 - trunk/rpms/i8kutils
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#538">[ date ]</a>
+              <a href="thread.html#538">[ thread ]</a>
+              <a href="subject.html#538">[ subject ]</a>
+              <a href="author.html#538">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-07-23 10:23:17 +0200 (Fri, 23 Jul 2004)
+New Revision: 1729
+
+Modified:
+   trunk/rpms/mplayer/mplayer.spec
+Log:
+Fixes for x86_64 mainly.
+
+
+Modified: trunk/rpms/mplayer/mplayer.spec
+===================================================================
+--- trunk/rpms/mplayer/mplayer.spec	2004-07-22 14:00:07 UTC (rev 1728)
++++ trunk/rpms/mplayer/mplayer.spec	2004-07-23 08:23:17 UTC (rev 1729)
+@@ -26,7 +26,7 @@
+ Summary: MPlayer, the Movie Player for Linux
+ Name: mplayer
+ Version: 1.0
+-Release: 0.10%{?rcver:.%{rcver}}%{?date:.%{date}}
++Release: 0.11%{?rcver:.%{rcver}}%{?date:.%{date}}
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://mplayerhq.hu/">http://mplayerhq.hu/</A>
+@@ -45,11 +45,11 @@
+ BuildRequires: gtk+-devel, SDL-devel
+ BuildRequires: libpng-devel, libjpeg-devel, libungif-devel
+ BuildRequires: lame-devel, libmad-devel, flac-devel
+-BuildRequires: libogg-devel, libvorbis-devel, libmad-devel
+-BuildRequires: xmms-devel, libdv-devel
++BuildRequires: libogg-devel, libvorbis-devel, libmatroska-devel
++BuildRequires: libmad-devel, xmms-devel, libdv-devel
+ %{!?_without_freedesktop:BuildRequires: desktop-file-utils}
+-#{?_with_dvdnav:BuildRequires: libdvdnav-devel}
+ %{?_with_samba:BuildRequires: samba-common}
++%{?_with_dvb:BuildRequires: kernel-source}
+ %{!?_without_alsa:BuildRequires: alsa-lib-devel}
+ %{!?_without_fribidi:BuildRequires: fribidi-devel}
+ %{!?_without_aalib:BuildRequires: aalib-devel}
+@@ -64,6 +64,7 @@
+ %{!?_without_fame:BuildRequires: libfame-devel}
+ %{!?_without_caca:BuildRequires: libcaca-devel}
+ %{!?_without_theora:BuildRequires: libtheora-devel}
++#{!?_without_dvdnav:BuildRequires: libdvdnav-devel}
+ 
+ %description
+ MPlayer is a movie player. It plays most video formats as well as DVDs.
+@@ -71,7 +72,7 @@
+ nice antialiased shaded subtitles and OSD.
+ 
+ Available rpmbuild rebuild options :
+---with : samba
++--with : samba dvb
+ --without : aalib lirc cdparanoia arts xvid esd dvdread faad2 lzo libfame caca
+             theora osdmenu gcccheck freedesktop
+ 
+@@ -104,9 +105,7 @@
+ 
+ %build
+ find . -name &quot;CVS&quot; | xargs %{__rm} -rf
+-#       %{?_with_dvdnav:--enable-dvdnav} \
+ ./configure \
+-    --target=%{_target_platform} \
+     --prefix=%{_prefix} \
+     --datadir=%{_datadir}/mplayer \
+     --confdir=%{_sysconfdir}/mplayer \
+@@ -117,6 +116,7 @@
+     --enable-xmms \
+     --with-xmmsplugindir=%{xmms_plugindir} \
+ %ifarch %{ix86}
++    --enable-runtime-cpudetection \
+     --enable-win32 \
+     --with-win32libdir=%{_libdir}/win32 \
+     --with-reallibdir=%{_libdir}/win32 \
+@@ -140,16 +140,22 @@
+     %{?_without_libfame:--disable-libfame} \
+     %{?_without_caca:--disable-caca} \
+     %{?_without_theora:--disable-theora} \
+-%ifnarch ppc
+-    --enable-runtime-cpudetection \
+-%endif
++    %{?_with_dvb:--enable-dvbhead} \
++    %{?_with_dvb:--with-dvbincdir=/lib/modules/`uname -r`/build/include} \
+     --enable-shared-pp \
+     --enable-i18n \
+     --language=all \
+     %{!?_without_osdmenu:--enable-menu} \
+     %{?_with_samba:--enable-smb}
+ 
+-%{__perl} -pi.orig -e 's|/usr/lib|%{_libdir}|' config.mak
++    # &quot;dvdnav disabled, it does not work&quot; (1.0pre5, still the same)
++    #{!?_without_dvdnav:--enable-dvdnav} \
++
++# Fix some lib vs. lib64 issues
++%{__perl} -pi.orig -e 's|/usr/lib/libxmms|%{_libdir}/libxmms|s' config.mak
++%{__perl} -pi.orig -e 's|\$\(prefix\)/lib|\$(libdir)|g' \
++    libavcodec/libpostproc/Makefile
++
+ %{__make} %{?_smp_mflags}
+ 
+ 
+@@ -250,6 +256,11 @@
+ 
+ 
+ %changelog
++* Fri Jul 23 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.11.pre5
++- Add fixes for x86_64, it now builds and works.
++- Added external libmatroska support.
++- Added optional DVB conditional build.
++
+ * Fri Jul 16 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.10.pre5
+ - Update to 1.0pre5.
+ - Updated Blue skin to 1.4.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000537.html">[SVN] r1728 - trunk/rpms/kannel
+</A></li>
+	<LI>Next message: <A HREF="000539.html">[SVN] r1730 - trunk/rpms/i8kutils
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#538">[ date ]</a>
+              <a href="thread.html#538">[ thread ]</a>
+              <a href="subject.html#538">[ subject ]</a>
+              <a href="author.html#538">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

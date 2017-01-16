@@ -1,0 +1,435 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2141 - in trunk/tools/pydar2: . pydar tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2141%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20tests&In-Reply-To=%3C20040831215347.47BC417F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000946.html">
+   <LINK REL="Next"  HREF="000948.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2141 - in trunk/tools/pydar2: . pydar tests</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2141%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20tests&In-Reply-To=%3C20040831215347.47BC417F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2141 - in trunk/tools/pydar2: . pydar tests">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Aug 31 23:53:47 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000946.html">[SVN] r2140 - trunk/rpms/alsaplayer
+</A></li>
+        <LI>Next message: <A HREF="000948.html">[SVN] r2142 - trunk/tools/pydar2/tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#947">[ date ]</a>
+              <a href="thread.html#947">[ thread ]</a>
+              <a href="subject.html#947">[ subject ]</a>
+              <a href="author.html#947">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-08-31 23:53:45 +0200 (Tue, 31 Aug 2004)
+New Revision: 2141
+
+Added:
+   trunk/tools/pydar2/pydar/
+   trunk/tools/pydar2/pydar/specfile.py
+   trunk/tools/pydar2/pydar/svnwrapper.py
+   trunk/tools/pydar2/tests/
+   trunk/tools/pydar2/tests/log4py.conf
+   trunk/tools/pydar2/tests/specfile-test.py
+   trunk/tools/pydar2/tests/svnwrapper-test.py
+Log:
+add
+
+Added: trunk/tools/pydar2/pydar/specfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specfile.py	2004-08-31 16:50:50 UTC (rev 2140)
++++ trunk/tools/pydar2/pydar/specfile.py	2004-08-31 21:53:45 UTC (rev 2141)
+@@ -0,0 +1,94 @@
++
++&quot;&quot;&quot; Reads some tags from a specfile &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# This class can be used for reading the values of certain tags from spec files
++
++import re, os, commands
++from log4py import Logger
++
++
++# a rpmforge tag is a tag which begins with '# '
++# currently the standard tags are written in uppercase
++# result can be found in the hashes rpmforgetags and standardtags
++
++class SpecFile:
++    
++    # specfile: a path to a spec file like /a/b/c.spec
++    # defineargs: a string which can be used on the commandline 
++    # like '--define &quot;fc2 1&quot;'
++    def __init__(self, specfile, defineargs):
++        self.cat = Logger().get_instance(self)
++        self.cat.debug(&quot;start, specfile=&quot; + specfile)
++        self.defineargs = defineargs
++        self.cat.debug(&quot;defineargs: &quot; + defineargs)
++        self.specfile = specfile
++        self.rpmforgetags = {}
++        self.standardtags = {}
++        self.queryformattags = (&quot;PKGID&quot;,&quot;NAME&quot;,&quot;VERSION&quot;,&quot;RELEASE&quot;,&quot;EPOCH&quot;,&quot;SERIAL&quot;,&quot;SUMMARY&quot;,&quot;DESCRIPTION&quot;,&quot;DISTRIBUTION&quot;,&quot;VENDOR&quot;,&quot;LICENSE&quot;,&quot;PACKAGER&quot;,&quot;GROUP&quot;,&quot;URL&quot;,&quot;ARCH&quot;,&quot;EXCLUDEARCH&quot;,&quot;EXCLUDEOS&quot;,&quot;EXCLUSIVEARCH&quot;,&quot;EXCLUSIVEOS&quot;,&quot;BUILDARCHS&quot;,&quot;DISTURL&quot;)
++        self.getStandardTags()
++        self.parseRpmForgeTags()
++        
++    def getStandardTags(self):
++        self.cat.debug(&quot;start&quot;)
++        queryformat = self.getQueryFormatString()
++        self.cat.debug(&quot;queryformat=&quot; + str(queryformat))
++        commandline = &quot;rpm -q &quot; + self.defineargs + &quot; --queryformat '&quot; + queryformat + &quot;' --specfile &quot; + self.specfile
++        self.cat.debug(&quot;commandline=&quot; + commandline)
++        result = commands.getoutput(commandline)
++        self.parseStandardTags(result)
++
++    def getQueryFormatString(self):
++        self.cat.debug(&quot;start&quot;)
++        result = ''
++        for tag in self.queryformattags:
++            result = result + &quot;#####&quot; + tag + &quot;#####%{&quot; + tag + &quot;}#####&quot; + tag + &quot;#####&quot;
++        return result
++        
++    def parseStandardTags(self, inputstring):
++        self.cat.debug(&quot;start, inputstring=&quot; + inputstring)
++        for tag in self.queryformattags:
++            self.cat.debug(&quot;tag: &quot; + tag)
++            regexp = '.*#####'+tag+'#####(.*)#####'+tag+'#####.*'
++            regex = re.compile(regexp,re.MULTILINE | re.DOTALL)
++            #self.cat.debug(&quot;regexp: &quot;+ regexp)
++            #self.cat.debug(&quot;inputstring:&quot;+inputstring)
++            result = regex.match(inputstring)
++            if result:
++                value=result.group(1)
++                self.cat.debug(&quot;value: &quot;+value)
++                self.standardtags[tag] = value
++            else:
++                self.cat.warn(&quot;tag not found, tag:&quot;+tag)
++
++        
++    def parseRpmForgeTags(self):
++        f = open(self.specfile, 'r')
++        line = f.readline()
++        regex = re.compile('^(# [a-zA-Z0-9]*) *: *(.*)$');
++        self.fullcontents = '';
++        while line != '':
++            self.fullcontents = self.fullcontents + line
++            l = line.strip()
++            result = regex.match(l)
++            if result:
++                name = result.group(1)
++                value = result.group(2)
++                self.cat.debug(&quot;additional rpmforge tag, name=&quot; + name + &quot;, value=&quot; + value)
++                self.rpmforgetags[name] = value
++            line = f.readline()
++        f.close()
+\ No newline at end of file
+
+Added: trunk/tools/pydar2/pydar/svnwrapper.py
+===================================================================
+--- trunk/tools/pydar2/pydar/svnwrapper.py	2004-08-31 16:50:50 UTC (rev 2140)
++++ trunk/tools/pydar2/pydar/svnwrapper.py	2004-08-31 21:53:45 UTC (rev 2141)
+@@ -0,0 +1,112 @@
++
++&quot;&quot;&quot; Update a subversion checkout &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# This class can be used for updating a local checkout of a 
++# subversion repository
++# Using a callback (so you know which files are updated) does not work
++
++import svn.wc, svn.client, svn.util, svn.core
++import atexit
++from log4py import Logger
++
++# Some notes:
++
++# if your svn server uses ssl and the certificate isn't signed 
++# by a trusted CA, then you have to add this certificate
++# to the list of trusted certificates
++# If you don't, it doesn't work :)
++# Get the pem certificate:
++#   openssl s_client -showcerts -connect svn.rpmforge.net:443
++# copy the certificate to a file, the certificate consists of some 
++# lines beginning with the line '-----BEGIN CERTIFICATE-----' and
++# ending with the line '-----END CERTIFICATE-----'
++# Configure subversion to use this pem file: edit ~/.subversion/servers
++# and add a line like:
++# ssl-authority-files = /some/path/svn.rpmforge.net.pem
++# You need to add it to the section of your server. For example:
++
++# [groups]
++# rpmforge = *.rpmforge.net
++#
++# [rpmforge]
++# ssl-authority-files = /home/dries/.subversion/svn.rpmforge.net.pem
++
++# If you need to debug ssl/connection problems:
++# add the following to the section of your server:
++# neon-debug-mask = 511
++# http-compression = no
++
++class SvnWrapper:
++    def __init__(self):
++        self.cat = Logger().get_instance(self)
++        self.cat.debug(&quot;start&quot;)
++        self.transStarted = 0
++
++    def startTransaction(self):
++        self.cat.debug(&quot;start&quot;)
++        if self.transStarted == 0:
++            svn.util.apr_initialize()
++            self.pool = svn.util.svn_pool_create(None)
++            self.transStarted = 1
++            atexit.register(svn.util.apr_terminate)
++        else:
++            self.cat.warn(&quot;transaction already started&quot;)
++        
++    def stopTransaction(self):
++        self.cat.debug(&quot;start&quot;)
++        if self.transStarted == 1:
++            svn.util.svn_pool_destroy(self.pool)
++            svn.util.apr_terminate()
++            self.transStarted = 0
++        else:
++            self.cat.warn(&quot;transaction not yet started&quot;)
++
++    def updateLocalCopy(self, svndir):
++        self.cat.debug(&quot;start&quot;)
++        myContext = svn.client.svn_client_ctx_t()
++        self.cat.debug(&quot;myContext=&quot; + str(myContext))
++        myContext.config = svn.core.svn_config_get_config(None, self.pool)
++        #self.cat.debug(&quot;result of config: &quot; + str(configResult))
++        provider = svn.client.svn_client_get_simple_provider(self.pool)
++        myContext.auth_baton = svn.util.svn_auth_open([provider], self.pool)
++        myRevision = svn.core.svn_opt_revision_t()
++        self.cat.debug(&quot;myRevision=&quot; + str(myRevision))
++        myRevision.kind = svn.core.svn_opt_revision_head
++        result = svn.client.svn_client_update(svndir,myRevision, 1,myContext, self.pool)
++        self.cat.debug(&quot;result of update=&quot; + str(result))
++        
++        
++    def update_callback(self):
++        self.cat.debug(&quot;start&quot;)
++
++    def getLastCommitRev(self,dirpath,fullpath):
++        self.cat.debug(&quot;start,dirpath=&quot; + dirpath + &quot;,fullpath=&quot;+fullpath)
++        adm_baton = svn.wc.svn_wc_adm_open(None,dirpath,False,True,self.pool)
++        entry = svn.wc.svn_wc_entry(fullpath,adm_baton,0,self.pool)
++        self.cat.debug(&quot;entry: &quot; + str(entry))
++        self.cat.debug(&quot;cmtRev: &quot; + str(entry.cmt_rev))
++        svn.wc.svn_wc_adm_close(adm_baton)
++        return entry.cmt_rev
++
++# tocheck: <A HREF="http://svn.slog.dk/repos/+svn/py/util.py">http://svn.slog.dk/repos/+svn/py/util.py</A>
++# <A HREF="http://www.contactor.se/~dast/svn/archive-2002-12/0234.shtml">http://www.contactor.se/~dast/svn/archive-2002-12/0234.shtml</A>
++# <A HREF="http://www.24svn.org/doc/srcdoc/svncpp/html/functions.html">http://www.24svn.org/doc/srcdoc/svncpp/html/functions.html</A>
++# <A HREF="http://www.endrun.org/xr/svn/source/tools/examples/check-modified.py">http://www.endrun.org/xr/svn/source/tools/examples/check-modified.py</A>
++# <A HREF="http://dan.drydog.com/docs/redhat/subversion-0.17.1/tools/examples/geturl.py">http://dan.drydog.com/docs/redhat/subversion-0.17.1/tools/examples/geturl.py</A>
++# <A HREF="http://dan.drydog.com/docs/redhat/subversion-0.17.1/tools/examples/check-modified.py">http://dan.drydog.com/docs/redhat/subversion-0.17.1/tools/examples/check-modified.py</A>
++# <A HREF="http://www.linuxdevcenter.com/pub/a/linux/2003/04/24/libsvn1.html?page=2">http://www.linuxdevcenter.com/pub/a/linux/2003/04/24/libsvn1.html?page=2</A>
+
+Added: trunk/tools/pydar2/tests/log4py.conf
+===================================================================
+--- trunk/tools/pydar2/tests/log4py.conf	2004-08-31 16:50:50 UTC (rev 2140)
++++ trunk/tools/pydar2/tests/log4py.conf	2004-08-31 21:53:45 UTC (rev 2141)
+@@ -0,0 +1,66 @@
++# Log4Py configuration file
++#
++# The &quot;Default&quot; Sections contains default settings which can be overwritten
++# by settings for different instances (see bottom of file)
++
++[Default]
++
++# Format is the output format of the lines.
++#
++# Possible parameters are:
++#
++#    %C ..... class-name
++#    %D ..... program duration
++#    %d ..... duration for the last step (last output)
++#    %F ..... function name
++#    %L ..... logtype (Error, Warning, ...)
++#    %M ..... message
++#    %N ..... Line-number
++#    %T ..... current time
++#
++# Example formats are:
++#
++#    Short:           %M
++#    Medium:          [ %C.%F ] %D: %M
++#    Long (default):  %T %L %C [%F] - %M
++#    Debug:           %T [%D (%d)] %L %C [%F (%N)] - %M
++
++Format: %T %L %C [%F:%N] - %M
++
++# Target controls the output medium of the logging
++#
++# Possible values are:
++#
++#    stdout (default): Standard output stream
++#    stderr:           Error stream
++#    &lt;filename&gt;        Any other filename
++#
++# Multiple targets can be specified as comma seperated list
++
++Target: stdout
++
++# Use ansi colors. Possible values are True or False (default)
++
++Ansi: False
++
++# TimeFormat is the format of the date and time as used by the
++# Python strftime() function
++
++# TimeFormat: %d.%m.%Y %H:%M:%S
++
++# LogLevel controls the level of what you want to see
++#
++# Possible values are:
++#
++#    None:             No output (silent mode)
++#    Normal (default): Information- and Errormessages
++#    Verbose:          Information-, Error- and Warningmessages
++#    Debug:            Information-, Error-, Warning- and Debugmessages
++
++LogLevel: Debug
++
++# This is a section for the Log4PyTest class.
++
++[Log4PyTest]
++SpecFile: Debug
++foo: Debug
+
+Added: trunk/tools/pydar2/tests/specfile-test.py
+===================================================================
+--- trunk/tools/pydar2/tests/specfile-test.py	2004-08-31 16:50:50 UTC (rev 2140)
++++ trunk/tools/pydar2/tests/specfile-test.py	2004-08-31 21:53:45 UTC (rev 2141)
+@@ -0,0 +1,35 @@
++
++&quot;&quot;&quot; Tests for pydar/specfile.py &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# This class can be used for reading the values of certain tags from spec files
++
++import re, sys
++from log4py import Logger
++sys.path.append(&quot;../pydar&quot;)
++from specfile import SpecFile
++
++# all paths relative from svn/trunk/tools/pydar2/tests/ directory
++
++sf = SpecFile('../../../rpms/aget/aget.spec',' --define &quot;fc2 1&quot;')
++
++for tag in sf.rpmforgetags:
++    print 'rpmforge tag: ' + tag
++    print 'value: ' + sf.rpmforgetags[tag]
++for tag in sf.standardtags:
++    print 'standard tag: ' + tag
++    print 'value: ' + sf.standardtags[tag]
+
+Added: trunk/tools/pydar2/tests/svnwrapper-test.py
+===================================================================
+--- trunk/tools/pydar2/tests/svnwrapper-test.py	2004-08-31 16:50:50 UTC (rev 2140)
++++ trunk/tools/pydar2/tests/svnwrapper-test.py	2004-08-31 21:53:45 UTC (rev 2141)
+@@ -0,0 +1,26 @@
++
++&quot;&quot;&quot; Tests for pydar/svnwrapper.py &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import sys
++from log4py import Logger
++sys.path.append(&quot;../pydar&quot;)
++from svnwrapper import SvnWrapper
++
++sw = SvnWrapper()
++sw.startTransaction()
++sw.getLastCommitRev('.','./svnwrapper-test.py')
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000946.html">[SVN] r2140 - trunk/rpms/alsaplayer
+</A></li>
+	<LI>Next message: <A HREF="000948.html">[SVN] r2142 - trunk/tools/pydar2/tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#947">[ date ]</a>
+              <a href="thread.html#947">[ thread ]</a>
+              <a href="subject.html#947">[ subject ]</a>
+              <a href="author.html#947">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

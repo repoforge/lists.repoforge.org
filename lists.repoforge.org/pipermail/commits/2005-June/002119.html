@@ -1,0 +1,188 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3317 - trunk/tools/dconf
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3317%20-%20trunk/tools/dconf&In-Reply-To=%3C20050622002450.E8C2795C959%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002118.html">
+   <LINK REL="Next"  HREF="002120.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3317 - trunk/tools/dconf</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3317%20-%20trunk/tools/dconf&In-Reply-To=%3C20050622002450.E8C2795C959%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3317 - trunk/tools/dconf">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jun 22 02:24:50 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002118.html">[svn] r3316 - trunk/rpms/smart
+</A></li>
+        <LI>Next message: <A HREF="002120.html">[svn] r3318 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2119">[ date ]</a>
+              <a href="thread.html#2119">[ thread ]</a>
+              <a href="subject.html#2119">[ subject ]</a>
+              <a href="author.html#2119">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-06-22 02:24:29 +0200 (Wed, 22 Jun 2005)
+New Revision: 3317
+
+Modified:
+   trunk/tools/dconf/ChangeLog
+   trunk/tools/dconf/TODO
+   trunk/tools/dconf/dconf
+Log:
+updates
+
+Modified: trunk/tools/dconf/ChangeLog
+===================================================================
+--- trunk/tools/dconf/ChangeLog	2005-06-21 20:43:26 UTC (rev 3316)
++++ trunk/tools/dconf/ChangeLog	2005-06-22 00:24:29 UTC (rev 3317)
+@@ -9,6 +9,7 @@
+ - Added syslog message
+ - Fixed sort differences when running using cron or manual (LC_ALL='C')
+ - Added internal exclude list for common unwanted files
++- Fixed a bug regarding RPM md5sum checking
+ 
+ * 0.4.1 - released 24/11/2004
+ - Fixed a bug with md5sum checking
+
+Modified: trunk/tools/dconf/TODO
+===================================================================
+--- trunk/tools/dconf/TODO	2005-06-21 20:43:26 UTC (rev 3316)
++++ trunk/tools/dconf/TODO	2005-06-22 00:24:29 UTC (rev 3317)
+@@ -8,6 +8,7 @@
+ + Rotate snapshots or consolidate snapshots (by removing in-between snapshots)
+ + Add dpkg support
+ + Use the same order in the snapshot file as the order of the sections
+++ Dconf should also check time/owner/perms next to md5
+ 
+ ### Output
+ + Allow XML or HTML output (in some way)
+
+Modified: trunk/tools/dconf/dconf
+===================================================================
+--- trunk/tools/dconf/dconf	2005-06-21 20:43:26 UTC (rev 3316)
++++ trunk/tools/dconf/dconf	2005-06-22 00:24:29 UTC (rev 3317)
+@@ -154,14 +154,14 @@
+ 	md5o = md5.new(); f = dzopen(filename); md5o.update(f.read()); f.close()
+ 	return md5o
+ 
++### FIXME: Also check timestamps/owner/perms
+ def md5check(h, filename):
+ 	&quot;Check if md5sum is the same as in rpmdb&quot;
+-	for file in h.fiFromHeader():
+-		if file[0] == filename:
+-			if os.path.exists(filename):
++	if os.path.exists(filename):
++		for file in h.fiFromHeader():
++			if file[0] == filename:
+ 				if md5sum(filename).hexdigest() == file[12]:
+ 					return True
+-		return False
+ 	return False
+ 
+ def sha1sum(filename):
+@@ -171,12 +171,11 @@
+ 
+ def sha1check(h, filename):
+ 	&quot;Check if sha1sum is the same as in rpmdb&quot;
+-	for file in h.fiFromHeader():
+-		if file[0] == filename:
+-			if os.path.exists(filename):
++	if os.path.exists(filename):
++		for file in h.fiFromHeader():
++			if file[0] == filename:
+ 				if sha1sum(filename).hexdigest() == file[12]:
+ 					return True
+-		return False
+ 	return False
+ 
+ def fromrpmdb(filename):
+@@ -279,7 +278,7 @@
+ def fnmatches(file):
+ 	for entry in cf.exclude:
+ 		if fnmatch.fnmatch(file, entry):
+-			info(6, 'File %s matches against glob %s' % (file, entry))
++#			info(6, 'File %s matches against glob %s' % (file, entry))
+ 			return True
+ 	return False
+ 
+@@ -288,7 +287,7 @@
+ 	try:
+ 		smtp = smtplib.SMTP(cf.smtpserver)
+ #		server.set_debuglevel(1)
+-		msg = 'Subject: %s\n\n' % subject + '\n' + \
++		msg = 'Subject: [dconf] %s\n\n' % subject + '\n' + \
+ 			'Current time:\n' + os.popen('date').read() + '\n' + \
+ 			'System information:\n'+ os.popen('uname -a').read() + '\n' + \
+ 			'Uptime:\n' + os.popen('uptime').read() + '\n' + \
+@@ -303,12 +302,14 @@
+ def main():
+ 	global extension, hostname, timestamp, ts
+ 
+-	if cf.rpm and which('rpm'):
++#	if cf.rpm or which('rpm'):
++	try:
+ 		import rpm
+ 		ts = rpm.ts()
+ 		ts.setVSFlags(rpm.RPMVSF_NORSA | rpm.RPMVSF_NODSA)
+-	else:
+-		info(2, 'Disabling RPM capability since the rpm binary could not be located.')
++	except:
++#	else:
++		info(2, 'Disabling RPM capability since the rpm-python bindings could not be loaded.')
+ 		cf.rpm = False
+ 		ts = None
+ 
+@@ -319,7 +320,8 @@
+ 	else:
+ 		extension = '.log'
+ 
+-	hostname = os.uname()[1].split('.')[0]
++	hostname = os.uname()[1]
++#	hostname = os.uname()[1].split('.')[0]
+ #	hostname = socket.gethostbyaddr(socket.gethostname())[0]
+ 	timestamp = time.strftime('%Y%m%d-%H%M%S', time.localtime()) 
+ 
+@@ -415,7 +417,7 @@
+ 					(mode, t, t, t, uid, gid, size, t, t, t) = os.stat(file)
+ 					if not size: continue
+ 
+-					if cf.rpm:
++					if ts:
+ 						h = fromrpmdb(file)
+ 						if h and md5check(h, file):
+ 							info(5, 'File %s has not been changed since installation, excluding.' % file)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002118.html">[svn] r3316 - trunk/rpms/smart
+</A></li>
+	<LI>Next message: <A HREF="002120.html">[svn] r3318 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2119">[ date ]</a>
+              <a href="thread.html#2119">[ thread ]</a>
+              <a href="subject.html#2119">[ subject ]</a>
+              <a href="author.html#2119">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

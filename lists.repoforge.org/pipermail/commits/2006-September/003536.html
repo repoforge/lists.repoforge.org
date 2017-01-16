@@ -1,0 +1,276 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4736 - in trunk/rpms: ipw3945-kmod libdca
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4736%20-%20in%20trunk/rpms%3A%20ipw3945-kmod%20libdca&In-Reply-To=%3C20060918170406.E55F93180A8%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003535.html">
+   <LINK REL="Next"  HREF="003537.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4736 - in trunk/rpms: ipw3945-kmod libdca</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4736%20-%20in%20trunk/rpms%3A%20ipw3945-kmod%20libdca&In-Reply-To=%3C20060918170406.E55F93180A8%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4736 - in trunk/rpms: ipw3945-kmod libdca">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Sep 18 19:04:06 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003535.html">[svn] r4735 - in trunk/rpms: . php-pear-date php-pear-file	php-pecl-session_mysql
+</A></li>
+        <LI>Next message: <A HREF="003537.html">[svn] r4737 - in trunk/rpms: ffmpeg x264
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3536">[ date ]</a>
+              <a href="thread.html#3536">[ thread ]</a>
+              <a href="subject.html#3536">[ subject ]</a>
+              <a href="author.html#3536">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-09-18 19:04:06 +0200 (Mon, 18 Sep 2006)
+New Revision: 4736
+
+Added:
+   trunk/rpms/ipw3945-kmod/kmodtool
+Modified:
+   trunk/rpms/libdca/libdca.spec
+Log:
+Add kmodtool for ipw3945-kmod and use videolan.org source for libdca.
+
+
+Added: trunk/rpms/ipw3945-kmod/kmodtool
+===================================================================
+--- trunk/rpms/ipw3945-kmod/kmodtool	                        (rev 0)
++++ trunk/rpms/ipw3945-kmod/kmodtool	2006-09-18 17:04:06 UTC (rev 4736)
+@@ -0,0 +1,167 @@
++#!/bin/bash
++
++# kmodtool - Helper script for building kernel module RPMs
++# Copyright (c) 2003-2006 Ville Skytt&#228; &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">ville.skytta at iki.fi</A>&gt;,
++#                         Thorsten Leemhuis &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">fedora at leemhuis.info</A>&gt;
++#
++# Permission is hereby granted, free of charge, to any person obtaining
++# a copy of this software and associated documentation files (the
++# &quot;Software&quot;), to deal in the Software without restriction, including
++# without limitation the rights to use, copy, modify, merge, publish,
++# distribute, sublicense, and/or sell copies of the Software, and to
++# permit persons to whom the Software is furnished to do so, subject to
++# the following conditions:
++#
++# The above copyright notice and this permission notice shall be
++# included in all copies or substantial portions of the Software.
++#
++# THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND,
++# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
++# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
++# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
++# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
++# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++myprog=&quot;kmodtool&quot;
++myver=&quot;0.10.6&quot;
++knownvariants='\(BOOT\|\(big\|huge\)mem\|debug\|enterprise\|kdump\|smp\|uml\|xen[0U]\)'
++kmod_name=
++kver=
++verrel=
++variant=
++
++get_verrel ()
++{
++  verrel=&quot;$(echo &quot;${1-$(uname -r)}&quot; | sed 's/'${knownvariants}'$//')&quot;
++}
++
++print_verrel ()
++{
++  get_verrel $@ || return $?
++  echo &quot;${verrel}&quot;
++}
++
++get_variant ()
++{
++  variant=&quot;$(echo &quot;${1-$(uname -r)}&quot; | sed 's/^.*'${knownvariants}'$/\1/')&quot;
++  [ &quot;${variant}&quot; != &quot;${1-$(uname -r)}&quot; ] || variant='&quot;&quot;'
++}
++
++print_variant ()
++{
++  get_variant $@ || return $?
++  echo &quot;${variant}&quot;
++}
++
++
++get_rpmtemplate ()
++{
++    local variant=&quot;${1}&quot;
++    local dashvariant=&quot;${variant:+-${variant}}&quot;
++    case &quot;$verrel&quot; in
++        *.EL*) kdep=&quot;kernel${dashvariant}-%{_target_cpu} = ${verrel}&quot; ;;
++        *)     kdep=&quot;kernel-%{_target_cpu} = ${verrel}${variant}&quot;     ;;
++    esac
++    cat &lt;&lt;EOF
++%package       -n kmod-${kmod_name}${dashvariant}
++Summary:          ${kmod_name} kernel module(s)
++Group:            System Environment/Kernel
++Provides:         kernel-module = ${verrel}${variant}
++Provides:         kmod-${kmod_name} = %{?epoch:%{epoch}:}%{version}-%{release}
++Requires:         ${kdep}
++Requires:         ${kmod_name}-kmod-common = %{?epoch:%{epoch}:}%{version}
++Requires(post):   /sbin/depmod
++Requires(postun): /sbin/depmod
++BuildRequires:    kernel${dashvariant}-devel-%{_target_cpu} = ${verrel}
++%description   -n kmod-${kmod_name}${dashvariant}
++This package provides the ${kmod_name} kernel modules built for the Linux
++kernel ${verrel}${variant} for the %{_target_cpu} family of processors.
++%post          -n kmod-${kmod_name}${dashvariant}
++/sbin/depmod -aeF /boot/System.map-${verrel}${variant} ${verrel}${variant} &gt; /dev/null || :
++%postun        -n kmod-${kmod_name}${dashvariant}
++/sbin/depmod -aF /boot/System.map-${verrel}${variant} ${verrel}${variant} &amp;&gt; /dev/null || :
++%files         -n kmod-${kmod_name}${dashvariant}
++%defattr(644,root,root,755)
++/lib/modules/${verrel}${variant}/extra/${kmod_name}/
++
++EOF
++}
++
++print_rpmtemplate ()
++{
++  kmod_name=&quot;${1}&quot;
++  shift
++  kver=&quot;${1}&quot;
++  get_verrel &quot;${1}&quot;
++  shift
++  if [ -z &quot;${kmod_name}&quot; ] ; then
++    echo &quot;Please provide the kmodule-name as first parameter.&quot; &gt;&amp;2
++    exit 2
++  elif [ -z &quot;${kver}&quot; ] ; then
++    echo &quot;Please provide the kver as second parameter.&quot; &gt;&amp;2
++    exit 2
++  elif [ -z &quot;${verrel}&quot; ] ; then
++    echo &quot;Couldn't find out the verrel.&quot; &gt;&amp;2
++    exit 2
++  fi
++
++  for variant in &quot;$@&quot; ; do
++    get_rpmtemplate &quot;${variant}&quot;
++  done
++}
++
++usage ()
++{
++  cat &lt;&lt;EOF
++You called: ${invocation}
++
++Usage: ${myprog} &lt;command&gt; &lt;option&gt;+
++ Commands:
++  verrel &lt;uname&gt;                               
++    - Get &quot;base&quot; version-release.
++  variant &lt;uname&gt;                               
++    - Get variant from uname.
++  rpmtemplate &lt;mainpgkname&gt; &lt;uname&gt; &lt;variants&gt; 
++    - Return a template for
++  version  
++    - Output version number and exit.
++EOF
++}
++
++invocation=&quot;$(basename ${0}) $@&quot;
++while [ &quot;${1}&quot; ] ; do
++  case &quot;${1}&quot; in
++    verrel)
++      shift
++      print_verrel $@
++      exit $?
++      ;;
++    variant)
++      shift
++      print_variant $@
++      exit $?
++      ;;
++    rpmtemplate)
++      shift
++      print_rpmtemplate &quot;$@&quot;
++      exit $?
++      ;;
++    version)
++      echo &quot;${myprog} ${myver}&quot;
++      exit 0
++      ;;
++    *)
++      echo &quot;Error: Unknown option '${1}'.&quot; &gt;&amp;2
++      usage &gt;&amp;2
++      exit 2
++      ;;
++  esac
++done
++
++# Local variables:
++# mode: sh
++# sh-indentation: 2
++# indent-tabs-mode: nil
++# End:
++# ex: ts=2 sw=2 et
+
+
+Property changes on: trunk/rpms/ipw3945-kmod/kmodtool
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/rpms/libdca/libdca.spec
+===================================================================
+--- trunk/rpms/libdca/libdca.spec	2006-09-18 17:00:50 UTC (rev 4735)
++++ trunk/rpms/libdca/libdca.spec	2006-09-18 17:04:06 UTC (rev 4736)
+@@ -4,11 +4,11 @@
+ Summary: DTS Coherent Acoustics decoder
+ Name: libdca
+ Version: 0.0.2
+-Release: 3
++Release: 4
+ License: GPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://www.videolan.org/libdca.html">http://www.videolan.org/libdca.html</A>
+-Source: <A HREF="http://debian.unnet.nl/pub/videolan/libdts/%{version">http://debian.unnet.nl/pub/videolan/libdts/%{version</A>}/libdts-%{version}.tar.gz
++Source: <A HREF="http://download.videolan.org/pub/videolan/libdca/%{version">http://download.videolan.org/pub/videolan/libdca/%{version</A>}/libdca-%{version}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ # Only a static lib, but two binaries too, so provide devel in the main
+ Provides: %{name}-devel = %{version}-%{release}
+@@ -53,6 +53,9 @@
+ 
+ 
+ %changelog
++* Mon Sep 18 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.2-4
++- Use the source from videolan.org as it is available again.
++
+ * Fri Mar 17 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.2-3
+ - Release bump to drop the disttag number in FC5 build.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003535.html">[svn] r4735 - in trunk/rpms: . php-pear-date php-pear-file	php-pecl-session_mysql
+</A></li>
+	<LI>Next message: <A HREF="003537.html">[svn] r4737 - in trunk/rpms: ffmpeg x264
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3536">[ date ]</a>
+              <a href="thread.html#3536">[ thread ]</a>
+              <a href="subject.html#3536">[ subject ]</a>
+              <a href="author.html#3536">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

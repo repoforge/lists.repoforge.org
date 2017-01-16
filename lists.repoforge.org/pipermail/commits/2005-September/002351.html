@@ -1,0 +1,194 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3550 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3550%20-%20trunk/tools/dstat&In-Reply-To=%3C20050904234652.9BD28318042%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002350.html">
+   <LINK REL="Next"  HREF="002352.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3550 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3550%20-%20trunk/tools/dstat&In-Reply-To=%3C20050904234652.9BD28318042%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3550 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Sep  5 01:46:52 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002350.html">[svn] r3549 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="002352.html">[svn] r3551 - in trunk/rpms: arpd bittorrent centericq dnsmasq	dstat gtksql libxml2 ne op perl-Compress-Zlib pfqueue pv	revelation rsnapshot syslinux vorbisgain
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2351">[ date ]</a>
+              <a href="thread.html#2351">[ thread ]</a>
+              <a href="subject.html#2351">[ subject ]</a>
+              <a href="author.html#2351">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-09-05 01:46:52 +0200 (Mon, 05 Sep 2005)
+New Revision: 3550
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/README.plugins
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-09-04 22:51:22 UTC (rev 3549)
++++ trunk/tools/dstat/ChangeLog	2005-09-04 23:46:52 UTC (rev 3550)
+@@ -1,6 +1,6 @@
+-* 0.6.1 - Fishkill - released ??/??/2005
++* 0.6.1 - Fishkill - released 05/09/2005
+ - Look for plugins in ~/.dstat/ too
+-- Added -M list to show the list of available modules per path
++- Added '-M list' to show the list of available modules per path
+ - Fixed a bug in dpopen causing gpfs/gpfsop to fail after a while
+ - Change terminal title (if terminal supports it)
+ - Don't trim the cpulist to 2 items when -f (S&#233;bastien Prud'homme)
+@@ -14,6 +14,7 @@
+ - Added external plugin dstat_nfs3op
+ - Added external plugin dstat_nfsd3
+ - Added external plugin dstat_nfsd3op
++- Improvements to plugin error handling
+ 
+ * 0.6.0 - Bettiesbaai - released 29/05/2005
+ - Removed keyboard input prevention patch. (Dbt 304673, Marc Lehmann)
+
+Modified: trunk/tools/dstat/README.plugins
+===================================================================
+--- trunk/tools/dstat/README.plugins	2005-09-04 22:51:22 UTC (rev 3549)
++++ trunk/tools/dstat/README.plugins	2005-09-04 23:46:52 UTC (rev 3550)
+@@ -40,7 +40,6 @@
+ 	dstat_dhcpd
+ 	dstat_dnsmasq
+ 	dstat_gfs
+-	dstat_nfs
+ 	dstat_qla2300
+ 	dstat_samba (needs a python tdb implementation ?)
+ 	dstat_squid
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-09-04 22:51:22 UTC (rev 3549)
++++ trunk/tools/dstat/TODO	2005-09-04 23:46:52 UTC (rev 3550)
+@@ -18,13 +18,11 @@
+ + Look into interfacing with specific HW counters in /proc
+ + Look at /proc/meminfo, /proc/mdstat, /proc/netstat, /proc/snmp, /proc/vmstat
+ + Look at /proc/fs/cifs/stats
+-+ Look at /proc/net/rpc/nfsd and /proc/net/rpc/nfs
+ + Add i2c plugin (see /sys/class/i2c-adapter/i2c-*/*/*/*/*/*)
+ + Allow for SNMP counters to be added
+ + Add LVM stats
+ 
+ ### Documentation (help welcome!)
+-+ Improve manpage
+ + Create document on general system performance tuning
+   (explaining the different values in /proc, especially the concerning ones)
+ + Create document on general system performance tools
+@@ -42,7 +40,6 @@
+ + proc plugin (run and blk) does not work on 2.4.24+, to be confirmed
+ + proc plugin seem to be off-by-one compared to vmstat (some of the time, this is what I get from /proc/stat)
+ + /proc/partitions can have negative numbers, seen on systems with long uptime. dstat handles this except for calculating the very first stat, no work-around possible?
+-+ gpfs plugin seems to loose pipe with mmpmon after some time, seems to be an mmpmon issue
+ 
+ ### Redesign (v2.0)
+ + Create modules that can contain samples of different units
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-09-04 22:51:22 UTC (rev 3549)
++++ trunk/tools/dstat/dstat	2005-09-04 23:46:52 UTC (rev 3550)
+@@ -28,7 +28,7 @@
+ 	inspath(os.path.abspath(os.path.dirname(sys.argv[0])) + '/plugins/')	# binary path + /plugins/
+ 	inspath(os.getcwd() + '/plugins/')										# current path + /plugins/
+ 	inspath(os.getcwd())													# current path
+-	inspath(os.getenv('HOME') + '/.dstat/')									# home + /.dstat/
++	inspath(os.path.expanduser('~/.dstat/'))								# home + /.dstat/
+ except KeyboardInterrupt, e:
+ 	pass
+ 
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2005-09-04 22:51:22 UTC (rev 3549)
++++ trunk/tools/dstat/dstat.spec	2005-09-04 23:46:52 UTC (rev 3550)
+@@ -60,7 +60,7 @@
+ %{_datadir}/dstat/
+ 
+ %changelog
+-* Sun Sep 04 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.1-1
++* Mon Sep 05 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.1-1
+ - Updated to release 0.6.1.
+ 
+ * Sun May 29 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.0-1
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-09-04 22:51:22 UTC (rev 3549)
++++ trunk/tools/dstat/dstat15	2005-09-04 23:46:52 UTC (rev 3550)
+@@ -28,7 +28,7 @@
+ 	inspath(os.path.abspath(os.path.dirname(sys.argv[0])) + '/plugins/')	# binary path + /plugins/
+ 	inspath(os.getcwd() + '/plugins/')										# current path + /plugins/
+ 	inspath(os.getcwd())													# current path
+-	inspath(os.getenv('HOME') + '/.dstat/')									# home + /.dstat/
++	inspath(os.path.expanduser('~/.dstat/'))								# home + /.dstat/
+ except KeyboardInterrupt, e:
+ 	pass
+ 
+@@ -1589,8 +1589,8 @@
+ 	hostname = string.split(os.uname()[1], '.')[0]
+ 
+ 	### Write term-title
+-	if re.compile('(screen*|xterm*)').match(os.getenv('TERM')):
+-		sys.stdout.write('\033]0;(%s@%s) %s %s\007' % (user, hostname, os.path.basename(sys.argv[0]), ' '.join(op.args)))
++	if re.compile('(screen*|xterm*)').match(os.environ['TERM']):
++		sys.stdout.write('\033]0;(%s@%s) %s %s\007' % (user, hostname, os.path.basename(sys.argv[0]), string.join(op.args, ' ')))
+ 
+ 	### Check terminal capabilities
+ 	if sys.stdout.isatty():
+@@ -1611,7 +1611,7 @@
+ 			outputfile.write('&quot;Author:&quot;,&quot;Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;&quot;,,,,&quot;URL:&quot;,&quot;<A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>&quot;\n')
+ 
+ 		outputfile.write('&quot;Host:&quot;,&quot;%s&quot;,,,,&quot;User:&quot;,&quot;%s&quot;\n' % (hostname, user))
+-		outputfile.write('&quot;Cmdline:&quot;,&quot;dstat %s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;\n\n' % (' '.join(op.args), time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime())))
++		outputfile.write('&quot;Cmdline:&quot;,&quot;dstat %s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;\n\n' % (string.join(op.args, ' '), time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime())))
+ 
+ 	rows, cols = getwinsize()
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002350.html">[svn] r3549 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="002352.html">[svn] r3551 - in trunk/rpms: arpd bittorrent centericq dnsmasq	dstat gtksql libxml2 ne op perl-Compress-Zlib pfqueue pv	revelation rsnapshot syslinux vorbisgain
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2351">[ date ]</a>
+              <a href="thread.html#2351">[ thread ]</a>
+              <a href="subject.html#2351">[ subject ]</a>
+              <a href="author.html#2351">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

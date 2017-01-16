@@ -1,0 +1,297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3923 - trunk/tools/dar/python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3923%20-%20trunk/tools/dar/python&In-Reply-To=%3C20060110202823.6DBD8944AA3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002722.html">
+   <LINK REL="Next"  HREF="002724.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3923 - trunk/tools/dar/python</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3923%20-%20trunk/tools/dar/python&In-Reply-To=%3C20060110202823.6DBD8944AA3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3923 - trunk/tools/dar/python">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jan 10 21:28:23 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002722.html">[svn] r3922 - trunk/tools/dar/python
+</A></li>
+        <LI>Next message: <A HREF="002724.html">[svn] r3924 - trunk/tools/dar/python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2723">[ date ]</a>
+              <a href="thread.html#2723">[ thread ]</a>
+              <a href="subject.html#2723">[ subject ]</a>
+              <a href="author.html#2723">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-10 21:28:21 +0100 (Tue, 10 Jan 2006)
+New Revision: 3923
+
+Added:
+   trunk/tools/dar/python/darlib.py
+Modified:
+   trunk/tools/dar/python/create-htmldir.py
+   trunk/tools/dar/python/create-infodb.py
+   trunk/tools/dar/python/create-pkgdb.py
+   trunk/tools/dar/python/create-rpmdb.py
+   trunk/tools/dar/python/create-specdb.py
+   trunk/tools/dar/python/print-info.py
+   trunk/tools/dar/python/print-missing.py
+   trunk/tools/dar/python/print-obsolete.py
+Log:
+Cleaned up code
+
+Modified: trunk/tools/dar/python/create-htmldir.py
+===================================================================
+--- trunk/tools/dar/python/create-htmldir.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/create-htmldir.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -48,7 +48,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-speccon, speccur = darlib.opendb('spec')
++con = sqlite.connect(darlib.dbase)
++speccur = darlib.opentb(con, 'spec')
+ 
+ speccur.execute('select distinct category from spec order by category')
+ 
+
+Modified: trunk/tools/dar/python/create-infodb.py
+===================================================================
+--- trunk/tools/dar/python/create-infodb.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/create-infodb.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -32,8 +32,10 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
++con = sqlite.connect(darlib.dbase)
++infocur = darlib.opentb(con, 'info', create=True)
++
+ ts = rpm.TransactionSet(&quot;&quot;, (rpm._RPMVSF_NOSIGNATURES or rpm.RPMVSF_NOHDRCHK or rpm._RPMVSF_NODIGESTS or rpm.RPMVSF_NEEDPAYLOAD))
+-infocon, infocur = darlib.opendb('info', create=True)
+ 
+ #createsta = 'create table info ( name varchar(10) unique primary key, '
+ #for key in infohdr[1:]: createsta += '%s varchar(10), ' % key
+@@ -48,6 +50,6 @@
+ 	except:
+ 		print file, 'FAILED'
+ 		continue
+-	darlib.insertdb(infocur, 'info', inforec)
++	darlib.inserttb(infocur, 'info', inforec)
+ 
+ infocon.commit()
+
+Modified: trunk/tools/dar/python/create-pkgdb.py
+===================================================================
+--- trunk/tools/dar/python/create-pkgdb.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/create-pkgdb.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -60,7 +60,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-pkgcon, pkgcur = darlib.opendb('pkg', create=True)
++con = sqlite.connect(darlib.dbase)
++pkgcur = darlib.opentb(con, 'pkg', create=True)
+ #pkgcon.autocommit = 1
+ 
+ #list = []
+@@ -87,5 +88,5 @@
+ 		except:
+ #			print file, 'FAILED'
+ 			continue
+-		darlib.insertdb(pkgcur, 'pkg', pkgrec)
+-pkgcon.commit()
++		darlib.inserttb(pkgcur, 'pkg', pkgrec)
++con.commit()
+
+Modified: trunk/tools/dar/python/create-rpmdb.py
+===================================================================
+--- trunk/tools/dar/python/create-rpmdb.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/create-rpmdb.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -86,7 +86,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-rpmcon, rpmcur = darlib.opendb('rpm', create=True)
++con = sqlite.connect(darlib.dbase)
++rpmcur = darlib.opentb(con, 'rpm', create=True)
+ ts = rpm.TransactionSet(&quot;&quot;, (rpm._RPMVSF_NOSIGNATURES or rpm.RPMVSF_NOHDRCHK or rpm._RPMVSF_NODIGESTS or rpm.RPMVSF_NEEDPAYLOAD))
+ 
+ for file in glob.glob(os.path.join(packagedir, '*/*.rpm')):
+@@ -95,6 +96,6 @@
+ 	except:
+ 		print file, 'FAILED'
+ 		continue
+-	darlib.insertdb(rpmcur, 'rpm', rpmrec)
++	darlib.inserttb(rpmcur, 'rpm', rpmrec)
+ 
+-rpmcon.commit()
++con.commit()
+
+Modified: trunk/tools/dar/python/create-specdb.py
+===================================================================
+--- trunk/tools/dar/python/create-specdb.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/create-specdb.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -42,7 +42,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-speccon, speccur = darlib.opendb('spec', create=True)
++con = sqlite.connect(darlib.dbase)
++speccur = darlib.opentb(con, 'spec', create=True)
+ 
+ #createsta = 'create table info ( name varchar(10) unique primary key, '
+ #for key in spechdr[1:]: createsta += '%s varchar(10), ' % key
+@@ -55,7 +56,7 @@
+ #		print file, 'FAILED'
+ 		continue
+ 	try: 
+-		darlib.insertdb(speccur, 'spec', specrec)
++		darlib.inserttb(speccur, 'spec', specrec)
+ 	except: pass
+ 		
+-speccon.commit()
++con.commit()
+
+Added: trunk/tools/dar/python/darlib.py
+===================================================================
+--- trunk/tools/dar/python/darlib.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/darlib.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -0,0 +1,50 @@
++import os, sqlite, types
++
++dbase = 'darbase.sqlite'
++
++headers = {
++	'spec': ('name', 'authority', 'summary', 'epoch', 'version', 'release', 'license', 'category', 'url', 'description', 'upstream', 'parent'),
++	'pkg': ('name', 'version', 'release', 'arch', 'repo', 'dist', 'parent', 'builder'),
++	'info': ('name', 'summary', 'description', 'url', 'license', 'category', 'parent'),
++	'rpm': ('name', 'version', 'release', 'arch', 'repo', 'dist', 'epoch'),
++}
++
++dataset = {
++	'spec': { 'name': 'varchar(10) unique primary key', },
++	'info': { 'name': 'varchar(10) unique primary key', },
++}
++
++def sqlcreate(name):
++	'Return a database create SQL statement'
++	str = 'create table %s ( ' % name
++	for key in headers[name]:
++		if dataset.has_key(name) and dataset[name].has_key(key):
++			str += '%s %s,' % (key, dataset[name][key])
++		else:
++			str += '%s varchar(10), ' % key
++	return str.rstrip(', ') + ' )'
++
++def sqlinsert(name):
++	'Return a database insert SQL statement'
++	str = 'insert into %s ( ' % name
++	for key in headers[name]: str += '%s, ' % key
++	str = str.rstrip(', ') + ' ) values ( '
++	for key in headers[name]: str += '&quot;%%(%s)s&quot;, ' % key
++	return str.rstrip(', ') + ' )'
++
++def opentb(con, name, create=False):
++	'Open a database and return references'
++	cur = con.cursor()
++	if create:
++		try: cur.execute('drop table &quot;%s&quot;' % name)
++		except: pass
++		cur.execute(sqlcreate(name))
++	return cur
++
++def inserttb(cur, name, rec):
++	'Insert a record in a database'
++	### Convert unicode to UTF-8
++	for key in rec.keys():
++		if isinstance(rec[key], types.UnicodeType):
++			rec[key] = rec[key].encode('utf-8')
++	cur.execute(sqlinsert(name) % rec)
+
+Modified: trunk/tools/dar/python/print-info.py
+===================================================================
+--- trunk/tools/dar/python/print-info.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/print-info.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -5,8 +5,9 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-speccon, speccur = darlib.opendb('spec')
+-pkgcon, pkgcur = darlib.opendb('pkg')
++con = sqlite.connect(darlib.dbase)
++speccur = darlib.opentb(con, 'spec')
++pkgcur = darlib.opentb(con, 'pkg')
+ 
+ print 'General info'
+ speccur.execute('select distinct name from spec order by name')
+
+Modified: trunk/tools/dar/python/print-missing.py
+===================================================================
+--- trunk/tools/dar/python/print-missing.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/print-missing.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -48,7 +48,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-pkgcon, pkgcur = darlib.opendb('pkg')
++con = sqlite.connect(darlib.dbase)
++pkgcur = darlib.opentb(con, 'pkg')
+ 
+ missinglist = []
+ oldname = ''
+
+Modified: trunk/tools/dar/python/print-obsolete.py
+===================================================================
+--- trunk/tools/dar/python/print-obsolete.py	2006-01-10 20:04:00 UTC (rev 3922)
++++ trunk/tools/dar/python/print-obsolete.py	2006-01-10 20:28:21 UTC (rev 3923)
+@@ -3,7 +3,6 @@
+ import glob, sqlite, sys, re, os, string, rpm
+ import darlib
+ 
+-pkgdb = '/dar/tmp/state/pkgdb.sqlite'
+ packagedir = '/dar/packages'
+ 
+ try: builder = sys.argv[1]
+@@ -17,7 +16,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-pkgcon, pkgcur = darlib.opendb('pkg')
++con = sqlite.connect(darlib.dbase)
++pkgcur = darlib.opentb(con, 'pkg')
+ 
+ pkgcur.execute('select distinct name, parent, builder from pkg order by parent, name')
+ for name, parent, builder in pkgcur.fetchall():
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002722.html">[svn] r3922 - trunk/tools/dar/python
+</A></li>
+	<LI>Next message: <A HREF="002724.html">[svn] r3924 - trunk/tools/dar/python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2723">[ date ]</a>
+              <a href="thread.html#2723">[ thread ]</a>
+              <a href="subject.html#2723">[ subject ]</a>
+              <a href="author.html#2723">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,171 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3907 - in trunk/rpms: videolan-client x264
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3907%20-%20in%20trunk/rpms%3A%20videolan-client%20x264&In-Reply-To=%3C20060108234223.683893180E3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002706.html">
+   <LINK REL="Next"  HREF="002708.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3907 - in trunk/rpms: videolan-client x264</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3907%20-%20in%20trunk/rpms%3A%20videolan-client%20x264&In-Reply-To=%3C20060108234223.683893180E3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3907 - in trunk/rpms: videolan-client x264">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jan  9 00:42:23 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002706.html">[svn] r3906 - in trunk/rpms: perl-B-Size perl-Class-Autouse	perl-Class-Hook perl-Class-MethodMaker perl-Crypt-IDEA	perl-File-HomeDir perl-File-Remove perl-HTTP-Body	perl-HTTP-Request-AsCGI perl-Module-Install	perl-Module-Signature perl-SOAP-Lite perl-SVN-Log	perl-WWW-Search perl-WWW-Search-Ebay perl-XML-RSS-Parser
+</A></li>
+        <LI>Next message: <A HREF="002708.html">[svn] r3908 - in trunk/rpms: fann perl-Class-Autouse	perl-Class-Hook perl-SOAP-Lite perl-SVN-Mirror
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2707">[ date ]</a>
+              <a href="thread.html#2707">[ thread ]</a>
+              <a href="subject.html#2707">[ subject ]</a>
+              <a href="author.html#2707">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-01-09 00:42:16 +0100 (Mon, 09 Jan 2006)
+New Revision: 3907
+
+Modified:
+   trunk/rpms/videolan-client/videolan-client.spec
+   trunk/rpms/x264/x264.spec
+Log:
+Update x264 svn snapshot and update VLC to 0.8.4a bugfix release.
+
+
+Modified: trunk/rpms/videolan-client/videolan-client.spec
+===================================================================
+--- trunk/rpms/videolan-client/videolan-client.spec	2006-01-08 14:51:04 UTC (rev 3906)
++++ trunk/rpms/videolan-client/videolan-client.spec	2006-01-08 23:42:16 UTC (rev 3907)
+@@ -60,13 +60,14 @@
+ 
+ Summary: The VideoLAN client, also a very good standalone video player
+ Name: videolan-client
+-Version: 0.8.4
+-Release: 3
++Version: 0.8.4a
++Release: 1
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://www.videolan.org/">http://www.videolan.org/</A>
+ Source0: <A HREF="http://downloads.videolan.org/pub/videolan/vlc/%{version">http://downloads.videolan.org/pub/videolan/vlc/%{version</A>}/vlc-%{version}.tar.bz2
+ Source1: <A HREF="http://downloads.videolan.org/pub/videolan/vlc/%{version">http://downloads.videolan.org/pub/videolan/vlc/%{version</A>}/contrib/ffmpeg-%{ffmpeg_date}.tar.bz2
++Source2: <A HREF="http://www.live555.com/liveMedia/public/live.2006.01.05.tar.gz">http://www.live555.com/liveMedia/public/live.2006.01.05.tar.gz</A>
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: gcc-c++, XFree86-devel, libpng-devel, libxml2-devel
+ BuildRequires: libgcrypt-devel, gnutls-devel
+@@ -122,7 +123,7 @@
+ --without dvdread dvdnav dvbpsi v4l avi asf aac ogg mad ffmpeg cdio
+           a52 vorbis mpeg2dec flac aa caca esd arts alsa wxwidgets xosd
+           lsp lirc id3tag faad2 theora mkv modplug smb speex glx x264
+-          gnomevfs vcd daap pvr
++          gnomevfs vcd daap pvr live
+ 
+ Options that would need not yet existing add-on packages :
+ --with tremor tarkin svgalib ggi
+@@ -143,7 +144,7 @@
+ 
+ 
+ %prep
+-%setup -n %{real_name}-%{version} -a 1
++%setup -n %{real_name}-%{version} -a 1 -a 2
+ # Fix PLUGIN_PATH path for lib64
+ %{__perl} -pi -e 's|/lib/vlc|/%{_lib}/vlc|g' vlc-config.in.in configure*
+ 
+@@ -160,6 +161,16 @@
+     %{__make} %{?_smp_mflags}
+ popd
+ 
++# Then bundled live555
++%if 0%{!?_without_live:1}
++pushd live
++    # Force the use of our CFLAGS
++    %{__perl} -pi -e 's|-O2|%{optflags}|g' config.linux
++    # Configure and build
++    ./genMakefiles linux &amp;&amp; %{__make}
++popd
++%endif
++
+ # Altivec compiler flags aren't set properly (0.8.2)
+ %ifarch ppc ppc64
+ export CFLAGS=&quot;%{optflags} -maltivec -mabi=altivec&quot;
+@@ -211,7 +222,8 @@
+     %{?_with_glide:--enable-glide} \
+     %{?_with_ncurses:--enable-ncurses} \
+     %{?_without_slp:--disable-slp} \
+-    %{?_with_pth:--enable-pth}
++    %{?_with_pth:--enable-pth} \
++    %{!?_without_live:--enable-livedotcom --with-livedotcom-tree=&quot;`pwd`/live&quot;}
+ %{__make} %{?_smp_mflags}
+ 
+ 
+@@ -280,6 +292,10 @@
+ 
+ 
+ %changelog
++* Sun Jan  8 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.8.4a-1
++- Update to 0.8.4a.
++- Enable live555.
++
+ * Fri Dec  9 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.8.4-3
+ - Add PVR option, enabled by default.
+ - Rebuild against new libdvbpsi.
+
+Modified: trunk/rpms/x264/x264.spec
+===================================================================
+--- trunk/rpms/x264/x264.spec	2006-01-08 14:51:04 UTC (rev 3906)
++++ trunk/rpms/x264/x264.spec	2006-01-08 23:42:16 UTC (rev 3907)
+@@ -11,8 +11,8 @@
+ 
+ Summary: Library for encoding and decoding H264/AVC video streams
+ Name: x264
+-Version: 0.0.380
+-Release: 2
++Version: 0.0.396
++Release: 1
+ License: GPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://developers.videolan.org/x264.html">http://developers.videolan.org/x264.html</A>
+@@ -90,6 +90,9 @@
+ 
+ 
+ %changelog
++* Mon Jan  9 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.396-1
++- Update to svn 396.
++
+ * Tue Nov 29 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.0.380-2
+ - Also force PIC for the yasm bits, thanks to Anssi Hannula.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002706.html">[svn] r3906 - in trunk/rpms: perl-B-Size perl-Class-Autouse	perl-Class-Hook perl-Class-MethodMaker perl-Crypt-IDEA	perl-File-HomeDir perl-File-Remove perl-HTTP-Body	perl-HTTP-Request-AsCGI perl-Module-Install	perl-Module-Signature perl-SOAP-Lite perl-SVN-Log	perl-WWW-Search perl-WWW-Search-Ebay perl-XML-RSS-Parser
+</A></li>
+	<LI>Next message: <A HREF="002708.html">[svn] r3908 - in trunk/rpms: fann perl-Class-Autouse	perl-Class-Hook perl-SOAP-Lite perl-SVN-Mirror
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2707">[ date ]</a>
+              <a href="thread.html#2707">[ thread ]</a>
+              <a href="subject.html#2707">[ subject ]</a>
+              <a href="author.html#2707">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

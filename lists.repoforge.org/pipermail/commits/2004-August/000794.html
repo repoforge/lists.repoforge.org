@@ -1,0 +1,272 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1988 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1988%20-%20trunk/tools/yam&In-Reply-To=%3C20040814042849.346EF1819E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000793.html">
+   <LINK REL="Next"  HREF="000795.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1988 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1988%20-%20trunk/tools/yam&In-Reply-To=%3C20040814042849.346EF1819E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1988 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Aug 14 06:28:49 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000793.html">[SVN] r1987 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="000795.html">[SVN] r1989 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#794">[ date ]</a>
+              <a href="thread.html#794">[ thread ]</a>
+              <a href="subject.html#794">[ subject ]</a>
+              <a href="author.html#794">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-14 06:28:47 +0200 (Sat, 14 Aug 2004)
+New Revision: 1988
+
+Modified:
+   trunk/tools/yam/yam
+Log:
+Some fixes, some improvements.
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-14 04:00:32 UTC (rev 1987)
++++ trunk/tools/yam/yam	2004-08-14 04:28:47 UTC (rev 1988)
+@@ -97,7 +97,6 @@
+ 			self.repos[name]=var.replace('$repo', name)
+ 
+ 	def isos(self):
+-		global cf
+ 		isos=[]
+ 		if self.iso:
+ 			for file in self.iso.split(' '):
+@@ -106,6 +105,58 @@
+ 						isos.append(iso)
+ 		return isos
+ 
++	def mount(self):
++		&quot;Loopback mount an ISO&quot;
++		discs = []
++		discnr = 0
++		distdir = cf.wwwdir + '/' + self.name
++		mkdir(distdir + '/iso/')
++		for iso in self.isos():
++			symlink(iso, distdir + '/iso/')
++			try:
++				discnr = re.compile('disc([0-9])').search(iso).group(1)
++			except AttributeError, e:
++				discnr = discnr + 1
++			discs = discs + [ 'disc%s' % discnr ]
++			mount = distdir + '/disc' + str(discnr)
++			if not os.path.exists(iso):
++				die(3, 'File %s does not exist.' % iso)
++			if not os.path.isfile(cf.mountcmd):
++				die(4, 'mount command not %s' % cf.mountcmd)
++			if is_mounted(iso):
++				mount2 = mountpoint(iso)
++				if mount2 != mount:
++					if os.path.exists(mount) and not os.path.islink(mount):
++						print '%s - %s' % (mount, os.tempnam(os.path.dirname(mount)))
++						os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
++					if not os.path.islink(mount):
++						info('%s: Symlink ISO to %s' % (self.name, mount))
++						os.symlink(mount2, mount)
++			else:
++				if os.path.exists(mount) and not os.path.isdir(mount):
++					os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
++				mkdir(mount)
++				if not os.path.ismount(mount):
++					info('%s: Mount ISO %s to %s' % (self.name, iso, mount))
++					os.system('%s -o loop %s %s' % (cf.mountcmd, iso, mount))
++		return discs
++	
++	def umount(self):
++		&quot;Umount a mounted ISO&quot;
++		discnr = 0
++		distdir = cf.wwwdir + '/' + self.name
++		for iso in self.isos():
++			try:
++				discnr = re.compile('disc([0-9])').search(iso).group(1)
++			except AttributeError, e:
++				discnr = discnr + 1
++			mount = distdir + '/disc' + str(discnr)
++			if not os.path.isfile(cf.umountcmd):
++				die(4, 'umount command not %s' % cf.umountcmd)
++			if os.path.ismount(mount):
++				info('%s: Unmount ISO %s' % (self.name, mount))
++				os.system('%s %s' % (cf.umountcmd, mount))
++
+ class config:
+ 	def __init__(self):
+ 		self.configfile = op.configfile
+@@ -264,37 +315,6 @@
+ 			if dev == list[0]:
+ 				return list[1]
+ 
+-def mountiso(iso, mount):
+-	&quot;Loopback mount an ISO&quot;
+-	if not os.path.exists(iso):
+-		die(3, 'File %s does not exist.' % iso)
+-	if not os.path.isfile(cf.mountcmd):
+-		die(4, 'mount command not %s' % cf.mountcmd)
+-	if is_mounted(iso):
+-		mount2 = mountpoint(iso)
+-		if mount2 != mount:
+-			if os.path.exists(mount) and not os.path.islink(mount):
+-				print '%s - %s' % (mount, os.tempnam(os.path.dirname(mount)))
+-				os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
+-			if not os.path.islink(mount):
+-				info('Symlink ISO to %s' % mount)
+-				os.symlink(mount2, mount)
+-	else:
+-		if os.path.exists(mount) and not os.path.isdir(mount):
+-			os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
+-		mkdir(mount)
+-		if not os.path.ismount(mount):
+-			info('Mount ISO %s to %s' % (iso, mount))
+-			os.system('%s -o loop %s %s' % (cf.mountcmd, iso, mount))
+-
+-def umountiso(mount):
+-	&quot;Umount a mounted ISO&quot;
+-	if not os.path.isfile(cf.umountcmd):
+-		die(4, 'umount command not %s' % cf.umountcmd)
+-	if os.path.ismount(mount):
+-		info('Unmount ISO %s' % (mount))
+-		os.system('%s %s' % (cf.umountcmd, mount))
+-
+ def mirror(url, path):
+ 	&quot;Check URL and pass on to mirror-functions.&quot;
+ 	info('Fetch updates from %s' % url)
+@@ -337,7 +357,6 @@
+ 
+ def rpmlink ((dist, repo), dirpath, filelist):
+ 	&quot;Symlink all RPM packages that match a given arch&quot;
+-	global archs
+ 	if dist.arch:
+ 		if archs[dist.arch]: as=archs[dist.arch]+ ['noarch']
+ 		else: as=['dist.arch'] + ['noarch']
+@@ -370,7 +389,7 @@
+ 	for repo in dist.repos.keys():
+ 			repos = repos + repo + ' '
+ 	if repos:
+-		info('Create Apt repository for %s' % repos)
++		info('%s: Create Apt repository for %s' % (dist.name, repos))
+ 		os.system('%s --flat --bloat --bz2only %s %s' % (cf.genbasedircmd, distdir, repos))
+ 
+ def yumrepo(dist):
+@@ -379,9 +398,9 @@
+ 	if not os.path.isfile(cf.yumarchcmd):
+ 		die(4, 'yum-arch command not found as %s' % cf.yumarchcmd)
+ 	os.system('%s -q -l %s' % (cf.yumarchcmd, distdir + '/RPMS'))
+-	for repo in keys(dist.repos):
++	for repo in dist.repos.keys():
+ 		if os.path.exists(distdir + '/RPMS.' + repo):
+-			info('Create old-style Yum repository for %s' % repo)
++			info('%s: Create old-style Yum repository for %s' % (dist.name, repo))
+ 			os.system('%s -q -l %s' % (cf.yumarchcmd, distdir + '/RPMS.' + repo))
+ 
+ def createrepo(dist):
+@@ -390,9 +409,9 @@
+ 	if not os.path.isfile(cf.creatrepocmd):
+ 		die(4, 'createrepo command not found as %s' % cf.yumarchcmd)
+ 	os.system('%s %s' % (cf.creatrepocmd, distdir + '/RPMS'))
+-	for repo in keys(dist.repos):
++	for repo in dist.repos.keys():
+ 		if os.path.exists(distdir + '/RPMS.' + repo):
+-			info('Create new-style Yum repository for %s' % repo)
++			info('%s: Create new-style Yum repository for %s' % (dist.name, repo))
+ 			os.system('%s %s' % (cf.yumarchcmd, distdir + '/RPMS.' + repo))
+ 
+ def htmlrepo(dist):
+@@ -402,8 +421,6 @@
+ 	symlink(cf.htmldir + '/README.index.shtml', distdir + '/README.shtml')
+ 
+ def main():
+-	global arch, dist, name, release
+-
+ 	symlink(cf.htmldir + '/HEADER.index.shtml', cf.wwwdir + '/HEADER.shtml')
+ 	symlink(cf.htmldir + '/README.index.shtml', cf.wwwdir + '/README.shtml')
+ 
+@@ -427,23 +444,13 @@
+ 
+ 		### Mount ISOs
+ 		if not dist.isos():
+-			info('Distribution %s has no ISOs' % dist.name)
++			debug('%s: Distribution has no ISOs' % dist.name)
+ 		else:
+-			discnr = 0
+-			discs = [ ]
+-			for iso in dist.isos():
+-				mkdir(distdir + '/iso/')
+-				symlink(iso, distdir + '/iso/')
+-				try:
+-					discnr = re.compile('disc([0-9])').search(iso).group(1)
+-				except AttributeError, e:
+-					discnr = discnr + 1
+-				discs = discs + [ 'disc%s' % discnr ]
+-				if op.umount:
+-					umountiso(distdir + '/disc' + str(discnr))
+-					continue
+-				else:
+-					mountiso(iso, distdir + '/disc' + str(discnr))
++			if op.umount:
++				dist.umount()
++			else:
++				discs = dist.mount()
++
+ 	
+ 		### Symlink html for repository
+ 		htmlrepo(dist)
+@@ -509,7 +516,7 @@
+ 		### Create pxe boot
+ 		if cf.tftpdir:
+ 			tftpdir = cf.tftpdir + '/' + dist.name
+-			info('Symlink pxe boot files to %s ' % tftpdir)
++			info('%s: Symlink pxe boot files to %s ' % (dist.name, tftpdir))
+ 			mkdir(tftpdir + '/pxelinux.cfg/')
+ 			for file in glob.glob(distdir + '/disc?/images/pxeboot/vmlinuz'):
+ 				copy(file, tftpdir)
+@@ -529,7 +536,6 @@
+ 
+ ### Main entrance
+ if __name__ == '__main__':
+-	global op, cf
+ 	op=options(sys.argv[1:])
+ 	cf=config()
+ 	main()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000793.html">[SVN] r1987 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="000795.html">[SVN] r1989 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#794">[ date ]</a>
+              <a href="thread.html#794">[ thread ]</a>
+              <a href="subject.html#794">[ subject ]</a>
+              <a href="author.html#794">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

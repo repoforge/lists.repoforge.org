@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9636 - in /trunk/rpms/nagios: daemon-init-redhat.in	nagios.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9636%20-%20in%20/trunk/rpms/nagios%3A%20daemon-init-redhat.in%0A%09nagios.spec&In-Reply-To=%3C201102171443.p1HEht6x024587%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008419.html">
+   <LINK REL="Next"  HREF="008421.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9636 - in /trunk/rpms/nagios: daemon-init-redhat.in	nagios.spec</H1>
+    <B>Christoph Maser</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9636%20-%20in%20/trunk/rpms/nagios%3A%20daemon-init-redhat.in%0A%09nagios.spec&In-Reply-To=%3C201102171443.p1HEht6x024587%40surya.karan.org%3E"
+       TITLE="[svn] r9636 - in /trunk/rpms/nagios: daemon-init-redhat.in	nagios.spec">cmaser at gmx.de
+       </A><BR>
+    <I>Thu Feb 17 15:43:55 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008419.html">[svn] r9635 - /trunk/rpms/rubygem-couchrest/rubygem-couchrest.spec
+</A></li>
+        <LI>Next message: <A HREF="008421.html">[svn] r9637 - /trunk/rpms/fish/fish.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8420">[ date ]</a>
+              <a href="thread.html#8420">[ thread ]</a>
+              <a href="subject.html#8420">[ subject ]</a>
+              <a href="author.html#8420">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: Thu Feb 17 14:43:55 2011
+New Revision: 9636
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9636&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9636&amp;view=rev</A>
+Log:
+- match selinux policy shipped in rhel5
+- move logs to /var/log/nagios
+- move command file and checkresults to /var/spool/nagios
+- move pid file to /var/log/nagios
+
+
+Modified:
+    trunk/rpms/nagios/daemon-init-redhat.in
+    trunk/rpms/nagios/nagios.spec
+
+Modified: trunk/rpms/nagios/daemon-init-redhat.in
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/nagios/daemon-init-redhat.in?rev=9636&amp;r1=9635&amp;r2=9636&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/nagios/daemon-init-redhat.in?rev=9636&amp;r1=9635&amp;r2=9636&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/nagios/daemon-init-redhat.in (original)
++++ trunk/rpms/nagios/daemon-init-redhat.in Thu Feb 17 14:43:55 2011
+@@ -24,7 +24,6 @@
+ exec=&quot;@bindir@/nagios&quot;
+ prog=&quot;nagios&quot;
+ config=&quot;@sysconfdir@/nagios.cfg&quot;
+-pidfile=&quot;@lockfile@&quot;
+ user=&quot;@nagios_user@&quot;
+ 
+ [ -e /etc/sysconfig/$prog ] &amp;&amp; . /etc/sysconfig/$prog
+
+Modified: trunk/rpms/nagios/nagios.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/nagios/nagios.spec?rev=9636&amp;r1=9635&amp;r2=9636&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/nagios/nagios.spec?rev=9636&amp;r1=9635&amp;r2=9636&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/nagios/nagios.spec (original)
++++ trunk/rpms/nagios/nagios.spec Thu Feb 17 14:43:55 2011
+@@ -1,15 +1,15 @@
+ # $Id$
+ # Authority: dag
+ # Upstream: Ethan Galstad &lt;nagios$nagios,org&gt;
+-
+-### FIXME: TODO: Add sysv script based on template. (remove cmd-file on start-up)
++# Tag: test
++
+ %define logmsg logger -t %{name}/rpm
+ %define logdir %{_localstatedir}/log/nagios
+ 
+ Summary: Open Source host, service and network monitoring program
+ Name: nagios
+ Version: 3.2.3
+-Release: 3%{?dist}
++Release: 4%{?dist}
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://www.nagios.org/">http://www.nagios.org/</A>
+@@ -19,6 +19,7 @@
+ Source2: daemon-init-redhat.in
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
++BuildRequires: gcc
+ BuildRequires: gd-devel &gt; 1.8
+ BuildRequires: zlib-devel
+ BuildRequires: libpng-devel
+@@ -53,27 +54,27 @@
+ %setup
+ 
+ # /usr/local/nagios is hardcoded in many places
+-%{__perl} -pi.orig -e 's|/usr/local/nagios/var/rw|%{_localstatedir}/nagios/rw|g;' contrib/eventhandlers/submit_check_result
++%{__perl} -pi.orig -e 's|/usr/local/nagios/var/rw|%{_localstatedir}/spool/nagios/rw|g;' contrib/eventhandlers/submit_check_result
+ 
+ # copy our init-script over the one provided by upstream nut not for el3
+ %{!?el3:%{__cp} -f %{SOURCE2} daemon-init.in}
+ 
+ %build
+ %configure \
+-    --datadir=&quot;%{_datadir}/nagios&quot; \
+-    --libexecdir=&quot;%{_libdir}/nagios/plugins&quot; \
+-    --localstatedir=&quot;%{_localstatedir}/nagios&quot; \
+-    --with-checkresult-dir=&quot;%{_localstatedir}/nagios/spool/checkresults&quot; \
+-    --sbindir=&quot;%{_libdir}/nagios/cgi&quot; \
+-    --sysconfdir=&quot;%{_sysconfdir}/nagios&quot; \
++    --prefix=&quot;%{_datadir}/%{name}&quot; \
++    --datadir=&quot;%{_datadir}/%{name}&quot; \
++    --libexecdir=&quot;%{_libdir}/%{name}/plugins&quot; \
++    --localstatedir=&quot;%{_localstatedir}/log/%{name}&quot; \
++    --sbindir=&quot;%{_libdir}/%{name}/cgi&quot; \
++    --sysconfdir=&quot;%{_sysconfdir}/%{name}&quot; \
+     --with-cgiurl=&quot;/nagios/cgi-bin&quot; \
+     --with-command-user=&quot;apache&quot; \
+     --with-command-group=&quot;apache&quot; \
+     --with-gd-lib=&quot;%{_libdir}&quot; \
+     --with-gd-inc=&quot;%{_includedir}&quot; \
+-    --with-htmurl=&quot;/nagios&quot; \
++    --with-htmurl=&quot;/%{name}&quot; \
+     --with-init-dir=&quot;%{_initrddir}&quot; \
+-    --with-lockfile=&quot;%{_localstatedir}/nagios/nagios.pid&quot; \
++    --with-lockfile=&quot;%{_localstatedir}/log/nagios/nagios.pid&quot; \
+     --with-mail=&quot;/bin/mail&quot; \
+     --with-nagios-user=&quot;nagios&quot; \
+     --with-nagios-group=&quot;nagios&quot; \
+@@ -81,7 +82,8 @@
+     --with-perlcache \
+     --with-template-objects \
+     --with-template-extinfo \
+-    --enable-event-broker
++    --enable-event-broker \
++    STRIP=/bin/true
+ %{__make} %{?_smp_mflags} all
+ 
+ ### Apparently contrib wants to do embedded-perl stuff as well and does not obey configure !
+@@ -113,7 +115,15 @@
+         s|log_file.*|log_file=%{logdir}/nagios.log|;
+         s|log_archive_path=.*|log_archive_path=%{logdir}/archives|;
+         s|debug_file=.*|debug_file=%{logdir}/nagios.debug|;
++        s|command_file=.*|command_file=%{_localstatedir}/spool/%{name}/rw/nagios.cmd|;
++        s|check_result_path=.*|check_result_path=%{_localstatedir}/spool/%{name}/checkresults|;
+    ' %{buildroot}%{_sysconfdir}/nagios/nagios.cfg
++
++### Move checkresults and command file dir to /var/spool/nagios
++%{__mkdir} -p %{buildroot}/%{_localstatedir}/spool/nagios
++mv  %{buildroot}/%{logdir}/rw %{buildroot}/%{_localstatedir}/spool/%{name}
++mv  %{buildroot}/%{logdir}/spool/checkresults %{buildroot}/%{_localstatedir}/spool/%{name}
++%{__rm} -rf %{buildroot}/%{logdir}/spool
+ 
+ ### make logdirs
+ %{__mkdir} -p %{buildroot}%{logdir}/
+@@ -132,6 +142,7 @@
+     /usr/sbin/groupadd nagiocmd &amp;&gt;/dev/null || \
+         %logmsg &quot;Unexpected error adding group \&quot;nagiocmd\&quot;. Aborting installation.&quot;
+ fi
++
+ 
+ %post
+ /sbin/chkconfig --add nagios
+@@ -188,18 +199,23 @@
+ %dir %{_sysconfdir}/nagios/
+ %config(noreplace) %{_sysconfdir}/nagios/*.cfg
+ %config(noreplace) %{_sysconfdir}/nagios/objects
+-%{_localstatedir}/nagios/
+-%{_localstatedir}/nagios/spool/
+ %{logdir}/
++%dir %{_localstatedir}/spool/nagios/checkresults
+ 
+ %defattr(-, nagios, apache, 2755)
+-%{_localstatedir}/nagios/rw/
++%dir %{_localstatedir}/spool/nagios/rw/
+ 
+ %files devel
+ %defattr(-, root, root, 0755)
+ %{_includedir}/nagios/
+ 
+ %changelog
++* Thu Feb 17 2011 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmaser at gmx.de</A>&gt; - 3.2.3-4
++- match selinux policy shipped in rhel5
++- move logs to /var/log/nagios
++- move command file and checkresults to /var/spool/nagios
++- move pid file to /var/log/nagios
++
+ * Fri Nov 19 2010 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmaser at gmx.de</A>&gt; - 3.2.3-3
+ - adapt the extraction for nagios-imagepak-base from BSD
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008419.html">[svn] r9635 - /trunk/rpms/rubygem-couchrest/rubygem-couchrest.spec
+</A></li>
+	<LI>Next message: <A HREF="008421.html">[svn] r9637 - /trunk/rpms/fish/fish.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8420">[ date ]</a>
+              <a href="thread.html#8420">[ thread ]</a>
+              <a href="subject.html#8420">[ subject ]</a>
+              <a href="author.html#8420">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

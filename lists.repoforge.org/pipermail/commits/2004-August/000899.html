@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2093 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2093%20-%20trunk/tools/yam&In-Reply-To=%3C20040825113500.0532D17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000898.html">
+   <LINK REL="Next"  HREF="000900.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2093 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2093%20-%20trunk/tools/yam&In-Reply-To=%3C20040825113500.0532D17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2093 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Aug 25 13:35:00 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000898.html">[SVN] r2092 - in trunk/rpms: gpart irssi
+</A></li>
+        <LI>Next message: <A HREF="000900.html">[SVN] r2094 - in trunk/rpms: denemo devhelp distcc drivel tinc	tinyca tvtime xkobo zenity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#899">[ date ]</a>
+              <a href="thread.html#899">[ thread ]</a>
+              <a href="subject.html#899">[ subject ]</a>
+              <a href="author.html#899">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-25 13:34:59 +0200 (Wed, 25 Aug 2004)
+New Revision: 2093
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.httpd
+Log:
+Preparing for a 0.6 release.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-25 02:05:19 UTC (rev 2092)
++++ trunk/tools/yam/ChangeLog	2004-08-25 11:34:59 UTC (rev 2093)
+@@ -8,6 +8,7 @@
+ - Make use of os.path.join() and urlparse()
+ - Fixed a bug that skipped metadata generation for os-packages from ISOs (reported by James Norris)
+ - Intercept user input and exit when asked
++- Fix for mounting SuSE ISO images to CD? directories
+ 
+ * 0.5
+ - Skipped a 0.4 release to indicate this is an important update.
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-25 02:05:19 UTC (rev 2092)
++++ trunk/tools/yam/TODO	2004-08-25 11:34:59 UTC (rev 2093)
+@@ -22,7 +22,6 @@
+ + Improve SHTML output (more condensed and useful information)
+ + Think of a way to get rid of older/obsolete updates
+ + Generate sample yum.conf and apt .list files for people to use
+-+ Find a better way to intercept user input while running external commands
+ 
+ ### Documentation
+ + Add integration/documentation with ISC dhcpd
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-25 02:05:19 UTC (rev 2092)
++++ trunk/tools/yam/yam	2004-08-25 11:34:59 UTC (rev 2093)
+@@ -233,8 +233,12 @@
+ 				discnr = re.compile('disc([0-9])').search(iso).group(1)
+ 			except AttributeError, e:
+ 				discnr = discnr + 1
+-			discs = discs + [ 'disc%s' % discnr ]
+-			mount = os.path.join(self.dir, 'disc' + str(discnr))
++			if re.compile('.+-CD[0-9]\..+').match(iso, 1):
++				discstr = 'CD'
++			else:
++				discstr = 'disc'
++			discs.append('%s%s' % (discstr, discnr))
++			mount = os.path.join(self.dir, discstr + str(discnr))
+ 			if not os.path.exists(iso):
+ 				die(3, 'File %s does not exist.' % iso)
+ 			if not os.path.isfile(cf.cmd['mount']):
+@@ -265,7 +269,11 @@
+ 				discnr = re.compile('disc([0-9])').search(iso).group(1)
+ 			except AttributeError, e:
+ 				discnr = discnr + 1
+-			mount = os.path.join(self.dir, 'disc' + str(discnr))
++			if re.compile('.+-CD[0-9]\..+').match(iso, 1):
++				discstr = 'CD'
++			else:
++				discstr = 'disc'
++			mount = os.path.join(self.dir, discstr + str(discnr))
+ 			if not os.path.isfile(cf.cmd['umount']):
+ 				die(5, 'umount command not %s' % cf.cmd['umount'])
+ 			if os.path.ismount(mount):
+@@ -350,23 +358,10 @@
+ 
+ def run(str):
+ 	&quot;Run command, accept user input, and print output when needed.&quot;
+-	info(4, str)
+ 	if op.verbose &lt; 2:
+ 		str = str + '&gt;/dev/null'
+-#	os.system(str)
+-	os.popen(str)
+-#	pout, pin = popen2.popen4(str)
+-#	if op.verbose &gt;= 2:
+-#		out = 'a'
+-#		while out:
+-#			out = pout.readline()
+-#			if out: print out,
+-#	else:
+-#		void, ret = os.wait()
+-#		if ret:
+-#			info(0, 'Command failed with code = %s' % ret)
+-#			out = pout.read()
+-#			if out: print out,
++	info(4, str)
++	os.popen(str, 'w')
+ 
+ def readfile(file, len = 0):
+ 	&quot;Return content of a file&quot;
+
+Modified: trunk/tools/yam/yam.httpd
+===================================================================
+--- trunk/tools/yam/yam.httpd	2004-08-25 02:05:19 UTC (rev 2092)
++++ trunk/tools/yam/yam.httpd	2004-08-25 11:34:59 UTC (rev 2093)
+@@ -17,6 +17,8 @@
+ 	HeaderName HEADER.shtml
+ 	ReadmeName README.shtml
+ 
++	AddDescription &quot;Mounted CDROM ISO&quot; CD[0-9]
++	AddDescription &quot;Mounted CDROM ISO&quot; disc[0-9]
+ 	AddDescription &quot;CDROM ISO files&quot; iso
+ 	AddDescription &quot;Custom local RPM packages&quot; RPMS.local
+ 	AddDescription &quot;OS RPM packages&quot; RPMS.core
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000898.html">[SVN] r2092 - in trunk/rpms: gpart irssi
+</A></li>
+	<LI>Next message: <A HREF="000900.html">[SVN] r2094 - in trunk/rpms: denemo devhelp distcc drivel tinc	tinyca tvtime xkobo zenity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#899">[ date ]</a>
+              <a href="thread.html#899">[ thread ]</a>
+              <a href="subject.html#899">[ subject ]</a>
+              <a href="author.html#899">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

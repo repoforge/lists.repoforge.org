@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9080 - /trunk/tools/perl-stuff/mcsfb.pl
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9080%20-%20/trunk/tools/perl-stuff/mcsfb.pl&In-Reply-To=%3C201008291904.o7TJ4uDc004004%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007872.html">
+   <LINK REL="Next"  HREF="007874.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9080 - /trunk/tools/perl-stuff/mcsfb.pl</H1>
+    <B>Christoph Maser</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9080%20-%20/trunk/tools/perl-stuff/mcsfb.pl&In-Reply-To=%3C201008291904.o7TJ4uDc004004%40surya.karan.org%3E"
+       TITLE="[svn] r9080 - /trunk/tools/perl-stuff/mcsfb.pl">cmaser at gmx.de
+       </A><BR>
+    <I>Sun Aug 29 21:04:56 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007872.html">[svn] r9079 - /trunk/tools/perl-stuff/auto-upgrade.sh
+</A></li>
+        <LI>Next message: <A HREF="007874.html">[svn] r9081 - /trunk/tools/mock/rpmforge-el4-x86_64.cfg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7873">[ date ]</a>
+              <a href="thread.html#7873">[ thread ]</a>
+              <a href="subject.html#7873">[ subject ]</a>
+              <a href="author.html#7873">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: Sun Aug 29 20:04:56 2010
+New Revision: 9080
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9080&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9080&amp;view=rev</A>
+Log:
+Adapt to _perl-template.spec
+
+Modified:
+    trunk/tools/perl-stuff/mcsfb.pl
+
+Modified: trunk/tools/perl-stuff/mcsfb.pl
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/perl-stuff/mcsfb.pl?rev=9080&amp;r1=9079&amp;r2=9080&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/perl-stuff/mcsfb.pl?rev=9080&amp;r1=9079&amp;r2=9080&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/perl-stuff/mcsfb.pl (original)
++++ trunk/tools/perl-stuff/mcsfb.pl Sun Aug 29 20:04:56 2010
+@@ -38,8 +38,6 @@
+ 
+ my $result = $prereqs-&gt;as_string_hash;
+ 
+-print Dumper($meta-&gt;{license});
+-
+ print &quot;# \$Id\$\n&quot;;
+ print &quot;# Upstream: &quot; . $module-&gt;author-&gt;author . &quot; &lt;&quot; . $module-&gt;author-&gt;email .&quot;&gt;\n&quot;;
+ print &quot;\n&quot;;
+@@ -51,9 +49,9 @@
+ print &quot;Name: perl-$name\n&quot;;
+ print &quot;Version: &quot; . $module-&gt;package_version .&quot;\n&quot;;
+ print &quot;Release: 1%{?dist}\n&quot;;
+-print &quot;License: &quot;.  $meta-&gt;{license}[0]  .&quot;\n&quot;;
++print &quot;License: &quot;.  &amp;resolve_license($meta-&gt;{license}[0])  .&quot;\n&quot;;
+ print &quot;Group: Applications/CPAN\n&quot;;
+-print &quot;URL: <A HREF="http://search.cpan.org/dist/$name\n">http://search.cpan.org/dist/$name\n</A>&quot;;
++print &quot;URL: <A HREF="http://search.cpan.org/dist/$name/\n">http://search.cpan.org/dist/$name/\n</A>&quot;;
+ print &quot;\n&quot;;
+ print &quot;Source: <A HREF="http://search.cpan.org/CPAN/">http://search.cpan.org/CPAN/</A>&quot; . $module-&gt;path . &quot;/&quot; . $name . &quot;-%{version}.tar.gz\n&quot;;
+ print &quot;BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root\n&quot;;
+@@ -111,7 +109,9 @@
+ }
+ 
+ 
+-print &quot;\n%filter_from_requires /^perl*/d\n&quot;;
++print &quot;\n&quot;;
++print &quot;### remove autoreq Perl dependencies\n&quot;;
++print &quot;%filter_from_requires /^perl.*/d\n&quot;;
+ print &quot;%filter_setup\n&quot;;
+ 
+ 
+@@ -137,9 +137,6 @@
+ print &quot;%{__rm} -rf %{buildroot}\n&quot;;
+ print &quot;%{__make} pure_install\n&quot;;
+ print &quot;\n&quot;;
+-print &quot;### Clean up buildroot\n&quot;;
+-print &quot;find %{buildroot} -name .packlist -exec %{__rm} {} \\;\n&quot;;
+-print &quot;\n&quot;;
+ print &quot;%clean\n&quot;;
+ print &quot;%{__rm} -rf %{buildroot}\n&quot;;
+ print &quot;\n&quot;;
+@@ -149,6 +146,7 @@
+ print &quot;%doc %{_mandir}/man3/$ARGV[0].3pm*\n&quot;;
+ print &quot;%dir %{perl_vendorlib}/\n&quot;;
+ print &quot;%{perl_vendorlib}/$class\n&quot;;
++print &quot;%exclude %{perl_vendorarch}/auto/*/.packlist\n&quot;;
+ print &quot;\n&quot;;
+ print &quot;%changelog\n&quot;;
+ 
+@@ -161,3 +159,18 @@
+ 
+ print &quot;* $dayname $mon $day $year Christoph Maser &lt;cmaser.gmx.de&gt; - &quot; . $module-&gt;package_version . &quot;-1\n&quot;;
+ print &quot;- initial package\n&quot;;
++
++
++sub resolve_license() {
++
++	my $input = shift;
++	my %license = (
++		'perl_5' =&gt; 'Artistic/GPL' ,
++	);
++	
++	if ( defined $license{$input} ) {
++		return $license{$input};
++	} else {
++		return $input;
++	}
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007872.html">[svn] r9079 - /trunk/tools/perl-stuff/auto-upgrade.sh
+</A></li>
+	<LI>Next message: <A HREF="007874.html">[svn] r9081 - /trunk/tools/mock/rpmforge-el4-x86_64.cfg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7873">[ date ]</a>
+              <a href="thread.html#7873">[ thread ]</a>
+              <a href="subject.html#7873">[ subject ]</a>
+              <a href="author.html#7873">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

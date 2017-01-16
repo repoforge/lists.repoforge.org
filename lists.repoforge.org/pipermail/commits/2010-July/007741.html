@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8947 - /trunk/tools/perl-stuff/mcsfb.pl
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8947%20-%20/trunk/tools/perl-stuff/mcsfb.pl&In-Reply-To=%3C201007090833.o698XYWm003843%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007740.html">
+   <LINK REL="Next"  HREF="007742.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8947 - /trunk/tools/perl-stuff/mcsfb.pl</H1>
+    <B>Christoph Maser</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8947%20-%20/trunk/tools/perl-stuff/mcsfb.pl&In-Reply-To=%3C201007090833.o698XYWm003843%40surya.karan.org%3E"
+       TITLE="[svn] r8947 - /trunk/tools/perl-stuff/mcsfb.pl">cmr at financial.com
+       </A><BR>
+    <I>Fri Jul  9 10:33:34 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007740.html">[svn] r8946 - in /trunk/rpms/perl-CPAN-Meta: ./ perl-CPAN-Meta.spec
+</A></li>
+        <LI>Next message: <A HREF="007742.html">[svn] r8948 - in /trunk/rpms/voicechatter: ./ voicechatter-1.4.2_init-script.patch voicechatter-1.4.2_libsndfile-flac.patch voicechatter.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7741">[ date ]</a>
+              <a href="thread.html#7741">[ thread ]</a>
+              <a href="subject.html#7741">[ subject ]</a>
+              <a href="author.html#7741">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: Fri Jul  9 09:33:33 2010
+New Revision: 8947
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=8947&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=8947&amp;view=rev</A>
+Log:
+use CPAN::Meta to parse META.json or META.yaml
+remove unused module includes
+
+Modified:
+    trunk/tools/perl-stuff/mcsfb.pl
+
+Modified: trunk/tools/perl-stuff/mcsfb.pl
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/perl-stuff/mcsfb.pl?rev=8947&amp;r1=8946&amp;r2=8947&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/perl-stuff/mcsfb.pl?rev=8947&amp;r1=8946&amp;r2=8947&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/perl-stuff/mcsfb.pl (original)
++++ trunk/tools/perl-stuff/mcsfb.pl Fri Jul  9 09:33:33 2010
+@@ -4,15 +4,11 @@
+ use strict;
+ 
+ use CPANPLUS::Backend;
+-use CPAN::FindDependencies;
++use CPAN::Meta;
+ use Data::Dumper;
+ use LWP::Simple;
+ 
+ use POSIX;
+-
+-
+-#use YAML::Tiny;
+-use YAML::Syck;
+ use version;
+ 
+ 
+@@ -30,10 +26,19 @@
+ my $json_url = &quot;<A HREF="http://search.cpan.org/src/">http://search.cpan.org/src/</A>&quot; . $module-&gt;author-&gt;cpanid . &quot;/&quot; . $name . &quot;-&quot; . $module-&gt;package_version . &quot;/META.json&quot;;
+ my $yaml_url = &quot;<A HREF="http://search.cpan.org/src/">http://search.cpan.org/src/</A>&quot; . $module-&gt;author-&gt;cpanid . &quot;/&quot; . $name . &quot;-&quot; . $module-&gt;package_version . &quot;/META.yml&quot;;
+ my $yaml_file;
+-$yaml_file = get($json_url) or $yaml_file = get($yaml_url);
+-print &quot;DEBUG: $yaml_file\n&quot;;
+-my $results = Load($yaml_file);
++my $meta;
++if ( $yaml_file = get($json_url) ) {
++	$meta = CPAN::Meta-&gt;load_json_string($yaml_file);
++} else {
++	$yaml_file = get($yaml_url);
++	$meta = CPAN::Meta-&gt;load_yaml_string($yaml_file);
++}
+ 
++my $prereqs = $meta-&gt;effective_prereqs;
++
++my $result = $prereqs-&gt;as_string_hash;
++
++print Dumper($meta-&gt;{license});
+ 
+ print &quot;# \$Id\$\n&quot;;
+ print &quot;# Upstream: &quot; . $module-&gt;author-&gt;author . &quot; &lt;&quot; . $module-&gt;author-&gt;email .&quot;&gt;\n&quot;;
+@@ -42,11 +47,11 @@
+ print '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'.&quot;\n&quot;;
+ print &quot;%define real_name $name\n&quot;;
+ print &quot;\n&quot;;
+-print &quot;Summary: &quot; . $results-&gt;{'abstract'} . &quot;\n&quot;;
++print &quot;Summary: &quot; . $meta-&gt;{abstract} . &quot;\n&quot;;
+ print &quot;Name: perl-$name\n&quot;;
+ print &quot;Version: &quot; . $module-&gt;package_version .&quot;\n&quot;;
+ print &quot;Release: 1%{?dist}\n&quot;;
+-print &quot;License: &quot;. $results-&gt;{'license'} .&quot;\n&quot;;
++print &quot;License: &quot;.  $meta-&gt;{license}[0]  .&quot;\n&quot;;
+ print &quot;Group: Applications/CPAN\n&quot;;
+ print &quot;URL: <A HREF="http://search.cpan.org/dist/$name\n">http://search.cpan.org/dist/$name\n</A>&quot;;
+ print &quot;\n&quot;;
+@@ -58,15 +63,28 @@
+ 
+ # Merge build_requires and requires in one hash
+ my %merged = ();
+-while ( my ($k,$v) = each(%{$results-&gt;{'build_requires'}}) ) {
++while ( my ($k,$v) = each(%{$result-&gt;{configure}-&gt;{requires}}) ) {
+     $merged{$k} = $v;
+ }
+-while ( my ($k,$v) = each(%{$results-&gt;{'requires'}}) ) {
++while ( my ($k,$v) = each(%{$result-&gt;{build}-&gt;{requires}}) ) {
++    $merged{$k} = $v;
++}
++while ( my ($k,$v) = each(%{$result-&gt;{runtime}-&gt;{requires}}) ) {
+     $merged{$k} = $v;
+ }
+ 
+ 
+ # Print BuildRequires
++foreach my $key (sort keys %{$result-&gt;{test}-&gt;{requires}} )  {
++	print &quot;BuildRequires: perl($key)&quot;;
++	if ( $result-&gt;{test}-&gt;{requires}{$key} != 0 ) {
++		print  &quot; &gt;= &quot; . $result-&gt;{test}-&gt;{requires}{$key}
++	}
++	print &quot;  # test dependency\n&quot;;
++}
++
++
++
+ foreach my $key (sort keys %merged )  {
+ 		if ( $key eq &quot;perl&quot; ) {
+ 			print &quot;BuildRequires: $key &gt;= &quot; . $merged{$key} . &quot;\n&quot;;
+@@ -80,13 +98,13 @@
+ }
+ 
+ # Print Requires
+-foreach my $key (sort keys %{$results-&gt;{'requires'}} )  {
++foreach my $key (sort keys %{$result-&gt;{runtime}-&gt;{requires}} )  {
+ 		if ( $key eq &quot;perl&quot; ) {
+-			print &quot;Requires: $key &gt;= &quot; .$results-&gt;{'requires'}{$key} . &quot;\n&quot;;
++			print &quot;Requires: $key &gt;= &quot; .$result-&gt;{runtime}-&gt;{'requires'}{$key} . &quot;\n&quot;;
+ 		} else {
+ 			print &quot;Requires: perl($key)&quot;;
+-			if ( $results-&gt;{'requires'}{$key} != 0 ) {
+-					print  &quot; &gt;= &quot; . $results-&gt;{'requires'}{$key};
++			if ( $result-&gt;{runtime}-&gt;{'requires'}{$key} != 0 ) {
++					print  &quot; &gt;= &quot; . $result-&gt;{runtime}-&gt;{'requires'}{$key};
+ 			}  
+ 			print &quot;\n&quot;;
+ 		}
+@@ -97,18 +115,6 @@
+ print &quot;%filter_setup\n&quot;;
+ 
+ 
+-#foreach my $key (sort keys %{$results-&gt;{'recommends'}} )  {
+-#                if ( $key eq &quot;perl&quot; ) {
+-#                        print &quot;BuildRequires: $key &gt;= &quot; .$results-&gt;{'recommends'}{$key} . &quot;\n&quot;;
+-#                } else {
+-#                        print &quot;BuildRequires: perl($key)&quot;;
+-#                        if ( $results-&gt;{'requires'}{$key} != 0 ) {
+-#                                        print  &quot; &gt;= &quot; . $results-&gt;{'recomemnds'}{$key};
+-#                        }
+-#                        print &quot;\n&quot;;
+-#                }
+-#}
+-
+ my $class = $ARGV[0];
+ $class =~ s/::/\//g;
+ 
+@@ -117,6 +123,7 @@
+ print &quot;\n&quot;;
+ print &quot;\n&quot;;
+ print &quot;%description\n&quot;;
++print $meta-&gt;{description} .&quot;\n&quot;;
+ print &quot;\n&quot;;
+ print &quot;%prep\n&quot;;
+ print &quot;%setup -n %{real_name}-%{version}\n&quot;;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007740.html">[svn] r8946 - in /trunk/rpms/perl-CPAN-Meta: ./ perl-CPAN-Meta.spec
+</A></li>
+	<LI>Next message: <A HREF="007742.html">[svn] r8948 - in /trunk/rpms/voicechatter: ./ voicechatter-1.4.2_init-script.patch voicechatter-1.4.2_libsndfile-flac.patch voicechatter.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7741">[ date ]</a>
+              <a href="thread.html#7741">[ thread ]</a>
+              <a href="subject.html#7741">[ subject ]</a>
+              <a href="author.html#7741">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

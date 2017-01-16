@@ -1,0 +1,193 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6571 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6571%20-%20trunk/tools/dstat&In-Reply-To=%3C200812012041.mB1Kf1TB030166%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005369.html">
+   <LINK REL="Next"  HREF="005371.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6571 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6571%20-%20trunk/tools/dstat&In-Reply-To=%3C200812012041.mB1Kf1TB030166%40surya.karan.org%3E"
+       TITLE="[svn] r6571 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Dec  1 21:41:01 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005369.html">[svn] r6570 - in trunk/tools/dstat: . plugins
+</A></li>
+        <LI>Next message: <A HREF="005371.html">[svn] r6572 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5370">[ date ]</a>
+              <a href="thread.html#5370">[ thread ]</a>
+              <a href="subject.html#5370">[ subject ]</a>
+              <a href="author.html#5370">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-12-01 20:41:01 +0000 (Mon, 01 Dec 2008)
+New Revision: 6571
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Added internal dstat_aio plugin to see number of asynchronous I/O requests
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-12-01 20:17:53 UTC (rev 6570)
++++ trunk/tools/dstat/ChangeLog	2008-12-01 20:41:01 UTC (rev 6571)
+@@ -5,6 +5,7 @@
+ - Added VMware ESX dstat_vmmemctl plugin (Bert de Bruijn)
+ - Added internal dstat_fs plugin to show number of open files/inodes
+ - Added internal dstat_socket plugin to show total number of various sockets
++- Added internal dstat_aio plugin to see number of asynchronous I/O requests
+ 
+ * 0.6.8 - Buenos Aires - release 12/09/2008
+ - Added improved tick patch (Kelly Long)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-12-01 20:17:53 UTC (rev 6570)
++++ trunk/tools/dstat/dstat	2008-12-01 20:41:01 UTC (rev 6571)
+@@ -105,9 +105,9 @@
+         try:
+             import getopt
+             opts, args = getopt.getopt (args, 'acdfghilmno:pstTvyC:D:I:M:N:S:V',
+-                ['cpu', 'disk', 'epoch', 'fs', 'filesystem', 'int', 'ipc', 'load',
+-                 'lock', 'mem', 'net', 'page', 'proc', 'raw', 'socket', 'swap',
+-                 'sys', 'tcp', 'time', 'udp', 'unix',
++                ['aio', 'cpu', 'disk', 'epoch', 'fs', 'filesystem', 'int', 'ipc',
++                 'load', 'lock', 'mem', 'net', 'page', 'proc', 'raw', 'socket',
++                 'swap', 'sys', 'tcp', 'time', 'udp', 'unix',
+                  'all', 'debug', 'full', 'help', 'integer', 'mods', 'modules', 'nocolor',
+                  'noheaders', 'noupdate', 'output=', 'pidfile=', 'version', 'vmstat'])
+         except getopt.error, exc:
+@@ -117,8 +117,10 @@
+         self.modlist = []
+ 
+         for opt, arg in opts:
+-            if opt in ['-c', '--cpu']:
++            if opt in ['--aio']:
+                 self.modlist.append('cpu')
++            elif opt in ['-c', '--cpu']:
++                self.modlist.append('cpu')
+             elif opt in ['-C']:
+                 self.cpulist = arg.split(',')
+             elif opt in ['-d', '--disk']:
+@@ -264,9 +266,13 @@
+   -t, --time             enable time/date output
+   -T, --epoch            enable time counter (seconds since epoch)
+   -y, --sys              enable system stats
++
++  --aio                  enable aio stats
++  --fs                   enable fs stats
+   --ipc                  enable ipc stats
+   --lock                 enable lock stats
+   --raw                  enable raw stats
++  --socket               enable socket stats
+   --tcp                  enable tcp stats
+   --udp                  enable udp stats
+   --unix                 enable unix stats
+@@ -317,7 +323,7 @@
+             if fd:
+                 self.file.append(filename)
+                 self.fd.append(fd)
+-	if not self.fd:
++        if not self.fd:
+             raise Exception, 'Cannot open file %s.' % filename
+ 
+     def readlines(self):
+@@ -470,6 +476,21 @@
+             return ','
+         return ''
+ 
++class dstat_aio(dstat):
++    def __init__(self):
++        self.name = 'async'
++        self.format = ('d', 5, 1000)
++        self.open('/proc/sys/fs/aio-nr')
++        self.nick = ('#aio',)
++        self.vars = ('aio',)
++        self.init(self.vars, 1)
++
++    def extract(self):
++        for line in self.readlines():
++            l = line.split()
++            if len(l) &lt; 1: continue
++            self.val['aio'] = float(l[0])
++
+ class dstat_cpu(dstat):
+     def __init__(self):
+         self.format = ('p', 3, 34)
+@@ -827,7 +848,6 @@
+         self.vars = ('files', 'inodes')
+         self.init(self.vars, 1)
+ 
+-    ### We are now using the starttime instead of the execution time of this plugin
+     def extract(self):
+         for line in dopen('/proc/sys/fs/file-nr').readlines():
+             l = line.split()
+@@ -1198,7 +1218,7 @@
+     def extract(self):
+         lines = -1
+         for line in self.readlines():
+-	    lines = lines + 1
++            lines = lines + 1
+         self.val['sockets'] = lines
+         ### Cannot use len() on generator
+ #        self.val['sockets'] = len(self.readlines()) - 1
+@@ -1852,6 +1872,21 @@
+ 
+ def listmodules():
+     rows, cols = gettermsize()
++    print 'internal:\n\t',
++    remod = re.compile('dstat_(.+)$')
++    modlist = []
++    for filename in globals():
++        if filename.startswith('dstat_'):
++            modlist.append(remod.match(filename).groups()[0])
++    modlist.sort()
++    cols2 = cols - 8
++    for mod in modlist:
++        cols2 = cols2 - len(mod) - 2
++        if cols2 &lt;= 0:
++            print '\n\t',
++            cols2 = cols - len(mod) - 10
++        print mod + ',',
++    print
+     remod = re.compile('.+/dstat_(.+).py$')
+     for path in sys.path:
+         modlist = []
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005369.html">[svn] r6570 - in trunk/tools/dstat: . plugins
+</A></li>
+	<LI>Next message: <A HREF="005371.html">[svn] r6572 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5370">[ date ]</a>
+              <a href="thread.html#5370">[ thread ]</a>
+              <a href="subject.html#5370">[ subject ]</a>
+              <a href="author.html#5370">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

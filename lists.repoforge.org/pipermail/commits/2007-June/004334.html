@@ -1,0 +1,398 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5535 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5535%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20070624194111.D6F76944B50%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004333.html">
+   <LINK REL="Next"  HREF="004335.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5535 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5535%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20070624194111.D6F76944B50%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5535 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jun 24 21:41:11 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004333.html">[svn] r5534 - in trunk/rpms: monit perl-Module-Refresh texmaker
+</A></li>
+        <LI>Next message: <A HREF="004335.html">[svn] r5536 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4334">[ date ]</a>
+              <a href="thread.html#4334">[ thread ]</a>
+              <a href="subject.html#4334">[ subject ]</a>
+              <a href="author.html#4334">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-06-24 21:41:10 +0200 (Sun, 24 Jun 2007)
+New Revision: 5535
+
+Added:
+   trunk/tools/dstat/plugins/dstat_topapp.py
+Removed:
+   trunk/tools/dstat/plugins/dstat_app.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2007-06-22 02:32:41 UTC (rev 5534)
++++ trunk/tools/dstat/ChangeLog	2007-06-24 19:41:10 UTC (rev 5535)
+@@ -1,6 +1,9 @@
+ * 0.6.6svn - ... - released 28/04/2007
+ - Only rewrite xterm title when XTERM_SHELL is set to bash
+ - Added more Dbt (Debian bug tracker) ids in the ChangeLog and TODO
++- Renamed external dstat_app plugin to dstat_topapp
++- Added external dstat_topmem plugin
++- Improved dstat_topapp CSV output 
+ 
+ * 0.6.6 - Unemployed - released 28/04/2007
+ - Removed SwapCached from the Cached counter (Dbt 418326, Peter Rabbitson)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2007-06-22 02:32:41 UTC (rev 5534)
++++ trunk/tools/dstat/TODO	2007-06-24 19:41:10 UTC (rev 5535)
+@@ -20,7 +20,12 @@
+ ### Export/Graph
+ + Interface with rrdtool (python-rrd ?)
+ + Allow for different types of export modules (only CSV now)
+++ Allow to write out to syslog (or remote syslog)
+++ Allow to write unbuffered to disk
+ 
++### Plugin improvements
+++ Don't calculate counters twice when a plugin is loaded twice
++
+ ### Extending statistics (help welcome!)
+ + Add slab plugin (see /proc/slabinfo and slabtop)
+ + Add xorg plugin (xdpyinfo, xrestop)
+@@ -35,6 +40,8 @@
+ + Allow for SNMP counters to be added
+ + Add LVM stats
+ + Add number of (active) X sessions and X clients
+++ Add a 'most expensive mem app' and 'most expensive io app'
+++ Allow to have multiple '1st expensive ... app' and '2nd expensive ... app'
+ 
+ ### Documentation (help welcome!)
+ + Create document on general system performance tuning
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2007-06-22 02:32:41 UTC (rev 5534)
++++ trunk/tools/dstat/dstat	2007-06-24 19:41:10 UTC (rev 5535)
+@@ -12,11 +12,11 @@
+ ### You should have received a copy of the GNU Library General Public License
+ ### along with this program; if not, write to the Free Software
+ ### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-### Copyright 2004, 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++### Copyright 2004-2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ from __future__ import generators
+ 
+-VERSION = '0.6.6'
++VERSION = '0.6.6svn'
+ 
+ def inspath(path):
+     if os.path.isdir(path) and path not in sys.path:
+@@ -1812,32 +1812,43 @@
+                 try:
+                     import imp
+                     file, pathname, description = imp.find_module('dstat_'+mod)
+-#                   exec compile(readfile(pathname), pathname, 'exec')
+-                    execfile(pathname)
++                    ### Try loading python plugin
++                    if description[0] == '.py':
++#                           exec compile(readfile(pathname), pathname, 'exec')
++                            execfile(pathname)
++                            exec 'o = dstat_%s()' % mod
++                ### Try loading C plugin
++                    elif description[0] == '.so':
++                        exec 'import dstat_%s' % mod
++                        exec 'o = dstat_%s.new()' % mod
++#                        exec 'o = dstat_%s.init(dstat)' % mod
++#                        print dir(o)
++#                        print o.__module__
++#                        print o.name
++                    else:
++                        info(1, 'Module is of unknown type.')
+                 except Exception, e:
+                     info(1, 'Module %s failed to load. (%s)' % (mod, e))
+-#                   tb = sys.exc_info()[2]
++#                    tb = sys.exc_info()[2]
+                     continue
+ 
+-            try:
+-#               exec compile('o = dstat_%s()' % mod, '&lt;string&gt;', 'single')
+-                exec 'o = dstat_%s()' % mod
+-
+                 ### Remove defect stat objects and calculate line length
+                 if not o.check():
+                     raise Exception, 'Unknown problem, please report'
++#                except Exception, e:
++#                    if mod == mods[-1]:
++#                        info(1, 'Module %s has problems. (%s)' % (mod, e))
++#                        if op.debug:
++#                            raise
++#                    continue
++            else:
++                exec 'o = dstat_%s()' % mod
++#            print o.__module__
+ 
+-                linewidth = linewidth + o.statwidth() + 1
+-                totlist.append(o)
+-                break
++            linewidth = linewidth + o.statwidth() + 1
++            totlist.append(o)
++            break
+ 
+-            except Exception, e:
+-                if mod == mods[-1]:
+-                    info(1, 'Module %s has problems. (%s)' % (mod, e))
+-                    if op.debug:
+-                        raise
+-                continue
+-
+     if not totlist:
+         die(8, 'None of the stats you selected are available.')
+ 
+@@ -1929,9 +1940,9 @@
+             tt = tt + (t2 - t1) * 1000.0
+             if loop == 0: tt = tt * step
+             if op.debug == 1:
+-                sys.stdout.write('%6.2fms' % (tt / step))
++                sys.stdout.write('%s%6.2fms%s' % (ansi['darkblue'], tt / step, ansi['default']))
+             elif op.debug &gt; 1:
+-                sys.stdout.write('%6.2f [%d:%d:%d]' % (tt / step, loop, step, update))
++                sys.stdout.write('%s%6.2f %s%d:%d:%d%s' % (ansi['darkblue'], tt / step, ansi['gray'], loop, step, update, ansi['default']))
+ 
+         ### If intermediate results, update increases with 1 sec (=interval)
+         update = update + interval
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2007-06-22 02:32:41 UTC (rev 5534)
++++ trunk/tools/dstat/dstat.spec	2007-06-24 19:41:10 UTC (rev 5535)
+@@ -9,7 +9,7 @@
+ 
+ Summary: Versatile resource statistics tool
+ Name: dstat
+-Version: 0.6.6
++Version: 0.6.6svn
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -60,6 +60,9 @@
+ %{_datadir}/dstat/
+ 
+ %changelog
++* Sun Jun 24 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.6svn-1
++- Updated to release 0.6.6svn.
++
+ * Sat Apr 28 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.6-1
+ - Updated to release 0.6.6.
+ 
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2007-06-22 02:32:41 UTC (rev 5534)
++++ trunk/tools/dstat/dstat15	2007-06-24 19:41:10 UTC (rev 5535)
+@@ -16,7 +16,7 @@
+ 
+ #from __future__ import generators
+ 
+-VERSION = '0.6.6'
++VERSION = '0.6.6svn'
+ 
+ def inspath(path):
+     if os.path.isdir(path) and path not in sys.path:
+
+Deleted: trunk/tools/dstat/plugins/dstat_app.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_app.py	2007-06-22 02:32:41 UTC (rev 5534)
++++ trunk/tools/dstat/plugins/dstat_app.py	2007-06-24 19:41:10 UTC (rev 5535)
+@@ -1,68 +0,0 @@
+-### Dstat most expensive process plugin
+-### Displays the name of the most expensive process
+-###
+-### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
+-
+-global string
+-import string
+-
+-class dstat_app(dstat):
+-    def __init__(self):
+-        self.name = 'most expensive'
+-        self.format = ('s', 18, 0)
+-        self.nick = ('process',)
+-        self.vars = self.nick
+-        self.pid = str(os.getpid())
+-        self.cn1 = {}; self.cn2 = {}; self.val = {}
+-
+-    def extract(self):
+-        max = 0.0
+-        for pid in os.listdir('/proc/'):
+-            try: int(pid)
+-            except: continue
+-            if os.path.exists('/proc/%s/stat' % pid):
+-                if pid == self.pid: continue
+-                if not self.cn1.has_key(pid):
+-                    self.cn1[pid] = 0
+-
+-                ### Using dopen() will cause too many open files
+-#               l = string.split(dopen('/proc/%s/stat' % pid).read())
+-                l = string.split(open('/proc/%s/stat' % pid).read())
+-                if len(l) &lt; 15: continue
+-                self.cn2[pid] = int(l[13]) + int(l[14])
+-                usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
+-
+-                ### Get the process that spends the most jiffies
+-                if usage &gt; max:
+-                    max = usage
+-                    self.val['name'] = l[1][1:-1]
+-                    self.val['pid'] = pid
+-
+-        if max == 0.0:
+-            self.val['process'] = ''
+-        else:
+-            ### If the name is a known interpreter, take the second argument from the cmdline
+-            if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
+-                ### Using dopen() will cause too many open files
+-#               l = string.split(dopen('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
+-                l = string.split(open('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
+-                if len(l) &gt; 2:
+-                    self.val['name'] = os.path.basename(l[1])
+-
+-#               l = l.reverse()
+-#               for x in l:
+-#                   print x
+-#                   if x[0] != '-':
+-#                       self.val['name'] = os.path.basename(x)
+-#                       break
+-
+-            ### Show yellow usage
+-            self.val['process'] = '%-*s%s%3d' % (self.format[1]-3, self.val['name'], ansi['yellow'], round(max))
+-
+-            ### Debug (show PID)
+-#           self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.format[1]-6, self.val['name'])
+-
+-        if step == op.delay:
+-            self.cn1.update(self.cn2)
+-
+-# vim:ts=4:sw=4:et
+
+Copied: trunk/tools/dstat/plugins/dstat_topapp.py (from rev 5392, trunk/tools/dstat/plugins/dstat_app.py)
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topapp.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_topapp.py	2007-06-24 19:41:10 UTC (rev 5535)
+@@ -0,0 +1,73 @@
++### Dstat most expensive process plugin
++### Displays the name of the most expensive process
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++global string
++import string
++
++class dstat_topapp(dstat):
++    def __init__(self):
++        self.name = 'most expensive'
++        self.format = ('s', 18, 34)
++        self.nick = ('cpu process',)
++        self.vars = self.nick
++        self.pid = str(os.getpid())
++        self.cn1 = {}; self.cn2 = {}; self.val = {}
++
++    def extract(self):
++        self.val['usage'] = 0.0
++        for pid in os.listdir('/proc/'):
++            try: int(pid)
++            except: continue
++            if os.path.exists('/proc/%s/stat' % pid):
++                if pid == self.pid: continue
++                if not self.cn1.has_key(pid):
++                    self.cn1[pid] = 0
++
++                ### Using dopen() will cause too many open files
++#               l = string.split(dopen('/proc/%s/stat' % pid).read())
++                l = string.split(open('/proc/%s/stat' % pid).read())
++                if len(l) &lt; 15: continue
++                self.cn2[pid] = int(l[13]) + int(l[14])
++                usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
++
++                ### Get the process that spends the most jiffies
++                if usage &gt; self.val['usage']:
++                    self.val['usage'] = usage
++                    self.val['name'] = l[1][1:-1]
++                    self.val['pid'] = pid
++
++        if self.val['usage'] == 0.0:
++            self.val['process'] = ''
++        else:
++            ### If the name is a known interpreter, take the second argument from the cmdline
++            if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
++                ### Using dopen() will cause too many open files
++#               l = string.split(dopen('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
++                l = string.split(open('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
++                if len(l) &gt; 2:
++                    self.val['process'] = os.path.basename(l[1])
++            else:
++                self.val['process'] = self.val['name']
++
++#               l = l.reverse()
++#               for x in l:
++#                   print x
++#                   if x[0] != '-':
++#                       self.val['name'] = os.path.basename(x)
++#                       break
++
++            ### Debug (show PID)
++#           self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.format[1]-6, self.val['name'])
++
++        if step == op.delay:
++            self.cn1.update(self.cn2)
++
++    def show(self):
++        return '%s%-*s%s%3d' % (ansi['default'], self.format[1]-3, self.val['process'], ansi['yellow'], round(self.val['usage']))
++
++    def showcsv(self):
++        return '%s / %d%%' % (self.val['name'], self.val['usage'])
++
++# vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004333.html">[svn] r5534 - in trunk/rpms: monit perl-Module-Refresh texmaker
+</A></li>
+	<LI>Next message: <A HREF="004335.html">[svn] r5536 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4334">[ date ]</a>
+              <a href="thread.html#4334">[ thread ]</a>
+              <a href="subject.html#4334">[ subject ]</a>
+              <a href="author.html#4334">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

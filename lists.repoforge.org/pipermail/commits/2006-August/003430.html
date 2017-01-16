@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4630 - in trunk/rpms: linkchecker tor white_dune
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4630%20-%20in%20trunk/rpms%3A%20linkchecker%20tor%20white_dune&In-Reply-To=%3C20060807185003.C681E945301%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003429.html">
+   <LINK REL="Next"  HREF="003431.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4630 - in trunk/rpms: linkchecker tor white_dune</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4630%20-%20in%20trunk/rpms%3A%20linkchecker%20tor%20white_dune&In-Reply-To=%3C20060807185003.C681E945301%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4630 - in trunk/rpms: linkchecker tor white_dune">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Aug  7 20:50:03 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003429.html">[svn] r4629 - trunk/rpms/python-urwid
+</A></li>
+        <LI>Next message: <A HREF="003431.html">[svn] r4631 - in trunk/rpms: . libqglviewer texmacs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3430">[ date ]</a>
+              <a href="thread.html#3430">[ thread ]</a>
+              <a href="subject.html#3430">[ subject ]</a>
+              <a href="author.html#3430">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2006-08-07 20:50:02 +0200 (Mon, 07 Aug 2006)
+New Revision: 4630
+
+Modified:
+   trunk/rpms/linkchecker/linkchecker.spec
+   trunk/rpms/tor/tor.spec
+   trunk/rpms/white_dune/white_dune.spec
+Log:
+updates
+
+Modified: trunk/rpms/linkchecker/linkchecker.spec
+===================================================================
+--- trunk/rpms/linkchecker/linkchecker.spec	2006-08-07 13:26:01 UTC (rev 4629)
++++ trunk/rpms/linkchecker/linkchecker.spec	2006-08-07 18:50:02 UTC (rev 4630)
+@@ -6,7 +6,7 @@
+ 
+ Summary: Check HTML documents for broken links
+ Name: linkchecker
+-Version: 4.1
++Version: 4.2
+ Release: 1
+ License: GPL
+ Group: Applications/Publishing
+@@ -48,6 +48,9 @@
+ 
+ 
+ %changelog
++* Mon Aug 07 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 4.2-1
++- Updated to release 4.2.
++
+ * Tue May 29 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 4.1-1
+ - Updated to release 4.1.
+ 
+
+Modified: trunk/rpms/tor/tor.spec
+===================================================================
+--- trunk/rpms/tor/tor.spec	2006-08-07 13:26:01 UTC (rev 4629)
++++ trunk/rpms/tor/tor.spec	2006-08-07 18:50:02 UTC (rev 4630)
+@@ -2,9 +2,13 @@
+ # Authority: dries
+ # Upstream: EFF
+ 
++# added so it also works with the upstream el4 tor package
++%define toruser _tor
++%define torgroup _tor
++
+ Summary: Send network traffic through virtual tunnels to improve your privacy
+ Name: tor
+-Version: 0.1.0.14
++Version: 0.1.1.23
+ Release: 1
+ License: BSD
+ Group: Applications/Internet
+@@ -31,27 +35,73 @@
+ 
+ %build
+ export CPPFLAGS=-I/usr/include/kerberos
+-%configure
++%configure --with-tor-user=%{toruser} --with-tor-group=%{torgroup}
+ %{__make} %{?_smp_mflags}
++%{__perl} -pi -e &quot;s|# chkconfig: 2345|# chkconfig: -|g;&quot; contrib/tor.sh
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+ %makeinstall
++%{__install} -D -m755 contrib/torctl %{buildroot}%{_bindir}/torctl
++%{__install} -D -m755 contrib/tor.sh %{buildroot}%{_initrddir}/tor
++%{__install} -D -m644 contrib/tor.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/tor
++%{__mv} %{buildroot}%{_sysconfdir}/tor/torrc.sample %{buildroot}%{_sysconfdir}/tor/torrc
++%{__install} -d %{buildroot}%{_localstatedir}/lib/tor %{buildroot}%{_localstatedir}/run/tor %{buildroot}%{_localstatedir}/log/tor
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
++%pre
++/usr/sbin/groupadd %{torgroup} 2&gt; /dev/null || :
++/usr/sbin/useradd -c &quot;Tor user&quot; -g %{torgroup} -s /bin/false -r -d %{_localstatedir}/lib/tor %{toruser} 2&gt;/dev/null || :
++
++%post
++if [ $1 -eq 1 ]; then
++    /sbin/chkconfig --add tor
++fi
++%{__chown} -R %{toruser}.%{torgroup} %{_localstatedir}/lib/tor %{_localstatedir}/run/tor %{_localstatedir}/log/tor || :
++
++%preun
++if [ $1 -eq 0 ]; then
++   /sbin/service tor stop || :
++   /sbin/chkconfig --del tor
++fi
++
++%postun
++/sbin/service tor condrestart &gt; /dev/null 2&gt;&amp;1 || :
++
+ %files
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS ChangeLog INSTALL LICENSE README
+ %doc %{_mandir}/man1/tor*
+-%config(noreplace) %{_sysconfdir}/tor/tor-tsocks.conf
+-%config(noreplace) %{_sysconfdir}/tor/torrc.sample
+ %{_bindir}/tor-resolve
+ %{_bindir}/tor
++%{_bindir}/torctl
+ %{_bindir}/torify
++%{_sysconfdir}/logrotate.d/tor
++%{_initrddir}/tor
++%defattr(-, root, %{torgroup}, 0750)
++%dir %{_sysconfdir}/tor/
++%defattr(-, root, %{torgroup}, 0640)
++%config(noreplace) %{_sysconfdir}/tor/tor-tsocks.conf
++%config(noreplace) %{_sysconfdir}/tor/torrc
++%defattr(-, %{toruser}, %{torgroup}, 0700)
++%dir %{_localstatedir}/lib/tor
++%defattr(-, %{toruser}, %{torgroup}, 0750)
++%dir %{_localstatedir}/run/tor
++%dir %{_localstatedir}/log/tor
+ 
+ %changelog
++* Mon Aug 07 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.1.1.23-1
++- Updated to release 0.1.1.23.
++
++* Sun Jun 04 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.1.1.20-1
++- Updated to release 0.1.1.20.
++- Use a _tor user and _tor group.
++
++* Wed Jan 04 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.1.0.16-1
++- Update to release 0.1.0.16.
++
+ * Sun Aug 14 2005 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.1.0.14-1
+ - Update to release 0.1.0.14.
+ 
+
+Modified: trunk/rpms/white_dune/white_dune.spec
+===================================================================
+--- trunk/rpms/white_dune/white_dune.spec	2006-08-07 13:26:01 UTC (rev 4629)
++++ trunk/rpms/white_dune/white_dune.spec	2006-08-07 18:50:02 UTC (rev 4630)
+@@ -21,12 +21,12 @@
+ %{?el2:%define _without_modxorg 1}
+ %{?yd3:%define _without_modxorg 1}
+ 
+-%define real_version 0.29beta345
++%define real_version 0.29beta403
+ 
+ Summary: Graphical VRML97 editor and animation tool
+ Name: white_dune
+ Version: 0.29
+-Release: 0.beta345
++Release: 0.beta403
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://www.csv.ica.uni-stuttgart.de/vrml/dune/">http://www.csv.ica.uni-stuttgart.de/vrml/dune/</A>
+@@ -104,6 +104,9 @@
+ 
+ 
+ %changelog
++* Mon Aug 07 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.29-0.beta403
++- Updated to release 0.29-0.beta403.
++
+ * Mon May 29 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.29-0.beta345
+ - Updated to release 0.29-0.beta345.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003429.html">[svn] r4629 - trunk/rpms/python-urwid
+</A></li>
+	<LI>Next message: <A HREF="003431.html">[svn] r4631 - in trunk/rpms: . libqglviewer texmacs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3430">[ date ]</a>
+              <a href="thread.html#3430">[ thread ]</a>
+              <a href="subject.html#3430">[ subject ]</a>
+              <a href="author.html#3430">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

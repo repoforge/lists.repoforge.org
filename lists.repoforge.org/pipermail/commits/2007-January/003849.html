@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5049 - trunk/rpms/vlc
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5049%20-%20trunk/rpms/vlc&In-Reply-To=%3C20070108152427.504CB318220%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003848.html">
+   <LINK REL="Next"  HREF="003850.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5049 - trunk/rpms/vlc</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5049%20-%20trunk/rpms/vlc&In-Reply-To=%3C20070108152427.504CB318220%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5049 - trunk/rpms/vlc">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jan  8 16:24:27 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003848.html">[svn] r5048 - in trunk/rpms: doodle libextractor
+</A></li>
+        <LI>Next message: <A HREF="003850.html">[svn] r5050 - in trunk/rpms: . magicpoint
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3849">[ date ]</a>
+              <a href="thread.html#3849">[ thread ]</a>
+              <a href="subject.html#3849">[ subject ]</a>
+              <a href="author.html#3849">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-01-08 16:24:26 +0100 (Mon, 08 Jan 2007)
+New Revision: 5049
+
+Added:
+   trunk/rpms/vlc/vlc-0.8.6-wx28.patch
+Modified:
+   trunk/rpms/vlc/vlc.spec
+Log:
+Add patch to fix wxGTK 2.8 VLC build and revert some useless changes.
+
+
+Added: trunk/rpms/vlc/vlc-0.8.6-wx28.patch
+===================================================================
+--- trunk/rpms/vlc/vlc-0.8.6-wx28.patch	                        (rev 0)
++++ trunk/rpms/vlc/vlc-0.8.6-wx28.patch	2007-01-08 15:24:26 UTC (rev 5049)
+@@ -0,0 +1,12 @@
++diff -Naupr vlc-0.8.6.orig/modules/gui/wxwidgets/dialogs.cpp vlc-0.8.6/modules/gui/wxwidgets/dialogs.cpp
++--- vlc-0.8.6.orig/modules/gui/wxwidgets/dialogs.cpp	2006-12-09 02:12:14.000000000 +0100
+++++ vlc-0.8.6/modules/gui/wxwidgets/dialogs.cpp	2007-01-08 15:05:02.000000000 +0100
++@@ -376,7 +376,7 @@ void DialogsProvider::OnOpenFileGeneric(
++     {
++         p_file_generic_dialog-&gt;SetMessage( wxU(p_arg-&gt;psz_title) );
++         p_file_generic_dialog-&gt;SetWildcard( wxU(p_arg-&gt;psz_extensions) );
++-        p_file_generic_dialog-&gt;SetStyle( (p_arg-&gt;b_save ? wxSAVE : wxOPEN) |
+++        p_file_generic_dialog-&gt;SetWindowStyle( (p_arg-&gt;b_save ? wxSAVE : wxOPEN) |
++                                          (p_arg-&gt;b_multiple ? wxMULTIPLE:0) );
++     }
++ 
+
+Modified: trunk/rpms/vlc/vlc.spec
+===================================================================
+--- trunk/rpms/vlc/vlc.spec	2007-01-08 15:17:40 UTC (rev 5048)
++++ trunk/rpms/vlc/vlc.spec	2007-01-08 15:24:26 UTC (rev 5049)
+@@ -95,7 +95,7 @@
+ Summary: The VideoLAN client, also a very good standalone video player
+ Name: vlc
+ Version: 0.8.6
+-Release: 1
++Release: 2
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://www.videolan.org/">http://www.videolan.org/</A>
+@@ -103,6 +103,7 @@
+ Source1: <A HREF="http://downloads.videolan.org/pub/videolan/vlc/%{version">http://downloads.videolan.org/pub/videolan/vlc/%{version</A>}/contrib/ffmpeg-%{ffmpeg_date}.tar.bz2
+ Source2: <A HREF="http://www.live555.com/liveMedia/public/live.%{live_date">http://www.live555.com/liveMedia/public/live.%{live_date</A>}.tar.gz
+ Patch0: vlc-0.8.6-ffmpegX11.patch
++Patch1: vlc-0.8.6-wx28.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: gcc-c++, libpng-devel, libxml2-devel, libtiff-devel
+ BuildRequires: libgcrypt-devel, gnutls-devel, libtar-devel
+@@ -197,6 +198,7 @@
+ %prep
+ %setup -a 1 -a 2
+ %patch0 -p1 -b .ffmpegX11
++%patch1 -p1 -b .wx28
+ # Fix PLUGIN_PATH path for lib64
+ %{__perl} -pi -e 's|/lib/vlc|/%{_lib}/vlc|g' vlc-config.in.in configure*
+ 
+@@ -205,26 +207,16 @@
+ export CFLAGS=&quot;%{optflags}&quot;
+ 
+ # Build bundeled ffmpeg first
++%if 0%{!?_without_ffmpeg:1}
+ pushd ffmpeg-%{ffmpeg_date}
+-    ### GSM needs patch to work, disable it for convenience.
+     ./configure \
+-        --prefix=%{_prefix} \
+-        --libdir=%{_libdir} \
+-        --mandir=%{_mandir} \
+-        --incdir=%{_includedir}/ffmpeg \
+-%{!?_without_lame:   --enable-mp3lame} \
+-%{!?_without_vorbis: --enable-libogg --enable-vorbis} \
+-%{!?_without_faad:   --enable-faad} \
+-%{!?_without_faac:   --enable-faac} \
+-%{!?_without_xvid:   --enable-xvid} \
+-%{!?_without_x264:   --enable-x264} \
+-%{!?_without_a52:    --enable-a52 --enable-a52bin} \
+-%{!?_without_dts:    --enable-dts} \
++        --enable-mp3lame \
++        --enable-faac \
+         --enable-pp \
+         --enable-gpl
+-#{!?_without_gsm:    --enable-libgsm} \
+     %{__make} %{?_smp_mflags}
+ popd
++%endif
+ 
+ # Then bundled live555
+ %if 0%{!?_without_live:1}
+@@ -264,7 +256,7 @@
+     %{?_without_vorbis:--disable-vorbis} \
+     %{?_without_speex:--disable-speex} \
+     %{!?_without_theora:--enable-theora} \
+-    %{?_without_x264:--disable-theora} \
++    %{?_without_x264:--disable-x264} \
+     %{?_without_sdl:--disable-sdl} \
+     %{?_without_fribidi:--disable-fribidi} \
+     %{!?_without_aa:--enable-aa} \
+@@ -328,6 +320,11 @@
+ 
+ 
+ %changelog
++* Mon Jan  8 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.8.6-2
++- Add patch to fix wxGTK 2.8 build (FC devel).
++- Revert many useless changes to the ffmpeg compilation since we use it as
++  a statically linked library and don't need nor want most of its features.
++
+ * Fri Dec 15 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.8.6-1
+ - Update to 0.8.6.
+ - Update ffmpeg to 20060710.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003848.html">[svn] r5048 - in trunk/rpms: doodle libextractor
+</A></li>
+	<LI>Next message: <A HREF="003850.html">[svn] r5050 - in trunk/rpms: . magicpoint
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3849">[ date ]</a>
+              <a href="thread.html#3849">[ thread ]</a>
+              <a href="subject.html#3849">[ subject ]</a>
+              <a href="author.html#3849">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

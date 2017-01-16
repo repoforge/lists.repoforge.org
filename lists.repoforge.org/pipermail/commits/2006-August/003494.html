@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4694 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4694%20-%20trunk/tools/yam&In-Reply-To=%3C20060824105313.95552318144%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003493.html">
+   <LINK REL="Next"  HREF="003495.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4694 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4694%20-%20trunk/tools/yam&In-Reply-To=%3C20060824105313.95552318144%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4694 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Aug 24 12:53:13 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003493.html">[svn] r4693 - in trunk/tools/yam: . config/dists
+</A></li>
+        <LI>Next message: <A HREF="003495.html">[svn] r4695 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3494">[ date ]</a>
+              <a href="thread.html#3494">[ thread ]</a>
+              <a href="subject.html#3494">[ subject ]</a>
+              <a href="author.html#3494">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-24 12:53:13 +0200 (Thu, 24 Aug 2006)
+New Revision: 4694
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Added rhn-download-all directive to install all available updates from RHN
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-08-24 09:34:14 UTC (rev 4693)
++++ trunk/tools/yam/ChangeLog	2006-08-24 10:53:13 UTC (rev 4694)
+@@ -1,6 +1,9 @@
+ * 0.8.2 - ... - released 24/08/2006
+ - Use exec in conjunction with system()
+ - Fixed permission on cron entry
++- Fixed a problem with samefile() and symlink() (Gareth Armstrong)
++- Added createrepo-options directive (Gareth Armstrong)
++- Added rhn-download-all directive to install all available updates from RHN
+ 
+ * 0.8.1 - Long overdue - released 22/08/2006
+ - Added gensystemid to installation (Ian Forde)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-08-24 09:34:14 UTC (rev 4693)
++++ trunk/tools/yam/TODO	2006-08-24 10:53:13 UTC (rev 4694)
+@@ -27,7 +27,6 @@
+ + Re-authenticate after X-RHN-Auth-Expire-Offset (3600sec) to prevent SSL handshake failures after timeout
+ + Check for existence of packages on ISOs (updates vs os)
+ + Allow Yam to create new systems (register) in RHN on demand (gensystemid functionality)
+-+ Allow to install all packages (repos.listAllPackages vs repos.listPackages methods) (rhn-download-all option)
+ + Remove unavailable RHN packages (rhn-cleanup option)
+ + Reimplement using python xmlrpc instead of up2date
+ 
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-08-24 09:34:14 UTC (rev 4693)
++++ trunk/tools/yam/yam	2006-08-24 10:53:13 UTC (rev 4694)
+@@ -157,11 +157,11 @@
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+ 		self.metadata = self.getoption('main', 'metadata', 'repomd repoview')
+ 
+-		self.quiet = not self.getoption('main', 'quiet', 'no') in disable
++		self.quiet = self.getoption('main', 'quiet', 'no') not in disable
+ 		if op.verbose == 1 and self.quiet:
+ 			op.verbose = 0
+ 
+-		self.hardlink = not self.getoption('main', 'hardlink', 'no') in disable
++		self.hardlink = self.getoption('main', 'hardlink', 'no') not in disable
+ 
+ 		self.no_proxy = self.getoption('main', 'no_proxy', None)
+ 		self.ftp_proxy = self.getoption('main', 'ftp_proxy', None)
+@@ -181,33 +181,35 @@
+ 		self.cmd['umount'] = self.getoption('main', 'umountcmd', '/bin/umount')
+ 		self.cmd['yumarch'] = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
+ 
+-		self.mirrordircleanup = not self.getoption('main', 'mirrordir-cleanup', 'yes') in disable
+-		self.mirrordirexcldebug = not self.getoption('main', 'mirrordir-exclude-debug', 'yes') in disable
+-		self.mirrordirexclsrpm = not self.getoption('main', 'mirrordir-exclude-srpm', 'yes') in disable
++		self.mirrordircleanup = self.getoption('main', 'mirrordir-cleanup', 'yes') not in disable
++		self.mirrordirexcldebug = self.getoption('main', 'mirrordir-exclude-debug', 'yes') not in disable
++		self.mirrordirexclsrpm = self.getoption('main', 'mirrordir-exclude-srpm', 'yes') not in disable
+ 		self.mirrordiroptions = self.getoption('main', 'mirrordir-options', '')
+ 
+ 		self.lftpbwlimit = self.getoption('main', 'lftp-bandwidth-limit', None)
+-		self.lftpcleanup = not self.getoption('main', 'lftp-cleanup', 'yes') in disable
+-		self.lftpexcldebug = not self.getoption('main', 'lftp-exclude-debug', 'yes') in disable
+-		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in disable
++		self.lftpcleanup = self.getoption('main', 'lftp-cleanup', 'yes') not in disable
++		self.lftpexcldebug = self.getoption('main', 'lftp-exclude-debug', 'yes') not in disable
++		self.lftpexclsrpm = self.getoption('main', 'lftp-exclude-srpm', 'yes') not in disable
+ 		self.lftpoptions = self.getoption('main', 'lftp-options', '')
+ 		self.lftpcommands = self.getoption('main', 'lftp-commands', '')
+ 		self.lftpmirroroptions = self.getoption('main', 'lftp-mirror-options', '-c -P')
+ 		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+-		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in disable
+-		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in disable
+-		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in disable
++		self.rsynccleanup = self.getoption('main', 'rsync-cleanup', 'yes') not in disable
++		self.rsyncexcldebug = self.getoption('main', 'rsync-exclude-debug', 'yes') not in disable
++		self.rsyncexclsrpm = self.getoption('main', 'rsync-exclude-srpm', 'yes') not in disable
+ 		self.rsyncoptions = self.getoption('main', 'rsync-options', '-rtHL --partial')
+ 		self.rsynctimeout = self.getoption('main', 'rsync-timeout', None)
+ 
+ 		self.createrepooptions = self.getoption('main', 'createrepo-options', '-p --checkts')
+ 		self.repoviewoptions = self.getoption('main', 'repoview-options', '')
+ 
++		self.rhndownloadall = self.getoption('main', 'rhn-download-all', 'no') not in disable
++
+ 		self.skipmetadata = self.getoption('main', 'skip-metadata', 'all')
+ 
+-		self.shareiso = not self.getoption('main', 'shareiso', 'yes') in disable
++		self.shareiso = self.getoption('main', 'shareiso', 'yes') not in disable
+ 
+ 		self.dists = []
+ 
+@@ -1110,7 +1112,12 @@
+ 		raise(YamMirrorException('Problem setting up XML communication for channel %s.\n%s' % (label, f.faultString)))
+ 		return
+ 	try:
+-		package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
++		if cf.rhndownloadall == True:
++			print &quot;All packages&quot;, cf.rhndownloadall
++			package_list, type = rpcServer.doCall(repos.listAllPackages, channel, None, None)
++		else:
++			print &quot;Latest packages&quot;, cf.rhndownloadall
++			package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	except rpclib.Fault, f:
+ 		raise(YamMirrorException('Error listing packages from channel %s. Skipping. %s' % (label, f.faultString)))
+ 	except up2dateErrors.CommunicationError, e:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003493.html">[svn] r4693 - in trunk/tools/yam: . config/dists
+</A></li>
+	<LI>Next message: <A HREF="003495.html">[svn] r4695 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3494">[ date ]</a>
+              <a href="thread.html#3494">[ thread ]</a>
+              <a href="subject.html#3494">[ subject ]</a>
+              <a href="author.html#3494">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

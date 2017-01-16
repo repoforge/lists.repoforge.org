@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2597 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2597%20-%20trunk/tools/dstat&In-Reply-To=%3C20041203130539.E4B1A17F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001401.html">
+   <LINK REL="Next"  HREF="001403.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2597 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2597%20-%20trunk/tools/dstat&In-Reply-To=%3C20041203130539.E4B1A17F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2597 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Dec  3 14:05:39 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001401.html">[SVN] r2596 - in trunk/rpms: mtr videolan-client
+</A></li>
+        <LI>Next message: <A HREF="001403.html">[SVN] r2598 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1402">[ date ]</a>
+              <a href="thread.html#1402">[ thread ]</a>
+              <a href="subject.html#1402">[ subject ]</a>
+              <a href="author.html#1402">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-03 14:05:38 +0100 (Fri, 03 Dec 2004)
+New Revision: 2597
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+cpu values are no longer snapshots
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-12-03 11:35:09 UTC (rev 2596)
++++ trunk/tools/dstat/ChangeLog	2004-12-03 13:05:38 UTC (rev 2597)
+@@ -6,6 +6,7 @@
+ - Color cpu, proc, tcp and udp stats too.
+ - Don't clear the line after restoring the cursor at the start (disable flickering).
+ - Better formatting for load and proc stats.
++- cpu stats are not longer snapshots but average over delay
+ 
+ * 0.5.5
+ - In fact, round() was not the problem, use str() instead. (Anton Blanchard)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-12-03 11:35:09 UTC (rev 2596)
++++ trunk/tools/dstat/TODO	2004-12-03 13:05:38 UTC (rev 2597)
+@@ -16,6 +16,7 @@
+ + Add mpstat information (-C 0,1,2)
+ + Add icmp stats ?
+ + Add ntp stats
+++ Add nfs stats
+ + Add user stats (number of users logged on)
+ + Look into interfacing with apps (bind, sendmail, postfix, squid, amavisd, laus, samba)
+ + Look into interfacing with specific HW counters in /proc
+@@ -24,8 +25,5 @@
+ + Implement better (?) protection against counter rollovers
+ + If you have 2 devices with the same name, -I will only work on the first one
+ + When using -D foo, -I 99, -N eth9 dstat should fail when it does not exist 
+-+ cpu is avg of begin and end snapshot, not avg of intermediate results (already better than vmstat though)
+ + proc stat is a snapshot in time, not avg of intermediate results
+-+ The number of newly created processes in the proc stat easily exceeds the allocated space (2 chars)
+-+ OverflowError: float too large to convert (in conv()) still not fixed in all cases
+ + Timer is not accurate on 2.6, every second there's a 1ms deviation (every 17mins -&gt; 1sec)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-03 11:35:09 UTC (rev 2596)
++++ trunk/tools/dstat/dstat	2004-12-03 13:05:38 UTC (rev 2597)
+@@ -244,7 +244,7 @@
+ 			elif self.format == '%ds':
+ 					sys.stdout.write('%s' % conv(self.len, self.val[name], 1000))
+ 			elif self.format == '%ps':
+-					sys.stdout.write('%s' % conv(self.len, self.val[name], 100))
++					sys.stdout.write('%s' % conv(self.len, self.val[name] / step, 100))
+ 			elif self.format == '%f':
+ 					sys.stdout.write('%s' % conv(self.len, self.val[name], 1))
+ 			elif self.format == '%is':
+@@ -277,6 +277,8 @@
+ 		return False
+ 
+ 	def stats(self):
++		if step == 1:
++			for name in self.vars: self.val[name] = 0
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) &lt;= 7 or l[0] != 'cpu': continue
+@@ -289,7 +291,7 @@
+ 			self.cn2['softirq'] = long(l[7])
+ 			self.cn2['total'] = self.cn2['user'] + self.cn2['sys'] + self.cn2['idle'] + self.cn2['wait'] + self.cn2['hardirq'] + self.cn2['softirq']
+ 		for name in self.vars:
+-			self.val[name] = 100.0 * (self.cn2[name] - self.cn1[name]) / (self.cn2['total'] - self.cn1['total'])
++			self.val[name] = self.val[name] + 100.0 * (self.cn2[name] - self.cn1[name]) / (self.cn2['total'] - self.cn1['total'])
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_cpu24(dstat):
+@@ -310,6 +312,8 @@
+ 		return False
+ 
+ 	def stats(self):
++		if step == 1:
++			for name in self.vars: self.val[name] = 0
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 4 or l[0] != 'cpu': continue
+@@ -318,7 +322,7 @@
+ 			self.cn2['idle'] = long(l[4])
+ 			self.cn2['total'] = self.cn2['user'] + self.cn2['sys'] + self.cn2['idle']
+ 		for name in self.vars:
+-			self.val[name] = 100.0 * (self.cn2[name] - self.cn1[name]) / (self.cn2['total'] - self.cn1['total'])
++			self.val[name] = self.val[name] + 100.0 * (self.cn2[name] - self.cn1[name]) / (self.cn2['total'] - self.cn1['total'])
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_disk(dstat):
+@@ -877,7 +881,7 @@
+ 	if step == op.delay:
+ 		color = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
+ 	else:
+-		color = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'geen')
++		color = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'green')
+ 
+ 	if base == 0:
+ 		if round(var) == 0:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001401.html">[SVN] r2596 - in trunk/rpms: mtr videolan-client
+</A></li>
+	<LI>Next message: <A HREF="001403.html">[SVN] r2598 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1402">[ date ]</a>
+              <a href="thread.html#1402">[ thread ]</a>
+              <a href="subject.html#1402">[ subject ]</a>
+              <a href="author.html#1402">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

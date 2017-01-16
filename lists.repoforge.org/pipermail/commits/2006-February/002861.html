@@ -1,0 +1,289 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4061 - trunk/tools/pydar2/pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4061%20-%20trunk/tools/pydar2/pydar&In-Reply-To=%3C20060207205312.9850D3180B1%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002860.html">
+   <LINK REL="Next"  HREF="002862.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4061 - trunk/tools/pydar2/pydar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4061%20-%20trunk/tools/pydar2/pydar&In-Reply-To=%3C20060207205312.9850D3180B1%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4061 - trunk/tools/pydar2/pydar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Feb  7 21:53:12 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002860.html">[svn] r4060 - in trunk/rpms: proxytunnel revelation
+</A></li>
+        <LI>Next message: <A HREF="002862.html">[svn] r4062 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2861">[ date ]</a>
+              <a href="thread.html#2861">[ thread ]</a>
+              <a href="subject.html#2861">[ subject ]</a>
+              <a href="author.html#2861">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2006-02-07 21:53:10 +0100 (Tue, 07 Feb 2006)
+New Revision: 4061
+
+Modified:
+   trunk/tools/pydar2/pydar/commandlist.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/target.py
+Log:
+lot's of fixes by Who Knows
+
+Modified: trunk/tools/pydar2/pydar/commandlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/commandlist.py	2006-02-07 14:02:50 UTC (rev 4060)
++++ trunk/tools/pydar2/pydar/commandlist.py	2006-02-07 20:53:10 UTC (rev 4061)
+@@ -1,6 +1,7 @@
+ 
+ &quot;&quot;&quot; This class represents the list of commands &quot;&quot;&quot;
+ 
++# kate: tab-width 4; indent-width 4; space-indent on;
+ # This program is free software; you can redistribute it and/or modify
+ # it under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+@@ -96,13 +97,13 @@
+         specfilecontents = self.__getSpecFileContents(command, commanddir)
+         msg = MIMEMultipart()
+         msg['Subject'] = subject
+-        msg['From'] = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        msg['From'] = self.__config.getFromEmail()
+         msg['To'] = command.getToEmail()
+-        me = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        me = self.__config.getFromEmail()
+         you = command.getToEmail()
+         msg.attach(MIMEText(output))
+         msg.attach(MIMEText(specfilecontents))
+-        s = smtplib.SMTP(&quot;127.0.0.1&quot;)
++        s = smtplib.SMTP(self.__config.getSmtpServer())
+         s.sendmail(me, [you], msg.as_string())
+         s.close()
+ 
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2006-02-07 14:02:50 UTC (rev 4060)
++++ trunk/tools/pydar2/pydar/config.py	2006-02-07 20:53:10 UTC (rev 4061)
+@@ -1,4 +1,5 @@
+ #!/usr/bin/python
++# kate: tab-width 4; indent-width 4; space-indent on;
+ 
+ &quot;&quot;&quot; Contains some settings for pydar &quot;&quot;&quot;
+ 
+@@ -116,6 +117,11 @@
+         Config.__withinFullInitMaster = True
+         self.__cat.debug(&quot;start&quot;)
+         myParser = ConfigParser.ConfigParser()
++        # start with default values that can be overridden in config files
++        myParser.add_section('master')
++        myParser.set('master', 'smtpserver','127.0.0.1')
++        myParser.set('master', 'mailfrom','<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar2master at localhost.localdomain</A>')
++        myParser.set('master', 'specreposrootdir','/var/lib/pydar2/specrepos')
+         myParser.readfp(open('/etc/pydar2/master.conf'))
+         myParser.read([ os.path.expanduser('~/.pydar2/master.conf')])
+         if self.__getOptOptions.masterconfig != None:
+@@ -138,7 +144,9 @@
+         else:
+             self.__doCheckMissingTagsPerDistro = False
+         #
+-        self.__specreposrootdir=&quot;/var/lib/pydar2/specrepos&quot;
++        self.__mailfrom = myParser.get('master','mailfrom')
++        self.__smtpserver = myParser.get('master','smtpserver')
++        self.__specreposrootdir = myParser.get('master','specreposrootdir')
+         self.__specRepositoryList = SpecRepositoryList()
+         self.__commandList = CommandList()
+         self.__targetList = TargetList()
+@@ -234,6 +242,13 @@
+         Config.__withinFullInitSlave = True
+         self.__cat.debug(&quot;start&quot;)
+         myParser = ConfigParser.ConfigParser()
++        # start with default values that can be overridden in config files
++        myParser.add_section('slave')
++        myParser.set('slave', 'slavedataroot', '/var/lib/pydar2/slavedataroot')
++        myParser.set('slave', 'mastercommandswebsite', '<A HREF="http://pydarmaster">http://pydarmaster</A>')
++        myParser.set('slave', 'sleeptime', '300')
++        myParser.set('slave', 'smtpserver','127.0.0.1')
++        myParser.set('slave', 'mailfrom','<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar2slave at localhost.localdomain</A>')
+         if self.__getOptOptions.slaveconfig != None:
+             self.__cat.debug(&quot;options.slaveconfig is &quot; + self.__getOptOptions.slaveconfig)
+             myParser.read(['/etc/pydar2/slave.conf',os.path.expanduser('~/.pydar2/slave.conf'), self.__getOptOptions.slaveconfig])
+@@ -244,7 +259,9 @@
+         self.__buildmachineid = myParser.get('slave','buildmachineid')
+         self.__buildmasterurlslave = myParser.get('slave','buildmasterurl')
+         self.__slavepassword = myParser.get('slave','password')
++        # TODO: rewrite to use only one of the next too
+         self.__slaveFromEmail = myParser.get('slave','mailfrom')
++        self.__mailfrom = myParser.get('slave','mailfrom')
+         self.__slaveAttachBuildLog = myParser.get('slave','attachbuildlog')
+         # get the supported distro + arch strings like fc3-i386
+         self.__buildRootList = BuildRootList()
+@@ -278,11 +295,10 @@
+                 else:
+                     tmp.setUseCacheOnly(onlyusecache)
+                     self.__buildRootList.addBuildRoot(tmp)
+-            
+-        self.__slavedataroot = '/var/lib/pydar2/slavedataroot'
+-        self.__mastercommandswebsite = '<A HREF="http://pydarmaster">http://pydarmaster</A>'
+-        self.__sleeptime = 300
+-        self.__smtpserver = '127.0.0.1'
++        self.__slavedataroot = myParser.get('slave','slavedataroot')
++        self.__mastercommandswebsite = myParser.get('slave','mastercommandswebsite')
++        self.__sleeptime = myParser.getint('slave','sleeptime')
++        self.__smtpserver = myParser.get('slave','smtpserver')
+         __withinFullInitSlave = False
+         __fullInitSlaveDone = True
+         self.__cat.debug('end')
+@@ -293,6 +309,10 @@
+         Config.__withinFullInitClient = True
+         self.__cat.debug(&quot;start&quot;)
+         myParser = ConfigParser.ConfigParser()
++        # start with default values that can be overridden in config files
++        myParser.add_section('client')
++        myParser.set('client', 'smtpserver','127.0.0.1')
++        myParser.set('client', 'mailfrom','<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar2client at localhost.localdomain</A>')
+         if self.__getOptOptions.clientconfig != None:
+             self.__cat.debug(&quot;options.clientconfig is &quot; + self.__getOptOptions.clientconfig)
+             myParser.read(['/etc/pydar2/client.conf',os.path.expanduser('~/.pydar2/client.conf'), self.__getOptOptions.clientconfig])
+@@ -301,6 +321,8 @@
+         self.__buildmasterurlclient = myParser.get('client','buildmasterurl')
+         self.__clientpassword = myParser.get('client','password')
+         self.__clientuserid = myParser.get('client','userid')
++        self.__smtpserver = myParser.get('client','smtpserver')
++        self.__mailfrom = myParser.get('client','mailfrom')
+         __withinFullInitClient = False
+         __fullInitClientDone = True
+         self.__cat.debug('end')
+@@ -322,11 +344,25 @@
+     def getClientUserId(self):
+         self.__fullInitClient()
+         return self.__clientuserid
+-    
++
++# FIXME: As I see it thus far the config can be one of
++#        client, slave, or master and it is redundant
++#        to define separate accessors for each since
++#        the determination is made intially by the
++#        calling script, and also I when I needed to make
++#        this change I wasn't 100% sure if I was under a client or master
++#        script, so I am going to gamble that config initalization
++#        has been completed before needing to send mail
++#        I think the best final solution is have the initial daemon
++#        script call an initialization method and eliminate a lot of code
++#        and confusion
+     def getSmtpServer(self):
+-        self.__fullInitSlave()
++        #self.__fullInitSlave()
+         return self.__smtpserver
+     
++    def getFromEmail(self):
++        return self.__mailfrom
++    
+     def getClientPassword(self):
+         self.__fullInitClient()
+         return self.__clientpassword
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2006-02-07 14:02:50 UTC (rev 4060)
++++ trunk/tools/pydar2/pydar/target.py	2006-02-07 20:53:10 UTC (rev 4061)
+@@ -1,4 +1,5 @@
+ 
++# kate: tab-width 4; indent-width 4; space-indent on;
+ &quot;&quot;&quot; This class represents one target: for example rpmforge-i386-stable &quot;&quot;&quot;
+ 
+ # This program is free software; you can redistribute it and/or modify
+@@ -31,6 +32,7 @@
+ 
+ class Target:
+     def __init__(self, name):
++        self.__config = config.Config.getInstance()
+         self.__cat = Logger().get_instance(self)
+         self.__name = name
+         self.__id = -1
+@@ -53,6 +55,7 @@
+         retval = False
+         self.__cat.debug(&quot;__rpmsDir:&quot; + str(self.__rpmsDir))
+         self.__cat.debug(&quot;__acceptCommandScript:&quot; + str(self.__acceptCommandScript))
++        self.__cat.debug(&quot;__getRpmDataScript:&quot; + str(self.__getRpmDataScript))
+         self.__cat.debug(&quot;__moveCommandResultsScript:&quot; + str(self.__moveCommandResultsScript))
+         
+         if self.__rpmsDir == None or self.__acceptCommandScript == None or self.__getRpmDataScript == None or self.__moveCommandResultsScript == None:
+@@ -127,7 +130,7 @@
+         k = specRepoSpecFileIdsToVersions.keys()
+         k.sort(lambda b, c: - cmp( specRepoSpecFileIdsToVersions[b], specRepoSpecFileIdsToVersions[c]))
+         for spid in k:
+-            if queuecounter &lt; config.Config.getInstance().getMaxAutoQueueCount():
++            if queuecounter &lt; self.__config.getMaxAutoQueueCount():
+                 if (spid not in targetRpmsSpecFileIdsToVersions.keys()) or (specRepoSpecFileIdsToVersions[spid] &gt; targetRpmsSpecFileIdsToVersions[spid]):
+                     if self.autoQueueOne(spid, datag, mailTo, userName, priority, specRepository, brr, specRepoSpecFileIdsToVersions[spid]):
+                         queuecounter = queuecounter + 1
+@@ -153,12 +156,12 @@
+         output = output + brr.getLog() + &quot;\n&quot;
+         msg = MIMEMultipart()
+         msg['Subject'] = subject
+-        msg['From'] = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        msg['From'] = self.__config.getFromEmail()
+         msg['To'] = mailTo
+-        me = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
++        me = self.__config.getFromEmail()
+         you = mailTo
+         msg.attach(MIMEText(output))
+-        s = smtplib.SMTP(&quot;127.0.0.1&quot;)
++        s = smtplib.SMTP(self.__config.getSmtpServer())
+         s.sendmail(me, [you], msg.as_string())
+         s.close()
+ 
+@@ -172,7 +175,7 @@
+         if specObj != None:
+             pathFromRoot = specObj.getPathFromRoot()
+         if (specObj != None) and self.acceptCommand(testCommand):
+-            config.Config.getInstance().getCommandList().addCommand(&quot;BUILDSPECBYPATH&quot;,userName,specRepository.getName(),pathFromRoot,mailTo,distroArchTag,priority,self.getName())
++            self.__config.getCommandList().addCommand(&quot;BUILDSPECBYPATH&quot;,userName,specRepository.getName(),pathFromRoot,mailTo,distroArchTag,priority,self.getName())
+             brr.logDebugLine(&quot;accepted: id: &quot; + str(specFileId) + &quot;, path: &quot; + pathFromRoot)
+             return True
+         else:
+@@ -190,7 +193,7 @@
+     def __getCheckSum(self,fileName):
+         #self.__cat.debug(&quot;fileName: &quot; + fileName)
+         fullFileName = os.path.join(self.getRpmsDir(), fileName)
+-        type = config.Config.getInstance().getCheckSumType()
++        type = self.__config.getCheckSumType()
+         if type == &quot;SHA&quot;:
+             s = sha.new()
+             f = open(fullFileName, 'r')
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002860.html">[svn] r4060 - in trunk/rpms: proxytunnel revelation
+</A></li>
+	<LI>Next message: <A HREF="002862.html">[svn] r4062 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2861">[ date ]</a>
+              <a href="thread.html#2861">[ thread ]</a>
+              <a href="subject.html#2861">[ subject ]</a>
+              <a href="author.html#2861">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

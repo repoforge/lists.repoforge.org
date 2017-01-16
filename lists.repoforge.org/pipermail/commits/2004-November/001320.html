@@ -1,0 +1,305 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2515 - in trunk/tools/pydar2: pydar sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2515%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20041117104656.72CAE183C2%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001319.html">
+   <LINK REL="Next"  HREF="001321.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2515 - in trunk/tools/pydar2: pydar sql</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2515%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20041117104656.72CAE183C2%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2515 - in trunk/tools/pydar2: pydar sql">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Nov 17 11:46:56 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001319.html">[SVN] r2514 - trunk/rpms/cssed
+</A></li>
+        <LI>Next message: <A HREF="001321.html">[SVN] r2516 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1320">[ date ]</a>
+              <a href="thread.html#1320">[ thread ]</a>
+              <a href="subject.html#1320">[ subject ]</a>
+              <a href="author.html#1320">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-11-17 11:46:54 +0100 (Wed, 17 Nov 2004)
+New Revision: 2515
+
+Modified:
+   trunk/tools/pydar2/pydar/rpmscheck.py
+   trunk/tools/pydar2/pydar/svncheck.py
+   trunk/tools/pydar2/pydar/tagsfile.py
+   trunk/tools/pydar2/sql/svncheck.sql
+Log:
+small changes
+
+Modified: trunk/tools/pydar2/pydar/rpmscheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmscheck.py	2004-11-17 08:49:13 UTC (rev 2514)
++++ trunk/tools/pydar2/pydar/rpmscheck.py	2004-11-17 10:46:54 UTC (rev 2515)
+@@ -40,6 +40,7 @@
+         self.cat.debug(&quot;start, rpmsDir=&quot; + rpmsDir)
+         self.dbconnectstring = dbconnectstring
+         self.cat.debug(&quot;self.dbconnectstring set to: &quot; + self.dbconnectstring)
++        self.dbconnection = pgdb.connect(self.dbconnectstring)
+         locationId = self.getRpmLocationId(rpmsDir)
+         # let's check every spec file we can find in the repository
+         rpmsDirList = posix.listdir(rpmsDir)
+@@ -51,20 +52,17 @@
+ 
+     def getRpmLocationId(self,rpmsDir):
+         # inserts a new one if needed!
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;select id from pydar2_rpmlocation where path='&quot; + rpmsDir + &quot;'&quot;)
+         if cursor.rowcount &gt; 0:
+             rs = cursor.fetchone()
+             retval = rs[0]
+             cursor.close()
+-            conn.close()
+             return str(retval)
+         else:
+             cursor.execute(&quot;insert into pydar2_rpmlocation (path) values ('&quot; + rpmsDir + &quot;')&quot;)
+-            conn.commit()
++            self.dbconnection.commit()
+             cursor.close()
+-            conn.close()
+             return self.getRpmLocationId(rpmsDir)
+                 
+     def checkRpmFile(self,rpmsDir,fileName,locationId):
+@@ -98,32 +96,26 @@
+     def checkRpmFileInDb(self,locationId,fileName,rpmsDir,specRpmName,specRpmRelease,fileMd5s,svnCmtRev,specFileId,specRpmVersion,specRpmEpoch):
+         self.cat.debug('start,fileName=' + fileName + &quot;,svnCmtRev=&quot; + svnCmtRev + &quot;,specFileId=&quot; + specFileId)
+         sSqlStmt = &quot;select * from pydar2_rpmfile where rpmname='&quot; + fileName + &quot;' and specrpmversion='&quot; + specRpmVersion + &quot;' and specrpmepoch='&quot; + specRpmEpoch + &quot;' and locationid=&quot; + locationId + &quot; and specrpmname='&quot; + specRpmName + &quot;' and specrpmrelease='&quot; + specRpmRelease + &quot;' and filemd5s='&quot; + fileMd5s + &quot;' and  svnCmtRev=&quot; + svnCmtRev + &quot; and specfileid=&quot; + specFileId;
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+         cursor.execute(sSqlStmt)
+         if cursor.rowcount == 0:
+                 cursor.execute(&quot;insert into pydar2_rpmfile (locationid,rpmname,path,specrpmname,specrpmrelease,filemd5s,svncmtrev,specfileid,specrpmversion,specrpmepoch) values (&quot; + locationId + &quot;,'&quot; + fileName + &quot;','&quot; + rpmsDir + &quot;','&quot; + specRpmName + &quot;','&quot; + specRpmRelease + &quot;','&quot; + fileMd5s + &quot;',&quot; + svnCmtRev + &quot;,&quot; + specFileId + &quot;,'&quot; + specRpmVersion + &quot;','&quot; + specRpmEpoch + &quot;')&quot;)
+-                conn.commit()
++                self.dbconnection.commit()
+                 cursor.close()
+-                conn.close()
+                 
+-
+         
+     def getSpecFileId(self,svnCmtRev,specRpmName,specRpmRelease):
+         sqlStr = &quot;select v.specfileid from pydar2_specfile_version v, pydar2_specfile_tags t1 where t1.name = 'NAME' and t1.specfileid=v.specfileid and t1.svncmtrev=v.svncmtrev and v.svncmtrev=&quot; + svnCmtRev + &quot; and '&quot; + specRpmName + &quot;' like t1.value || '%' order by t1.value desc&quot;
+         self.cat.debug('sqlStr: ' + sqlStr)
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+         cursor.execute(sqlStr)
+         if cursor.rowcount &gt; 0:
+             rs = cursor.fetchone()
+             retval = rs[0]
+             cursor.close()
+-            conn.close()
+             self.cat.debug('retval:' + str(retval))
+             return str(retval)
+         else:
+             retval = &quot;null&quot;
+             cursor.close()
+-            conn.close()
+             return retval
+
+Modified: trunk/tools/pydar2/pydar/svncheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/svncheck.py	2004-11-17 08:49:13 UTC (rev 2514)
++++ trunk/tools/pydar2/pydar/svncheck.py	2004-11-17 10:46:54 UTC (rev 2515)
+@@ -40,6 +40,7 @@
+     def check(self, svnSpecsDir,dbconnectstring):
+         self.cat.debug(&quot;start, svnSpecsDir=&quot; + svnSpecsDir)
+         self.dbconnectstring = dbconnectstring
++        self.dbconnection = pgdb.connect(self.dbconnectstring)
+         # let's check every spec file we can find in the repository
+         specsDirList = posix.listdir(svnSpecsDir)
+         for specDir in specsDirList:
+@@ -79,29 +80,24 @@
+             self.insertTags(specfileid, currentcommitrevision, 'el2', specDir,fullRpmDir,fileName, ' --define &quot;el2 1&quot;') 
+            
+     def insertSpecfileVersion(self,specfileid,currentcommitrevision):
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;insert into pydar2_specfile_version (specfileid,svncmtrev) values (&quot; + specfileid + &quot;,&quot; + currentcommitrevision + &quot;)&quot;)
+-        conn.commit()
++        self.dbconnection.commit()
+         cursor.close()
+-        conn.close()
+              
+     def isRevInfoPresent(self,specfileid,currentcommitrevision):
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;select * from pydar2_specfile_version where specfileid=&quot; + specfileid + &quot; and svncmtrev=&quot; + currentcommitrevision)
+         retval = 0
+         if cursor.rowcount &gt; 0: 
+             retval = 1
+         cursor.close()
+-        conn.close()
+         return retval
+             
+     def insertTags(self,specfileid,svncmtrev,distrocode,specDir,fullRpmDir,fileName,deftags):
+         self.cat.debug(&quot;start,specfileid=&quot; + specfileid + &quot;,svncmtrev=&quot; + svncmtrev + &quot;,distrocode=&quot; + distrocode)
+         sf = SpecFile(fullRpmDir+&quot;/&quot;+fileName,deftags)
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+            
+         for tag in sf.rpmforgetags:
+             print 'rpmforge tag: ' + tag
+@@ -117,17 +113,14 @@
+             value = string.replace(sf.standardtags[tag],&quot;'&quot;,&quot;''&quot;)
+             value = string.rstrip(value,&quot;\\&quot;)
+             cursor.execute(&quot;insert into pydar2_specfile_tags (specfileid,svncmtrev,distroid,name,value) values (&quot; + specfileid + &quot;,&quot; + svncmtrev + &quot;,(select id from pydar2_distro where code='&quot; + distrocode + &quot;'),'&quot;+ name + &quot;','&quot; + value + &quot;')&quot;)
+-        conn.commit()
++        self.dbconnection.commit()
+         cursor.close()
+-        conn.close()
+             
+     def insertSpecFileVersion(self,specfileid,svncmtrev):
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;insert into pydar2_specfile_version (specfile,svncmtrev) values (&quot; + specfileid + &quot;,&quot; + svncmtrev + &quot;)&quot;)
+-        cursor.close()
+-        conn.close()
+-        
++        self.dbconnection.commit()
++        cursor.close()        
+                         
+     def getCurrentCommitRevision(self,specDir,fullRpmDir,fileName):
+         self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
+@@ -139,21 +132,18 @@
+ 
+     def getCurrentOrNewDbSpecFileId(self,specDir,fullRpmDir,fileName):
+         self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
+-        conn = pgdb.connect(self.dbconnectstring)
+-        cursor = conn.cursor()
++        cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;select id from pydar2_specfile where name='&quot; + fileName + &quot;'&quot;)
+         if cursor.rowcount &gt; 0:
+             self.cat.debug(&quot;rowcount &gt; 0&quot;)
+             rs = cursor.fetchone()
+             retval = rs[0]
+             cursor.close()
+-            conn.close()
+             return str(retval)
+         else:
+             self.cat.debug(&quot;rowcount = 0&quot;)
+             cursor.execute(&quot;insert into pydar2_specfile (name,path) values ('&quot; + fileName + &quot;','&quot; + specDir + &quot;/&quot; + fileName + &quot;')&quot;)
+-            conn.commit()
++            self.dbconnection.commit()
+             cursor.close()
+-            conn.close()
+             return self.getCurrentOrNewDbSpecFileId(specDir,fullRpmDir,fileName)
+         
+\ No newline at end of file
+
+Modified: trunk/tools/pydar2/pydar/tagsfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/tagsfile.py	2004-11-17 08:49:13 UTC (rev 2514)
++++ trunk/tools/pydar2/pydar/tagsfile.py	2004-11-17 10:46:54 UTC (rev 2515)
+@@ -46,7 +46,7 @@
+         commandline = &quot;rpm -q &quot; + self.defineargs + &quot; --queryformat '&quot; + queryformat + &quot;' &quot; + self.addToCommandLine + self.filename
+         self.cat.debug(&quot;commandline=&quot; + commandline)
+         result = commands.getoutput(commandline)
+-        self.cat.debug(&quot;result: &quot; + result)
++        #self.cat.debug(&quot;result: &quot; + result)
+         self.parseStandardTags(result)       
+ 
+     def getQueryFormatString(self):
+@@ -59,7 +59,7 @@
+     def parseStandardTags(self, inputstring):
+         self.cat.debug(&quot;start, inputstring=&quot; + inputstring)
+         for tag in self.queryformattags:
+-            self.cat.debug(&quot;tag: &quot; + tag)
++            #self.cat.debug(&quot;tag: &quot; + tag)
+             regexp = '.*?#####'+tag+'#####(.*?)#####'+tag+'#####.*'
+             regex = re.compile(regexp,re.MULTILINE | re.DOTALL)
+             #self.cat.debug(&quot;regexp: &quot;+ regexp)
+@@ -67,10 +67,10 @@
+             result = regex.match(inputstring)
+             if result:
+                 value=result.group(1)
+-                self.cat.debug(&quot;value: &quot;+value)
++                #self.cat.debug(&quot;value: &quot;+value)
+                 self.standardtags[tag] = value
+             else:
+                 self.cat.warn(&quot;tag not found, tag:&quot;+tag)
+                 
+     def parseRpmForgeTags(self):
+-        self.cat.debug(&quot;start, will do nothing..&quot;)
+\ No newline at end of file
++        self.cat.debug(&quot;start, will do nothing..&quot;)
+
+Modified: trunk/tools/pydar2/sql/svncheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/svncheck.sql	2004-11-17 08:49:13 UTC (rev 2514)
++++ trunk/tools/pydar2/sql/svncheck.sql	2004-11-17 10:46:54 UTC (rev 2515)
+@@ -17,6 +17,7 @@
+ );
+ create index pydar2_specfile__id on pydar2_specfile(id);
+ create index pydar2_specfile__name on pydar2_specfile(name);
++create index pydar2_specfile__both on pydar2_specfile(id,name);
+ 
+ create table pydar2_specfile_version (
+ 	specfileid	integer not null,
+@@ -58,9 +59,19 @@
+ create index pydar2_specfile_t__both on pydar2_specfile_tags(specfileid,svncmtrev);
+ create index pydar2_specfile_t__three on pydar2_specfile_tags(specfileid,svncmtrev,distroid);
+ create index pydar2_specfile_t_three2 on pydar2_specfile_tags(specfileid,svncmtrev,name);
++create index pydar2_specfile_t_three3 on pydar2_specfile_tags(specfileid,svncmtrev,lower(name));
+ create index pydar2_specfile_t_four on pydar2_specfile_tags(specfileid,svncmtrev,name,value);
+ create index pydar2_specfile_t_name on pydar2_specfile_tags(name);
+ create index pydar2_specfile_t_value on pydar2_specfile_tags(value);
+ 
+ 
+-create VIEW pydar2_specfile_lastversion AS select max(v.svncmtrev) as latestsvncmtrev, v.specfileid, s.name from pydar2_specfile_version v, pydar2_specfile s where s.id=v.specfileid group by v.specfileid, s.name;
++create VIEW pydar2_specfile_lastversion AS select max(v.svncmtrev) as latestsvncmtrev, v.specfileid, s.name 
++from pydar2_specfile_version v, pydar2_specfile s where s.id=v.specfileid group by v.specfileid, s.name;
++
++create view pydar2_specfile_lastversion_and_authority as select distinct
++lv.latestsvncmtrev, lv.specfileid, lv.name, t.value as authority from
++pydar2_specfile_lastversion lv, pydar2_specfile_tags t where
++lv.specfileid=t.specfileid and lv.latestsvncmtrev=t.svncmtrev and
++lower(t.name) like '# authority';
++
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001319.html">[SVN] r2514 - trunk/rpms/cssed
+</A></li>
+	<LI>Next message: <A HREF="001321.html">[SVN] r2516 - trunk/tools/pydar2/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1320">[ date ]</a>
+              <a href="thread.html#1320">[ thread ]</a>
+              <a href="subject.html#1320">[ subject ]</a>
+              <a href="author.html#1320">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

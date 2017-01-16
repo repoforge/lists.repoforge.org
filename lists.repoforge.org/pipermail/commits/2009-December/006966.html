@@ -1,0 +1,587 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8171 - trunk/rpms/cacti
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8171%20-%20trunk/rpms/cacti&In-Reply-To=%3C200912170848.nBH8mom7012085%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006965.html">
+   <LINK REL="Next"  HREF="006967.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8171 - trunk/rpms/cacti</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8171%20-%20trunk/rpms/cacti&In-Reply-To=%3C200912170848.nBH8mom7012085%40surya.karan.org%3E"
+       TITLE="[svn] r8171 - trunk/rpms/cacti">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Dec 17 09:48:50 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006965.html">[svn] r8170 - in trunk/rpms: . apf
+</A></li>
+        <LI>Next message: <A HREF="006967.html">[svn] r8172 - trunk/rpms/cacti
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6966">[ date ]</a>
+              <a href="thread.html#6966">[ thread ]</a>
+              <a href="subject.html#6966">[ subject ]</a>
+              <a href="author.html#6966">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: 2009-12-17 08:48:49 +0000 (Thu, 17 Dec 2009)
+New Revision: 8171
+
+Added:
+   trunk/rpms/cacti/cli_add_graph.patch
+   trunk/rpms/cacti/cross_site_fix.patch
+   trunk/rpms/cacti/snmp_invalid_response.patch
+   trunk/rpms/cacti/template_duplication.patch
+Modified:
+   trunk/rpms/cacti/cacti.spec
+Log:
+Add patches from <A HREF="http://www.cacti.net/download_patches.php">http://www.cacti.net/download_patches.php</A>
+
+
+Modified: trunk/rpms/cacti/cacti.spec
+===================================================================
+--- trunk/rpms/cacti/cacti.spec	2009-12-16 21:05:49 UTC (rev 8170)
++++ trunk/rpms/cacti/cacti.spec	2009-12-17 08:48:49 UTC (rev 8171)
+@@ -11,7 +11,7 @@
+ Summary: Complete network graphing solution designed on top of RRDTool
+ Name: cacti
+ Version: 0.8.7e
+-Release: 1%{?dist}
++Release: 2%{?dist}
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://www.cacti.net/">http://www.cacti.net/</A>
+@@ -19,6 +19,10 @@
+ Source: <A HREF="http://www.cacti.net/downloads/cacti-%{version">http://www.cacti.net/downloads/cacti-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildArch: noarch
++Patch1: <A HREF="http://www.cacti.net/downloads/patches/0.8.7e/cli_add_graph.patch">http://www.cacti.net/downloads/patches/0.8.7e/cli_add_graph.patch</A>
++Patch2: <A HREF="http://www.cacti.net/downloads/patches/0.8.7e/snmp_invalid_response.patch">http://www.cacti.net/downloads/patches/0.8.7e/snmp_invalid_response.patch</A>
++Patch3: <A HREF="http://www.cacti.net/downloads/patches/0.8.7e/template_duplication.patch">http://www.cacti.net/downloads/patches/0.8.7e/template_duplication.patch</A>
++Patch4: <A HREF="http://www.cacti.net/downloads/patches/0.8.7e/cross_site_fix.patch">http://www.cacti.net/downloads/patches/0.8.7e/cross_site_fix.patch</A>
+ 
+ BuildRequires: mysql-devel, openssl-devel
+ 
+@@ -55,6 +59,10 @@
+ 
+ %prep
+ %setup
++%patch1 -p1
++%patch2 -p1
++%patch3 -p1
++%patch4 -p1
+ 
+ echo -e &quot;*/5 * * * *\tcacti\tphp %{_localstatedir}/www/cacti/poller.php &amp;&gt;/dev/null&quot; &gt;cacti.crontab
+ 
+@@ -126,6 +134,9 @@
+ %doc docs/*
+ 
+ %changelog
++* Thu Dec 17 2009 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmr at financial.com</A>&gt; - 0.8.7e-2
++- Add patches from <A HREF="http://www.cacti.net/download_patches.php">http://www.cacti.net/download_patches.php</A>
++
+ * Mon Jul 27 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.8.7e-1
+ - Updated to release 0.8.7e.
+ 
+
+Added: trunk/rpms/cacti/cli_add_graph.patch
+===================================================================
+--- trunk/rpms/cacti/cli_add_graph.patch	                        (rev 0)
++++ trunk/rpms/cacti/cli_add_graph.patch	2009-12-17 08:48:49 UTC (rev 8171)
+@@ -0,0 +1,11 @@
++--- cacti-0.8.7e/cli/add_graphs.php	2009-06-28 12:34:31.000000000 -0400
+++++ cacti-0.8.7e/cli/add_graphs.php	2009-08-18 20:04:44.000000000 -0400
++@@ -570,7 +570,7 @@
++ 	echo &quot;                    3|Fields = Verify all Fields\n&quot;;
++ 	echo &quot;List Options:\n&quot;;
++ 	echo &quot;    --list-hosts\n&quot;;
++-	echo &quot;    --list-graph-templates [--host_template=[ID]]\n&quot;;
+++	echo &quot;    --list-graph-templates [--host-template-id=[ID]]\n&quot;;
++ 	echo &quot;    --list-input-fields --graph-template-id=[ID]\n&quot;;
++ 	echo &quot;    --list-snmp-queries\n&quot;;
++ 	echo &quot;    --list-query-types  --snmp-query-id [ID]\n&quot;;
+
+Added: trunk/rpms/cacti/cross_site_fix.patch
+===================================================================
+--- trunk/rpms/cacti/cross_site_fix.patch	                        (rev 0)
++++ trunk/rpms/cacti/cross_site_fix.patch	2009-12-17 08:48:49 UTC (rev 8171)
+@@ -0,0 +1,175 @@
++--- cacti-0.8.7e/graph.php	2009-06-28 12:07:11.000000000 -0400
+++++ cacti-0.8.7e-patched/graph.php	2009-11-21 23:10:16.000000000 -0500
++@@ -35,6 +35,8 @@
++ /* ================= input validation ================= */
++ input_validate_input_regex(get_request_var_request(&quot;rra_id&quot;), &quot;^([0-9]+|all)$&quot;);
++ input_validate_input_number(get_request_var(&quot;local_graph_id&quot;));
+++input_validate_input_number(get_request_var(&quot;graph_end&quot;));
+++input_validate_input_number(get_request_var(&quot;graph_start&quot;));
++ input_validate_input_regex(get_request_var_request(&quot;view_type&quot;), &quot;^([a-zA-Z0-9]+)$&quot;);
++ /* ==================================================== */
++ 
++--- cacti-0.8.7e/include/top_graph_header.php	2009-06-28 12:07:11.000000000 -0400
+++++ cacti-0.8.7e-patched/include/top_graph_header.php	2009-11-21 23:15:27.000000000 -0500
++@@ -58,7 +58,7 @@
++ 		if ($_SESSION[&quot;custom&quot;]) {
++ 			print &quot;&lt;meta http-equiv=refresh content='99999'&gt;\r\n&quot;;
++ 		}else{
++-			print &quot;&lt;meta http-equiv=refresh content='&quot; . read_graph_config_option(&quot;page_refresh&quot;) . &quot;'&gt;\r\n&quot;;
+++			print &quot;&lt;meta http-equiv=refresh content='&quot; . htmlspecialchars(read_graph_config_option(&quot;page_refresh&quot;),ENT_QUOTES) . &quot;'&gt;\r\n&quot;;
++ 		}
++ 	}
++ 	?&gt;
++@@ -113,7 +113,7 @@
++ 	&lt;/tr&gt;
++ 	&lt;tr class=&quot;noprint&quot;&gt;
++ 		&lt;td bgcolor=&quot;#efefef&quot; colspan=&quot;1&quot; height=&quot;8&quot; style=&quot;background-image: url(images/shadow_gray.gif); background-repeat: repeat-x; border-right: #aaaaaa 1px solid;&quot;&gt;
++-			&lt;img src=&quot;images/transparent_line.gif&quot; width=&quot;&lt;?php print read_graph_config_option(&quot;default_dual_pane_width&quot;);?&gt;&quot; height=&quot;2&quot; border=&quot;0&quot;&gt;&lt;br&gt;
+++			&lt;img src=&quot;images/transparent_line.gif&quot; width=&quot;&lt;?php print htmlspecialchars(read_graph_config_option(&quot;default_dual_pane_width&quot;));?&gt;&quot; height=&quot;2&quot; border=&quot;0&quot;&gt;&lt;br&gt;
++ 		&lt;/td&gt;
++ 		&lt;td bgcolor=&quot;#ffffff&quot; colspan=&quot;1&quot; height=&quot;8&quot; style=&quot;background-image: url(images/shadow.gif); background-repeat: repeat-x;&quot;&gt;
++ 
++@@ -144,7 +144,7 @@
++ 
++ 	&lt;tr&gt;
++ 		&lt;?php if ((read_graph_config_option(&quot;default_tree_view_mode&quot;) == &quot;2&quot;) &amp;&amp; (($_REQUEST[&quot;action&quot;] == &quot;tree&quot;) || ((isset($_REQUEST[&quot;view_type&quot;]) ? $_REQUEST[&quot;view_type&quot;] : &quot;&quot;) == &quot;tree&quot;))) { ?&gt;
++-		&lt;td valign=&quot;top&quot; style=&quot;padding: 5px; border-right: #aaaaaa 1px solid;&quot; bgcolor='#efefef' width='&lt;?php print read_graph_config_option(&quot;default_dual_pane_width&quot;);?&gt;' class='noprint'&gt;
+++		&lt;td valign=&quot;top&quot; style=&quot;padding: 5px; border-right: #aaaaaa 1px solid;&quot; bgcolor='#efefef' width='&lt;?php print htmlspecialchars(read_graph_config_option(&quot;default_dual_pane_width&quot;));?&gt;' class='noprint'&gt;
++ 			&lt;table border=0 cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;font size=-2&gt;&lt;a style=&quot;font-size:7pt;text-decoration:none;color:silver&quot; href=&quot;<A HREF="http://www.treemenu.net/">http://www.treemenu.net/</A>&quot; target=_blank&gt;&lt;/a&gt;&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
++ 			&lt;?php grow_dhtml_trees(); ?&gt;
++ 			&lt;script type=&quot;text/javascript&quot;&gt;initializeDocument();&lt;/script&gt;
++--- cacti-0.8.7e/lib/html_form.php	2009-06-28 12:07:11.000000000 -0400
+++++ cacti-0.8.7e-patched/lib/html_form.php	2009-11-21 23:15:40.000000000 -0500
++@@ -235,13 +235,21 @@
++ 
++ 		if (sizeof($items) &gt; 0) {
++ 		foreach ($items as $item) {
++-			print $item[&quot;name&quot;] . &quot;&lt;br&gt;&quot;;
+++			print htmlspecialchars($item[&quot;name&quot;],ENT_QUOTES) . &quot;&lt;br&gt;&quot;;
++ 		}
++ 		}
++ 
++ 		break;
+++	case 'font':
+++		form_font_box($field_name, $field_array[&quot;value&quot;],
+++			((isset($field_array[&quot;default&quot;])) ? $field_array[&quot;default&quot;] : &quot;&quot;),
+++			$field_array[&quot;max_length&quot;],
+++			((isset($field_array[&quot;size&quot;])) ? $field_array[&quot;size&quot;] : &quot;40&quot;), &quot;text&quot;,
+++			((isset($field_array[&quot;form_id&quot;])) ? $field_array[&quot;form_id&quot;] : &quot;&quot;));
+++
+++		break;
++ 	default:
++-		print &quot;&lt;em&gt;&quot; . $field_array[&quot;value&quot;] . &quot;&lt;/em&gt;&quot;;
+++		print &quot;&lt;em&gt;&quot; . htmlspecialchars($field_array[&quot;value&quot;],ENT_QUOTES) . &quot;&lt;/em&gt;&quot;;
++ 
++ 		form_hidden_box($field_name, $field_array[&quot;value&quot;], &quot;&quot;);
++ 
++@@ -384,7 +392,7 @@
++ 		$form_previous_value = $form_default_value;
++ 	}
++ 
++-	print &quot;&lt;input type='hidden' id='$form_name' name='$form_name' value='$form_previous_value'&gt;\n&quot;;
+++	print &quot;&lt;input type='hidden' id='$form_name' name='$form_name' value='&quot; . htmlspecialchars($form_previous_value, ENT_QUOTES) . &quot;'&gt;\n&quot;;
++ }
++ 
++ /* form_dropdown - draws a standard html dropdown box
++@@ -568,7 +576,7 @@
++ 			}
++ 		}
++ 
++-		print &quot;&gt;&quot;. $array_display[$id];
+++		print &quot;&gt;&quot;. htmlspecialchars($array_display[$id],ENT_QUOTES);
++ 		print &quot;&lt;/option&gt;\n&quot;;
++ 	}
++ 
++@@ -627,6 +635,65 @@
++ 	print &quot;&lt;/select&gt;\n&quot;;
++ }
++ 
+++/* form_font_box - draws a standard html textbox and provides status of a fonts existence
+++   @arg $form_name - the name of this form element
+++   @arg $form_previous_value - the current value of this form element
+++   @arg $form_default_value - the value of this form element to use if there is
+++     no current value available
+++   @arg $form_max_length - the maximum number of characters that can be entered
+++     into this textbox
+++   @arg $form_size - the size (width) of the textbox
+++   @arg $type - the type of textbox, either 'text' or 'password'
+++   @arg $current_id - used to determine if a current value for this form element
+++     exists or not. a $current_id of '0' indicates that no current value exists,
+++     a non-zero value indicates that a current value does exist */
+++function form_font_box($form_name, $form_previous_value, $form_default_value, $form_max_length, $form_size = 30, $type = &quot;text&quot;, $current_id = 0) {
+++	if (($form_previous_value == &quot;&quot;) &amp;&amp; (empty($current_id))) {
+++		$form_previous_value = $form_default_value;
+++	}
+++
+++	print &quot;&lt;input type='$type'&quot;;
+++
+++	if (isset($_SESSION[&quot;sess_error_fields&quot;])) {
+++		if (!empty($_SESSION[&quot;sess_error_fields&quot;][$form_name])) {
+++			print &quot;class='txtErrorTextBox'&quot;;
+++			unset($_SESSION[&quot;sess_error_fields&quot;][$form_name]);
+++		}
+++	}
+++
+++	if (isset($_SESSION[&quot;sess_field_values&quot;])) {
+++		if (!empty($_SESSION[&quot;sess_field_values&quot;][$form_name])) {
+++			$form_previous_value = $_SESSION[&quot;sess_field_values&quot;][$form_name];
+++		}
+++	}
+++
+++	if (strlen($form_previous_value) == 0) { # no data: defaults are used; everythings fine
+++			$extra_data = &quot;&quot;;
+++	} else {
+++		if (read_config_option(&quot;rrdtool_version&quot;) == &quot;rrd-1.3.x&quot;) {	# rrdtool 1.3 uses fontconfig
+++			$font = '&quot;' . $form_previous_value . '&quot;';
+++			$out_array = array();
+++			exec('fc-list ' . $font, $out_array);
+++			if (sizeof($out_array) == 0) {
+++				$extra_data = &quot;&lt;span style='color:red'&gt;&lt;br&gt;[&quot; . &quot;ERROR: FONT NOT FOUND&quot; . &quot;]&lt;/span&gt;&quot;;
+++			} else {
+++				$extra_data = &quot;&lt;span style='color:green'&gt;&lt;br&gt;[&quot; . &quot;OK: FONT FOUND&quot; . &quot;]&lt;/span&gt;&quot;;
+++			}
+++		} elseif (read_config_option(&quot;rrdtool_version&quot;) == &quot;rrd-1.0.x&quot; ||
+++				  read_config_option(&quot;rrdtool_version&quot;) == &quot;rrd-1.2.x&quot;) { # rrdtool 1.0 and 1.2 use font files
+++			if (is_file($form_previous_value)) {
+++				$extra_data = &quot;&lt;span style='color:green'&gt;&lt;br&gt;[&quot; . &quot;OK: FILE FOUND&quot; . &quot;]&lt;/span&gt;&quot;;
+++			}else if (is_dir($form_previous_value)) {
+++				$extra_data = &quot;&lt;span style='color:red'&gt;&lt;br&gt;[&quot; . &quot;ERROR: IS DIR&quot; . &quot;]&lt;/span&gt;&quot;;
+++			}else{
+++				$extra_data = &quot;&lt;span style='color:red'&gt;&lt;br&gt;[&quot; . &quot;ERROR: FILE NOT FOUND&quot; . &quot;]&lt;/span&gt;&quot;;
+++			}
+++		} # will be used for future versions of rrdtool
+++	}
+++
+++	print &quot; id='$form_name' name='$form_name' size='$form_size'&quot; . (!empty($form_max_length) ? &quot; maxlength='$form_max_length'&quot; : &quot;&quot;) . &quot; value='&quot; . htmlspecialchars($form_previous_value, ENT_QUOTES) . &quot;'&gt;&quot; . $extra_data;
+++}
+++
++ /* form_confirm - draws a table presenting the user with some choice and allowing
++      them to either proceed (delete) or cancel
++    @arg $body_text - the text to prompt the user with on this form
++--- cacti-0.8.7e/lib/timespan_settings.php	2009-06-28 12:07:11.000000000 -0400
+++++ cacti-0.8.7e-patched/lib/timespan_settings.php	2009-11-21 23:15:49.000000000 -0500
++@@ -125,9 +125,9 @@
++ 	if (isset($_POST[&quot;date1&quot;])) {
++ 		/* the dates have changed, therefore, I am now custom */
++ 		if (($_SESSION[&quot;sess_current_date1&quot;] != $_POST[&quot;date1&quot;]) || ($_SESSION[&quot;sess_current_date2&quot;] != $_POST[&quot;date2&quot;])) {
++-			$timespan[&quot;current_value_date1&quot;] = $_POST[&quot;date1&quot;];
+++			$timespan[&quot;current_value_date1&quot;] = sanitize_search_string($_POST[&quot;date1&quot;]);
++ 			$timespan[&quot;begin_now&quot;] =strtotime($timespan[&quot;current_value_date1&quot;]);
++-			$timespan[&quot;current_value_date2&quot;] = $_POST[&quot;date2&quot;];
+++			$timespan[&quot;current_value_date2&quot;] = sanitize_search_string($_POST[&quot;date2&quot;]);
++ 			$timespan[&quot;end_now&quot;]=strtotime($timespan[&quot;current_value_date2&quot;]);
++ 			$_SESSION[&quot;sess_current_timespan&quot;] = GT_CUSTOM;
++ 			$_SESSION[&quot;custom&quot;] = 1;
++@@ -135,8 +135,8 @@
++ 		}else {
++ 			/* the default button wasn't pushed */
++ 			if (!isset($_POST[&quot;button_clear_x&quot;])) {
++-				$timespan[&quot;current_value_date1&quot;] = $_POST[&quot;date1&quot;];
++-				$timespan[&quot;current_value_date2&quot;] = $_POST[&quot;date2&quot;];
+++				$timespan[&quot;current_value_date1&quot;] = sanitize_search_string($_POST[&quot;date1&quot;]);
+++				$timespan[&quot;current_value_date2&quot;] = sanitize_search_string($_POST[&quot;date2&quot;]);
++ 				$timespan[&quot;begin_now&quot;] = $_SESSION[&quot;sess_current_timespan_begin_now&quot;];
++ 				$timespan[&quot;end_now&quot;] = $_SESSION[&quot;sess_current_timespan_end_now&quot;];
++ 
+
+Added: trunk/rpms/cacti/snmp_invalid_response.patch
+===================================================================
+--- trunk/rpms/cacti/snmp_invalid_response.patch	                        (rev 0)
++++ trunk/rpms/cacti/snmp_invalid_response.patch	2009-12-17 08:48:49 UTC (rev 8171)
+@@ -0,0 +1,25 @@
++--- ../tags/0.8.7e/include/global_arrays.php	2009-06-28 12:34:31.000000000 -0400
+++++ 0.8.7/include/global_arrays.php	2009-08-18 20:04:44.000000000 -0400
++@@ -174,6 +174,10 @@
++ 	&quot;DES&quot; =&gt; &quot;DES (default)&quot;,
++ 	&quot;AES128&quot; =&gt; &quot;AES&quot;);
++ 
+++$banned_snmp_strings = array(
+++	&quot;End of MIB&quot;,
+++	&quot;No Such&quot;);
+++
++ $logfile_options = array(1 =&gt;
++ 	&quot;Logfile Only&quot;,
++ 	&quot;Logfile and Syslog/Eventlog&quot;,
++--- ../tags/0.8.7e/lib/snmp.php	2009-06-28 12:34:30.000000000 -0400
+++++ 0.8.7/lib/snmp.php	2009-08-18 20:04:44.000000000 -0400
++@@ -27,9 +27,6 @@
++ define(&quot;SNMP_METHOD_PHP&quot;, 1);
++ define(&quot;SNMP_METHOD_BINARY&quot;, 2);
++ 
++-/* declare once, use many times */
++-$banned_snmp_strings = array(&quot;End of MIB&quot;, &quot;No Such&quot;);
++-
++ /* we must use an apostrophe to escape community names under Unix in case the user uses
++ characters that the shell might interpret. the ucd-snmp binaries on Windows flip out when
++ you do this, but are perfectly happy with a quotation mark. */
+
+Added: trunk/rpms/cacti/template_duplication.patch
+===================================================================
+--- trunk/rpms/cacti/template_duplication.patch	                        (rev 0)
++++ trunk/rpms/cacti/template_duplication.patch	2009-12-17 08:48:49 UTC (rev 8171)
+@@ -0,0 +1,235 @@
++diff -ruBbd 0.8.7e/cli/repair_templates.php 0.8.7/cli/repair_templates.php
++--- 0.8.7e/cli/repair_templates.php	2009-08-18 22:03:22.000000000 -0400
+++++ 0.8.7/cli/repair_templates.php	2009-08-20 07:43:54.000000000 -0400
++@@ -0,0 +1,135 @@
+++&lt;?php
+++/*
+++ +-------------------------------------------------------------------------+
+++ | Copyright (C) 2004-2009 The Cacti Group                                 |
+++ |                                                                         |
+++ | This program is free software; you can redistribute it and/or           |
+++ | modify it under the terms of the GNU General Public License             |
+++ | as published by the Free Software Foundation; either version 2          |
+++ | of the License, or (at your option) any later version.                  |
+++ |                                                                         |
+++ | This program is distributed in the hope that it will be useful,         |
+++ | but WITHOUT ANY WARRANTY; without even the implied warranty of          |
+++ | MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           |
+++ | GNU General Public License for more details.                            |
+++ +-------------------------------------------------------------------------+
+++ | Cacti: The Complete RRDTool-based Graphing Solution                     |
+++ +-------------------------------------------------------------------------+
+++ | This code is designed, written, and maintained by the Cacti Group. See  |
+++ | about.php and/or the AUTHORS file for specific developer information.   |
+++ +-------------------------------------------------------------------------+
+++ | <A HREF="http://www.cacti.net/">http://www.cacti.net/</A>                                                   |
+++ +-------------------------------------------------------------------------+
+++*/
+++
+++/* do NOT run this script through a web browser */
+++if (!isset($_SERVER[&quot;argv&quot;][0]) || isset($_SERVER['REQUEST_METHOD'])  || isset($_SERVER['REMOTE_ADDR'])) {
+++	die(&quot;&lt;br&gt;&lt;strong&gt;This script is only meant to run at the command line.&lt;/strong&gt;&quot;);
+++}
+++
+++$no_http_headers = true;
+++
+++include(dirname(__FILE__) . &quot;/../include/global.php&quot;);
+++include_once(&quot;../lib/utility.php&quot;);
+++include_once(&quot;../lib/template.php&quot;);
+++
+++/* process calling arguments */
+++$parms = $_SERVER[&quot;argv&quot;];
+++array_shift($parms);
+++
+++$execute = FALSE;
+++
+++foreach($parms as $parameter) {
+++	@list($arg, $value) = @explode(&quot;=&quot;, $parameter);
+++
+++	switch ($arg) {
+++	case &quot;--execute&quot;:
+++		$execute = TRUE;
+++		break;
+++	case &quot;-h&quot;:
+++	case &quot;-v&quot;:
+++	case &quot;-V&quot;:
+++	case &quot;--version&quot;:
+++	case &quot;--help&quot;:
+++		display_help();
+++		exit;
+++	default:
+++		print &quot;ERROR: Invalid Parameter &quot; . $parameter . &quot;\n\n&quot;;
+++		display_help();
+++		exit;
+++	}
+++}
+++
+++if ($execute) {
+++	echo &quot;NOTE: Repairing All Duplicated Templates\n&quot;;
+++} else {
+++	echo &quot;NOTE: Performing Check of Templates\n&quot;;
+++}
+++
+++/* repair data templates first */
+++if ($execute) {
+++	echo &quot;NOTE: Repairing Data Templates\n&quot;;
+++} else {
+++	echo &quot;NOTE: Performing Check of Data Templates\n&quot;;
+++}
+++
+++$damaged_template_ids = db_fetch_assoc(&quot;SELECT DISTINCT data_template_id FROM data_template_rrd WHERE hash='' AND local_data_id=0&quot;);
+++if (sizeof($damaged_template_ids)) {
+++	foreach($damaged_template_ids as $id) {
++		$template_name = db_fetch_cell(&quot;SELECT name FROM data_template WHERE id=&quot; . $id[&quot;data_template_id&quot;]);
+++		echo &quot;NOTE: Data Template '$template_name' is Damaged and can be repaired\n&quot;;
+++	}
+++
+++	$damaged_templates = db_fetch_assoc(&quot;SELECT * FROM data_template_rrd WHERE hash='' AND local_data_id=0&quot;);
+++	if (sizeof($damaged_templates)) {
+++		echo &quot;NOTE: -- Damaged Data Templates Objects Found is '&quot; . sizeof($damaged_templates) . &quot;'\n&quot;;
+++		if ($execute) {
+++			foreach($damaged_templates as $template) {
+++				$hash = get_hash_data_template($template[&quot;local_data_template_rrd_id&quot;], &quot;data_template_item&quot;);
+++				db_execute(&quot;UPDATE data_template_rrd SET hash='$hash' WHERE id=&quot; . $template[&quot;id&quot;]);
+++			}
+++		}
+++	}
+++} else {
+++	echo &quot;NOTE: No Damaged Data Templates Found\n&quot;;
+++}
+++
+++/* reset the array */
+++$damaged_templates = array();
+++
+++/* repair graph templates */
+++if ($execute) {
+++	echo &quot;NOTE: Repairing Graph Templates\n&quot;;
+++} else {
+++	echo &quot;NOTE: Performing Check of Graph Templates\n&quot;;
+++}
+++
+++$damaged_template_ids = db_fetch_assoc(&quot;SELECT DISTINCT graph_template_id FROM graph_template_input WHERE hash=''&quot;);
+++if (sizeof($damaged_template_ids)) {
+++	foreach($damaged_template_ids as $id) {
+++		$template_name = db_fetch_cell(&quot;SELECT name FROM graph_templates WHERE id=&quot; . $id[&quot;graph_template_id&quot;]);
+++		echo &quot;NOTE: Graph Template '$template_name' is Damaged and can be repaired\n&quot;;
+++	}
+++
+++	$damaged_templates = db_fetch_assoc(&quot;SELECT * FROM graph_template_input WHERE hash=''&quot;);
+++	if (sizeof($damaged_templates)) {
+++		echo &quot;NOTE: -- Damaged Graph Templates Objects Found is '&quot; . sizeof($damaged_templates) . &quot;'\n&quot;;
+++		if ($execute) {
+++			foreach($damaged_templates as $template) {
+++				$hash = get_hash_graph_template(0, &quot;graph_template_input&quot;);
+++				db_execute(&quot;UPDATE graph_template_input SET hash='$hash' WHERE id=&quot; . $template[&quot;id&quot;]);
+++			}
+++		}
+++	}
+++} else {
+++	echo &quot;NOTE: No Damaged Graph Templates Found\n&quot;;
+++}
+++
+++
+++/* display_help - displays the usage of the function */
+++function display_help () {
+++	print &quot;Cacti Database Template Repair Tool v1.0, Copyright 2004-2009 - The Cacti Group\n\n&quot;;
+++	print &quot;usage: repair_templates.php --execute [--help]\n\n&quot;;
+++	print &quot;--execute        - Perform the repair\n&quot;;
+++	print &quot;--help           - display this help message\n&quot;;
+++}
+++?&gt;
++diff -ruBbd 0.8.7e/docs/README 0.8.7/docs/README
++--- 0.8.7e/docs/README	2009-08-18 21:57:30.000000000 -0400
+++++ 0.8.7/docs/README	2009-08-18 21:58:09.000000000 -0400
++@@ -90,6 +90,9 @@
++                             table
++   poller_reindex_hosts.php - Cause data query reindex on hosts
++   rebuild_poller_cache.php - Rebuilds the poller cache
+++  repair_templates.php     - Certain templates, when created using the &quot;duplicate&quot;
+++      function in Cacti, do not import/export well.  This utility repairs 
+++      those templates.
++ 
++ 
++ 
++diff -ruBbd 0.8.7e/lib/export.php 0.8.7/lib/export.php
++--- 0.8.7e/lib/export.php	2009-08-18 21:56:47.000000000 -0400
+++++ 0.8.7/lib/export.php	2009-08-18 21:57:50.000000000 -0400
++@@ -811,7 +811,9 @@
++ }
++ 
++ function xml_character_encode($text) {
++-
+++	if (function_exists(&quot;htmlspecialchars&quot;)) {
+++		return htmlspecialchars($text, ENT_QUOTES, &quot;UTF-8&quot;);
+++	} else {
++ 	$text = str_replace(&quot;&amp;&quot;, &quot;&amp;amp;&quot;, $text);
++ 	$text = str_replace(&quot;&gt;&quot;, &quot;&amp;gt;&quot;, $text);
++ 	$text = str_replace(&quot;&lt;&quot;, &quot;&amp;lt;&quot;, $text);
++@@ -819,6 +821,7 @@
++ 	$text = str_replace(&quot;\'&quot;, &quot;&amp;apos;&quot;, $text);
++ 
++ 	return $text;
+++	}
++ }
++ 
++ ?&gt;
++diff -ruBbd 0.8.7e/lib/import.php 0.8.7/lib/import.php
++--- 0.8.7e/lib/import.php	2009-08-18 21:56:59.000000000 -0400
+++++ 0.8.7/lib/import.php	2009-08-18 21:57:55.000000000 -0400
++@@ -36,10 +36,6 @@
++ 		return $info_array;
++ 	}
++ 
++-	if (isset($xml_array[&quot;name&quot;])) {
++-		$xml_array[&quot;name&quot;] = htmlspecialchars($xml_array[&quot;name&quot;]);
++-	}
++-
++ 	while (list($hash, $hash_array) = each($xml_array)) {
++ 		/* parse information from the hash */
++ 		$parsed_hash = parse_xml_hash($hash);
++@@ -115,7 +111,7 @@
++ 	$_graph_template_id = db_fetch_cell(&quot;select id from graph_templates where hash='$hash'&quot;);
++ 	$save[&quot;id&quot;] = (empty($_graph_template_id) ? &quot;0&quot; : $_graph_template_id);
++ 	$save[&quot;hash&quot;] = $hash;
++-	$save[&quot;name&quot;] = htmlspecialchars($xml_array[&quot;name&quot;]);
+++	$save[&quot;name&quot;] = $xml_array[&quot;name&quot;];
++ 	$graph_template_id = sql_save($save, &quot;graph_templates&quot;);
++ 
++ 	$hash_cache[&quot;graph_template&quot;][$hash] = $graph_template_id;
++@@ -914,9 +910,13 @@
++ }
++ 
++ function xml_character_decode($text) {
+++	if (function_exists(&quot;html_entity_decode&quot;)) {
+++		return html_entity_decode($text, ENT_QUOTES, &quot;UTF-8&quot;);
+++	} else {
++ 	$trans_tbl = get_html_translation_table(HTML_ENTITIES);
++ 	$trans_tbl = array_flip($trans_tbl);
++ 	return strtr($text, $trans_tbl);
+++	}
++ }
++ 
++ ?&gt;
++diff -ruBbd 0.8.7e/lib/utility.php 0.8.7/lib/utility.php
++--- 0.8.7e/lib/utility.php	2009-08-18 21:57:08.000000000 -0400
+++++ 0.8.7/lib/utility.php	2009-08-18 21:58:00.000000000 -0400
++@@ -346,6 +346,7 @@
++ 			$save[&quot;name&quot;] = $graph_template_input[&quot;name&quot;];
++ 			$save[&quot;description&quot;] = $graph_template_input[&quot;description&quot;];
++ 			$save[&quot;column_name&quot;] = $graph_template_input[&quot;column_name&quot;];
+++			$save[&quot;hash&quot;]              = get_hash_graph_template(0, &quot;graph_template_input&quot;);
++ 
++ 			$graph_template_input_id = sql_save($save, &quot;graph_template_input&quot;);
++ 
++@@ -436,6 +437,11 @@
++ 		$save[&quot;local_data_id&quot;] = (isset($local_data_id) ? $local_data_id : 0);
++ 		$save[&quot;local_data_template_rrd_id&quot;] = (isset($data_template_rrd[&quot;local_data_template_rrd_id&quot;]) ? $data_template_rrd[&quot;local_data_template_rrd_id&quot;] : 0);
++ 		$save[&quot;data_template_id&quot;] = (!empty($_local_data_id) ? $data_template_rrd[&quot;data_template_id&quot;] : $data_template_id);
+++		if ($save[&quot;local_data_id&quot;] == 0) {
+++			$save[&quot;hash&quot;]                   = get_hash_data_template($data_template_rrd[&quot;local_data_template_rrd_id&quot;], &quot;data_template_item&quot;);
+++		} else {
+++			$save[&quot;hash&quot;] = '';
+++		}
++ 
++ 		while (list($field, $array) = each($struct_data_source_item)) {
++ 			$save{$field} = $data_template_rrd{$field};
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006965.html">[svn] r8170 - in trunk/rpms: . apf
+</A></li>
+	<LI>Next message: <A HREF="006967.html">[svn] r8172 - trunk/rpms/cacti
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6966">[ date ]</a>
+              <a href="thread.html#6966">[ thread ]</a>
+              <a href="subject.html#6966">[ subject ]</a>
+              <a href="author.html#6966">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

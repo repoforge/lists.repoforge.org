@@ -1,0 +1,308 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7997 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7997%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911062350.nA6NoEa4005885%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006791.html">
+   <LINK REL="Next"  HREF="006793.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7997 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7997%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911062350.nA6NoEa4005885%40surya.karan.org%3E"
+       TITLE="[svn] r7997 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Nov  7 00:50:14 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006791.html">[svn] r7996 - in trunk/tools/dstat: . plugins
+</A></li>
+        <LI>Next message: <A HREF="006793.html">[svn] r7998 - trunk/rpms/xmms-aac
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6792">[ date ]</a>
+              <a href="thread.html#6792">[ thread ]</a>
+              <a href="subject.html#6792">[ subject ]</a>
+              <a href="author.html#6792">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-11-06 23:50:13 +0000 (Fri, 06 Nov 2009)
+New Revision: 7997
+
+Modified:
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topcpu.py
+   trunk/tools/dstat/plugins/dstat_topio.py
+   trunk/tools/dstat/plugins/dstat_topmem.py
+   trunk/tools/dstat/plugins/dstat_topoom.py
+Log:
+Improvements to top plugins.
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-11-06 17:31:09 UTC (rev 7996)
++++ trunk/tools/dstat/dstat	2009-11-06 23:50:13 UTC (rev 7997)
+@@ -1903,13 +1903,15 @@
+     ret = None
+     try:
+         cmdline = open('/proc/%s/cmdline' % pid).read().split('\0')
+-        ret = os.path.basename(cmdline[0])
+-        if ret in ('bash', 'csh', 'ksh', 'perl', 'python', 'ruby', 'sh')
+-            ret = os.path.basename(cmdline[-2])
+-            if ret.startswith('-'):
+-                raise
++        ret = cmdline[0]
++        if ret in ('bash', 'csh', 'ksh', 'perl', 'python', 'ruby', 'sh'):
++            ret = cmdline[-2]
++            if ret.startswith('-'): raise
++        if not ret: raise
+     except:
+-        ret = os.path.basename(name)
++        ret = name
++    if ret.startswith('/'):
++        return os.path.basename(ret)
+     return ret
+ 
+ def getcpunr():
+
+Modified: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	2009-11-06 17:31:09 UTC (rev 7996)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2009-11-06 23:50:13 UTC (rev 7997)
+@@ -20,7 +20,7 @@
+ 
+     def extract(self):
+         self.val['usage'] = 0.0
+-        self.val['name'] = ''
++        self.val['block i/o process'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -66,9 +66,7 @@
+             for pid in self.pidset2.keys():
+                 self.pidset1[pid].update(self.pidset2[pid])
+ 
+-        if self.val['usage'] == 0.0:
+-            self.val['block i/o process'] = ''
+-        else:
++        if self.val['usage'] != 0.0:
+             self.val['block i/o process'] = '%-*s%s:%s' % (self.width-11, self.val['name'][0:self.width-11], cprint(self.val['read_usage'], 'f', 5, 1024), cprint(self.val['write_usage'], 'f', 5, 1024))
+ 
+         ### Debug (show PID)
+
+Modified: trunk/tools/dstat/plugins/dstat_topcpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topcpu.py	2009-11-06 17:31:09 UTC (rev 7996)
++++ trunk/tools/dstat/plugins/dstat_topcpu.py	2009-11-06 23:50:13 UTC (rev 7997)
+@@ -17,7 +17,7 @@
+ 
+     def extract(self):
+         self.val['max'] = 0.0
+-        self.val['name'] = ''
++        self.val['cpu process'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -28,33 +28,31 @@
+ 
+                 ### Using dopen() will cause too many open files
+                 l = open('/proc/%s/stat' % pid).read().split()
+-                if len(l) &lt; 15: continue
+ 
+-                ### Reset previous value if it doesn't exist
+-                if not self.pidset1.has_key(pid):
+-                    self.pidset1[pid] = 0
+-
+-                self.pidset2[pid] = int(l[13]) + int(l[14])
+-                usage = (self.pidset2[pid] - self.pidset1[pid]) * 1.0 / tick / cpunr
+-
+-                ### Is it a new topper ?
+-                if usage &lt;= self.val['max']: continue
+-
+-                ### Extract name
+-                name = l[1][1:-1]
+-
+             except ValueError:
+                 continue
+             except IOError:
+                 continue
+ 
++            if len(l) &lt; 15: continue
++
++            ### Reset previous value if it doesn't exist
++            if not self.pidset1.has_key(pid):
++                self.pidset1[pid] = 0
++
++            self.pidset2[pid] = int(l[13]) + int(l[14])
++            usage = (self.pidset2[pid] - self.pidset1[pid]) * 1.0 / tick / cpunr
++
++            ### Is it a new topper ?
++            if usage &lt; self.val['max']: continue
++
++            name = l[1][1:-1]
++
+             self.val['max'] = usage
+             self.val['pid'] = pid
+             self.val['name'] = getnamebypid(pid, name)
+ 
+-        if self.val['max'] == 0.0:
+-            self.val['cpu process'] = ''
+-        else:
++        if self.val['max'] != 0.0:
+             self.val['cpu process'] = '%-*s%s' % (self.width-3, self.val['name'][0:self.width-3], cprint(self.val['max'], 'p', 3, 34))
+ 
+         ### Debug (show PID)
+
+Modified: trunk/tools/dstat/plugins/dstat_topio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topio.py	2009-11-06 17:31:09 UTC (rev 7996)
++++ trunk/tools/dstat/plugins/dstat_topio.py	2009-11-06 23:50:13 UTC (rev 7997)
+@@ -19,7 +19,7 @@
+ 
+     def extract(self):
+         self.val['usage'] = 0.0
+-        self.val['name'] = ''
++        self.val['i/o process'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -66,9 +66,7 @@
+             for pid in self.pidset2.keys():
+                 self.pidset1[pid].update(self.pidset2[pid])
+ 
+-        if self.val['usage'] == 0.0:
+-            self.val['i/o process'] = ''
+-        else:
++        if self.val['usage'] != 0.0:
+             self.val['i/o process'] = '%-*s%s:%s' % (self.width-11, self.val['name'][0:self.width-11], cprint(self.val['read_usage'], 'f', 5, 1024), cprint(self.val['write_usage'], 'f', 5, 1024))
+ 
+         ### Debug (show PID)
+
+Modified: trunk/tools/dstat/plugins/dstat_topmem.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topmem.py	2009-11-06 17:31:09 UTC (rev 7996)
++++ trunk/tools/dstat/plugins/dstat_topmem.py	2009-11-06 23:50:13 UTC (rev 7997)
+@@ -14,7 +14,6 @@
+ 
+     def extract(self):
+         self.val['max'] = 0.0
+-        self.val['process'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -25,22 +24,20 @@
+ 
+                 ### Using dopen() will cause too many open files
+                 l = open('/proc/%s/stat' % pid).read().split()
+-                if len(l) &lt; 23: continue
+-                usage = int(l[23]) * pagesize
+ 
+-                ### Is it a new topper ?
+-                if usage &lt;= self.val['max']: continue
+-
+-                ### Extract name
+-                name = l[1][1:-1]
+-
+             except ValueError:
+                 continue
+             except IOError:
+                 continue
+ 
++            if len(l) &lt; 23: continue
++            usage = int(l[23]) * pagesize
++
++            ### Is it a new topper ?
++            if usage &lt;= self.val['max']: continue
++
+             self.val['max'] = usage
+-            self.val['name'] = getnamebypid(pid, name)
++            self.val['name'] = getnamebypid(pid, l[1][1:-1])
+             self.val['pid'] = pid
+ 
+         self.val['memory process'] = '%-*s%s' % (self.width-5, self.val['name'][0:self.width-5], cprint(self.val['max'], 'f', 5, 1024))
+
+Modified: trunk/tools/dstat/plugins/dstat_topoom.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topoom.py	2009-11-06 17:31:09 UTC (rev 7996)
++++ trunk/tools/dstat/plugins/dstat_topoom.py	2009-11-06 23:50:13 UTC (rev 7997)
+@@ -18,7 +18,7 @@
+ 
+     def extract(self):
+         self.val['max'] = 0.0
+-        self.val['name'] = ''
++        self.val['kill score'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -27,30 +27,28 @@
+                 ### Filter out dstat
+                 if pid == self.pid: continue
+ 
++                ### Extract name
++                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++
+                 ### Using dopen() will cause too many open files
+                 l = open('/proc/%s/oom_score' % pid).read().split()
+-                if len(l) &lt; 1: continue
+-                oom_score = int(l[0])
+ 
+-                ### Is it a new topper ?
+-                if oom_score &lt;= self.val['max']: continue
+-
+-                ### Extract name
+-                l = open('/proc/%s/stat' % pid).read().split()
+-                name = l[1][1:-1]
+-
+             except ValueError:
+                 continue
+             except IOError:
+                 continue
+ 
++            if len(l) &lt; 1: continue
++            oom_score = int(l[0])
++
++            ### Is it a new topper ?
++            if oom_score &lt;= self.val['max']: continue
++
+             self.val['max'] = oom_score
+             self.val['name'] = getnamebypid(pid, name)
+             self.val['pid'] = pid
+ 
+-        if self.val['max'] == 0.0:
+-            self.val['kill score'] = ''
+-        else:
++        if self.val['max'] != 0.0:
+             self.val['kill score'] = '%-*s%s' % (self.width-4, self.val['name'][0:self.width-4], cprint(self.val['max'], 'f', 4, 1000))
+ 
+         ### Debug (show PID)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006791.html">[svn] r7996 - in trunk/tools/dstat: . plugins
+</A></li>
+	<LI>Next message: <A HREF="006793.html">[svn] r7998 - trunk/rpms/xmms-aac
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6792">[ date ]</a>
+              <a href="thread.html#6792">[ thread ]</a>
+              <a href="subject.html#6792">[ subject ]</a>
+              <a href="author.html#6792">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,300 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8005 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8005%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911121357.nACDvolo022716%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006799.html">
+   <LINK REL="Next"  HREF="006801.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8005 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8005%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911121357.nACDvolo022716%40surya.karan.org%3E"
+       TITLE="[svn] r8005 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Nov 12 14:57:50 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006799.html">[svn] r8004 - in trunk/rpms: . opendbx
+</A></li>
+        <LI>Next message: <A HREF="006801.html">[svn] r8006 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6800">[ date ]</a>
+              <a href="thread.html#6800">[ thread ]</a>
+              <a href="subject.html#6800">[ subject ]</a>
+              <a href="author.html#6800">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-11-12 13:57:50 +0000 (Thu, 12 Nov 2009)
+New Revision: 8005
+
+Added:
+   trunk/tools/dstat/plugins/dstat_toplatency.py
+   trunk/tools/dstat/plugins/dstat_toptimeslice.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+- Added external dstat_toplatency plugin to show process with top average wait time in milliseconds
+- Added external dstat_toptimeslice plugin to show process with top average timeslice in milliseconds
+
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-11-12 10:03:08 UTC (rev 8004)
++++ trunk/tools/dstat/ChangeLog	2009-11-12 13:57:50 UTC (rev 8005)
+@@ -22,6 +22,8 @@
+ - Added external dstat_vzio plugin to show I/O account number per OpenVZ container
+ - Added external dstat_battery_remain plugin to show how much battery time is remaining
+ - Added getnamebypid() function to simplify finding bast process name by process id
++- Added external dstat_toplatency plugin to show process with top average wait time in milliseconds
++- Added external dstat_toptimeslice plugin to show process with top average timeslice in milliseconds
+ - This release was 'sponsored' by the Linux Foundation during the Japan Linux Symposium
+ 
+ * 0.6.9 - Locarno - release 02/12/2008
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-11-12 10:03:08 UTC (rev 8004)
++++ trunk/tools/dstat/dstat	2009-11-12 13:57:50 UTC (rev 8005)
+@@ -453,8 +453,8 @@
+ 
+     def check(self):
+         &quot;Check if stat is applicable&quot;
+-#       if hasattr(self, 'fd') and not self.fd:
+-#           raise Exception, 'File %s does not exist' % self.file
++#        if hasattr(self, 'fd') and not self.fd:
++#            raise Exception, 'File %s does not exist' % self.fd
+         if not self.vars:
+             raise Exception, 'No objects found, no stats available'
+         if not self.discover:
+@@ -1633,7 +1633,7 @@
+     &quot;Open a file for reuse, if already opened, return file descriptor&quot;
+     global fds
+     if not os.path.exists(filename):
+-        raise 'File %s does not exist' % filename
++        raise Exception, 'File %s does not exist' % filename
+ #        return None
+     if 'fds' not in globals().keys():
+         fds = {}
+@@ -2045,8 +2045,9 @@
+         if cols2 &lt;= 0:
+             print '\n\t',
+             cols2 = cols - len(mod) - 10
+-        print mod + ',',
+-    print
++        if mod != modlist[-1]:
++            print mod+',',
++    print mod
+     remod = re.compile('.+/dstat_(.+).py$')
+     for path in sys.path:
+         modlist = []
+@@ -2061,8 +2062,9 @@
+             if cols2 &lt;= 0:
+                 print '\n\t',
+                 cols2 = cols - len(mod) - 10
+-            print mod + ',',
+-        print
++            if mod != modlist[-1]:
++                print mod+',',
++        print mod
+ 
+ def main():
+     global pagesize, cpunr, ansi, theme, outputfile
+
+Added: trunk/tools/dstat/plugins/dstat_toplatency.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_toplatency.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_toplatency.py	2009-11-12 13:57:50 UTC (rev 8005)
+@@ -0,0 +1,77 @@
++### Dstat most expensive I/O process plugin
++### Displays the name of the most expensive I/O process
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++### For more information, see:
++###     <A HREF="http://eaglet.rain.com/rick/linux/schedstat/">http://eaglet.rain.com/rick/linux/schedstat/</A>
++
++class dstat_toplatency(dstat):
++    def __init__(self):
++        self.name = 'highest latency'
++        self.type = 's'
++        self.width = 22
++        self.scale = 0
++        self.vars = ('process',)
++        self.pid = str(os.getpid())
++        self.pidset1 = {}; self.pidset2 = {}
++
++    def check(self):
++        if not os.access('/proc/self/schedstat', os.R_OK):
++            raise Exception, 'Kernel has no scheduler statistics, use at least 2.6.12'
++
++    def extract(self):
++        self.val['topavgwait'] = 0
++        self.val['process'] = ''
++        for pid in os.listdir('/proc/'):
++            try:
++                ### Is it a pid ?
++                int(pid)
++
++                ### Filter out dstat
++                if pid == self.pid: continue
++
++                ### Reset values
++                if not self.pidset1.has_key(pid):
++                    self.pidset1[pid] = {'run_ticks': 0, 'wait_ticks': 0, 'ran': 0}
++
++                ### Extract name
++                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++
++                ### Extract counters
++                l = open('/proc/%s/schedstat' % pid).read().split()
++
++            except ValueError:
++                continue
++            except IOError:
++                continue
++
++            if len(l) != 3: continue
++
++            self.pidset2[pid] = {'run_ticks': long(l[0]), 'wait_ticks': long(l[1]), 'ran': long(l[2])}
++
++            if self.pidset2[pid]['ran'] - self.pidset1[pid]['ran'] &gt; 0:
++                avgwait = (self.pidset2[pid]['wait_ticks'] - self.pidset1[pid]['wait_ticks']) * 1.0 / (self.pidset2[pid]['ran'] - self.pidset1[pid]['ran']) / tick
++            else:
++                avgwait = 0
++
++            ### Get the process that spends the most jiffies
++            if avgwait &gt; self.val['topavgwait']:
++                self.val['topavgwait'] = avgwait
++                self.val['pid'] = pid
++                self.val['name'] = getnamebypid(pid, name)
++
++        if step == op.delay:
++            for pid in self.pidset2.keys():
++                self.pidset1[pid].update(self.pidset2[pid])
++
++        if self.val['topavgwait'] != 0.0:
++            self.val['process'] = '%-*s%s' % (self.width-5, self.val['name'][0:self.width-5], cprint(self.val['topavgwait'], 'f', 5, 0.01))
++
++        ### Debug (show PID)
++#       self.val['i/o process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++
++    def showcsv(self):
++        return '%s / %d' % (self.val['name'], self.val['topavgwait'], self.val['topavgwait'])
++
++# vim:ts=4:sw=4:et
+
+Added: trunk/tools/dstat/plugins/dstat_toptimeslice.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_toptimeslice.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_toptimeslice.py	2009-11-12 13:57:50 UTC (rev 8005)
+@@ -0,0 +1,77 @@
++### Dstat most expensive I/O process plugin
++### Displays the name of the most expensive I/O process
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++### For more information, see:
++###     <A HREF="http://eaglet.rain.com/rick/linux/schedstat/">http://eaglet.rain.com/rick/linux/schedstat/</A>
++
++class dstat_toptimeslice(dstat):
++    def __init__(self):
++        self.name = 'highest timeslice'
++        self.type = 's'
++        self.width = 22
++        self.scale = 0
++        self.vars = ('process',)
++        self.pid = str(os.getpid())
++        self.pidset1 = {}; self.pidset2 = {}
++
++    def check(self):
++        if not os.access('/proc/self/schedstat', os.R_OK):
++            raise Exception, 'Kernel has no scheduler statistics, use at least 2.6.12'
++
++    def extract(self):
++        self.val['topavgrun'] = 0
++        self.val['process'] = ''
++        for pid in os.listdir('/proc/'):
++            try:
++                ### Is it a pid ?
++                int(pid)
++
++                ### Filter out dstat
++                if pid == self.pid: continue
++
++                ### Reset values
++                if not self.pidset1.has_key(pid):
++                    self.pidset1[pid] = {'run_ticks': 0, 'wait_ticks': 0, 'ran': 0}
++
++                ### Extract name
++                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++
++                ### Extract counters
++                l = open('/proc/%s/schedstat' % pid).read().split()
++
++            except ValueError:
++                continue
++            except IOError:
++                continue
++
++            if len(l) != 3: continue
++
++            self.pidset2[pid] = {'run_ticks': long(l[0]), 'wait_ticks': long(l[1]), 'ran': long(l[2])}
++
++            if self.pidset2[pid]['ran'] - self.pidset1[pid]['ran'] &gt; 0:
++                avgrun = (self.pidset2[pid]['run_ticks'] - self.pidset1[pid]['run_ticks']) * 1.0 / (self.pidset2[pid]['ran'] - self.pidset1[pid]['ran']) / tick
++            else:
++                avgrun = 0
++
++            ### Get the process that spends the most jiffies
++            if avgrun &gt; self.val['topavgrun']:
++                self.val['topavgrun'] = avgrun
++                self.val['pid'] = pid
++                self.val['name'] = getnamebypid(pid, name)
++
++        if step == op.delay:
++            for pid in self.pidset2.keys():
++                self.pidset1[pid].update(self.pidset2[pid])
++
++        if self.val['topavgrun'] != 0.0:
++            self.val['process'] = '%-*s%s' % (self.width-5, self.val['name'][0:self.width-5], cprint(self.val['topavgrun'], 'f', 5, 0.01))
++
++        ### Debug (show PID)
++#       self.val['i/o process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++
++    def showcsv(self):
++        return '%s / %d' % (self.val['name'], self.val['topavgrun'], self.val['topavgrun'])
++
++# vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006799.html">[svn] r8004 - in trunk/rpms: . opendbx
+</A></li>
+	<LI>Next message: <A HREF="006801.html">[svn] r8006 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6800">[ date ]</a>
+              <a href="thread.html#6800">[ thread ]</a>
+              <a href="subject.html#6800">[ subject ]</a>
+              <a href="author.html#6800">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

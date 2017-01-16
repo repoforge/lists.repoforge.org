@@ -1,0 +1,260 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7609 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7609%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200908181943.n7IJhV6E003039%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006404.html">
+   <LINK REL="Next"  HREF="006406.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7609 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7609%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200908181943.n7IJhV6E003039%40surya.karan.org%3E"
+       TITLE="[svn] r7609 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Aug 18 21:43:31 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006404.html">[svn] r7608 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="006406.html">[svn] r7610 - in trunk/tools/wiipresent: . docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6405">[ date ]</a>
+              <a href="thread.html#6405">[ thread ]</a>
+              <a href="subject.html#6405">[ subject ]</a>
+              <a href="author.html#6405">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-08-18 20:43:30 +0100 (Tue, 18 Aug 2009)
+New Revision: 7609
+
+Modified:
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Added basic RSSI code.
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-08-18 16:44:08 UTC (rev 7608)
++++ trunk/tools/wiipresent/TODO	2009-08-18 19:43:30 UTC (rev 7609)
+@@ -5,9 +5,9 @@
+ == Priorities
+ - Make the mouse pointer move based on IR data (use WMD implementation)
+   (should probably go into libwiimote, not wiipresent)
+-- Scan for wiimotes and pick the closest (&lt; rssi) nearby if more than one
++- Pick the closest (&lt; rssi) or stongest (&gt; quality) wiimote if more than one
+   (should probably go into libwiimote, not wiipresent)
+-- Put keycode configuration in seperate config-files that are activated
++- Put keycode configuration in separate config-files that are activated
+   when mouseover application
+ 
+ == Ideas
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-08-18 16:44:08 UTC (rev 7608)
++++ trunk/tools/wiipresent/wiipresent.c	2009-08-18 19:43:30 UTC (rev 7609)
+@@ -27,6 +27,8 @@
+ #include &lt;time.h&gt;
+ #include &lt;unistd.h&gt;
+ 
++#include &lt;sys/ioctl.h&gt;
++
+ #include &lt;bluetooth/bluetooth.h&gt;
+ #include &lt;bluetooth/hci.h&gt;
+ #include &lt;bluetooth/hci_lib.h&gt;
+@@ -272,14 +274,99 @@
+     wmote-&gt;rumble = 0;
+ }
+ 
+-int wii_scan(char *wiimotes[18]) {
++int find_conn(int s, int dev_id, long arg) {
++    struct hci_conn_list_req *cl;
++    struct hci_conn_info *ci;
++    int i;
++
++    if (!(cl = malloc(10 * sizeof(*ci) + sizeof(*cl)))) {
++        perror(&quot;Can't allocate memory&quot;);
++        exit(1);
++    }
++    cl-&gt;dev_id = dev_id;
++    cl-&gt;conn_num = 10;
++    ci = cl-&gt;conn_info;
++
++    if (ioctl(s, HCIGETCONNLIST, (void*)cl)) {
++        perror(&quot;Can't get connection list&quot;);
++        exit(1);
++    }
++
++    for (i=0; i &lt; cl-&gt;conn_num; i++, ci++)
++        if (!bacmp((bdaddr_t *)arg, &amp;ci-&gt;bdaddr))
++            return 1;
++    return 0;
++}
++
++int wiimote_rssi(int dev_id, bdaddr_t bdaddr){
++    int cc = 0;
++    uint16_t handle;
++    struct hci_conn_info_req *cr;
++    int8_t rssi = 1;
++
++    uint8_t role = 0x01;
++    unsigned int ptype = HCI_DM1 | HCI_DM3 | HCI_DM5 | HCI_DH1 | HCI_DH3 | HCI_DH5;
++
++    dev_id = hci_for_each_dev(HCI_UP, find_conn, (long) &amp;bdaddr);
++    if (dev_id &lt; 0) {
++        dev_id = hci_get_route(&amp;bdaddr);
++        cc = 1;
++    }
++
++    if (dev_id &lt; 0) {
++        fprintf(stderr, &quot;Device is not available.\n&quot;);
++        goto clean;
++    }
++
++    int dd = hci_open_dev(dev_id);
++    if (dd &lt; 0) {
++        perror(&quot;HCI device open failed&quot;);
++        goto clean;
++    }
++
++    if (cc) {
++        if (hci_create_connection(dd, &amp;bdaddr, htobs(ptype),htobs(0x0000), role, &amp;handle, 10000) &lt; 0){
++            perror(&quot;Can't create connection&quot;);
++            goto clean;
++        }
++    }
++
++    cr = malloc(sizeof(*cr) + sizeof(struct hci_conn_info));
++    if (!cr) {
++        perror(&quot;Can't allocate memory&quot;);
++        exit(1);
++    }
++
++    bacpy(&amp;cr-&gt;bdaddr, &amp;bdaddr);
++    cr-&gt;type = ACL_LINK;
++    if (ioctl(dd, HCIGETCONNINFO, (unsigned long) cr) &lt; 0) {
++        perror(&quot;Get connection info failed&quot;);
++        goto crclean;
++    }
++
++    if (hci_read_rssi(dd, htobs(cr-&gt;conn_info-&gt;handle), &amp;rssi, 1000) &lt; 0) {
++        perror(&quot;Read RSSI failed&quot;);
++        goto crclean;
++    }
++
++    // Some clean up
++    crclean:
++    free(cr);
++
++    clean:
++    hci_close_dev(dd);
++
++    return rssi;
++}
++
++int wiimote_scan(char *wiimotes[18]) {
+     char addr[18] = { 0 };
+ 
+     int dev_id = hci_get_route(NULL);
+ 
+     int sock = hci_open_dev( dev_id );
+     if (dev_id &lt; 0 || sock &lt; 0) {
+-        fprintf(stderr, &quot;Failed to open socket.\n&quot;);
++        perror(&quot;Failed to open socket.&quot;);
+         return -1;
+     }
+ 
+@@ -291,28 +378,26 @@
+     inquiry_info* scan_info = scan_info_arr;
+     memset(&amp;scan_info_arr, 0, sizeof(scan_info_arr));
+ 
+-//    printf(&quot;Scanning for wiimotes...\n&quot;);
+-
+     int num_rsp = hci_inquiry(dev_id, timeout, max_rsp, NULL, &amp;scan_info, flags);
+-    if( num_rsp &lt; 0 ) {
+-        fprintf(stderr, &quot;Scanning for wiimotes failed.\n&quot;);
++    if (num_rsp &lt; 0) {
++        perror(&quot;Scanning for wiimotes failed.&quot;);
+         return -1;
+     }
+ 
+     int num_wiimotes = 0;
+     int i;
+     for (i = 0; i &lt; num_rsp; i++) {
+-        ba2str(&amp;scan_info[i].bdaddr, addr); 
++        ba2str(&amp;scan_info[i].bdaddr, addr);
+ 
+         // Check if this is a wiimote
+         if ((scan_info[i].dev_class[0] == 0x04) &amp;&amp;
+             (scan_info[i].dev_class[1] == 0x25) &amp;&amp;
+             (scan_info[i].dev_class[2] == 0x00)) {
+-//            printf(&quot;%s [%hhd] (wiimote)\n&quot;, addr, wii_rssi(dev_id, scan_info[i].bdaddr));
+-            fprintf(stderr, &quot;%s [%hhd] (wiimote)\n&quot;, addr, 0);
++            // FIXME: Verify that I am permitted to get the rssi (root ?)
++            if (verbose &gt;= 1) fprintf(stderr, &quot;\n - wiimote %s rssi %hhd&quot;, addr, wiimote_rssi(dev_id, scan_info[i].bdaddr));
+             wiimotes[num_wiimotes++] = strndup(addr, sizeof(addr));
+-//        } else {
+-//            printf(&quot;%s (skipped)\n&quot;, addr);
++        } else {
++            if (verbose &gt;= 2) fprintf(stderr, &quot;\n - device %s skipped&quot;, addr);
+         }
+     }
+     return num_wiimotes;
+@@ -449,11 +534,13 @@
+         num_wiimotes = 0;
+         wiimote_address = NULL;
+ 
+-        printf(&quot;Please press 1+2 on your wiimote...&quot;);
++        printf(&quot;Please press 1+2 on your wiimote..&quot;);
+ 
+         while (wiimote_address == NULL) {
+-            num_wiimotes = wii_scan(&amp;wiimotes);
++            if (!verbose) printf(&quot;.&quot;);
+ 
++            num_wiimotes = wiimote_scan(&amp;wiimotes);
++
+             if (num_wiimotes &lt;= 0) continue;
+ 
+             if (numaddr == 0) {
+@@ -461,7 +548,7 @@
+             } else {
+                 for (i = 0; i &lt; num_wiimotes; i++) {
+                     for (j = 0; j &lt; numaddr; j++) {
+-//                        fprintf(stderr, &quot;Comparing %s and %s\n&quot;, wiimotes[i], btaddresses[j]);
++                        if (verbose &gt;= 2) fprintf(stderr, &quot;Comparing %s and %s\n&quot;, wiimotes[i], btaddresses[j]);
+                         if (strncmp(wiimotes[i], btaddresses[j], 18)) {
+                             wiimote_address = wiimotes[i];
+                             break;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006404.html">[svn] r7608 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="006406.html">[svn] r7610 - in trunk/tools/wiipresent: . docs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6405">[ date ]</a>
+              <a href="thread.html#6405">[ thread ]</a>
+              <a href="subject.html#6405">[ subject ]</a>
+              <a href="author.html#6405">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

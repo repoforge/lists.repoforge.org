@@ -1,0 +1,220 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5416 - trunk/tools/unoconv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5416%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070519172943.9AAD1944AE2%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004214.html">
+   <LINK REL="Next"  HREF="004216.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5416 - trunk/tools/unoconv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5416%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070519172943.9AAD1944AE2%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5416 - trunk/tools/unoconv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat May 19 19:29:43 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004214.html">[svn] r5415 - in trunk/tools: . unoconv
+</A></li>
+        <LI>Next message: <A HREF="004216.html">[svn] r5417 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4215">[ date ]</a>
+              <a href="thread.html#4215">[ thread ]</a>
+              <a href="subject.html#4215">[ subject ]</a>
+              <a href="author.html#4215">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-19 19:29:43 +0200 (Sat, 19 May 2007)
+New Revision: 5416
+
+Modified:
+   trunk/tools/unoconv/unoconv
+   trunk/tools/unoconv/unoconv.spec
+Log:
+Few improvements.
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2007-05-19 16:55:46 UTC (rev 5415)
++++ trunk/tools/unoconv/unoconv	2007-05-19 17:29:43 UTC (rev 5416)
+@@ -1,20 +1,45 @@
+ #!/usr/bin/python
+ 
+-import getopt, sys, os
++### This program is free software; you can redistribute it and/or modify
++### it under the terms of the GNU Library General Public License as published by
++### the Free Software Foundation; version 2 only
++###
++### This program is distributed in the hope that it will be useful,
++### but WITHOUT ANY WARRANTY; without even the implied warranty of
++### MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++### GNU Library General Public License for more details.
++###
++### You should have received a copy of the GNU Library General Public License
++### along with this program; if not, write to the Free Software
++### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++### Copyright 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+-if os.path.isfile('/usr/lib/openoffice.org2.0/program/pyuno.so'):
+-    sys.path.append('/usr/lib/openoffice.org2.0/program/')
+-else:
+-    print &gt;&gt;sys.stderr, &quot;Error: Cannot find the pyuno.so library.&quot;
+-    print &gt;&gt;sys.stderr, &quot;Please locate this library and send feedback to &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">tools at lists.rpmforge.net</A>&gt;.&quot;
+-    sys.exit(1)
++import getopt, sys, os, distutils.sysconfig
+ 
++try:
++    import uno
++except:
++    extrapaths = ('/usr/lib/openoffice.org2.0/program/',)
++    for path in extrapaths:
++        if os.path.isfile(os.path.join(path, 'pyuno.so')):
++            sys.path.append(path)
++            break
++    else:
++        print &gt;&gt;sys.stderr, &quot;Error: Cannot find the pyuno.so library.&quot;
++        print &gt;&gt;sys.stderr, &quot;Please locate this library and send feedback to &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">tools at lists.rpmforge.net</A>&gt;.&quot;
++        sys.exit(1)
++
+ import uno, unohelper
+ from com.sun.star.beans import PropertyValue
+ from com.sun.star.uno import Exception as UnoException
+ from com.sun.star.io import IOException, XOutputStream
+ from com.sun.star.connection import NoConnectException
+ 
++__version__ = &quot;$Revision$&quot;
++# $Source$
++
++VERSION = '0.1svn'
++
+ class Fmt:
+     def __init__(self, name, extension, filter, summary):
+         self.name = name
+@@ -56,6 +81,7 @@
+ outputmap.add('doc95', 'doc', 'MS Word 95', 'Microsoft Word 95')
+ outputmap.add('docbook', 'xml', 'DocBook 5.0', 'DocBook')
+ outputmap.add('html', 'html', 'HTML (StarWriter)', 'HTML')
++outputmap.add('odt', 'odt', 'Open Document Text', 'Open Document Text')
+ outputmap.add('ooxml', 'xml', 'MS Word 2003 XML', 'Microsoft Office Open XML')
+ outputmap.add('pdf', 'pdf', 'writer_pdf_Export', 'Portable Document Format')
+ outputmap.add('rtf', 'rtf', 'Rich Text Format', 'Rich Text Format')
+@@ -65,6 +91,16 @@
+ outputmap.add('sxw', 'sxw', 'Open Office.org 1.0', 'Open Office.org 1.0 Text Document')
+ outputmap.add('txt', 'txt', 'Text (Encoded)', 'Plain text')
+ 
++def version():
++    print 'unoconv %s' % VERSION
++    print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
++    print 'Homepage at <A HREF="http://dag.wieers.com/home-made/unoconv/">http://dag.wieers.com/home-made/unoconv/</A>'
++    print
++    print 'platform %s/%s' % (os.name, sys.platform)
++    print 'python %s' % sys.version
++    print
++    print 'build revision $Rev$'
++
+ def usage():
+     print &gt;&gt;sys.stderr, 'usage: unoconv [options] &lt;fmt&gt; file1 file2'
+ 
+@@ -86,8 +122,8 @@
+ connection = &quot;uno:socket,host=%s,port=%s;urp;StarOffice.ComponentContext&quot; % (server, port)
+ 
+ try:
+-    opts, args = getopt.getopt (args, 'c:e:f:hs',
+-                ['connection:', 'extension:', 'format:', 'help', 'stdout'] )
++    opts, args = getopt.getopt (args, 'c:e:f:hsv',
++                ['connection:', 'extension:', 'format:', 'help', 'stdout', 'version'] )
+ except getopt.error, exc:
+     print &gt;&gt;sys.stderr, 'unoconv: %s, try unoconv -h for a list of all the options' % str(exc)
+     sys.exit(1)
+@@ -102,6 +138,9 @@
+         format = arg
+     elif opt in ['-s', '--stdout']:
+         stdout = True
++    elif opt in ['-v', '--version']:
++        version()
++        sys.exit(1)
+ 
+ if not args:
+     print &gt;&gt;sys.stderr, 'You have to provide a file to convert.'
+@@ -141,6 +180,7 @@
+     
+     for path in args:
+         try:
++            doc = None
+             filename = unohelper.absolutize(cwd, unohelper.systemPathToFileUrl(path))
+             doc = desktop.loadComponentFromURL( filename , &quot;_blank&quot;, 0, inProps )
+     
+@@ -166,7 +206,7 @@
+                 doc.dispose()
+  
+ except NoConnectException, e:
+-    print &gt;&gt;sys.stderr, &quot;Error: Could not find an existing connection to Open Office.&quot;
++    print &gt;&gt;sys.stderr, &quot;Error: Could not find an existing connection to Open Office at %s:%s.&quot; % (server, port)
+     print &gt;&gt;sys.stderr, &quot;Please start an oowriter instance by doing:\n    oowriter \&quot;-accept=socket,host=%s,port=%s;urp;\&quot;&quot; % (server, port)
+     sys.exit(1)
+ 
+
+Modified: trunk/tools/unoconv/unoconv.spec
+===================================================================
+--- trunk/tools/unoconv/unoconv.spec	2007-05-19 16:55:46 UTC (rev 5415)
++++ trunk/tools/unoconv/unoconv.spec	2007-05-19 17:29:43 UTC (rev 5416)
+@@ -17,13 +17,16 @@
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildArch: noarch
+-BuildRequires: python-devel, openoffice-core
+-Requires: python &gt;= 2.0
++BuildRequires: python &gt;= 2.0
++Requires: python &gt;= 2.0, openoffice-core, openoffic-pyuno
+ 
+ %description
+ unoconv converts any document format that OpenOffice can import, to any
+ document format that OpenOffice can export.
+ 
++unoconv uses the OpenOffice's UNO bindings for non-interactive conversion
++of documents
++
+ %prep
+ %setup
+ 
+@@ -38,7 +41,7 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README THANKS TODO WISHLIST
++%doc AUTHORS ChangeLog COPYING README TODO WISHLIST
+ %{_bindir}/unoconv
+ 
+ %changelog
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004214.html">[svn] r5415 - in trunk/tools: . unoconv
+</A></li>
+	<LI>Next message: <A HREF="004216.html">[svn] r5417 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4215">[ date ]</a>
+              <a href="thread.html#4215">[ thread ]</a>
+              <a href="subject.html#4215">[ subject ]</a>
+              <a href="author.html#4215">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1965 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1965%20-%20trunk/tools/yam&In-Reply-To=%3C20040810101550.488ED17FA6%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000770.html">
+   <LINK REL="Next"  HREF="000772.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1965 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1965%20-%20trunk/tools/yam&In-Reply-To=%3C20040810101550.488ED17FA6%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1965 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Aug 10 12:15:50 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000770.html">[SVN] r1964 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="000772.html">[SVN] r1966 - in trunk: docs rpms rpms/powermanga
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#771">[ date ]</a>
+              <a href="thread.html#771">[ thread ]</a>
+              <a href="subject.html#771">[ subject ]</a>
+              <a href="author.html#771">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-10 12:15:48 +0200 (Tue, 10 Aug 2004)
+New Revision: 1965
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/Makefile
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Ok, probably last update of the day.
+I know I should've done it in one commit
+but when I think it's time to leave for work something crops up.
+
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-10 09:55:40 UTC (rev 1964)
++++ trunk/tools/yam/ChangeLog	2004-08-10 10:15:48 UTC (rev 1965)
+@@ -7,6 +7,9 @@
+ - Added rsync-support
+ - Disable most examples by default (since ISOs are no longer needed)
+ - If no ISOs are found, try downloading os packages
++- Fixed /usr/lib problem on x86_64 (Dries Verachtert)
++- Added README.loop (Jeff Pitman)
++- Make Yam work on python &lt;= 2.2.1 (Dhawal Doshy)
+ 
+ * 0.3
+ - Remove dangling symlinks (crashes yum/apt)
+
+Modified: trunk/tools/yam/Makefile
+===================================================================
+--- trunk/tools/yam/Makefile	2004-08-10 09:55:40 UTC (rev 1964)
++++ trunk/tools/yam/Makefile	2004-08-10 10:15:48 UTC (rev 1965)
+@@ -6,11 +6,11 @@
+ datadir = $(prefix)/share
+ mandir = $(datadir)/man
+ localstatedir = /var
+-htmldir = $(libdir)/yam/html
+ 
+ httpddir = $(sysconfdir)/httpd/conf.d
+ initrddir = $(sysconfdir)/rc.d/init.d
+ 
++htmldir = $(datadir)/yam/html
+ srcdir = $(localstatedir)/yam
+ wwwdir = $(localstatedir)/www/yam
+ 
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-10 09:55:40 UTC (rev 1964)
++++ trunk/tools/yam/TODO	2004-08-10 10:15:48 UTC (rev 1965)
+@@ -22,3 +22,5 @@
+ 
+ ### Internal python
+ + Improve the copy/symlink/rename functions, using exceptions
++
++### Bugs
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-10 09:55:40 UTC (rev 1964)
++++ trunk/tools/yam/yam	2004-08-10 10:15:48 UTC (rev 1965)
+@@ -1,4 +1,4 @@
+-#!/usr/bin/python
++#!/usr/bin/python2
+ 
+ import os, sys, glob, string, re, filecmp, shutil, getopt
+ import ConfigParser, urlparse
+@@ -83,7 +83,7 @@
+ 			else:
+ 				die(6, 'Error accessing file: %s' % self.configfile)
+ 
+-		self.htmldir = self.getoption('main', 'htmldir', '/usr/lib/yam/html')
++		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/yam/html')
+ 		self.srcdir = self.getoption('main', 'srcdir', '/var/yam')
+ 		self.lockfile = self.getoption('main', 'lockfile', '/var/run/yam.pid')
+ 		self.pxelinux = self.getoption('main', 'pxelinux', '/usr/lib/syslinux/pxelinux.0')
+@@ -206,7 +206,7 @@
+ def symlink(src, dst):
+ 	&quot;Create a symbolic link, force if dst exists&quot;
+ 	if not os.path.islink(dst) and os.path.isdir(dst):
+-		dst += '/' + os.path.basename(src)
++		dst = dst + '/' + os.path.basename(src)
+ ### Not using filecmp increases speed with 15%
+ #	if os.path.isfile(dst) and filecmp.cmp(src, dst) == 0:
+ 	if os.path.isfile(dst):
+@@ -220,7 +220,7 @@
+ def copy(src, dst):
+ 	&quot;Copy a file, force if dst exists&quot;
+ 	if os.path.isdir(dst):
+-		dst += '/' + os.path.basename(src) 
++		dst = dst + '/' + os.path.basename(src) 
+ 	if os.path.islink(dst) or os.path.isfile(dst):
+ 		os.unlink(dst)
+ 	mkdir(os.path.dirname(dst))
+@@ -330,7 +330,7 @@
+ 	if not os.path.isfile(cf.genbasedircmd):
+ 		die(4, 'genbasedir command not found as %s' % cf.genbasedircmd)	
+ 	for repo in ['os', 'updates', 'extras'] + cf.extras.keys():
+-		if os.path.exists(wwwdir + '/RPMS.' + repo): repos += repo + ' '
++		if os.path.exists(wwwdir + '/RPMS.' + repo): repos = repos + repo + ' '
+ 	if repos:
+ 		info('Create Apt repository for %s' % repos)
+ 		os.system('%s --flat --bloat --bz2only %s %s' % (cf.genbasedircmd, wwwdir, repos))
+@@ -400,7 +400,7 @@
+ 				try:
+ 					discnr = re.compile('disc([0-9])').search(iso).group(1)
+ 				except AttributeError, e:
+-					discnr += 1
++					discnr = discnr + 1
+ 				if op.umount:
+ 					umountiso(distdir + '/disc' + str(discnr))
+ 					continue
+@@ -483,6 +483,15 @@
+ 			if cf.pxelinux:
+ 				copy(cf.pxelinux, tftpdir)
+ 
++### Workaround for python &lt;= 2.2.1
++try:
++     True, False
++except NameError:
++     True = 1
++     False = 0
++Yes = yes = On = on = True
++No = no = Off = off = False
++
+ if __name__ == '__main__':
+ 	op=options(sys.argv[1:])
+ 	cf=config()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000770.html">[SVN] r1964 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="000772.html">[SVN] r1966 - in trunk: docs rpms rpms/powermanga
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#771">[ date ]</a>
+              <a href="thread.html#771">[ thread ]</a>
+              <a href="subject.html#771">[ subject ]</a>
+              <a href="author.html#771">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

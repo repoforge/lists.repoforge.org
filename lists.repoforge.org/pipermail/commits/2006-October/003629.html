@@ -1,0 +1,244 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4829 - in trunk/rpms: libmpeg3 transcode zapping zvbi
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4829%20-%20in%20trunk/rpms%3A%20libmpeg3%20transcode%20zapping%20zvbi&In-Reply-To=%3C20061017111056.C67C031814F%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003628.html">
+   <LINK REL="Next"  HREF="003630.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4829 - in trunk/rpms: libmpeg3 transcode zapping zvbi</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4829%20-%20in%20trunk/rpms%3A%20libmpeg3%20transcode%20zapping%20zvbi&In-Reply-To=%3C20061017111056.C67C031814F%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4829 - in trunk/rpms: libmpeg3 transcode zapping zvbi">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Oct 17 13:10:56 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003628.html">[svn] r4828 - trunk/rpms/gstreamer-plugins-ugly
+</A></li>
+        <LI>Next message: <A HREF="003630.html">[svn] r4830 - trunk/rpms/mplayer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3629">[ date ]</a>
+              <a href="thread.html#3629">[ thread ]</a>
+              <a href="subject.html#3629">[ subject ]</a>
+              <a href="author.html#3629">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-10-17 13:10:45 +0200 (Tue, 17 Oct 2006)
+New Revision: 4829
+
+Added:
+   trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch
+   trunk/rpms/zvbi/zvbi-0.2.19-compiler.h.patch
+Modified:
+   trunk/rpms/libmpeg3/libmpeg3.spec
+   trunk/rpms/transcode/transcode.spec
+   trunk/rpms/zapping/zapping.spec
+   trunk/rpms/zvbi/zvbi.spec
+Log:
+Misc minor fixes.
+
+
+Modified: trunk/rpms/libmpeg3/libmpeg3.spec
+===================================================================
+--- trunk/rpms/libmpeg3/libmpeg3.spec	2006-10-17 10:52:55 UTC (rev 4828)
++++ trunk/rpms/libmpeg3/libmpeg3.spec	2006-10-17 11:10:45 UTC (rev 4829)
+@@ -5,7 +5,7 @@
+ Summary: Decoder of various derivatives of MPEG standards
+ Name: libmpeg3
+ Version: 1.7
+-Release: 1
++Release: 2
+ License: GPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://heroinewarrior.com/libmpeg3.php3">http://heroinewarrior.com/libmpeg3.php3</A>
+@@ -62,7 +62,8 @@
+ %ifarch i686 athlon
+ %{__perl} -pi -e 's|^USE_MMX = 0|USE_MMX = 1|g' Makefile
+ %endif
+-%{__make} %{?_smp_mflags}
++# EOF error which requires a second make invocation. Needs to be investigated
++%{__make} %{?_smp_mflags} || %{__make} %{?_smp_mflags}
+ 
+ 
+ %install
+@@ -95,6 +96,9 @@
+ 
+ 
+ %changelog
++* Wed Sep 20 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.7-2
++- Run make twice since there is an EOF error that makes the first run abort.
++
+ * Mon Jul  3 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.7-1
+ - Update to 1.7.
+ 
+
+Added: trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch
+===================================================================
+--- trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch	                        (rev 0)
++++ trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch	2006-10-17 11:10:45 UTC (rev 4829)
+@@ -0,0 +1,30 @@
++--- transcode-1.0.2.orig/configure	2005-11-06 07:04:59.000000000 +0100
+++++ transcode-1.0.2/configure	2005-11-06 07:04:59.000000000 +0100
++@@ -28107,7 +28107,12 @@ main()
++     printf(&quot;install ffmpeg 0.4.9-pre1 or newer, or a cvs version after 20040703&quot;);
++     return(1);
++   }
+++  /* 3344640 == ((51&lt;&lt;16)+(9&lt;&lt;8)+0) == 51.9.0 */
+++#ifdef LIBAVCODEC_BUILD &gt;= 3344640
+++  printf(&quot;VER=%s\n&quot;, AV_STRINGIFY(LIBAVCODEC_VERSION));
+++#else
++   printf(&quot;VER=%s\n&quot;, FFMPEG_VERSION);
+++#endif /* LIBAVCODEC_BUILD &gt;= 51.9.0 check */
++   printf(&quot;BUILD=%d\n&quot;, LIBAVCODEC_BUILD);
++   return(0);
++ }
++--- transcode-1.0.2.orig/configure.in	2005-10-30 05:57:45.000000000 +0100
+++++ transcode-1.0.2/configure.in	2005-10-30 05:57:45.000000000 +0100
++@@ -628,7 +628,12 @@ main()
++     printf(&quot;install ffmpeg 0.4.9-pre1 or newer, or a cvs version after 20040703&quot;);
++     return(1);
++   }
+++  /* 3344640 == ((51&lt;&lt;16)+(9&lt;&lt;8)+0) == 51.9.0 */
+++#ifdef LIBAVCODEC_BUILD &gt;= 3344640
+++  printf(&quot;VER=%s\n&quot;, AV_STRINGIFY(LIBAVCODEC_VERSION));
+++#else
++   printf(&quot;VER=%s\n&quot;, FFMPEG_VERSION);
+++#endif /* LIBAVCODEC_BUILD &gt;= 51.9.0 check */
++   printf(&quot;BUILD=%d\n&quot;, LIBAVCODEC_BUILD);
++   return(0);
++ }
+
+Modified: trunk/rpms/transcode/transcode.spec
+===================================================================
+--- trunk/rpms/transcode/transcode.spec	2006-10-17 10:52:55 UTC (rev 4828)
++++ trunk/rpms/transcode/transcode.spec	2006-10-17 11:10:45 UTC (rev 4829)
+@@ -29,7 +29,7 @@
+ Summary: Linux video stream processing utility
+ Name: transcode
+ Version: 1.0.2
+-Release: 10%{?prever:.%{prever}}
++Release: 11%{?prever:.%{prever}}
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://www.transcoding.org/">http://www.transcoding.org/</A>
+@@ -39,6 +39,7 @@
+ Patch2: transcode-1.0.x-filter-patch.txt
+ Patch3: transcode-1.0.2-lzo2.patch
+ Patch4: transcode-1.0.2-libmpeg3.patch
++Patch5: transcode-1.0.2-libavcodec.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: gcc-c++, gtk+-devel, SDL-devel, libxml2-devel, libjpeg-devel
+ BuildRequires: freetype-devel &gt;= 2.0, libogg-devel, libvorbis-devel
+@@ -83,6 +84,7 @@
+ %patch2 -p0 -b .filter-patch
+ %patch3 -p1 -b .lzo2
+ %patch4 -p1 -b .libmpeg3
++%patch5 -p1 -b .libavcodec
+ 
+ 
+ %build
+@@ -140,6 +142,9 @@
+ 
+ 
+ %changelog
++* Tue Sep 19 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.2-11
++- Add patch for recent ffmpeg (libavcodec) versions detection.
++
+ * Mon Jul 31 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.2-10
+ - Add lzo2 patch from Gentoo.
+ - Add patch to compile against libmpeg3 1.7 (mpeg3_open error_return change).
+
+Modified: trunk/rpms/zapping/zapping.spec
+===================================================================
+--- trunk/rpms/zapping/zapping.spec	2006-10-17 10:52:55 UTC (rev 4828)
++++ trunk/rpms/zapping/zapping.spec	2006-10-17 11:10:45 UTC (rev 4829)
+@@ -22,7 +22,7 @@
+ BuildRequires: libgnomeui-devel, libglade2-devel, gtk2-devel &gt;= 2.4
+ BuildRequires: scrollkeeper, gettext, libjpeg-devel, libpng-devel
+ BuildRequires: zvbi-devel, arts-devel, lirc-devel
+-BuildRequires: python-devel, desktop-file-utils, gcc-c++
++BuildRequires: python-devel, desktop-file-utils, gcc-c++, intltool
+ %{?_with_modxorg:BuildRequires: libXt-devel, libXv-devel, libXmu-devel, libXxf86dga-devel, libXxf86vm-devel}
+ %{!?_without_rte:BuildRequires: rte-devel &gt;= 0.5}
+ # This one is to get /usr/bin/consolehelper
+
+Added: trunk/rpms/zvbi/zvbi-0.2.19-compiler.h.patch
+===================================================================
+--- trunk/rpms/zvbi/zvbi-0.2.19-compiler.h.patch	                        (rev 0)
++++ trunk/rpms/zvbi/zvbi-0.2.19-compiler.h.patch	2006-10-17 11:10:45 UTC (rev 4829)
+@@ -0,0 +1,11 @@
++diff -Naupr zvbi-0.2.19.orig/src/videodev2k.h zvbi-0.2.19/src/videodev2k.h
++--- zvbi-0.2.19.orig/src/videodev2k.h	2005-09-11 09:53:52.000000000 +0200
+++++ zvbi-0.2.19/src/videodev2k.h	2006-09-19 10:49:15.000000000 +0200
++@@ -16,7 +16,6 @@
++ #ifdef __KERNEL__
++ #include &lt;linux/time.h&gt; /* need struct timeval */
++ #endif
++-#include &lt;linux/compiler.h&gt; /* need __user */
++ 
++ /*
++  *	M I S C E L L A N E O U S
+
+Modified: trunk/rpms/zvbi/zvbi.spec
+===================================================================
+--- trunk/rpms/zvbi/zvbi.spec	2006-10-17 10:52:55 UTC (rev 4828)
++++ trunk/rpms/zvbi/zvbi.spec	2006-10-17 11:10:45 UTC (rev 4829)
+@@ -16,6 +16,7 @@
+ Group: Applications/Multimedia
+ URL: <A HREF="http://zapping.sourceforge.net/">http://zapping.sourceforge.net/</A>
+ Source: <A HREF="http://dl.sf.net/zapping/zvbi-%{version">http://dl.sf.net/zapping/zvbi-%{version</A>}.tar.bz2
++Patch0: zvbi-0.2.19-compiler.h.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: libpng-devel, gcc-c++, doxygen, gettext
+ %{?_with_modxorg:BuildRequires: libXt-devel}
+@@ -44,6 +45,7 @@
+ 
+ %prep
+ %setup
++%patch0 -p1 -b .compiler.h
+ 
+ 
+ %build
+@@ -88,6 +90,9 @@
+ 
+ 
+ %changelog
++* Tue Sep 19 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.2.21-2
++- Add patch to remove linux/compiler.h include.
++
+ * Thu May 11 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.2.21-1
+ - Updated to release 0.2.21.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003628.html">[svn] r4828 - trunk/rpms/gstreamer-plugins-ugly
+</A></li>
+	<LI>Next message: <A HREF="003630.html">[svn] r4830 - trunk/rpms/mplayer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3629">[ date ]</a>
+              <a href="thread.html#3629">[ thread ]</a>
+              <a href="subject.html#3629">[ subject ]</a>
+              <a href="author.html#3629">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

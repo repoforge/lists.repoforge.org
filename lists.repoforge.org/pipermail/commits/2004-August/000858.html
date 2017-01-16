@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2052 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2052%20-%20trunk/tools/yam&In-Reply-To=%3C20040819232923.7666E18BE6%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000857.html">
+   <LINK REL="Next"  HREF="000859.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2052 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2052%20-%20trunk/tools/yam&In-Reply-To=%3C20040819232923.7666E18BE6%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2052 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Aug 20 01:29:23 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000857.html">[SVN] r2051 - in trunk/rpms: . lcap
+</A></li>
+        <LI>Next message: <A HREF="000859.html">[SVN] r2053 - in trunk/rpms: . open-carpet
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#858">[ date ]</a>
+              <a href="thread.html#858">[ thread ]</a>
+              <a href="subject.html#858">[ subject ]</a>
+              <a href="author.html#858">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-20 01:29:21 +0200 (Fri, 20 Aug 2004)
+New Revision: 2052
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.conf
+   trunk/tools/yam/yam.httpd
+Log:
+Some more updates.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-19 22:42:00 UTC (rev 2051)
++++ trunk/tools/yam/ChangeLog	2004-08-19 23:29:21 UTC (rev 2052)
+@@ -4,6 +4,7 @@
+ - Added extra debugging information to --version
+ - Intercept user input and exit when asked
+ - Run external commands much better and print on errors
++- Added examples of IP or hostname based restriction and HTTP authentication
+ 
+ * 0.5
+ - Skipped a 0.4 release to indicate this is an important update.
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-19 22:42:00 UTC (rev 2051)
++++ trunk/tools/yam/yam	2004-08-19 23:29:21 UTC (rev 2052)
+@@ -1,6 +1,6 @@
+ #!/usr/bin/python -d
+ 
+-import os, sys, glob, re, shutil, getopt
++import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse
+ 
+ VERSION = '0.5'
+@@ -349,12 +349,19 @@
+ def run(str):
+ 	&quot;Run command, accept user input, and print output when needed.&quot;
+ 	info(4, str)
+-	pin, pout = os.popen4(str)
+-	if op.verbose or not pout.wait():
+-		out=pout.read()
+-		if out: print out
++#	pout, pin = popen2.popen4(str, 0)
++	pout, pin = popen2.popen4(str)
++	if op.verbose &gt;= 2:
++		out = 'a'
++		while out:
++			out = pout.readline()
++			if out: print out,
+ 	else:
+-		pout.flush()
++		void, ret = os.wait()
++		if ret:
++			print 'Command failed with code = %s' % ret
++			out = pout.read()
++			if out: print out
+ 
+ def readfile(file, len = 0):
+ 	&quot;Return content of a file&quot;
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-08-19 22:42:00 UTC (rev 2051)
++++ trunk/tools/yam/yam.conf	2004-08-19 23:29:21 UTC (rev 2052)
+@@ -34,7 +34,7 @@
+ newrpms=<A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/</A>
+ 
+ #[rhes3]
+-#name=Red Hat Enterprise Server $release ($arch)
++#name=Red Hat Enterprise Server $release U2 ($arch)
+ #release=3
+ #tag=el3 rhel3
+ #iso=rhel-3-U2-$arch-es-disc?.iso rhel-3-U2-$arch-es-disc?.iso
+@@ -76,10 +76,10 @@
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/$release/en/$arch/RPMS.$repo/</A>
+ 
+ #[rhas21]
+-#name=Red hat Advanced Server $release ($arch)
++#name=Red hat Advanced Server $release U5 ($arch)
+ #release=2.1
+ #tag=el2 rhel2.1
+-#iso=RHEL2.1AS-U4-re0427.2.1-$arch-disc?.iso rhel-21-u2-$arch-disc?.iso
++#iso=RHEL2.1AS-U5-re0810.RC.0-$arch-disc?.iso
+ #updates=<A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+ ##updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2/en/$arch/RPMS.$repo/</A>
+
+Modified: trunk/tools/yam/yam.httpd
+===================================================================
+--- trunk/tools/yam/yam.httpd	2004-08-19 22:42:00 UTC (rev 2051)
++++ trunk/tools/yam/yam.httpd	2004-08-19 23:29:21 UTC (rev 2052)
+@@ -4,6 +4,15 @@
+ &lt;Directory /var/www/yam&gt;
+ 	Options Indexes FollowSymlinks SymLinksifOwnerMatch IncludesNOEXEC
+ 	IndexOptions NameWidth=* DescriptionWidth=*
++
++#	order deny,allow
++#	deny from all
++#	allow from 127.0.0.1
++#	allow from horsea.3ti.be
++#	allow from pikachu.3ti.be
++
++#	AuthUserFile /var/yam/auth/.htpasswd
++#	Require user bert dag dries thias
+ 	
+ 	HeaderName HEADER.shtml
+ 	ReadmeName README.shtml
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000857.html">[SVN] r2051 - in trunk/rpms: . lcap
+</A></li>
+	<LI>Next message: <A HREF="000859.html">[SVN] r2053 - in trunk/rpms: . open-carpet
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#858">[ date ]</a>
+              <a href="thread.html#858">[ thread ]</a>
+              <a href="subject.html#858">[ subject ]</a>
+              <a href="author.html#858">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1440 - trunk/rpms/psi
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1440%20-%20trunk/rpms/psi&In-Reply-To=%3C20040625103009.1B1701FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000248.html">
+   <LINK REL="Next"  HREF="000250.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1440 - trunk/rpms/psi</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1440%20-%20trunk/rpms/psi&In-Reply-To=%3C20040625103009.1B1701FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1440 - trunk/rpms/psi">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Jun 25 12:30:09 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000248.html">[SVN] r1439 - trunk/rpms/smbc
+</A></li>
+        <LI>Next message: <A HREF="000250.html">[SVN] r1441 - in trunk/rpms: . gaim-meanwhile meanwhile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#249">[ date ]</a>
+              <a href="thread.html#249">[ thread ]</a>
+              <a href="subject.html#249">[ subject ]</a>
+              <a href="author.html#249">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-06-25 12:30:06 +0200 (Fri, 25 Jun 2004)
+New Revision: 1440
+
+Modified:
+   trunk/rpms/psi/psi.spec
+Log:
+New fixes.
+
+
+Modified: trunk/rpms/psi/psi.spec
+===================================================================
+--- trunk/rpms/psi/psi.spec	2004-06-25 10:11:14 UTC (rev 1439)
++++ trunk/rpms/psi/psi.spec	2004-06-25 10:30:06 UTC (rev 1440)
+@@ -1,8 +1,15 @@
+ # $Id$
+ # Authority: dries
++
+ # Screenshot: <A HREF="http://psi.affinix.com/gfx/screenshots/iceram-roster.png">http://psi.affinix.com/gfx/screenshots/iceram-roster.png</A>
+ # ScreenshotURL: <A HREF="http://psi.affinix.com/?page=screenshots">http://psi.affinix.com/?page=screenshots</A>
+ 
++%{?dist: %{expand: %%define %dist 1}}
++
++%{?rh7:%define _without_freedesktop 1}
++%{?el2:%define _without_freedesktop 1}
++%{?rh6:%define _without_freedesktop 1}
++
+ %define desktop_vendor rpmforge
+ %define tls_plugin     qca-tls-1.0
+ %define qtdir          %(echo ${QTDIR})
+@@ -14,6 +21,10 @@
+ License: GPL
+ Group: Applications/Communications
+ URL: <A HREF="http://psi.affinix.com/">http://psi.affinix.com/</A>
++
++Packager: Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;
++Vendor: Dries Apt/Yum Repository <A HREF="http://dries.ulyssis.org/ayo/">http://dries.ulyssis.org/ayo/</A>
++
+ Source0: <A HREF="http://dl.sf.net/psi/psi-%{version">http://dl.sf.net/psi/psi-%{version</A>}.tar.bz2
+ Source1: <A HREF="http://psi.affinix.com/beta/%{tls_plugin">http://psi.affinix.com/beta/%{tls_plugin</A>}.tar.bz2
+ Source20: psi_ca.qm
+@@ -30,15 +41,11 @@
+ Source31: psi_sk.qm
+ Source32: psi_zh.qm
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
+ BuildRequires: XFree86-devel, kdelibs-devel, openssl-devel, gcc-c++
+-%{?fc2:BuildRequires: desktop-file-utils}
+-%{?fc1:BuildRequires: desktop-file-utils}
+ %{!?_without_freedesktop:BuildRequires: desktop-file-utils}
+ Obsoletes: psi-iconsets &lt; 0.9.1
+ 
+-Packager: Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;
+-Vendor: Dries Apt/Yum Repository <A HREF="http://dries.ulyssis.org/ayo/">http://dries.ulyssis.org/ayo/</A>
+-
+ %description
+ Psi is a client program for the Jabber messaging network. It supports
+ multiple accounts, group chat, Unicode and SSL encryption.
+@@ -57,6 +64,19 @@
+ %prep
+ %setup -a 1
+ 
++%{__cat} &lt;&lt;EOF &gt;psi.desktop
++[Desktop Entry]
++Name=Psi Jabber Client
++Comment=Connect and chat on the Jabber network
++Icon=psi.png
++Exec=psi -caption &quot;%%c&quot; %%i %%m
++Terminal=false
++Type=Application
++Encoding=UTF-8
++StartupNotify=true
++Categories=Application;Network;
++EOF
++
+ %build
+ # It's not an autoconf generated script...
+ # The PWD thing is an ugly hack since relative paths mess everything up...
+@@ -82,46 +102,35 @@
+ %{__make} install INSTALL_ROOT=&quot;%{buildroot}/&quot;
+ 
+ # Transport Layer Security plugin
+-%{__install} -D -m 0755 %{tls_plugin}/libqca-tls.so \
++%{__install} -D -m0755 %{tls_plugin}/libqca-tls.so \
+     %{buildroot}%{qtdir}/plugins/crypto/libqca-tls.so
+ 
+ # Install the pixmap for the menu entry
+-%{__install} -D -m 0644 iconsets/system/default/icon_32.png \
++%{__install} -D -m0644 iconsets/system/default/icon_32.png \
+     %{buildroot}%{_datadir}/pixmaps/psi.png
+ 
+-# Install an enhanced menu entry (supplied psi.desktop is sparse)
+-%{__cat} &gt; %{name}.desktop &lt;&lt; EOF
+-[Desktop Entry]
+-Name=Psi Jabber Client
+-Comment=Connect and chat on the Jabber network
+-Icon=psi.png
+-Exec=psi -caption &quot;%%c&quot; %%i %%m
+-Terminal=false
+-Type=Application
+-Encoding=UTF-8
+-Categories=Application;Network;
+-StartupNotify=true
+-EOF
++### Cleanup buildroot
++%{__rm} -f %{buildroot}%{_datadir}/applnk/Internet/psi.desktop \
++		%{buildroot}%{_datadir}/icons/hicolor/*/apps/psi.png
+ 
+ %if %{!?_without_freedesktop:1}0
+ %{__mkdir_p} %{buildroot}%{_datadir}/applications
+ desktop-file-install \
+     --vendor %{desktop_vendor} \
+     --dir %{buildroot}%{_datadir}/applications \
+-    %{name}.desktop
++    psi.desktop
+ %else
+-%{__install} -D -m 0644 %{name}.desktop \
+-    %{buildroot}%{_sysconfdir}/X11/applnk/Internet/%{name}.desktop
++%{__install} -D -m0644 psi.desktop \
++    %{buildroot}%{_sysconfdir}/X11/applnk/Internet/psi.desktop
+ %endif
+  
+ # Install the languagepack files
+-%{__install} -m 0644 \
++%{__install} -m0644 \
+     %{SOURCE20} %{SOURCE21} %{SOURCE22} %{SOURCE23} %{SOURCE24} \
+     %{SOURCE25} %{SOURCE26} %{SOURCE27} %{SOURCE28} %{SOURCE29} \
+     %{SOURCE30} %{SOURCE31} %{SOURCE32} \
+     %{buildroot}%{_datadir}/psi
+ 
+-
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+@@ -133,30 +142,27 @@
+ %exclude %{_datadir}/psi/COPYING
+ %exclude %{_datadir}/psi/README
+ %exclude %{_datadir}/psi/*.qm
+-%{_datadir}/psi
++%{_datadir}/psi/
+ %{qtdir}/plugins/crypto/libqca-tls.so
+-%{_datadir}/applnk/Internet/psi.desktop
+-%{_datadir}/icons/hicolor/*/apps/psi.png
+ %{_datadir}/pixmaps/psi.png
+-%{!?_without_freedesktop:%{_datadir}/applications/%{desktop_vendor}-%{name}.desktop}
+-%{?_without_freedesktop:%{_sysconfdir}/X11/applnk/Internet/%{name}.desktop}
++%{!?_without_freedesktop:%{_datadir}/applications/%{desktop_vendor}-psi.desktop}
++%{?_without_freedesktop:%{_sysconfdir}/X11/applnk/Internet/psi.desktop}
+ 
+ %files languagepack
+-%lang(ca) %{_datadir}/%{name}/psi_ca.qm
+-%lang(cs) %{_datadir}/%{name}/psi_cs.qm
+-%lang(de) %{_datadir}/%{name}/psi_de.qm
+-%lang(el) %{_datadir}/%{name}/psi_el.qm
+-%lang(es) %{_datadir}/%{name}/psi_es.qm
+-%lang(fr) %{_datadir}/%{name}/psi_fr.qm
+-%lang(it) %{_datadir}/%{name}/psi_it.qm
+-%lang(mk) %{_datadir}/%{name}/psi_mk.qm
+-%lang(nl) %{_datadir}/%{name}/psi_nl.qm
+-%lang(pl) %{_datadir}/%{name}/psi_pl.qm
+-%lang(se) %{_datadir}/%{name}/psi_se.qm
+-%lang(sk) %{_datadir}/%{name}/psi_sk.qm
+-%lang(zh) %{_datadir}/%{name}/psi_zh.qm
++%lang(ca) %{_datadir}/psi/psi_ca.qm
++%lang(cs) %{_datadir}/psi/psi_cs.qm
++%lang(de) %{_datadir}/psi/psi_de.qm
++%lang(el) %{_datadir}/psi/psi_el.qm
++%lang(es) %{_datadir}/psi/psi_es.qm
++%lang(fr) %{_datadir}/psi/psi_fr.qm
++%lang(it) %{_datadir}/psi/psi_it.qm
++%lang(mk) %{_datadir}/psi/psi_mk.qm
++%lang(nl) %{_datadir}/psi/psi_nl.qm
++%lang(pl) %{_datadir}/psi/psi_pl.qm
++%lang(se) %{_datadir}/psi/psi_se.qm
++%lang(sk) %{_datadir}/psi/psi_sk.qm
++%lang(zh) %{_datadir}/psi/psi_zh.qm
+ 
+-
+ %changelog
+ * Mon Jun 14 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 0.9.2-3
+ - Real fix for mach builds.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000248.html">[SVN] r1439 - trunk/rpms/smbc
+</A></li>
+	<LI>Next message: <A HREF="000250.html">[SVN] r1441 - in trunk/rpms: . gaim-meanwhile meanwhile
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#249">[ date ]</a>
+              <a href="thread.html#249">[ thread ]</a>
+              <a href="subject.html#249">[ subject ]</a>
+              <a href="author.html#249">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,691 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3509 - trunk/tools/dar/python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3509%20-%20trunk/tools/dar/python&In-Reply-To=%3C20050817232850.D9FAF318041%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002309.html">
+   <LINK REL="Next"  HREF="002311.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3509 - trunk/tools/dar/python</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3509%20-%20trunk/tools/dar/python&In-Reply-To=%3C20050817232850.D9FAF318041%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3509 - trunk/tools/dar/python">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Aug 18 01:28:50 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002309.html">[svn] r3508 - trunk/rpms/python-game
+</A></li>
+        <LI>Next message: <A HREF="002311.html">[svn] r3510 - trunk/tools/dar/python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2310">[ date ]</a>
+              <a href="thread.html#2310">[ thread ]</a>
+              <a href="subject.html#2310">[ subject ]</a>
+              <a href="author.html#2310">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-08-18 01:28:49 +0200 (Thu, 18 Aug 2005)
+New Revision: 3509
+
+Modified:
+   trunk/tools/dar/python/create-htmldir.py
+   trunk/tools/dar/python/create-pkgdb.py
+   trunk/tools/dar/python/create-rpmdb.py
+   trunk/tools/dar/python/create-specdb.py
+   trunk/tools/dar/python/print-info.py
+   trunk/tools/dar/python/print-obsolete.py
+Log:
+Updates
+
+Modified: trunk/tools/dar/python/create-htmldir.py
+===================================================================
+--- trunk/tools/dar/python/create-htmldir.py	2005-08-17 21:38:38 UTC (rev 3508)
++++ trunk/tools/dar/python/create-htmldir.py	2005-08-17 23:28:49 UTC (rev 3509)
+@@ -4,13 +4,24 @@
+ 
+ htmldir = '/dar/tmp/html'
+ specdb = '/dar/tmp/state/specdb.sqlite'
++infodb = '/dar/tmp/state/infodb.sqlite'
+ 
+-headers = [ 'name', 'summary', 'description', 'authority', 'version', 'release', 'license', 'category', 'url' ]
++index_template = '''
++&lt;?_head('RPM packages for Red Hat / Fedora / Aurora')?&gt;
+ 
++&lt;?_title('Alphabetic overview')?&gt;
++%(alphabeticlist)s
++
++&lt;?_title('Classified overview')?&gt;
++%(categorylist)s
++
++&lt;?_foot()?&gt;
++'''
++
+ category_template = '''
+ &lt;?_head('RPM packages in group %(category)s')?&gt;
+ 
+-#(packagelist)s
++%(packagelist)s
+ 
+ &lt;?_foot()?&gt;
+ '''
+@@ -22,14 +33,14 @@
+ &lt;pre&gt;%(description)s&lt;/pre&gt;&lt;br /&gt;
+ 
+ &lt;small&gt;
+-&lt;b&gt;Latest release:&lt;/b&gt; %(version)s-%(release)s&lt;br /&gt;&lt;br /&gt;
++&lt;b&gt;Latest release:&lt;/b&gt; #(version)s-#(release)s&lt;br /&gt;&lt;br /&gt;
+ &lt;b&gt;Website:&lt;/b&gt; &lt;a href=&quot;%(url)s&quot;&gt;%(url)s&lt;/a&gt;&lt;br /&gt;
+ &lt;b&gt;License:&lt;/b&gt; %(license)s&lt;br /&gt;
+-&lt;b&gt;Group:&lt;/b&gt; &lt;a href=&quot;../%(categoryidx)s&quot;&gt;%(category)s&lt;/a&gt;&lt;br /&gt;
++&lt;b&gt;Group:&lt;/b&gt; &lt;a href=&quot;../group-%(categoryidx)s.php&quot;&gt;%(category)s&lt;/a&gt;&lt;br /&gt;
+ &lt;b&gt;Maintainer:&lt;/b&gt; &lt;a href=&quot;/packager/persona/%(authority)s/&quot;&gt;%(authority)s&lt;/a&gt;&lt;br /&gt;
+ &lt;/small&gt;
+ 
+-#(packagelist)s
++%(rpmlist)s
+ &lt;?_foot()?&gt;
+ '''
+ 
+@@ -38,24 +49,47 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(specdb)
+-cur = con.cursor()
++infocon = sqlite.connect(infodb)
++infocur = infocon.cursor()
+ 
+-cur.execute('select distinct category from spec order by category')
++infocur.execute('select distinct category from info order by category')
+ 
+ try: os.mkdir(htmldir)
+ except: pass
+ 
+-for cat in cur.fetchall():
+-	rec = { 'category': cat[0] }
+-	open(os.path.join(htmldir, convgroup(cat[0])) + '.php', 'w').write(category_template % rec)
+-	cur.execute('select distinct name, summary, description, authority, version, release, license, category, url from spec where category = &quot;%s&quot; order by name, version, release' % cat[0])
+-	for data in cur.fetchall():
+-		try: os.mkdir(os.path.join(htmldir, data[0]))
++# FIXME: Create the alphabetic list
++categorylist = ''
++alphabeticlist = 'TBD'
++for cat in infocur.fetchall():
++	# FIXME: Add license when rpmdb has been improved
++	infocur.execute('select name, summary, description, category, url, license, parent from info where category = &quot;%s&quot; order by name' % cat[0])
++
++	rec = {}
++	packagelist = ''
++	categorysize = 0
++	for rec['name'], rec['summary'], rec['description'], rec['category'], rec['url'], rec['url'], rec['parent'] in infocur.fetchall():
++		packagelist += '&lt;a href=&quot;%(name)s/&quot;&gt;%(name)s&lt;/a&gt;: %(summary)s&lt;br&gt;\n' % rec
++		
++		try: os.mkdir(os.path.join(htmldir, rec['name']))
+ 		except: pass
+ 
+-		rec = { 'categoryidx': convgroup(cat[0])}
+-		for h in headers: rec[h] = data[headers.index(h)]
+-		open(os.path.join(htmldir, data[0], 'index.php'), 'w').write(package_template % rec)
+-cur.close()
+-con.close()
++		# FIXME: Remove license when rpmdb has been improved and get authority fom specdb
++		rec['categoryidx'] = convgroup(cat[0])
++		rec['authority'] = 'dag'
++		rec['license'] = 'GPL'
++		rec['rpmlist'] = '&lt;h2&gt;Package list (TBD)&lt;/h2&gt; TBD'
++		open(os.path.join(htmldir, rec['name'], 'index.php'), 'w').write(package_template % rec)
++
++		categorysize+=1
++
++	rec = { 'category': cat[0], 'categoryidx': convgroup(cat[0]), 'categorysize': categorysize, 'packagelist': packagelist }
++	categorylist += '&lt;a href=&quot;group-%(categoryidx)s.php&quot;&gt;%(category)s&lt;/a&gt; (%(categorysize)s)&lt;br&gt;\n' % rec
++	open(os.path.join(htmldir, 'group-' + convgroup(cat[0])) + '.php', 'w').write(category_template % rec)
++
++	# FIXME: Add alphabetic group files + index
++
++rec = { 'categorylist': categorylist, 'alphabeticlist': 'alphabeticlist' }
++open(os.path.join(htmldir, 'index.php'), 'w').write(index_template % rec)
++
++infocur.close()
++infocon.close()
+
+Modified: trunk/tools/dar/python/create-pkgdb.py
+===================================================================
+--- trunk/tools/dar/python/create-pkgdb.py	2005-08-17 21:38:38 UTC (rev 3508)
++++ trunk/tools/dar/python/create-pkgdb.py	2005-08-17 23:28:49 UTC (rev 3509)
+@@ -5,16 +5,18 @@
+ packagedir = '/dar/packages/'
+ pkgdb = '/dar/tmp/state/pkgdb.sqlite'
+ 
+-pkghdr = {
+-	'filename':100,
+-	'name':40,
+-	'version':15,
+-	'release':15,
+-	'arch':8,
+-	'repo':5,
+-	'dist':5,
+-}
++pkghdr = ('filename', 'name', 'version', 'release', 'arch', 'repo', 'dist')
+ 
++#pkghdr = {
++##	'filename':100,
++#	'name':40,
++#	'version':15,
++#	'release':15,
++#	'arch':8,
++#	'repo':5,
++#	'dist':5,
++#}
++
+ def repo(filename):
+         try:
+                 return re.search('.(dag|rf|test).\w+.rpm$', filename).groups()[0]
+@@ -46,14 +48,14 @@
+ 	elif dist in distmap.keys(): return distmap[dist]
+         else:   
+                 print 'Unknown distribution tag %s in filename %s' % (dist, filename)
+-                return None
++		raise
+ 
+ def readfile(file):
+ 	rec = {
+ 		'filename': os.path.basename(file),
+ 		'parent': os.path.basename(os.path.dirname(file)),
+ 	}
+-	rec.update(re.search('(?P&lt;name&gt;.+)-(?P&lt;version&gt;[\w\.]+)-(?P&lt;release&gt;[\w\.]+)\.(?P&lt;arch&gt;\w+).rpm$', file).groupdict())
++	rec.update(re.search('(?P&lt;name&gt;[^/]+)-(?P&lt;version&gt;[\w\.]+)-(?P&lt;release&gt;[\w\.]+)\.(?P&lt;arch&gt;\w+).rpm$', file).groupdict())
+ 	rec['repo'] = repo(file)
+ 	if rec['arch'] in ('src', 'nosrc'): 
+ 		rec['dist'] = rec['arch']
+@@ -65,27 +67,29 @@
+ 
+ dropsta = 'drop table pkg'
+ createsta = 'create table pkg ( '
+-for key in pkghdr.keys(): createsta += '%s varchar(%d), ' % (key, pkghdr[key])
++for key in pkghdr: createsta += '%s varchar(10), ' % key
+ createsta = createsta.rstrip(', ') + ' )'
+ 
+ insertsta = 'insert into pkg ( '
+-for key in pkghdr.keys(): insertsta += '%s, ' % key
++for key in pkghdr: insertsta += '%s, ' % key
+ insertsta = insertsta.rstrip(', ') + ' ) values ( '
+-for key in pkghdr.keys(): insertsta += '&quot;%%(%s)s&quot;, ' % key
++for key in pkghdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
+ insertsta = insertsta.rstrip(', ') + ' )'
+ 
+-con = sqlite.connect(pkgdb)
+-cur = con.cursor()
+-try: cur.execute(dropsta)
++pkgcon = sqlite.connect(pkgdb)
++pkgcur = pkgcon.cursor()
++try: pkgcur.execute(dropsta)
+ except: pass
+-cur.execute(createsta)
++pkgcur.execute(createsta)
+ 
+ for file in glob.glob(os.path.join(packagedir, '*/*.rpm')):
+-	rec = readfile(file)
+-	if not rec:
++	try:
++		rec = readfile(file)
++	except:
+ 		print file, 'FAILED'
+ 		continue
+-	cur.execute(insertsta % rec)
++	pkgcur.execute(insertsta % rec)
+ 
+-con.commit()
+-con.close()
++pkgcon.commit()
++pkgcur.close()
++pkgcon.close()
+
+Modified: trunk/tools/dar/python/create-rpmdb.py
+===================================================================
+--- trunk/tools/dar/python/create-rpmdb.py	2005-08-17 21:38:38 UTC (rev 3508)
++++ trunk/tools/dar/python/create-rpmdb.py	2005-08-17 23:28:49 UTC (rev 3509)
+@@ -5,35 +5,8 @@
+ packagedir = '/dar/packages/'
+ rpmdb = '/dar/tmp/state/rpmdb.sqlite'
+ 
+-rpmhdr = {
+-	'filename':	100,
+-	'name':		40,
+-	'version':	15,
+-	'release':	15,
+-	'arch':		8,
+-	'repo':		5,
+-	'dist':		5,
+-#	'packager':	100,
+-#	'distribution':	100,
+-#	'vendor':	100,
+-#	'sourcerpm':	100,
+-}
++rpmhdr = ('name', 'version', 'release', 'arch', 'repo', 'dist', 'epoch')
+ 
+-infohdr = {
+-	'name':		40,
+-	'summary':	100,
+-	'description':	1024,
+-	'url':		100,
+-	'category':	40,
+-	'parent':	40,
+-}
+-
+-userpm404 = 0
+-
+-if sys.version[0] == &quot;2&quot; and not userpm404:
+-	ts = rpm.TransactionSet(&quot;&quot;, (rpm._RPMVSF_NOSIGNATURES or rpm.RPMVSF_NOHDRCHK or rpm._RPMVSF_NODIGESTS or rpm.RPMVSF_NEEDPAYLOAD))
+-
+-
+ def repo(filename):
+         try:
+                 return re.search('.(dag|rf|test).\w+.rpm$', filename).groups()[0]
+@@ -70,37 +43,34 @@
+ def getHeader(filename):
+ 	'''Read a rpm header.'''
+ 	fd = os.open(filename, os.O_RDONLY)
+-	if sys.version[0] == &quot;2&quot; and not userpm404:
+-		h = ts.hdrFromFdno(fd)
+-		issrc = h[rpm.RPMTAG_SOURCEPACKAGE]
+-	else:
+-		(h, issrc) = rpm.headerFromPackage(fd)
++	h = ts.hdrFromFdno(fd)
+ 	os.close(fd)
+-	return (h, issrc)
++	return h
+ 
+ def readrpm(file):
+-	(header, issrc) = getHeader(file)
++	header = getHeader(file)
+ 	rec = {
+-		'filename': os.path.basename(file),
+-		'parent': os.path.basename(os.path.dirname(file)),
++#		'filename': os.path.basename(file),
++#		'parent': os.path.basename(os.path.dirname(file)),
+ 		'name': header[rpm.RPMTAG_NAME],
+ 		'arch': header[rpm.RPMTAG_ARCH],
+ 		'version': header[rpm.RPMTAG_VERSION],
+ 		'release': header[rpm.RPMTAG_RELEASE],
+-		'summary': header[rpm.RPMTAG_SUMMARY].replace('&quot;', '\''),
+-		'description': header[rpm.RPMTAG_DESCRIPTION].replace('&quot;', '\''),
+-		'buildtime': header[rpm.RPMTAG_BUILDTIME],
+-		'buildhost': header[rpm.RPMTAG_BUILDHOST],
+-		'category': header[rpm.RPMTAG_GROUP],
+-		'packager': header[rpm.RPMTAG_PACKAGER],
+-		'distribution': header[rpm.RPMTAG_DISTRIBUTION],
+-		'vendor': header[rpm.RPMTAG_VENDOR],
+-		'license': header[rpm.RPMTAG_LICENSE],
+-		'url': header[rpm.RPMTAG_URL],
+-		'sourcerpm': header[rpm.RPMTAG_SOURCERPM],
++#		'summary': header[rpm.RPMTAG_SUMMARY].replace('&quot;', '\''),
++#		'description': header[rpm.RPMTAG_DESCRIPTION].replace('&quot;', '\''),
++#		'buildtime': header[rpm.RPMTAG_BUILDTIME],
++#		'buildhost': header[rpm.RPMTAG_BUILDHOST],
++#		'category': header[rpm.RPMTAG_GROUP],
++#		'packager': header[rpm.RPMTAG_PACKAGER],
++#		'distribution': header[rpm.RPMTAG_DISTRIBUTION],
++#		'vendor': header[rpm.RPMTAG_VENDOR],
++#		'license': header[rpm.RPMTAG_LICENSE],
++#		'url': header[rpm.RPMTAG_URL],
++#		'sourcerpm': header[rpm.RPMTAG_SOURCERPM],
++		'epoch': header[rpm.RPMTAG_EPOCH],
+ 	}
+ #	rec.update(re.search('(?P&lt;name&gt;.+)-(?P&lt;version&gt;[\w\.]+)-(?P&lt;release&gt;[\w\.]+)\.(?P&lt;arch&gt;\w+).rpm$', rpm).groupdict())
+-	if issrc: rec['arch'] = 'src'
++	if header[rpm.RPMTAG_SOURCEPACKAGE]: rec['arch'] = 'src'
+ 	rec['repo'] = repo(file)
+ 	if rec['arch'] in ('src', 'nosrc'): 
+ 		rec['dist'] = rec['arch']
+@@ -108,38 +78,27 @@
+ 		rec['dist'] = dist(file)
+ 	return rec
+ 
++
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-droprpmsta = 'drop table rpm'
+-dropinfosta = 'drop table info'
+-createrpmsta = 'create table rpm ( '
+-for key in rpmhdr.keys(): createrpmsta += '%s varchar(%d), ' % (key, rpmhdr[key])
+-createrpmsta = createrpmsta.rstrip(', ') + ' )'
++ts = rpm.TransactionSet(&quot;&quot;, (rpm._RPMVSF_NOSIGNATURES or rpm.RPMVSF_NOHDRCHK or rpm._RPMVSF_NODIGESTS or rpm.RPMVSF_NEEDPAYLOAD))
+ 
+-createinfosta = 'create table info ( '
+-for key in infohdr.keys(): createinfosta += '%s varchar(%d), ' % (key, infohdr[key])
+-createinfosta = createinfosta.rstrip(', ') + ' )'
++dropsta = 'drop table rpm'
++createsta = 'create table rpm ( '
++for key in rpmhdr: createsta += '%s varchar(10), ' % key
++createsta = createsta.rstrip(', ') + ' )'
+ 
+-insertrpmsta = 'insert into rpm ( '
+-for key in rpmhdr.keys(): insertrpmsta += '%s, ' % key
+-insertrpmsta = insertrpmsta.rstrip(', ') + ' ) values ( '
+-for key in rpmhdr.keys(): insertrpmsta += '&quot;%%(%s)s&quot;, ' % key
+-insertrpmsta = insertrpmsta.rstrip(', ') + ' )'
++insertsta = 'insert into rpm ( '
++for key in rpmhdr: insertsta += '%s, ' % key
++insertsta = insertsta.rstrip(', ') + ' ) values ( '
++for key in rpmhdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
++insertsta = insertsta.rstrip(', ') + ' )'
+ 
+-insertinfosta = 'insert into info ( '
+-for key in infohdr.keys(): insertinfosta += '%s, ' % key
+-insertinfosta = insertinfosta.rstrip(', ') + ' ) values ( '
+-for key in infohdr.keys(): insertinfosta += '&quot;%%(%s)s&quot;, ' % key
+-insertinfosta = insertinfosta.rstrip(', ') + ' )'
+-
+-con = sqlite.connect(rpmdb)
+-cur = con.cursor()
+-try: cur.execute(droprpmsta)
++rpmcon = sqlite.connect(rpmdb)
++rpmcur = rpmcon.cursor()
++try: rpmcur.execute(dropsta)
+ except: pass
+-try: cur.execute(dropinfosta)
+-except: pass
+-cur.execute(createrpmsta)
+-cur.execute(createinfosta)
++rpmcur.execute(createsta)
+ 
+ for file in glob.glob(os.path.join(packagedir, '*/*.rpm')):
+ 	try:
+@@ -147,11 +106,8 @@
+ 	except:
+ 		print file, 'FAILED'
+ 		continue
+-	cur.execute(insertrpmsta % rec)
+-	cur.execute('select distinct name from info where name = %(name)s' % rec)
+-	list = cur.fetchall()
+-	if not list:
+-		cur.execute(insertinfosta % rec)
++	rpmcur.execute(insertsta % rec)
+ 
+-con.commit()
+-con.close()
++rpmcon.commit()
++rpmcur.close()
++rpmcon.close()
+
+Modified: trunk/tools/dar/python/create-specdb.py
+===================================================================
+--- trunk/tools/dar/python/create-specdb.py	2005-08-17 21:38:38 UTC (rev 3508)
++++ trunk/tools/dar/python/create-specdb.py	2005-08-17 23:28:49 UTC (rev 3509)
+@@ -5,22 +5,12 @@
+ specdir = '/dar/rpms/'
+ specdb = '/dar/tmp/state/specdb.sqlite'
+ 
+-spechdr = {
+-	'authority':	15,
+-	'summary':	100,
+-	'name':		40,
+-	'version':	15,
+-	'release':	15,
+-	'license':	20,
+-	'category':	30,
+-	'url':		50,
+-	'description':	1024,
+-}
++spechdr = ('authority', 'summary', 'name', 'version', 'release', 'license', 'category', 'url', 'description')
+ 
+-regs = {
++specre = {
+ 	'authority':	r'^# Authority: (\w+)$',
+ 	'summary':	r'^Summary: (.+)$',
+-	'name':		r'^Name: ([\w\-_]+)$',
++	'name':		r'^Name: ([\w\-\+_]+)$',
+ 	'version':	r'^Version: ([^\s]+)$',
+ 	'release':	r'^Release: ([^\s]+)$',
+ 	'license':	r'^License: (.+)$',
+@@ -32,8 +22,8 @@
+ def readspec(data):
+ 	rec = {}
+ 	try:
+-		for key in spechdr.keys():
+-			rec[key] = re.search(regs[key], data, re.M).group(1).replace('&quot;', '\'')
++		for key in specre.keys:
++			rec[key] = re.search(specre[key], data, re.M).group(1).replace('&quot;', '\'')
+ 	except:
+ 		print 'Error with key %s' % key
+ 		raise
+@@ -43,21 +33,21 @@
+ 
+ ### Create statement
+ createsta = 'create table spec ( '
+-for key in spechdr.keys(): createsta += '%s varchar(%d), ' % (key, spechdr[key])
++for key in spechdr: createsta += '%s varchar(10), ' % key
+ createsta = createsta.rstrip(', ') + ' )'
+ 
+ ### Insert statement
+ insertsta = 'insert into spec ( '
+-for key in spechdr.keys(): insertsta += '%s, ' % key
++for key in spechdr: insertsta += '%s, ' % key
+ insertsta = insertsta.rstrip(', ') + ' ) values ( '
+-for key in spechdr.keys(): insertsta += '&quot;%%(%s)s&quot;, ' % key
++for key in spechdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
+ insertsta = insertsta.rstrip(', ') + ' )'
+ 
+-con = sqlite.connect(specdb)
+-cur = con.cursor()
+-try: cur.execute(dropsta)
++speccon = sqlite.connect(specdb)
++speccur = speccon.cursor()
++try: speccur.execute(dropsta)
+ except: pass
+-cur.execute(createsta)
++speccur.execute(createsta)
+ 
+ for file in glob.glob(os.path.join(specdir, '*/*.spec')):
+ 	data = open(file, 'r').read(50000)
+@@ -66,8 +56,8 @@
+ 	except:
+ 		print file, 'FAILED'
+ 		continue
+-	cur.execute(insertsta % rec)
++	speccur.execute(insertsta % rec)
+ 
+-con.commit()
+-cur.close()
+-con.close()
++speccon.commit()
++speccur.close()
++speccon.close()
+
+Modified: trunk/tools/dar/python/print-info.py
+===================================================================
+--- trunk/tools/dar/python/print-info.py	2005-08-17 21:38:38 UTC (rev 3508)
++++ trunk/tools/dar/python/print-info.py	2005-08-17 23:28:49 UTC (rev 3509)
+@@ -7,57 +7,59 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(specdb)
+-cur = con.cursor()
+-con2 = sqlite.connect(pkgdb)
+-cur2 = con2.cursor()
++speccon = sqlite.connect(specdb)
++speccur = speccon.cursor()
++pkgcon = sqlite.connect(pkgdb)
++pkgcur = pkgcon.cursor()
+ 
+ print 'General info'
+-cur.execute('select * from spec order by name')
+-print '  Number of SPEC files:', len(cur.fetchall())
++speccur.execute('select * from spec order by name')
++print '  Number of SPEC files:', len(speccur.fetchall())
+ 
+-cur.execute('select distinct category from spec order by name')
+-print '  Number of categories:', len(cur.fetchall())
++speccur.execute('select distinct category from spec order by name')
++print '  Number of categories:', len(speccur.fetchall())
+ 
+-cur2.execute('select filename from pkg')
+-print '  Number of packages:', len(cur2.fetchall())
++pkgcur.execute('select filename from pkg')
++print '  Number of packages:', len(pkgcur.fetchall())
+ 
+-cur2.execute('select distinct name from pkg')
+-print '  Number of unique packages:', len(cur2.fetchall())
++pkgcur.execute('select distinct name from pkg')
++print '  Number of unique packages:', len(pkgcur.fetchall())
+ 
+-cur2.execute('select distinct name from pkg where arch = &quot;src&quot;')
+-print '  Number of unique source packages:', len(cur2.fetchall())
++pkgcur.execute('select distinct name from pkg where arch = &quot;src&quot;')
++print '  Number of unique source packages:', len(pkgcur.fetchall())
+ 
+ print
+ print 'Arch stats:'
+-cur2.execute('select distinct arch from pkg order by arch')
+-for arch in cur2.fetchall():
+-	cur2.execute('select * from pkg where arch = &quot;%s&quot;' % arch[0])
+-	print '  %s has %d packages' % (arch[0], len(cur2.fetchall()))
++pkgcur.execute('select distinct arch from pkg order by arch')
++for arch in pkgcur.fetchall():
++	pkgcur.execute('select * from pkg where arch = &quot;%s&quot;' % arch[0])
++	print '  %s has %d packages' % (arch[0], len(pkgcur.fetchall()))
+ 
+ print
+ print 'Dist stats:'
+-cur2.execute('select distinct dist from pkg order by dist')
+-for dist in cur2.fetchall():
++pkgcur.execute('select distinct dist from pkg order by dist')
++for dist in pkgcur.fetchall():
+ 	if dist[0] in ('0', 'nosrc', 'src', 'fc4'): continue
+-	cur2.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;i386&quot; or arch = &quot;i586&quot; or arch = &quot;i686&quot; or arch = &quot;athlon&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
+-	print '  %s-i386 has %d packages' % (dist[0], len(cur2.fetchall()))
++	pkgcur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;i386&quot; or arch = &quot;i586&quot; or arch = &quot;i686&quot; or arch = &quot;athlon&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
++	print '  %s-i386 has %d packages' % (dist[0], len(pkgcur.fetchall()))
+ 	if dist[0] in ('rh6', 'rh8', 'rh7', 'rh9', 'el2', 'fc1', 'fc4'): continue
+-	cur2.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;x86_64&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
+-	print '  %s-x86_64 has %d packages' % (dist[0], len(cur2.fetchall()))
++	pkgcur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;x86_64&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
++	print '  %s-x86_64 has %d packages' % (dist[0], len(pkgcur.fetchall()))
+ 
+ print
+ print 'Packager activity:'
+-cur.execute('select distinct authority from spec order by authority')
+-for name in cur.fetchall():
+-	cur.execute('select * from spec where authority = &quot;%s&quot;' % name[0])
+-	print '  %s maintains %d packages' % (name[0], len(cur.fetchall()))
++speccur.execute('select distinct authority from spec order by authority')
++for name in speccur.fetchall():
++	speccur.execute('select * from spec where authority = &quot;%s&quot;' % name[0])
++	print '  %s maintains %d packages' % (name[0], len(speccur.fetchall()))
+ 
+ #print
+ #print 'Print summaries:'
+-#cur.execute('select distinct name, summary from spec order by name')
+-#for pkg in cur.fetchall():
++#speccur.execute('select distinct name, summary from spec order by name')
++#for pkg in speccur.fetchall():
+ #	print '  %s: %s' % (pkg[0], pkg[1])
+ 
+-cur.close()
+-con.close()
++speccur.close()
++speccon.close()
++pkgcur.close()
++pkgcon.close()
+
+Modified: trunk/tools/dar/python/print-obsolete.py
+===================================================================
+--- trunk/tools/dar/python/print-obsolete.py	2005-08-17 21:38:38 UTC (rev 3508)
++++ trunk/tools/dar/python/print-obsolete.py	2005-08-17 23:28:49 UTC (rev 3509)
+@@ -10,32 +10,35 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(pkgdb)
+-cur = con.cursor()
++pkgcon = sqlite.connect(pkgdb)
++pkgcur = pkgcon.cursor()
+ 
+-cur.execute('select distinct name from pkg order by name')
+-for name in cur.fetchall():
+-#	print 'Processing', name[0]
+-	cur.execute('select filename, arch, version, release, dist, repo from pkg where name = &quot;%s&quot; and arch != &quot;src&quot; order by dist, version, release, arch' % name[0])
+-	filename = 0
+-	arch = 1
+-	version = 2
+-	release = 3
+-	dist = 4
+-	repo = 5
+-	pkgs = cur.fetchall()
+-	for pkg1 in pkgs:
+-		if pkg1[arch] == 'nosrc': continue
+-		if pkg1[repo] == 'test': continue
+-		if pkg1[filename].find('kernel') == 0: continue
+-		for pkg2 in pkgs:
+-			if pkg2[arch] == 'nosrc': continue
+-			if pkg2[repo] == 'test': continue
+-			if pkg1[filename] == pkg2[filename]: continue
+-			if pkg1[dist] != pkg2[dist]: continue
+-			if pkg1[arch] != pkg2[arch]: continue
+-			if vercmp(('0', pkg1[version], pkg1[release]), ('0', pkg2[version], pkg2[release])) &gt; 0:
+-				print '%s deprecated by %s' % (pkg2[filename], pkg1[filename])
++pkgcur.execute('select distinct name from pkg order by name')
++for name, in pkgcur.fetchall():
++#	print 'Processing', name
++	pkgcur.execute('select filename, arch, version, release, dist, repo from pkg where name = &quot;%s&quot; and arch != &quot;src&quot; order by dist, version, release, arch' % name)
++	pkgs = pkgcur.fetchall()
++	A = {}
++	obsoletelist = []
++	for A['filename'], A['arch'], A['version'], A['release'], A['dist'], A['repo'] in pkgs:
++		if A['arch'] == 'nosrc': continue
++		if A['repo'] == 'test': continue
++		if A['filename'].find('kernel') == 0: continue
++		B = {}
++		for B['filename'], B['arch'], B['version'], B['release'], B['dist'], B['repo'] in pkgs:
++			if B['arch'] == 'nosrc': continue
++			if B['repo'] == 'test': continue
++			if A['filename'] == B['filename']: continue
++			if A['dist'] != B['dist']: continue
++			if A['arch'] != B['arch']: continue
++			if vercmp(('0', A['version'], A['release']), ('0', B['version'], B['release'])) &gt; 0:
++				if B['filename'] not in obsoletelist:
++					obsoletelist.append(B['filename'])
++#				print '%s deprecated by %s' % (B['filename'], A['filename'])
++	if obsoletelist:
++#		print '%d %s' % (len(obsoletelist), name)
++		obsoletelist.sort()
++		for file in obsoletelist: print file
+ 
+-cur.close()
+-con.close()
++pkgcur.close()
++pkgcon.close()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002309.html">[svn] r3508 - trunk/rpms/python-game
+</A></li>
+	<LI>Next message: <A HREF="002311.html">[svn] r3510 - trunk/tools/dar/python
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2310">[ date ]</a>
+              <a href="thread.html#2310">[ thread ]</a>
+              <a href="subject.html#2310">[ subject ]</a>
+              <a href="author.html#2310">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

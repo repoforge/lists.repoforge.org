@@ -1,0 +1,166 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3428 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3428%20-%20trunk/tools/dstat&In-Reply-To=%3C20050724074818.853BB31802A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002229.html">
+   <LINK REL="Next"  HREF="002231.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3428 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3428%20-%20trunk/tools/dstat&In-Reply-To=%3C20050724074818.853BB31802A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3428 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jul 24 09:48:18 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002229.html">[svn] r3427 - in trunk/rpms: galeon perl-Convert-PEM	perl-XML-Generator-vCard-RDF
+</A></li>
+        <LI>Next message: <A HREF="002231.html">[svn] r3429 - in trunk/rpms: gnokii mathomatic texmacs wesnoth
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2230">[ date ]</a>
+              <a href="thread.html#2230">[ thread ]</a>
+              <a href="subject.html#2230">[ subject ]</a>
+              <a href="author.html#2230">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-07-24 09:48:09 +0200 (Sun, 24 Jul 2005)
+New Revision: 3428
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat15
+Log:
+Updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-07-24 06:01:59 UTC (rev 3427)
++++ trunk/tools/dstat/ChangeLog	2005-07-24 07:48:09 UTC (rev 3428)
+@@ -4,6 +4,7 @@
+ - Fixed a bug in dpopen causing gpfs/gpfsop to fail after a while
+ - Change terminal title (if terminal supports it)
+ - Don't trim the cpulist to 2 items when -f (S&#233;bastien Prud'homme)
++- Exclude md-devices from total (Peter Cordes)
+ 
+ * 0.6.0 - Bettiesbaai - released 29/05/2005
+ - Removed keyboard input prevention patch. (Dbt 304673, Marc Lehmann)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-07-24 06:01:59 UTC (rev 3427)
++++ trunk/tools/dstat/dstat	2005-07-24 07:48:09 UTC (rev 3428)
+@@ -155,7 +155,6 @@
+ 				self.modlist = self.modlist + [ 'cpu', 'disk', 'net', 'page', 'sys' ]
+ 			elif opt in ['-v', '--vmstat']:
+ 				self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+-				self.disklist = ('total',)
+ 			elif opt in ['-f', '--full']:
+ 				self.full = True
+ 
+@@ -578,7 +577,8 @@
+ 			if l[5] == '0' and l[9] == '0': continue
+ 			name = l[2]
+ 			if l[3:] == ['0',] * 11: continue
+-			self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
++			if not re.match('(md[0-9]+)', name):
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
+ 			if name in self.vars and name != 'total':
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[5]), self.cn2[name][1] + long(l[9]) )
+ 			for set in self.vars:
+@@ -638,7 +638,8 @@
+ 			l = line.split()
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
+-			self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]) )
++			if not re.match('(md[0-9]+)', name):
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]) )
+ 			if name in self.vars:
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[6]), self.cn2[name][1] + long(l[10]) )
+ 			for set in self.vars:
+@@ -713,7 +714,8 @@
+ 				l = m.groups()
+ 				if len(l) &lt; 4: continue
+ 				name = dev(int(l[0]), int(l[1]))
+-				self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
++				if not re.match('(md[0-9]+)', name):
++					self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
+ 				if name in self.vars and name != 'total':
+ 					self.cn2[name] = ( self.cn2[name][0] + long(l[2]), self.cn2[name][1] + long(l[3]) )
+ 				for set in self.vars:
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-07-24 06:01:59 UTC (rev 3427)
++++ trunk/tools/dstat/dstat15	2005-07-24 07:48:09 UTC (rev 3428)
+@@ -148,7 +148,6 @@
+ 				self.modlist = self.modlist + [ 'cpu', 'disk', 'net', 'page', 'sys' ]
+ 			elif opt in ['-v', '--vmstat']:
+ 				self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+-				self.disklist = ('total',)
+ 			elif opt in ['-f', '--full']:
+ 				self.full = True
+ 
+@@ -574,7 +573,8 @@
+ 			if l[5] == '0' and l[9] == '0': continue
+ 			name = l[2]
+ 			if self.regexp.match(name): continue
+-			self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
++			if not re.match('(md[0-9]+)', name):
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
+ 			if name in self.vars and name != 'total':
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[5]), self.cn2[name][1] + long(l[9]) )
+ 			for set in self.vars:
+@@ -641,7 +641,8 @@
+ 			name = l[3]
+ 			if name == 'name': continue
+ 			if self.regexp.match(name): continue
+-			self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]) )
++			if not re.match('(md[0-9]+)', name):
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]) )
+ 			if name in self.vars:
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[6]), self.cn2[name][1] + long(l[10]) )
+ 			for set in self.vars:
+@@ -718,7 +719,8 @@
+ 				l = m.groups()
+ 				if len(l) &lt; 4: continue
+ 				name = dev(int(l[0]), int(l[1]))
+-				self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
++				if not re.match('(md[0-9]+)', name):
++					self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
+ 				if name in self.vars and name != 'total':
+ 					self.cn2[name] = ( self.cn2[name][0] + long(l[2]), self.cn2[name][1] + long(l[3]) )
+ 				for set in self.vars:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002229.html">[svn] r3427 - in trunk/rpms: galeon perl-Convert-PEM	perl-XML-Generator-vCard-RDF
+</A></li>
+	<LI>Next message: <A HREF="002231.html">[svn] r3429 - in trunk/rpms: gnokii mathomatic texmacs wesnoth
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2230">[ date ]</a>
+              <a href="thread.html#2230">[ thread ]</a>
+              <a href="subject.html#2230">[ subject ]</a>
+              <a href="author.html#2230">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

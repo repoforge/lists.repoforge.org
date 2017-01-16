@@ -1,0 +1,452 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7914 - in trunk/tools: . perl-stuff
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7914%20-%20in%20trunk/tools%3A%20.%20perl-stuff&In-Reply-To=%3C200910140906.n9E966er023081%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006709.html">
+   <LINK REL="Next"  HREF="006711.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7914 - in trunk/tools: . perl-stuff</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7914%20-%20in%20trunk/tools%3A%20.%20perl-stuff&In-Reply-To=%3C200910140906.n9E966er023081%40surya.karan.org%3E"
+       TITLE="[svn] r7914 - in trunk/tools: . perl-stuff">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Oct 14 11:06:06 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006709.html">[svn] r7913 - trunk/rpms/rabbitvcs
+</A></li>
+        <LI>Next message: <A HREF="006711.html">[svn] r7915 - trunk/rpms/rapidsvn
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6710">[ date ]</a>
+              <a href="thread.html#6710">[ thread ]</a>
+              <a href="subject.html#6710">[ subject ]</a>
+              <a href="author.html#6710">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: 2009-10-14 10:06:05 +0100 (Wed, 14 Oct 2009)
+New Revision: 7914
+
+Added:
+   trunk/tools/perl-stuff/
+   trunk/tools/perl-stuff/auto-upgrade.sh
+   trunk/tools/perl-stuff/build.sh
+   trunk/tools/perl-stuff/check-rpmforge-cpan.pl
+   trunk/tools/perl-stuff/compare.pl
+Log:
+stubs and experiments
+
+
+Added: trunk/tools/perl-stuff/auto-upgrade.sh
+===================================================================
+--- trunk/tools/perl-stuff/auto-upgrade.sh	                        (rev 0)
++++ trunk/tools/perl-stuff/auto-upgrade.sh	2009-10-14 09:06:05 UTC (rev 7914)
+@@ -0,0 +1,30 @@
++#!/bin/sh
++set -e
++
++export LANG=C
++DATE=$(date &quot;+%a %b %e %Y&quot;)
++VERSION=$2
++OUTPUT=$1.new
++NAME=`basename $1 .spec` 
++SDIR=/home/cmr/redhat/SOURCES
++USER=&quot;Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmr at financial.com</A>&gt;&quot;
++
++URL=$(grep &quot;^Source: *&quot; $1 | sed -e 's/^Source: //' -e &quot;s/%{version}/${VERSION}/&quot;)
++FILE=`basename $URL`
++wget -c $URL -O $SDIR/$FILE 
++
++grep real_version $1 &amp;&amp; exit
++
++sed  -i -e &quot;s/^Version: .*/Version: $2/&quot; \
++	 -e &quot;s/^Release: .*/Release: 1/&quot; \
++	 -e &quot;/^%changelog/ a\* ${DATE} ${USER} - $VERSION-1\n- Updated to version ${VERSION}.\n&quot; $1 
++	
++	
++echo $URL
++
++
++
++rpmbuild -bs $1 
++
++egrep &quot;# ExcludeDist.*el4&quot; $1 || mock -r rpmforge-el4-x86_64 -v   --disable-plugin=root_cache /home/cmr/redhat/SRPMS/${NAME}-${VERSION}-1.src.rpm
++mock -r rpmforge-el5-x86_64 -v   --disable-plugin=root_cache /home/cmr/redhat/SRPMS/${NAME}-${VERSION}-1.src.rpm &amp;&amp; svn diff
+
+
+Property changes on: trunk/tools/perl-stuff/auto-upgrade.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/perl-stuff/build.sh
+===================================================================
+--- trunk/tools/perl-stuff/build.sh	                        (rev 0)
++++ trunk/tools/perl-stuff/build.sh	2009-10-14 09:06:05 UTC (rev 7914)
+@@ -0,0 +1,24 @@
++#!/bin/sh
++set -e
++
++export LANG=C
++DATE=$(date &quot;+%a %b %e %Y&quot;)
++VERSION=`grep  ^Version $1 | cut -d  ' ' -f 2`
++OUTPUT=$1.new
++NAME=`basename $1 .spec` 
++SDIR=/home/cmr/redhat/SOURCES
++USER=&quot;Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmr at financial.com</A>&gt;&quot;
++
++grep real_version $1 &amp;&amp; exit
++
++URL=$(grep &quot;^Source: *&quot; $1 | sed -e 's/^Source: //' -e &quot;s/%{version}/${VERSION}/&quot;)
++echo $URL
++
++FILE=`basename $URL`
++wget -c $URL -O $SDIR/$FILE 
++
++
++rpmbuild -bs $1 
++
++egrep &quot;# ExcludeDist.*el4&quot; $1 || mock -r rpmforge-el4-x86_64 -v   --disable-plugin=root_cache /home/cmr/redhat/SRPMS/${NAME}-${VERSION}-1.src.rpm
++mock -r rpmforge-el5-x86_64 -v   --disable-plugin=root_cache /home/cmr/redhat/SRPMS/${NAME}-${VERSION}-1.src.rpm &amp;&amp; svn diff
+
+
+Property changes on: trunk/tools/perl-stuff/build.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/perl-stuff/check-rpmforge-cpan.pl
+===================================================================
+--- trunk/tools/perl-stuff/check-rpmforge-cpan.pl	                        (rev 0)
++++ trunk/tools/perl-stuff/check-rpmforge-cpan.pl	2009-10-14 09:06:05 UTC (rev 7914)
+@@ -0,0 +1,152 @@
++#!/usr/bin/perl
++
++use strict;
++use CPAN;
++use Carp;
++
++sub version_from_spec;
++
++# change this to a rpmforgre svn checkout
++my $directory = '/home/cmr/workspace/rpmforge/rpms';
++
++
++opendir(DIR,$directory);
++my @rpmnames = grep { /^perl-/ } readdir(DIR);
++# list of pakages to ignore
++my $ignore = { 'perl-Yahoo-Photos' =&gt; 'ignore', 
++				'perl-XML-SAX-PurePerl' =&gt; 'ignore',
++				'perl-XML-LibXSLT' =&gt; 'ignore', # need libxslt 1.1.18
++				'perl-Wx' =&gt; 'ignore',
++				'perl-WWW-Search' =&gt; 'ignore',
++				'perl-WebService-YouTube' =&gt; 'ignore',
++				'perl-Usage' =&gt; 'ignore',
++				'perl-URIC' =&gt; 'ignore',
++				'perl-Unix-PID' =&gt; 'ignore', # 0.00015 instead of 0.0.15
++				'perl-UNIVERSAL-cant' =&gt; 'ignore', # 0.0.1 vs 0.0001
++				'perl-Unicode-Escape' =&gt; 'ignore', # 0.0.2 vs 0.0002
++				'perl-Tie-EncryptedHash' =&gt; 'ignore',
++				'perl-Text-MediawikiFormat' =&gt; 'ignore',
++				'perl-Text-Autoformat' =&gt; 'ignore',
++				'perl-SVK-Util' =&gt; 'ignore', # Part of SVK
++				'perl-SVK' =&gt; 'ignore', # cyclic dep: svn-mirror -&gt; svk-util -&gt; building svk-util
++				'perl-Statistics-Descriptive' =&gt; 'ignore', # 3.0 vs 3.0000
++				'perl-SQL-Library' =&gt; 'ignore', # 0.0.3 vs v0.0.3
++				'perl-SOAP-Lite' =&gt; 'ignore', # 
++				'perl-Smart-Comments' =&gt; 'ignore', # 
++				'perl-RPC-XML' =&gt; 'ignore', # 
++				'perl-Return-Value' =&gt; 'ignore', # 
++				'perl-Quota-OO' =&gt; 'ignore', # v0.0.1 0.0001 
++				'perl-Qt' =&gt; 'ignore', # Wrong name + no compile
++				'perl-Proc-Simple' =&gt; 'ignore', # broken version
++				'perl-POE-Session-Cascading' =&gt; 'ignore', # module version number
++				'perl-POE-Component-SNMP' =&gt; 'ignore', # module version number
++				'perl-POE-API-Peek' =&gt; 'ignore', # module version numb
++				'perl-PDF-API2' =&gt; 'ignore', # module version number
++				'perl-Number-Fraction' =&gt; 'ignore', # module version number
++				'perl-Net-WhoisNG-Person' =&gt; 'ignore', # moved to perl-Net-WhoisNG
++				'perl-Net-SNMP' =&gt; 'ignore', # version
++				'perl-Net-Server-Mail-ESMTP-XFORWARD' =&gt; 'ignore', # moved to perl-Net-Server-Mail
++				'perl-NetPacket' =&gt; 'ignore', # version
++				'perl-Nagios-Object' =&gt; 'ignore', # version
++				'perl-MQSeries' =&gt; 'ignore', # need mqseries
++				'perl-MQSeries-Message' =&gt; 'ignore', # need mqseries
++				'perl-MQSeries-Queue' =&gt; 'ignore', # need mqseries
++				'perl-MQSeries-QueueManager' =&gt; 'ignore', # need mqseries
++				'perl-MooseX-Types' =&gt; 'ignore', # Extutils::MakeMaker
++				'perl-MooseX-Getopt' =&gt; 'ignore', # dependencies in perl core rpm
++				'perl-Module-Starter-PBP' =&gt; 'ignore', # version
++				'perl-Math-Business-SMA' =&gt; 'ignore', # moved to stockmoney
++				'perl-Math-Business-MACD' =&gt; 'ignore', # moved to stockmoney
++				'perl-Math-Business-EMA' =&gt; 'ignore', # moved to stockmoney
++				'perl-Mail-SPF-Query' =&gt; 'ignore', # version
++				'perl-Mail-SpamAssassin-Plugin-OpenPGP' =&gt; 'ignore', # version
++				'perl-Mail-GPG' =&gt; 'ignore', # version
++				'perl-Mail-ClamAV' =&gt; 'ignore', # deps (PDL)
++				'perl-Lingua-Alphabet-Phonetic' =&gt; 'ignore', # version
++				'perl-Lemonldap-NG-Manager' =&gt; 'ignore', # deps (lasso)
++				'perl-Lemonldap-NG-Handler' =&gt; 'ignore', # deps (lasso)
++				'perl-Kwiki-Attachments' =&gt; 'ignore', # upstream broken
++				'perl-Jifty' =&gt; 'ignore', # deps (oracle)
++				'perl-Jifty-DBI' =&gt; 'ignore', # deps (oracle)
++				'perl-IO-Compress-Bzip2' =&gt; 'ignore', # moved 
++				'perl-IO-Compress-Base' =&gt; 'ignore', # moved 
++				'perl-HTML-Latex' =&gt; 'ignore', # moved html2latex
++				'perl-Games-WoW-Armory' =&gt; 'ignore', # version
++				'perl-File-HomeDir' =&gt; 'ignore', # version
++				'perl-ExtUtils-DynaGlue' =&gt; 'ignore', # version
++				'perl-Error-Dumb' =&gt; 'ignore', # version
++				'perl-DBIx-SearchBuilder' =&gt; 'ignore', # deps makemaker?
++				'perl-DBD-Oracle' =&gt; 'ignore', # deps ora-devel
++				'perl-DBD-File' =&gt; 'ignore', # moved to DBI
++				'perl-WWW-Curl' =&gt; 'ignore', # broken libcurl checks
++				'perl-first' =&gt; 'ignore', # version
++				'perl-Inline-Python' =&gt; 'ignore', # does not compile
++				'perl-DBIx-HTMLView' =&gt; 'ignore', # version
++				'perl-Date-Holidays-DE' =&gt; 'ignore', # version
++				'perl-Cwd' =&gt; 'ignore', # moved PathTools
++				'perl-Coro' =&gt; 'ignore', # version
++				'perl-Config-Std' =&gt; 'ignore', # version
++				'perl-Compress-Zlib' =&gt; 'ignore', # moved to IO-Compress
++				'perl-Devel-StackTrace' =&gt; 'ignore', # version
++				'perl-Class-Std-Utils' =&gt; 'ignore', # version
++				'perl-Class-Std-Fast' =&gt; 'ignore', # version
++				'perl-Class-Std' =&gt; 'ignore', # version
++				'perl-Test-Builder-Tester' =&gt; 'ignore', # moved to Test-Simple
++				'perl-Class-DBI' =&gt; 'ignore', # version
++				'perl-version' =&gt; 'ignore', # version
++				'perl-SDL' =&gt; 'ignore', # Major upgrade
++				'perl-Parse-RecDescent' =&gt; 'ignore', # version
++				'perl-WWW-Shorten' =&gt; 'ignore', # version
++				'perl-ExtUtils-ParseXS' =&gt; 'ignore', # version
++				'perl-ExtUtils-CBuilder' =&gt; 'ignore', # version
++				'perl-AI-FANN' =&gt; 'ignore', # doesn't compile
++				'perl-any' =&gt; 'ignore', # version
++
++	 };
++
++
++my $crap;
++foreach my $name (@rpmnames) {
++	next if $ignore-&gt;{$name} eq 'ignore' ;
++	my $filename = &quot;$directory/$name/$name.spec&quot;;
++	if ( -e  $filename ){
++			my $ok = &quot;OK&quot;;
++			my $localverison =  version_from_spec($filename);
++			my $release =  release_from_spec($filename);
++			my $cpan_name = $name;
++			$cpan_name =~ s/^perl-//g;
++			$cpan_name =~ s/-/::/g;
++			my $module = CPAN::Shell-&gt;expand(&quot;Module&quot;,$cpan_name);
++			my $cpan_version=0;
++			$cpan_version=$module-&gt;cpan_version if ( defined($module) );
++			$ok = &quot;UPGRADE&quot; if ( $cpan_version gt $localverison ); 
++			$ok = &quot;OK&quot; if ( $cpan_version eq &quot;undef&quot; ); 
++			printf(&quot;%-30.30s | Localversion: %s - %s | Cpanversion %s | %s \n&quot;,$cpan_name, $localverison, $release, $cpan_version, $ok);
++	}
++} 
++
++
++sub version_from_spec() {
++	
++	my $file = shift;
++	my $name;
++	my $version;
++	open my $fh, $file or croak &quot;Cannot open $file: $!\n&quot;;
++	 while (&lt;$fh&gt;) {
++    	/^Version:\s*(\S+)/      and $version   = $1;
++	  }
++	 return($version);	
++}
++
++sub release_from_spec() {
++
++        my $file = shift;
++        my $name;
++        my $release;
++        open my $fh, $file or croak &quot;Cannot open $file: $!\n&quot;;
++         while (&lt;$fh&gt;) {
++        /^Release:\s*(\S+)/      and $release   = $1;
++          }
++         return($release);
++}
++
+
+Added: trunk/tools/perl-stuff/compare.pl
+===================================================================
+--- trunk/tools/perl-stuff/compare.pl	                        (rev 0)
++++ trunk/tools/perl-stuff/compare.pl	2009-10-14 09:06:05 UTC (rev 7914)
+@@ -0,0 +1,140 @@
++#!/usr/bin/perl
++
++use strict;
++use CPANPLUS;
++use CPAN;
++
++use Carp;
++
++use constant DEBUG  =&gt; 0;
++
++sub version_from_spec;
++sub release_from_spec;
++sub cpan_package;
++sub cpan_name;
++
++my $ignore = { 
++	'perl-XML-LibXSLT' =&gt; 1, # need libxslt 1.1.18
++	'perl-Wx' =&gt; 1 , # doesn't compile
++	'perl-Sys-Virt' =&gt; 1 , # doesn't compile
++	'perl-SVK' =&gt; 1 , # deps conflict with base
++	'perl-Spread' =&gt; 1 , # needs libspread
++	'perl-POE-Component-SNMP' =&gt; 1 , # version
++	'perl-Perl-Critic' =&gt; 1 , # doesn't compile
++	'perl-PBS' =&gt; 1 , # needs libtorque
++	'perl-Net-SMTP-Multipart' =&gt; 1, # we have 1.5.4 but cpan only has 1.5!
++	'perl-MQSeries' =&gt; 1, # need mqseries to build
++	'perl-Jifty' =&gt; 1, # needs new CGI, File::Spec etc
++	'perl-Inline-Python' =&gt; 1, # does not build
++	'perl-ExtUtils-ParseXS' =&gt; 1, # real version
++	'perl-version' =&gt; 1, # real version
++	'perl-Statistics-Descriptive' =&gt; 1, # real version
++	'perl-DBD-Oracle' =&gt; 1, # needs oracle
++	'perl-List-MoreUtils' =&gt; 1, # devel 
++	'perl-Coro' =&gt; 1, # version 
++};
++
++
++
++
++# change this to a rpmforgre svn checkout
++my $directory = '/home/cmr/workspace/rpmforge/rpms';
++#my $directory = '/home/cmr';
++
++my $cb = CPANPLUS::Backend-&gt;new();
++
++opendir(DIR,$directory);
++my @rpmnames = grep { /^perl-/ } readdir(DIR);
++
++
++my $crap;
++foreach my $name (@rpmnames) {
++	
++	# skip packages in ignore-list
++	next if $ignore-&gt;{$name}; 
++
++
++	my $mod;
++	if ( $mod = CPAN::Shell-&gt;expand(&quot;Module&quot;,cpan_name($name) ) ) {
++
++		# compare if distribution name is same as filename
++		my $d;
++		if( $d = $mod-&gt;distribution() ) {
++			my $dist = $mod-&gt;distribution()-&gt;base_id;
++			$dist =~ s/(.*)-.*/$1/;
++		 	if ( &quot;perl-&quot;.$dist ne $name ) {
++				print &quot;WARNING: wrong distname: $name belongs to $dist\n&quot;;
++				next;
++				}
++		} else {
++			print &quot;WARNING: mod-&gt;distribution() failed on $name\n&quot;;
++			next;
++		}
++
++		#my $cpan_version = version-&gt;new($mod-&gt;cpan_version);
++		my $cpan_version = $mod-&gt;distribution()-&gt;base_id;
++		$cpan_version =~ s/.*-(.*)/$1/;
++		my $filename = &quot;$directory/$name/$name.spec&quot;;
++		
++		if ( -e  $filename ){
++			my $localverison = version-&gt;new(version_from_spec($filename));
++			my $release =  release_from_spec($filename);
++
++		if ( $cpan_version gt $localverison ) {
++				printf(&quot;%-30.30s | Localversion: %s (%s) | Cpanversion %s (%s)\n&quot;,cpan_name($name), $localverison, version_from_spec($filename), $cpan_version, $mod-&gt;cpan_version);
++			}
++
++		}
++
++	} else { 
++		print &quot;WARNING: Cannot resolve $name\n&quot;;
++		next;
++	}
++	
++} 
++
++
++sub version_from_spec() {
++	
++	my $file = shift;
++	my $name;
++	my $version;
++	open my $fh, $file or croak &quot;Cannot open $file: $!\n&quot;;
++	 while (&lt;$fh&gt;) {
++    	/^Version:\s*(\S+)/      and $version   = $1;
++	  }
++	 return($version);	
++}
++
++sub release_from_spec() {
++
++        my $file = shift;
++        my $name;
++        my $release;
++        open my $fh, $file or croak &quot;Cannot open $file: $!\n&quot;;
++         while (&lt;$fh&gt;) {
++        /^Release:\s*(\S+)/      and $release   = $1;
++          }
++         return($release);
++}
++
++sub cpan_name() {
++		my $name = shift;
++		my $cpan_name = $name;
++		$cpan_name =~ s/^perl-//g;
++		$cpan_name =~ s/-/::/g;
++		return($cpan_name);
++		
++}
++sub cpan_package() {
++	
++	my $name = shift;
++	my $mod;
++	if ( $mod = $cb-&gt;module_tree($name) ) {
++		print &quot;$name resolves to &quot;.  $mod-&gt;package_name .&quot;\n &quot; if DEBUG;
++		return($mod-&gt;package_name);
++	} else {
++		return(&quot;NA&quot;);
++	}
++	
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006709.html">[svn] r7913 - trunk/rpms/rabbitvcs
+</A></li>
+	<LI>Next message: <A HREF="006711.html">[svn] r7915 - trunk/rpms/rapidsvn
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6710">[ date ]</a>
+              <a href="thread.html#6710">[ thread ]</a>
+              <a href="subject.html#6710">[ subject ]</a>
+              <a href="author.html#6710">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

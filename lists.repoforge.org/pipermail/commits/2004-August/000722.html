@@ -1,0 +1,476 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1916 - trunk/rpms/firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1916%20-%20trunk/rpms/firefox&In-Reply-To=%3C20040808074446.250DE17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000721.html">
+   <LINK REL="Next"  HREF="000723.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1916 - trunk/rpms/firefox</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1916%20-%20trunk/rpms/firefox&In-Reply-To=%3C20040808074446.250DE17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1916 - trunk/rpms/firefox">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Aug  8 09:44:46 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000721.html">[SVN] r1915 - trunk/rpms/firefox
+</A></li>
+        <LI>Next message: <A HREF="000723.html">[SVN] r1917 - trunk/rpms/firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#722">[ date ]</a>
+              <a href="thread.html#722">[ thread ]</a>
+              <a href="subject.html#722">[ subject ]</a>
+              <a href="author.html#722">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-08 09:44:44 +0200 (Sun, 08 Aug 2004)
+New Revision: 1916
+
+Added:
+   trunk/rpms/firefox/firefox-0.9.3-uri.patch
+   trunk/rpms/firefox/firefox.xpm
+   trunk/rpms/firefox/mozilla-1.7-psfonts.patch
+Modified:
+   trunk/rpms/firefox/firefox.spec
+Log:
+Added missing patches.
+I'm not very keen on removing patches (at least not right away)
+
+
+Added: trunk/rpms/firefox/firefox-0.9.3-uri.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-0.9.3-uri.patch	2004-08-08 04:28:40 UTC (rev 1915)
++++ trunk/rpms/firefox/firefox-0.9.3-uri.patch	2004-08-08 07:44:44 UTC (rev 1916)
+@@ -0,0 +1,16 @@
++--- toolkit/mozapps/extensions/src/nsExtensionManager.js.in.orig	2004-08-08 03:49:04.689354992 +0200
+++++ toolkit/mozapps/extensions/src/nsExtensionManager.js.in	2004-08-08 03:50:24.266257464 +0200
++@@ -1587,9 +1587,13 @@
++   
++   _checkForGlobalInstalls: function (aPath, aItemType)
++   {
+++    var ioServ = Components.classes[&quot;@mozilla.org/network/io-service;1&quot;]
+++                           .getService(Components.interfaces.nsIIOService);
+++    var uri = ioServ.newURI(aPath, null, null);
++     // First see if the path supplied is a file path
++     var file = Components.classes[&quot;@mozilla.org/file/local;1&quot;]
++                          .createInstance(Components.interfaces.nsILocalFile);
+++    aPath = uri.path;
++     try {
++       file.initWithPath(aPath);
++     }
+
+Modified: trunk/rpms/firefox/firefox.spec
+===================================================================
+--- trunk/rpms/firefox/firefox.spec	2004-08-08 04:28:40 UTC (rev 1915)
++++ trunk/rpms/firefox/firefox.spec	2004-08-08 07:44:44 UTC (rev 1916)
+@@ -183,12 +183,12 @@
+ %{__install} -d -m0755 %{buildroot}%{_libdir}
+ %{__tar} -xvz -C %{buildroot}%{_libdir} -f dist/firefox-*-linux-gnu.tar.gz
+ 
+-%{__install} -m0644 %{SOURCE3} %{buildroot}%{_libdir}/firefox/defaults/profile/
+-%{__install} -m0644 %{SOURCE3} %{buildroot}%{_libdir}/firefox/defaults/profile/US/
+-%{__install} -m0644 %{SOURCE4} %{buildroot}%{_libdir}/firefox/chrome/icons/default/default.xpm
+-%{__install} -m0644 %{SOURCE4} %{buildroot}%{_libdir}/firefox/icons/default.xpm
++%{__install} -D -m0644 %{SOURCE3} %{buildroot}%{_libdir}/firefox/defaults/profile/bookmarks.html
++%{__install} -D -m0644 %{SOURCE3} %{buildroot}%{_libdir}/firefox/defaults/profile/US/bookmarks.html
++%{__install} -D -m0644 %{SOURCE4} %{buildroot}%{_libdir}/firefox/chrome/icons/default/default.xpm
++%{__install} -D -m0644 %{SOURCE4} %{buildroot}%{_libdir}/firefox/icons/default.xpm
+ 
+-%{__install} -m0755 %{SOURCE1} %{buildroot}%{_libdir}/firefox/firefox-rebuild-database
++%{__install} -D -m0755 %{SOURCE1} %{buildroot}%{_libdir}/firefox/firefox-rebuild-database
+ %{__perl} -pi -e 's|\$MOZ_DIST_BIN|%{_libdir}/firefox|g;' %{buildroot}%{_libdir}/firefox/firefox-rebuild-database
+ 
+ %if %{?_without_gtk2:1}0
+@@ -209,7 +209,7 @@
+ %endif
+ 
+ ### Clean up buildroot
+-find %{buildroot}%{_libdir}/firefox/chrome/ -type d -maxdepth 1 -exec %{__rmdir} --ignore-fail-on-non-empty {} \; || :
++find %{_libdir}/firefox/chrome/*/ -type d -exec %{__rmdir} -p {} \; &amp;&gt;/dev/null
+ 
+ %post
+ /sbin/ldconfig 2&gt;/dev/null
+
+Added: trunk/rpms/firefox/firefox.xpm
+===================================================================
+--- trunk/rpms/firefox/firefox.xpm	2004-08-08 04:28:40 UTC (rev 1915)
++++ trunk/rpms/firefox/firefox.xpm	2004-08-08 07:44:44 UTC (rev 1916)
+@@ -0,0 +1,311 @@
++/* XPM */
++static char *firefox[] = {
++/* columns rows colors chars-per-pixel */
++&quot;48 48 257 2&quot;,
++&quot;   c #000000&quot;,
++&quot;.  c #00000C&quot;,
++&quot;X  c #0A0300&quot;,
++&quot;o  c #0E0803&quot;,
++&quot;O  c #030417&quot;,
++&quot;+  c #170501&quot;,
++&quot;@  c #1F1006&quot;,
++&quot;#  c #01052B&quot;,
++&quot;$  c #000232&quot;,
++&quot;%  c #00043C&quot;,
++&quot;&amp;  c #060B36&quot;,
++&quot;*  c #02133C&quot;,
++&quot;=  c #1C1538&quot;,
++&quot;-  c #250802&quot;,
++&quot;;  c #271506&quot;,
++&quot;:  c #331D0A&quot;,
++&quot;&gt;  c #2D0A11&quot;,
++&quot;,  c #251434&quot;,
++&quot;&lt;  c #372309&quot;,
++&quot;1  c #3E202E&quot;,
++&quot;2  c #313035&quot;,
++&quot;3  c #000544&quot;,
++&quot;4  c #000B4A&quot;,
++&quot;5  c #000A46&quot;,
++&quot;6  c #000B54&quot;,
++&quot;7  c #031048&quot;,
++&quot;8  c #001253&quot;,
++&quot;9  c #001859&quot;,
++&quot;0  c #1A125B&quot;,
++&quot;q  c #000F71&quot;,
++&quot;w  c #001D63&quot;,
++&quot;e  c #02186A&quot;,
++&quot;r  c #000B65&quot;,
++&quot;t  c #0C305A&quot;,
++&quot;y  c #1C2B56&quot;,
++&quot;u  c #172D40&quot;,
++&quot;i  c #00256B&quot;,
++&quot;p  c #002667&quot;,
++&quot;a  c #012974&quot;,
++&quot;s  c #003175&quot;,
++&quot;d  c #00347A&quot;,
++&quot;f  c #013A7C&quot;,
++&quot;g  c #003A72&quot;,
++&quot;h  c #103870&quot;,
++&quot;j  c #332747&quot;,
++&quot;k  c #303F5F&quot;,
++&quot;l  c #342F55&quot;,
++&quot;z  c #383261&quot;,
++&quot;x  c #004779&quot;,
++&quot;c  c #0F5078&quot;,
++&quot;v  c #364A54&quot;,
++&quot;b  c #2B5379&quot;,
++&quot;n  c #304D65&quot;,
++&quot;m  c #2E6879&quot;,
++&quot;M  c #440300&quot;,
++&quot;N  c #4A1516&quot;,
++&quot;B  c #550500&quot;,
++&quot;V  c #4B1A06&quot;,
++&quot;C  c #4C290E&quot;,
++&quot;Z  c #4C2B10&quot;,
++&quot;A  c #582C09&quot;,
++&quot;S  c #5B3213&quot;,
++&quot;D  c #5D2A27&quot;,
++&quot;F  c #680300&quot;,
++&quot;G  c #781003&quot;,
++&quot;H  c #643915&quot;,
++&quot;J  c #763112&quot;,
++&quot;K  c #6D3D2E&quot;,
++&quot;L  c #4C334D&quot;,
++&quot;P  c #774A1B&quot;,
++&quot;I  c #7E5D18&quot;,
++&quot;U  c #67563F&quot;,
++&quot;Y  c #7B611A&quot;,
++&quot;T  c #574F58&quot;,
++&quot;R  c #5B5063&quot;,
++&quot;E  c #5B5B70&quot;,
++&quot;W  c #546C6D&quot;,
++&quot;Q  c #665D5C&quot;,
++&quot;!  c #654E53&quot;,
++&quot;~  c #6B5F69&quot;,
++&quot;^  c #7F696A&quot;,
++&quot;/  c #786E69&quot;,
++&quot;(  c #003A84&quot;,
++&quot;)  c #00458B&quot;,
++&quot;_  c #01468A&quot;,
++&quot;`  c #014B93&quot;,
++&quot;'  c #004B99&quot;,
++&quot;]  c #005394&quot;,
++&quot;[  c #00549C&quot;,
++&quot;{  c #005B9B&quot;,
++&quot;}  c #075A98&quot;,
++&quot;|  c #144887&quot;,
++&quot; . c #005BA2&quot;,
++&quot;.. c #016297&quot;,
++&quot;X. c #02739D&quot;,
++&quot;o. c #07698B&quot;,
++&quot;O. c #0262A5&quot;,
++&quot;+. c #0065A9&quot;,
++&quot;@. c #006AAB&quot;,
++&quot;#. c #076DAA&quot;,
++&quot;$. c #006FB0&quot;,
++&quot;%. c #0873AB&quot;,
++&quot;&amp;. c #0073B1&quot;,
++&quot;*. c #0879B6&quot;,
++&quot;=. c #107AB8&quot;,
++&quot;-. c #1775A9&quot;,
++&quot;;. c #285C83&quot;,
++&quot;:. c #276D95&quot;,
++&quot;&gt;. c #3D7BA1&quot;,
++&quot;,. c #596780&quot;,
++&quot;&lt;. c #618151&quot;,
++&quot;1. c #678C6F&quot;,
++&quot;2. c #0084BC&quot;,
++&quot;3. c #0A88BD&quot;,
++&quot;4. c #1082BD&quot;,
++&quot;5. c #018DC4&quot;,
++&quot;6. c #0B89C3&quot;,
++&quot;7. c #0196C9&quot;,
++&quot;8. c #0497CA&quot;,
++&quot;9. c #039ED1&quot;,
++&quot;0. c #089ED1&quot;,
++&quot;q. c #1289C4&quot;,
++&quot;w. c #1394CC&quot;,
++&quot;e. c #09A1D3&quot;,
++&quot;r. c #17A7DA&quot;,
++&quot;t. c #1AB5E5&quot;,
++&quot;y. c #18AFE0&quot;,
++&quot;u. c #20BCEC&quot;,
++&quot;i. c #5A8F9B&quot;,
++&quot;p. c #4398B5&quot;,
++&quot;a. c #59A0AE&quot;,
++&quot;s. c #7A8A91&quot;,
++&quot;d. c #860500&quot;,
++&quot;f. c #970700&quot;,
++&quot;g. c #991903&quot;,
++&quot;h. c #97270C&quot;,
++&quot;j. c #8D3010&quot;,
++&quot;k. c #A90601&quot;,
++&quot;l. c #AE1803&quot;,
++&quot;z. c #B40100&quot;,
++&quot;x. c #B60B00&quot;,
++&quot;c. c #B90C00&quot;,
++&quot;v. c #BA1400&quot;,
++&quot;b. c #AB2806&quot;,
++&quot;n. c #B92902&quot;,
++&quot;m. c #B93709&quot;,
++&quot;M. c #A12C10&quot;,
++&quot;N. c #914F18&quot;,
++&quot;B. c #8A4C3A&quot;,
++&quot;V. c #944F31&quot;,
++&quot;C. c #996121&quot;,
++&quot;Z. c #BF400C&quot;,
++&quot;A. c #AF5815&quot;,
++&quot;S. c #A95131&quot;,
++&quot;D. c #B96015&quot;,
++&quot;F. c #B06F2A&quot;,
++&quot;G. c #945946&quot;,
++&quot;H. c #837F5F&quot;,
++&quot;J. c #8B654B&quot;,
++&quot;K. c #8A7762&quot;,
++&quot;L. c #B6784A&quot;,
++&quot;P. c #C21B02&quot;,
++&quot;I. c #C62803&quot;,
++&quot;U. c #C73705&quot;,
++&quot;Y. c #D33906&quot;,
++&quot;T. c #C9450B&quot;,
++&quot;R. c #CC4810&quot;,
++&quot;E. c #CA5715&quot;,
++&quot;W. c #D54808&quot;,
++&quot;Q. c #D14E11&quot;,
++&quot;!. c #DA550C&quot;,
++&quot;~. c #DA5712&quot;,
++&quot;^. c #CC5F26&quot;,
++&quot;/. c #DA6514&quot;,
++&quot;(. c #DF7019&quot;,
++&quot;). c #D06813&quot;,
++&quot;_. c #CB7738&quot;,
++&quot;`. c #D96727&quot;,
++&quot;'. c #D7772A&quot;,
++&quot;]. c #D06C2D&quot;,
++&quot;[. c #E45504&quot;,
++&quot;{. c #E55906&quot;,
++&quot;}. c #E45C0A&quot;,
++&quot;|. c #E85D0B&quot;,
++&quot; X c #E25609&quot;,
++&quot;.X c #E35A13&quot;,
++&quot;XX c #E6630D&quot;,
++&quot;oX c #EB6413&quot;,
++&quot;OX c #EE6916&quot;,
++&quot;+X c #EC6B1B&quot;,
++&quot;@X c #E46714&quot;,
++&quot;#X c #E87817&quot;,
++&quot;$X c #F16B18&quot;,
++&quot;%X c #F4731C&quot;,
++&quot;&amp;X c #E2760D&quot;,
++&quot;*X c #E76B25&quot;,
++&quot;=X c #EB7626&quot;,
++&quot;-X c #F37627&quot;,
++&quot;;X c #F0782D&quot;,
++&quot;:X c #AE842C&quot;,
++&quot;&gt;X c #BF8F31&quot;,
++&quot;,X c #B98E2E&quot;,
++&quot;&lt;X c #9D8C43&quot;,
++&quot;1X c #B49A41&quot;,
++&quot;2X c #AD8B70&quot;,
++&quot;3X c #D7842D&quot;,
++&quot;4X c #DA883A&quot;,
++&quot;5X c #D39A31&quot;,
++&quot;6X c #D1B734&quot;,
++&quot;7X c #EE9616&quot;,
++&quot;8X c #EA8614&quot;,
++&quot;9X c #E78733&quot;,
++&quot;0X c #F8842A&quot;,
++&quot;qX c #FA8836&quot;,
++&quot;wX c #FD9C2F&quot;,
++&quot;eX c #FD9335&quot;,
++&quot;rX c #FC9B34&quot;,
++&quot;tX c #F2A41B&quot;,
++&quot;yX c #F5B11C&quot;,
++&quot;uX c #E9A533&quot;,
++&quot;iX c #F9A629&quot;,
++&quot;pX c #FDA838&quot;,
++&quot;aX c #FCBB26&quot;,
++&quot;sX c #FDB837&quot;,
++&quot;dX c #EBB934&quot;,
++&quot;fX c #D39250&quot;,
++&quot;gX c #E38847&quot;,
++&quot;hX c #F2934E&quot;,
++&quot;jX c #F19D62&quot;,
++&quot;kX c #F2B954&quot;,
++&quot;lX c #F6A769&quot;,
++&quot;zX c #FDC628&quot;,
++&quot;xX c #FEC435&quot;,
++&quot;cX c #FECB39&quot;,
++&quot;vX c #FEC838&quot;,
++&quot;bX c #FED42A&quot;,
++&quot;nX c #FFDB38&quot;,
++&quot;mX c #FED438&quot;,
++&quot;MX c #EDC334&quot;,
++&quot;NX c #FFE738&quot;,
++&quot;BX c #FFF738&quot;,
++&quot;VX c #FEC342&quot;,
++&quot;CX c #FEC955&quot;,
++&quot;ZX c #FDD648&quot;,
++&quot;AX c #FDDF5C&quot;,
++&quot;SX c #FED765&quot;,
++&quot;DX c #FFD677&quot;,
++&quot;FX c #FFE849&quot;,
++&quot;GX c #FDE55B&quot;,
++&quot;HX c #FEE664&quot;,
++&quot;JX c #FEEB76&quot;,
++&quot;KX c #B39983&quot;,
++&quot;LX c #D6B483&quot;,
++&quot;PX c #DBC29A&quot;,
++&quot;IX c #FEF18A&quot;,
++&quot;UX c #FEF8A0&quot;,
++&quot;YX c None&quot;,
++/* pixels */
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX  . O # * * * &amp; # O   YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYX. &amp; 9 ( } *.=.q.q.=.%.} f 9 # X YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXO &amp; i ` O.%.=.q.r.y.r.w.w.q.4.$.{ i # . YXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYX  o X YXYX. # w ( ` ] ..#.=.w.t.u.u.r.q.4.p.a.i.1.W y O   YXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYX+ N.; YX. 5 a d ( ) ` ' O.#.=.t.u.u.r.q.=.%.-.:.&lt;.6X6X,XP ; YXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXA #XA . 5 w a q d ( ) :.i.&gt;.*.t.t.t.r.4.*.#.O.} b U wXbXcX3XZ   YXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYX  A.#XA.= 9 w q ( ( ( s.PX2X;.6.t.t.r.r.3.%.#...;./ fXpXpXCXSX9XZ : ; YX  YXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYX@ ).#XXXB.l R K.K.E L.lXfXn ..9.r.w.q.q.*.=.6.5.X.] n &lt;.kXkXGXIX9XP I     YXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYX; E.~.Q.*XgXjXjXlXhX;X-XB.} 3.e.e.w.6.0.0.0.9.9.2._ g p v &gt;XnXFXSX_.,X&lt;   YXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYX- U.T..X.XoX+X+X-X+X$XoXK X.8.e.e.e.9.0.e.9.9.7.2.{ f f p t &lt;XbXFXkXdXY     YXYXYXYXYX&quot;,
++&quot;YXYXYXYX  - Y.!. X|.}.{.{.|.|.OX Xh.n 8.9.9.9.9.9.7.7.7.5.5.2.{ ] ..{ c &gt;XbXcXcX,Xo   YXYXYXYXYX&quot;,
++&quot;YXYXYXYX  A XXXX|.|.}. X{.{.|.|. Xn.M.Q m o.5.9.7.7.7.5.5.5.2.&amp;.&amp;.$<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at .</A>] T iXzXzXuX;   YXYXYXYXYX&quot;,
++&quot;YXYXYXYX&lt; ).&amp;XXX#X{.{.{.{.|.}.}.|.U.m.W.C.! <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">2.3.3.7.2.2. at .O.</A>&amp;.&amp;.$<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at .+.b</A> n 4XaXaXpXC     YXYXYXYX&quot;,
++&quot;YXYXYXX C.XX!.(.~. X{.{.{.{.|.|<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at X</A>~.`.jXlX1.o.2.2.%.&amp;.2.{ x ] @<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at .+.</A> .n F.4XzXiXwXH     YXYXYXYX&quot;,
++&quot;YXYXYX: ).[.!<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at X</A>}.XX|.{.|.|.XXOX*X=XjXKXn c @.2.&amp;.] _ ] _ f f { +. .[ t ,XpXxXaXeXC.Z X   YXYXYX&quot;,
++&quot;YXYXYXA U.W.XX}<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at X</A>/.{.|.{.XXOX=X;X9XgXv x <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">.. at .</A>&amp;.&amp;._ g f s s s _  . .( 9 F.sXxXbX0X'.C.X   YXYXYX&quot;,
++&quot;YXYXYX- j./. X{.(.{.XX{.XX+X=X;XqXqXhXQ { @.&amp;.$<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at .</A>] s s s i i f [ [ ) p :XsXvXnXqXrX:XX   YXYXYX&quot;,
++&quot;YXYXYXX <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">N. at X</A>[.}<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at X</A>{.XXXX+X(.`.*X_._.gXK.{ @<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at .</A>@<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">. at .+.</A>] d p p w p f s h h 5XxXcXnXqXsXF.X   YXYXYX&quot;,
++&quot;YXYXYX+ D.}.}.}.[.[.{.[.T.b.m.M.2 u 2 v ] O.O. .O.O.' p w w 9 9 8 8 L n 5XsXcXmXrXvXF.    YXYXYX&quot;,
++&quot;YXYXYX- Z.Y.}.XX[.[.[.T.b.b.b.j.t g g x ] ] {  . . .) p 9 9 9 8 8 8 ! J.uXpXmXmXpXnXN.    YXYXYX&quot;,
++&quot;YXYXYX- n.Y.}./.[.[.[.m.m.m.m.E.! ( ' ' '  .' [ ' ' ' ( 6 8 8 4 6 e Q iXeXpXmXcXsXnXH     YXYXYX&quot;,
++&quot;YXYXYX- l.W.{.XX}.[.!.U.m.Z.T.!.~.! ( ( ' ( ;.~ ^ ,.| ( 8 4 4 4 4 a Q sXeXsXVXvXNXMX&lt;     YXYXYX&quot;,
++&quot;YXYXYXo f.W.!.[.}.[.[.W.T.T.R.!<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">.oX at XS.R</A> R G.].;XqXjXKXl 4 5 3 3 4 a Q xXrXsXVXcXBX5X+     YXYXYX&quot;,
++&quot;YXYXYX  d.T.W.[.[. X[.!.Q.!.E.!.Q.oX$X$X$X%X$X-X.X].L.j % 3 % % 0 a F.bXsXVXcXNXNXC.      YXYXYX&quot;,
++&quot;YXYXYX  B U.R. X[.[.[.{.!.~.~..Xm.b.Q.~..X.X.XR.j.&gt; O $ % % % 7 z z 9XvXVXSXmXNXsXS     YXYXYXYX&quot;,
++&quot;YXYXYX  - l.I.}.[.[.[.[.|.XXOXoX~.b.l.b.b.n.h.N # # # $ $ $ 4 L G.G.wXsXJXDXcXcX3X@     YXYXYXYX&quot;,
++&quot;YXYXYX    d.v.Q.{.[.[.{.{.|.oXOXOX~.J N N &gt; &amp; 5 # $ $ $ $ % j _.F.;XwXZXUXCXsXsXN.      YXYXYXYX&quot;,
++&quot;YXYXYX    M v.U.Q.W.[.{.{.|.|.oXoXoXQ.D &amp; 3 6 9 6 3 $ $ $ D ].;X-X0XsXIXIXpXpX3X@     YXYXYXYXYX&quot;,
++&quot;YXYXYX    X d.I.I.U.W.[.{.|.|.XXoXoX$XOXA.L 0 q q r 3 , K *X0X0X0XsXHXIXkXrXeXH .     YXYXYXYXYX&quot;,
++&quot;YXYXYXYX    - x.I.n.U.[.XX{.|.XXoXoXoX$X$XoX^.S.B.G.S.*X-X-X$X0XsXGXJXHXeXqXF.X       YXYXYXYXYX&quot;,
++&quot;YXYXYXYX      F z.v.n.U.W.W.{.|.oXoX$X%X$X$X$X$X%X-X-X.XoX+X8XdXZXGXHXpXeX'.:       YXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYX    o d.z.x.I.I.U.Y.W. X.X.X.X|.$X$X$<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">XoX.XW..X at X7XyXzXmXZXpXqX</A>;XZ       YXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYX      + d.z.z.z.c.I.U.I.I.I.P.I.I.Y.Y.Y.Y.!.&amp;X8X7XtXaXaXiXqX9XH         YXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYX      - d.z.z.z.z.x.l.z.z.z.z.z.z.v.I.W.!.&amp;X8X7XtXtX0X;X=XS         YXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYX      + F z.z.z.z.z.z.z.z.z.z.z.v.P.U.W.}.&amp;X8X&amp;X+X-X^.C         YXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYX        M d.z.z.z.z.z.z.z.z.z.x.v.I.W.W.!.!.XX/.N.;           YXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYX        + M d.z.z.z.z.z.z.z.z.c.P.I.Y.Y.T.j.V             YXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYX          X - B F f.f.k.k.k.k.f.g.G V ;             YXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYX                X + - - - @ X X                 YXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYX                                        YXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX                              YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;,
++&quot;YXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYXYX&quot;
++};
+
+Added: trunk/rpms/firefox/mozilla-1.7-psfonts.patch
+===================================================================
+--- trunk/rpms/firefox/mozilla-1.7-psfonts.patch	2004-08-08 04:28:40 UTC (rev 1915)
++++ trunk/rpms/firefox/mozilla-1.7-psfonts.patch	2004-08-08 07:44:44 UTC (rev 1916)
+@@ -0,0 +1,28 @@
++--- mozilla/modules/libpref/src/init/all.js.foo	2004-06-18 13:16:32.000000000 -0400
+++++ mozilla/modules/libpref/src/init/all.js	2004-06-18 13:17:28.000000000 -0400
++@@ -1776,8 +1776,10 @@
++ pref(&quot;print.postscript.nativefont.ar&quot;,             &quot;&quot;);
++ pref(&quot;print.postscript.nativefont.el&quot;,             &quot;&quot;);
++ pref(&quot;print.postscript.nativefont.he&quot;,             &quot;&quot;);
++-pref(&quot;print.postscript.nativefont.ja&quot;,             &quot;&quot;);
++-pref(&quot;print.postscript.nativefont.ko&quot;,             &quot;&quot;);
+++pref(&quot;print.postscript.nativecode.ja&quot;,             &quot;euc-jp&quot;);
+++pref(&quot;print.postscript.nativefont.ja&quot;,             &quot;Ryumin-Light-EUC-H&quot;);
+++pref(&quot;print.postscript.nativecode.ko&quot;,             &quot;euc-kr&quot;);
+++pref(&quot;print.postscript.nativefont.ko&quot;,             &quot;Baekmuk-Gulim-KSC-EUC-H&quot;);
++ pref(&quot;print.postscript.nativefont.th&quot;,             &quot;&quot;);
++ pref(&quot;print.postscript.nativefont.tr&quot;,             &quot;&quot;);
++ pref(&quot;print.postscript.nativefont.x-baltic&quot;,       &quot;&quot;);
++@@ -1786,8 +1788,10 @@
++ pref(&quot;print.postscript.nativefont.x-unicode&quot;,      &quot;&quot;);
++ pref(&quot;print.postscript.nativefont.x-user-def&quot;,     &quot;&quot;);
++ pref(&quot;print.postscript.nativefont.x-western&quot;,      &quot;&quot;);
++-pref(&quot;print.postscript.nativefont.zh-CN&quot;,          &quot;&quot;);
++-pref(&quot;print.postscript.nativefont.zh-TW&quot;,          &quot;&quot;);
+++pref(&quot;print.postscript.nativecode.zh-CN&quot;, &quot;gb18030&quot;);
+++pref(&quot;print.postscript.nativefont.zh-CN&quot;, &quot;MSungGBK-Light-GBK2K-H&quot;);
+++pref(&quot;print.postscript.nativecode.zh-TW&quot;, &quot;big5&quot;);
+++pref(&quot;print.postscript.nativefont.zh-TW&quot;, &quot;ShanHeiSun-Light-B5-H&quot;);
++ pref(&quot;print.postscript.nativefont.zh-HK&quot;,          &quot;&quot;);
++ 
++ # XP_UNIX
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000721.html">[SVN] r1915 - trunk/rpms/firefox
+</A></li>
+	<LI>Next message: <A HREF="000723.html">[SVN] r1917 - trunk/rpms/firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#722">[ date ]</a>
+              <a href="thread.html#722">[ thread ]</a>
+              <a href="subject.html#722">[ subject ]</a>
+              <a href="author.html#722">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

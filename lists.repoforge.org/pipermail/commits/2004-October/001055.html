@@ -1,0 +1,372 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2249 - in trunk/tools/pydar2: . pydar sql tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2249%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20sql%20tests&In-Reply-To=%3C20041003213232.B453017F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001054.html">
+   <LINK REL="Next"  HREF="001056.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2249 - in trunk/tools/pydar2: . pydar sql tests</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2249%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20sql%20tests&In-Reply-To=%3C20041003213232.B453017F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2249 - in trunk/tools/pydar2: . pydar sql tests">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Oct  3 23:32:32 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001054.html">[SVN] r2248 - trunk/rpms/xtraceroute
+</A></li>
+        <LI>Next message: <A HREF="001056.html">[SVN] r2250 - trunk/rpms/firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1055">[ date ]</a>
+              <a href="thread.html#1055">[ thread ]</a>
+              <a href="subject.html#1055">[ subject ]</a>
+              <a href="author.html#1055">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-10-03 23:32:31 +0200 (Sun, 03 Oct 2004)
+New Revision: 2249
+
+Added:
+   trunk/tools/pydar2/pydar/svncheck.py
+   trunk/tools/pydar2/sql/
+   trunk/tools/pydar2/sql/svncheck.sql
+   trunk/tools/pydar2/tests/svncheck-test.py
+   trunk/tools/pydar2/tests/svncheck-test.sh
+Modified:
+   trunk/tools/pydar2/tests/log4py.conf
+Log:
+get information about every spec file in the subversion repository and save it in a database
+
+Added: trunk/tools/pydar2/pydar/svncheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/svncheck.py	2004-10-03 21:25:03 UTC (rev 2248)
++++ trunk/tools/pydar2/pydar/svncheck.py	2004-10-03 21:32:31 UTC (rev 2249)
+@@ -0,0 +1,156 @@
++
++&quot;&quot;&quot; Update info about spec files (from the svn repository) in a db &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++
++# Normally this runs on the master server. It checks the subversion
++# repository.
++# Probably implemented as:
++# every hour a cronjob starts which tries to do a svn update and checks which
++# files are changed. The information about those specfiles are updated in the
++# database. Information like 'exclusive archs' and 'authority' is also stored
++# so it's possible to check which specfile should be build for which
++# architecture.
++
++import re, os, commands, posix, posixpath, string, pgdb
++from log4py import Logger
++from svnwrapper import SvnWrapper
++from specfile import SpecFile
++
++class SvnCheck:
++    def __init__(self):
++        self.cat = Logger().get_instance(self)
++        self.cat.debug(&quot;start&quot;)
++        
++        
++    def check(self, svnSpecsDir,dbconnectstring):
++        self.cat.debug(&quot;start, svnSpecsDir=&quot; + svnSpecsDir)
++        self.dbconnectstring = dbconnectstring
++        # let's check every spec file we can find in the repository
++        specsDirList = posix.listdir(svnSpecsDir)
++        for specDir in specsDirList:
++            fullRpmDir = posixpath.join(svnSpecsDir,specDir)
++            if posixpath.isdir(fullRpmDir):
++                fileList = posix.listdir(fullRpmDir)
++                for file in fileList:        
++                    rindex = string.rfind(file,'.spec')
++                    if rindex &gt; 0 and rindex == len(file) - len('.spec'):
++                        self.cat.debug(&quot;spec match, file=&quot; + file)
++                        self.checkSpecFile(specDir,fullRpmDir,file)
++    
++    def checkSpecFile(self,specDir,fullRpmDir,fileName):
++        self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
++        # we're going to insert information about this spec file in the 
++        # database now
++        # first get the current or a new specfileid
++        specfileid = self.getCurrentOrNewDbSpecFileId(specDir,fullRpmDir,fileName)
++        self.cat.debug(&quot;specfileid will be &quot; + specfileid)
++        currentcommitrevision = self.getCurrentCommitRevision(specDir,fullRpmDir,fileName)
++        self.cat.debug(&quot;current commit revision is &quot; + currentcommitrevision)
++        alreadyImported = self.isRevInfoPresent(specfileid,currentcommitrevision)
++        if alreadyImported:
++            self.cat.debug(&quot;already imported in db&quot;)
++        else:
++            self.cat.debug(&quot;need to import all the variables..&quot;)
++            self.insertSpecfileVersion(specfileid,currentcommitrevision)
++            self.insertTags(specfileid, currentcommitrevision, 'fc3', specDir,fullRpmDir,fileName, ' --define &quot;fc3 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'fc2', specDir,fullRpmDir,fileName, ' --define &quot;fc2 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'fc1', specDir,fullRpmDir,fileName, ' --define &quot;fc1 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'rh9', specDir,fullRpmDir,fileName, ' --define &quot;rh9 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'rh8', specDir,fullRpmDir,fileName, ' --define &quot;rh8 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'rh7', specDir,fullRpmDir,fileName, ' --define &quot;rh7 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'rh6', specDir,fullRpmDir,fileName, ' --define &quot;rh6 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'el3', specDir,fullRpmDir,fileName, ' --define &quot;el3 1&quot;')
++            self.insertTags(specfileid, currentcommitrevision, 'el2', specDir,fullRpmDir,fileName, ' --define &quot;el2 1&quot;') 
++           
++    def insertSpecfileVersion(self,specfileid,currentcommitrevision):
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++        cursor.execute(&quot;insert into pydar2_specfile_version (specfileid,svncmtrev) values (&quot; + specfileid + &quot;,&quot; + currentcommitrevision + &quot;)&quot;)
++        conn.commit()
++        cursor.close()
++        conn.close()
++             
++    def isRevInfoPresent(self,specfileid,currentcommitrevision):
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++        cursor.execute(&quot;select * from pydar2_specfile_version where specfileid=&quot; + specfileid + &quot; and svncmtrev=&quot; + currentcommitrevision)
++        retval = 0
++        if cursor.rowcount &gt; 0: 
++            retval = 1
++        cursor.close()
++        conn.close()
++        return retval
++            
++    def insertTags(self,specfileid,svncmtrev,distrocode,specDir,fullRpmDir,fileName,deftags):
++        self.cat.debug(&quot;start,specfileid=&quot; + specfileid + &quot;,svncmtrev=&quot; + svncmtrev + &quot;,distrocode=&quot; + distrocode)
++        sf = SpecFile(fullRpmDir+&quot;/&quot;+fileName,deftags)
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++           
++        for tag in sf.rpmforgetags:
++            print 'rpmforge tag: ' + tag
++            name = tag
++            #print 'value: ' + sf.rpmforgetags[tag]
++            value = string.replace(sf.rpmforgetags[tag],&quot;'&quot;,&quot;''&quot;)
++            cursor.execute(&quot;insert into pydar2_specfile_tags (specfileid,svncmtrev,distroid,name,value) values (&quot; + specfileid + &quot;,&quot; + svncmtrev + &quot;,(select id from pydar2_distro where code='&quot; + distrocode + &quot;'),'&quot;+ name + &quot;','&quot; + value + &quot;')&quot;)
++        for tag in sf.standardtags:
++            print 'standard tag: ' + tag
++            name = tag
++            # print 'value: ' + string.replace(sf.standardtags[tag],&quot;'&quot;,&quot;''&quot;)
++            value = string.replace(sf.standardtags[tag],&quot;'&quot;,&quot;''&quot;)
++            cursor.execute(&quot;insert into pydar2_specfile_tags (specfileid,svncmtrev,distroid,name,value) values (&quot; + specfileid + &quot;,&quot; + svncmtrev + &quot;,(select id from pydar2_distro where code='&quot; + distrocode + &quot;'),'&quot;+ name + &quot;','&quot; + value + &quot;')&quot;)
++        conn.commit()
++        cursor.close()
++        conn.close()
++            
++    def insertSpecFileVersion(self,specfileid,svncmtrev):
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++        cursor.execute(&quot;insert into pydar2_specfile_version (specfile,svncmtrev) values (&quot; + specfileid + &quot;,&quot; + svncmtrev + &quot;)&quot;)
++        cursor.close()
++        conn.close()
++        
++                        
++    def getCurrentCommitRevision(self,specDir,fullRpmDir,fileName):
++        self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
++        sw = SvnWrapper()
++        sw.startTransaction()
++        retval = sw.getLastCommitRev(fullRpmDir,fullRpmDir+&quot;/&quot;+fileName)
++        sw.stopTransaction()
++        return str(retval)
++
++    def getCurrentOrNewDbSpecFileId(self,specDir,fullRpmDir,fileName):
++        self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++        cursor.execute(&quot;select id from pydar2_specfile where name='&quot; + fileName + &quot;'&quot;)
++        if cursor.rowcount &gt; 0:
++            self.cat.debug(&quot;rowcount &gt; 0&quot;)
++            rs = cursor.fetchone()
++            retval = rs[0]
++            cursor.close()
++            conn.close()
++            return str(retval)
++        else:
++            self.cat.debug(&quot;rowcount = 0&quot;)
++            cursor.execute(&quot;insert into pydar2_specfile (name,path) values ('&quot; + fileName + &quot;','&quot; + specDir + &quot;/&quot; + fileName + &quot;')&quot;)
++            conn.commit()
++            cursor.close()
++            conn.close()
++            return self.getCurrentOrNewDbSpecFileId(specDir,fullRpmDir,fileName)
++        
+\ No newline at end of file
+
+Added: trunk/tools/pydar2/sql/svncheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/svncheck.sql	2004-10-03 21:25:03 UTC (rev 2248)
++++ trunk/tools/pydar2/sql/svncheck.sql	2004-10-03 21:32:31 UTC (rev 2249)
+@@ -0,0 +1,60 @@
++
++drop sequence pydar2_specfile_idseq;
++drop sequence pydar2_distro_idseq;
++create sequence pydar2_specfile_idseq;
++create sequence pydar2_distro_idseq;
++
++drop table pydar2_specfile_version;
++drop table pydar2_specfile_tags;
++drop table pydar2_specfile;
++drop table pydar2_distro;
++
++create table pydar2_specfile (
++	id	integer unique not null default nextval('pydar2_specfile_idseq'),
++	name	varchar(512) unique not null,
++	path	varchar(512) not null,
++        addtimestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++create index pydar2_specfile__id on pydar2_specfile(id);
++create index pydar2_specfile__name on pydar2_specfile(name);
++
++create table pydar2_specfile_version (
++	specfileid	integer not null,
++	svncmtrev	integer not null,
++        addtimestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
++);
++create index pydar2_specfile_v__sfid on pydar2_specfile_version(specfileid);
++create index pydar2_specfile_v__scr on pydar2_specfile_version(svncmtrev);
++create index pydar2_specfile_v__both on pydar2_specfile_version(specfileid,svncmtrev);
++
++
++create table pydar2_distro (
++    id          integer unique not null default nextval('pydar2_specfile_idseq'),
++    name        varchar(512) unique not null,
++    code        varchar(10) unique not null
++);  
++
++insert into pydar2_distro (name,code) values ('Fedora Core 3','fc3');
++insert into pydar2_distro (name,code) values ('Fedora Core 2','fc2');
++insert into pydar2_distro (name,code) values ('Fedora Core 1','fc1');
++insert into pydar2_distro (name,code) values ('Red Hat 9','rh9');
++insert into pydar2_distro (name,code) values ('Red Hat 8','rh8');
++insert into pydar2_distro (name,code) values ('Red Hat 7','rh7');
++insert into pydar2_distro (name,code) values ('Red Hat 6','rh6');
++insert into pydar2_distro (name,code) values ('Red Hat 6.2','rh62');
++insert into pydar2_distro (name,code) values ('Red Hat Enterprise Linux 3','el3');
++insert into pydar2_distro (name,code) values ('Red Hat Enterprise Linux 2','el2');
++
++create table pydar2_specfile_tags (
++	specfileid	integer not null,
++	svncmtrev	integer not null,
++        distroid        integer not null,
++	name		varchar(512) not null,
++	value		varchar(4000) not null
++);
++create index pydar2_specfile_t__sfid on pydar2_specfile_tags(specfileid);
++create index pydar2_specfile_t__scr on pydar2_specfile_tags(svncmtrev);
++create index pydar2_specfile_t__did on pydar2_specfile_tags(distroid);
++create index pydar2_specfile_t__both on pydar2_specfile_tags(specfileid,svncmtrev);
++create index pydar2_specfile_t__three on pydar2_specfile_tags(specfileid,svncmtrev,distroid);
++
+
+Modified: trunk/tools/pydar2/tests/log4py.conf
+===================================================================
+--- trunk/tools/pydar2/tests/log4py.conf	2004-10-03 21:25:03 UTC (rev 2248)
++++ trunk/tools/pydar2/tests/log4py.conf	2004-10-03 21:32:31 UTC (rev 2249)
+@@ -64,3 +64,4 @@
+ [Log4PyTest]
+ SpecFile: Debug
+ foo: Debug
++SvnCheck: Debug
+
+Added: trunk/tools/pydar2/tests/svncheck-test.py
+===================================================================
+--- trunk/tools/pydar2/tests/svncheck-test.py	2004-10-03 21:25:03 UTC (rev 2248)
++++ trunk/tools/pydar2/tests/svncheck-test.py	2004-10-03 21:32:31 UTC (rev 2249)
+@@ -0,0 +1,35 @@
++
++&quot;&quot;&quot; Tests for pydar/svncheck.py &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++
++
++
++# ATTENTION: SVNCHECK CHANGES YOUR DATABASE CONTENTS IF IT IS ABLE TO CONNECT
++# WATCH OUT WITH THIS TEST
++
++import re, sys
++from log4py import Logger
++sys.path.append(&quot;tools/pydar2/pydar&quot;)
++from svncheck import SvnCheck
++
++# all paths relative to svn/trunk directory
++
++sc = SvnCheck()
++sc.check('rpms',&quot;localhost:rpmforge:rpmforge&quot;)
++
++
+
+Added: trunk/tools/pydar2/tests/svncheck-test.sh
+===================================================================
+--- trunk/tools/pydar2/tests/svncheck-test.sh	2004-10-03 21:25:03 UTC (rev 2248)
++++ trunk/tools/pydar2/tests/svncheck-test.sh	2004-10-03 21:32:31 UTC (rev 2249)
+@@ -0,0 +1,9 @@
++#!/bin/bash
++
++# start from svn/trunk/tools/pydar2/tests/ directory
++
++cd ../../../
++
++echo current working directory is `pwd`
++
++python tools/pydar2/tests/svncheck-test.py
+
+
+Property changes on: trunk/tools/pydar2/tests/svncheck-test.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001054.html">[SVN] r2248 - trunk/rpms/xtraceroute
+</A></li>
+	<LI>Next message: <A HREF="001056.html">[SVN] r2250 - trunk/rpms/firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1055">[ date ]</a>
+              <a href="thread.html#1055">[ thread ]</a>
+              <a href="subject.html#1055">[ subject ]</a>
+              <a href="author.html#1055">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

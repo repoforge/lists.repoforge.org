@@ -1,0 +1,276 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5201 - in trunk/rpms: . sharedance
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5201%20-%20in%20trunk/rpms%3A%20.%20sharedance&In-Reply-To=%3C20070224140020.795D594CB72%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003999.html">
+   <LINK REL="Next"  HREF="004001.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5201 - in trunk/rpms: . sharedance</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5201%20-%20in%20trunk/rpms%3A%20.%20sharedance&In-Reply-To=%3C20070224140020.795D594CB72%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5201 - in trunk/rpms: . sharedance">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Feb 24 15:00:20 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003999.html">[svn] r5200 - trunk/rpms/php-pecl-session_mysql
+</A></li>
+        <LI>Next message: <A HREF="004001.html">[svn] r5202 - trunk/rpms/dkms-ipw3945
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4000">[ date ]</a>
+              <a href="thread.html#4000">[ thread ]</a>
+              <a href="subject.html#4000">[ subject ]</a>
+              <a href="author.html#4000">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-02-24 15:00:19 +0100 (Sat, 24 Feb 2007)
+New Revision: 5201
+
+Added:
+   trunk/rpms/sharedance/
+   trunk/rpms/sharedance/sharedance.init
+   trunk/rpms/sharedance/sharedance.spec
+   trunk/rpms/sharedance/sharedance.sysconfig
+Log:
+Initial sharedance import.
+
+
+Added: trunk/rpms/sharedance/sharedance.init
+===================================================================
+--- trunk/rpms/sharedance/sharedance.init	                        (rev 0)
++++ trunk/rpms/sharedance/sharedance.init	2007-02-24 14:00:19 UTC (rev 5201)
+@@ -0,0 +1,80 @@
++#!/bin/sh
++#
++# sharedance   Sharedance server
++#
++# chkconfig: - 80 12
++# description: this is the Sharedance server, used to centralize ephemeral \
++#              key/data pair storage.
++# processname: sharedanced
++# pidfile: /var/run/
++# config: /etc/
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++# Source networking configuration.
++. /etc/sysconfig/network
++
++# Check that networking is up.
++[ ${NETWORKING} = &quot;no&quot; ] &amp;&amp; exit 0
++
++prog=&quot;sharedance&quot;
++
++# Source configuration
++. /etc/sysconfig/sharedance
++# Defaults
++[ -z ${SHAREDANCE_DIR} ] &amp;&amp; SHAREDANCE_DIR=/var/lib/sharedance
++SHAREDANCE_UID=`id -u sharedance`
++SHAREDANCE_GID=`id -g sharedance`
++
++start() {
++	echo -n $&quot;Starting $prog: &quot;
++        daemon sharedanced --directory=&quot;${SHAREDANCE_DIR}&quot; --daemonize --uid=${SHAREDANCE_UID} --gid=${SHAREDANCE_GID} ${SHAREDANCE_OPTIONS}
++        RETVAL=$?
++        echo
++	if [ $RETVAL -eq 0 ]; then
++            touch /var/lock/subsys/$prog
++        fi
++	return $RETVAL
++}
++
++stop() {
++	echo -n $&quot;Stopping $prog: &quot;
++        killproc sharedanced
++	RETVAL=$?
++	echo
++	if [ $RETVAL -eq 0 ]; then
++            rm -f /var/lock/subsys/$prog
++        fi
++	return $RETVAL
++}
++
++restart() {
++	stop
++	start
++}
++
++# See how we were called.
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	stop
++	;;
++  restart)
++	restart
++	;;
++  status)
++        status $prog
++        RETVAL=$?
++        ;;
++  condrestart)
++	[ -f /var/lock/subsys/$prog ] &amp;&amp; restart || :
++	;;
++  *)
++	echo $&quot;Usage: $0 {start|stop|restart|status|condrestart}&quot;
++	exit 1
++esac
++
++exit $RETVAL
+
+
+Property changes on: trunk/rpms/sharedance/sharedance.init
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/rpms/sharedance/sharedance.spec
+===================================================================
+--- trunk/rpms/sharedance/sharedance.spec	                        (rev 0)
++++ trunk/rpms/sharedance/sharedance.spec	2007-02-24 14:00:19 UTC (rev 5201)
+@@ -0,0 +1,91 @@
++# $Id$
++# Authority: matthias
++
++Summary: Ephemeral key/data pair storing daemon
++Name: sharedance
++Version: 0.6
++Release: 2
++License: GPL
++Group: System Environment/Daemons
++URL: <A HREF="http://sharedance.pureftpd.org/">http://sharedance.pureftpd.org/</A>
++Source0: <A HREF="http://download.pureftpd.org/pub/sharedance/sharedance-%{version">http://download.pureftpd.org/pub/sharedance/sharedance-%{version</A>}.tar.bz2
++Source1: sharedance.init
++Source2: sharedance.sysconfig
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildRequires: libevent-devel
++
++%description
++Sharedance is a high-performance server that centralize ephemeral key/data
++pairs on remote hosts, without the overhead and the complexity of an SQL
++database.
++It was mainly designed to share caches and sessions between a pool of web
++servers. Access to a sharedance server is trivial through a simple PHP API
++and it is compatible with the expectations of PHP 4 and 5 session handlers.
++
++
++%prep
++%setup
++
++
++%build
++%configure
++%{__make} %{?_smp_mflags}
++
++
++%install
++%{__rm} -rf %{buildroot} _doc
++%makeinstall
++# Init script
++%{__install} -D -p -m 0755 %{SOURCE1} \
++    %{buildroot}%{_sysconfdir}/rc.d/init.d/sharedance
++# Sysconfig file
++%{__install} -D -p -m 0755 %{SOURCE2} \
++    %{buildroot}%{_sysconfdir}/sysconfig/sharedance
++# Default directory to store content
++%{__mkdir_p} %{buildroot}%{_var}/lib/sharedance
++# Include php scripts in %%doc but not the Makefile* files
++%{__mkdir_p} _doc/php
++%{__install} -p -m 0644 php/*.php _doc/php/
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%pre
++/usr/sbin/useradd -r -s /sbin/nologin -d %{_var}/lib/sharedance \
++    -c &quot;Sharedance&quot; sharedance &amp;&gt;/dev/null || :
++
++%post
++if [ $1 -eq 1 ]; then
++    /sbin/chkconfig --add sharedance
++fi
++
++%preun
++if [ $1 -eq 0 ]; then
++    /sbin/service sharedance stop &amp;&gt;/dev/null || :
++    /sbin/chkconfig --del sharedance
++fi
++
++%postun
++if [ $1 -eq 0 ]; then
++    /bin/rm -rf %{_var}/lib/sharedance &amp;&gt;/dev/null || :
++    /usr/sbin/userdel sharedance &amp;&gt;/dev/null || :
++else
++    /sbin/service sharedance condrestart &amp;&gt;/dev/null || :
++fi
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS ChangeLog COPYING NEWS README _doc/php/
++%{_sysconfdir}/rc.d/init.d/sharedance
++%config(noreplace) %{_sysconfdir}/sysconfig/sharedance
++%{_sbindir}/sharedanced
++%attr(0750, sharedance, sharedance) %dir %{_var}/lib/sharedance/
++
++
++%changelog
++* Fri Jan 12 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.6-2
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/sharedance/sharedance.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/sharedance/sharedance.sysconfig
+===================================================================
+--- trunk/rpms/sharedance/sharedance.sysconfig	                        (rev 0)
++++ trunk/rpms/sharedance/sharedance.sysconfig	2007-02-24 14:00:19 UTC (rev 5201)
+@@ -0,0 +1,6 @@
++# Sharedance settings
++# For all possible command line options, see &quot;sharedanced --help&quot; output
++
++#SHAREDANCE_DIR=&quot;/var/lib/sharedance&quot;
++SHAREDANCE_OPTIONS=&quot;--ip=127.0.0.1&quot;
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003999.html">[svn] r5200 - trunk/rpms/php-pecl-session_mysql
+</A></li>
+	<LI>Next message: <A HREF="004001.html">[svn] r5202 - trunk/rpms/dkms-ipw3945
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4000">[ date ]</a>
+              <a href="thread.html#4000">[ thread ]</a>
+              <a href="subject.html#4000">[ subject ]</a>
+              <a href="author.html#4000">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

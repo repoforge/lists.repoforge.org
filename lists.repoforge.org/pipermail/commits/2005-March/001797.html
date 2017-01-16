@@ -1,0 +1,332 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2996 - in trunk/tools/dar: . scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2996%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C200503120645.j2C6jPK8003509%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001796.html">
+   <LINK REL="Next"  HREF="001798.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2996 - in trunk/tools/dar: . scripts</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2996%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C200503120645.j2C6jPK8003509%40lists.rpmforge.net%3E"
+       TITLE="[SVN] r2996 - in trunk/tools/dar: . scripts">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Mar 12 07:45:25 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001796.html">[SVN] r2995 - in trunk/rpms: gaim-encryption gaim-festival	gaim-meanwhile hardinfo regionset
+</A></li>
+        <LI>Next message: <A HREF="001798.html">[SVN] r2997 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1797">[ date ]</a>
+              <a href="thread.html#1797">[ thread ]</a>
+              <a href="subject.html#1797">[ subject ]</a>
+              <a href="author.html#1797">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-12 07:45:24 +0100 (Sat, 12 Mar 2005)
+New Revision: 2996
+
+Added:
+   trunk/tools/dar/scripts/pre-changelog-trim.sh
+   trunk/tools/dar/scripts/pre-diskspace.sh
+Modified:
+   trunk/tools/dar/ChangeLog
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/scripts/pre-brand.sh
+   trunk/tools/dar/scripts/pre-description.sh
+   trunk/tools/dar/scripts/pre-disttag.sh
+   trunk/tools/dar/scripts/pre-svn-rev.sh
+Log:
+Updates
+
+Modified: trunk/tools/dar/ChangeLog
+===================================================================
+--- trunk/tools/dar/ChangeLog	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/ChangeLog	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -39,6 +39,7 @@
+ - scripts: Added pre-brand script to add branding/packager/vendor to SPEC
+ - dar-exec: Export $dist, $nick, $path, $arch, $repo and $tag
+ - dar-shell: Export $dist, $nick, $path, $arch, $repo and $tag
++- scripts: Added pre-changelog-trim and pre-diskspace
+ 
+ Version 0.6.0
+ - dar.conf: Removed DISTSMAP, added it to dists specific section
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/dar-build	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -169,8 +169,8 @@
+ 
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+ 
+-			export origspecfile=&quot;$SPECFILE&quot; specfile=&quot;$NEWSPECFILE&quot;
+-			export buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;${DISTTAG// *}&quot; repotag=&quot;$TAG&quot;
++			export origspecfile=&quot;$SPECFILE&quot; specfile=&quot;$NEWSPECFILE&quot; builddir=&quot;$BUILDDIR&quot;
++			export app buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;${DISTTAG// *}&quot; repotag=&quot;$TAG&quot;
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+ 				source &quot;$script&quot;
+ 			done
+
+Modified: trunk/tools/dar/scripts/pre-brand.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-brand.sh	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/scripts/pre-brand.sh	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -3,30 +3,29 @@
+ ### This script adds proper Packager and Vendor tags to the SPEC file
+ ### so that the Source packages contains a branded SPEC file.
+ 
+-#echo &quot;** pre-brand: Specfile: $specfile&quot;
+-#set -x
++script=&quot;pre-brand&quot;
+ 
++if [ -z &quot;$specfile&quot; ]; then
++        echo &quot;** $script: Variable \$specfile is not set. Disabling $script.&quot; &gt;&amp;2
++        return 0
++fi
++
++#echo &quot;** $script: Specfile: $specfile&quot;; set -x
++
+ author=&quot;$(grep '^# Authority: ' $specfile | sed -e 's|^# Authority: ||')&quot;
++vendor=&quot;Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>&quot;
+ 
+ case &quot;$author&quot; in
+ 	(dries)
+-		packager=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot;
+-		;;
++		packager=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot; ;;
+ 	(bert)
+-		packager=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot;
+-		;;
++		packager=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot; ;;
+ 	(dag|thias|matthias|*)
+-		packager=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot;
+-		;;
++		packager=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot; ;;
+ esac
+ 
+-vendor=&quot;Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>&quot;
+-
+-### Removing existing branding
++### Removing existing branding and add own branding
+ perl -pi.orig -e 's/^(Packager|Vendor|Distribution):.+\n$//is' &quot;$specfile&quot;
+-
+-### Add own branding
+ perl -pi.orig -e 's|^(Source0?:.+)$|Packager: '&quot;$packager&quot;'\nVendor: '&quot;$vendor&quot;'\n\n$1|i' &quot;$specfile&quot;
+ 
+-#set +x
+-#diff -u &quot;$specfile.orig&quot; &quot;$specfile&quot;
++#set +x; diff -u &quot;$specfile.orig&quot; &quot;$specfile&quot;
+
+Added: trunk/tools/dar/scripts/pre-changelog-trim.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-changelog-trim.sh	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/scripts/pre-changelog-trim.sh	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -0,0 +1,25 @@
++#!/bin/bash
++
++### This script trims the changelog to include only the 6 last entries.
++
++script=&quot;pre-changelog-trim&quot;
++entry_nr=&quot;6&quot;
++
++if [ -z &quot;$app&quot; -o -a &quot;$buildarch&quot; -o -z &quot;$specfile&quot; ]; then
++        echo &quot;** $script: Variable \$app, \$buildarch or \$specfile is not set. Disabling $script.&quot; &gt;&amp;2
++        return 0
++fi
++
++#echo &quot;** $script: App: $app, Buildarch: $buildarch, Specfile: $specfile&quot;; set -x
++
++if [ &quot;$buildarch&quot; == &quot;src&quot; ]; then
++	return 0
++fi
++
++### Trim changelog to $entr_nr entries
++perl -pi.orig -0 -e 's|(\n%changelog)((\n\* .+?){'$entry_nr'})\n\* .+$|$1$2|sm' $specfile
++if [ &quot;$(diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;)&quot; ]; then
++	echo -e &quot;- ...\n- Changelog trimmed, see <A HREF="http://svn.rpmforge.net/svn/trunk/rpms/$app/$app.spec">http://svn.rpmforge.net/svn/trunk/rpms/$app/$app.spec</A>&quot; &gt;&gt;$specfile
++fi
++
++#set +x; diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;
+
+Modified: trunk/tools/dar/scripts/pre-description.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-description.sh	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/scripts/pre-description.sh	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -2,19 +2,20 @@
+ 
+ ### This script adds an RPMforge banner to the description of the package.
+ 
+-#echo &quot;** pre-svn-rev: OrigSpecfile: $origspecfile, Specfile: $specfile&quot;
+-#set -x
++script=&quot;pre-description&quot;
+ 
++if [ -z &quot;$origspecfile&quot; -o -z &quot;$specfile&quot; ]; then
++        echo &quot;** $script: Variable \$origspecfile or \$specfile is not set. Disabling $script.&quot; &gt;&amp;2
++        return 0
++fi
++
++#echo &quot;** $script: OrigSpecfile: $origspecfile, Specfile: $specfile&quot;; set -x
++
+ #perl -pi.orig -0 -e 's|\n%changelog\n(\*\s.+)\n|\n%changelog\n$1 - '$revision'/'$author'\n|' $specfile
+-#  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  - 
+-# This package is part of the RPMforge community project. In case you have
+-# an improvement or feedback about this package, please visit:
++#  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
++# This package is part of the RPMforge community project. Please provide
++# feedback or improvements at:
+ #
+-# 		<A HREF="http://rpmforge.net/user/package/$app/">http://rpmforge.net/user/package/$app/</A>
+-#
+-# The person responsible for this package is:
+-#
+-#		<A HREF="http://rpmforge.net/developer/team/$author/">http://rpmforge.net/developer/team/$author/</A>
++#		<A HREF="http://rpmforge.net/user/package/$app/">http://rpmforge.net/user/package/$app/</A>
+ 
+-#diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;
+-#set +x
++#diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;; set +x
+
+Added: trunk/tools/dar/scripts/pre-diskspace.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-diskspace.sh	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/scripts/pre-diskspace.sh	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -0,0 +1,22 @@
++#!/bin/bash
++
++### This script checks if you have at least 20MB of diskspace free.
++
++script=&quot;pre-diskspace&quot;
++
++if [ -z &quot;$builddir&quot; ]; then
++	echo &quot;** $script: Variable \$builddir is not set. Disabling $script.&quot; &gt;&amp;2
++	return 0
++fi
++
++#echo &quot;** pre-diskspace: Builddir: $builddir&quot;; set -x
++
++export free=&quot;$(set -- $(df $builddir | grep -v 'Filesystem'); echo $4)&quot;
++
++while [ -z &quot;$free&quot; -o $free -lt 20480 ]; do
++	echo &quot;Disk is almost full ($free kB), please free up space in $builddir and press ENTER.&quot; &gt;&amp;2
++	pause
++	export free=&quot;$(set -- $(df /dev/shm/ | grep -v 'Filesystem'); echo $4)&quot;
++done
++
++#set +x
+
+Modified: trunk/tools/dar/scripts/pre-disttag.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-disttag.sh	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/scripts/pre-disttag.sh	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -3,17 +3,18 @@
+ ### This script add a disttag to the SPEC file so packages can be
+ ### identified easier, are unique and don't have the macro clutter.
+ 
+-#echo &quot;** pre-disttag: BuildArch: $buildarch, Disttag: $disttag, Repotag: $repotag, Specfile: $specfile&quot;
+-#set -x
++script=&quot;pre-disttag&quot;
+ 
++if [ -z &quot;$buildarch&quot; -o -z &quot;$repotag&quot; -o -z &quot;$specfile&quot; -o -z &quot;$disttag&quot; ]; then
++        echo &quot;** $script: Variable \$buildarch, \$repotag, \$specfile or \$disttag is not set. Disabling $script.&quot; &gt;&amp;2
++        return 0
++fi
++
++#echo &quot;** $script: BuildArch: $buildarch, Disttag: $disttag, Repotag: $repotag, Specfile: $specfile&quot;; set -x
++
+ case &quot;$buildarch&quot; in
+-	(src)
+-		perl -pi.orig -e 's|^(Release)\s*:\s+([^\s]+)\s*$|$1: $2.'$repotag'\n|' &quot;$specfile&quot;
+-		;;
+-	(*)
+-		perl -pi.orig -e 's|^(Release)\s*:\s+([^\s]+)\s*$|$1: $2.'${disttag// *}'.'$repotag'\n|' &quot;$specfile&quot;
+-		;;
++	(src)	perl -pi.orig -e 's|^(Release)\s*:\s+([^\s]+)\s*$|$1: $2.'$repotag'\n|' &quot;$specfile&quot; ;;
++	(*)	perl -pi.orig -e 's|^(Release)\s*:\s+([^\s]+)\s*$|$1: $2.'${disttag// *}'.'$repotag'\n|' &quot;$specfile&quot; ;;
+ esac
+ 
+-#diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;
+-#set +x
++#set +x; diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;
+
+Modified: trunk/tools/dar/scripts/pre-svn-rev.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-svn-rev.sh	2005-03-12 04:05:14 UTC (rev 2995)
++++ trunk/tools/dar/scripts/pre-svn-rev.sh	2005-03-12 06:45:24 UTC (rev 2996)
+@@ -3,25 +3,33 @@
+ ### This script adds the last change author and revision to the
+ ### changelog of the SPEC file, so RPM packages include it.
+ 
+-#echo &quot;** pre-svn-rev: OrigSpecfile: $origspecfile, Specfile: $specfile&quot;
+-#set -x
++script=&quot;pre-svn-rev&quot;
+ 
++if [ -z &quot;$origspecfile&quot; -o -z &quot;$specfile&quot; ]; then
++        echo &quot;** $script: Variable \$origspecfile or \$specfile is not set. Disabling $script.&quot; &gt;&amp;2
++        return 0
++fi
++
++#echo &quot;** $script: OrigSpecfile: $origspecfile, Specfile: $specfile&quot;; set -x
++
+ ### Get Author and Revision from original specfile
+-info=&quot;&quot;; author=&quot;&quot;; revision=&quot;&quot;
+-
+ info=&quot;$(svn info $origspecfile 2&gt;/dev/null)&quot;
+ if [ -z &quot;$info&quot; ]; then
+-	echo &quot;** pre-svn-rev: No SVN info found. Please commit this SPEC file.&quot; &gt;&amp;2
+-	exit 0
++	echo &quot;** $script: No SVN info found. Please commit this SPEC file.&quot; &gt;&amp;2
++	return 0
+ fi
+ 
+ author=&quot;$(echo &quot;$info&quot; | grep -E '^Last Changed Author: ' | sed -e 's|Last Changed Author: ||')&quot;
+ revision=&quot;$(echo &quot;$info&quot; | grep -E '^Last Changed Rev: ' | sed -e 's|Last Changed Rev: ||')&quot;
+ 
+-#echo &quot;** pre-svn-rev: Author: $author, Revision: $revision&quot;
++changed=&quot;&quot;
++if [ &quot;$(svn diff &quot;$origspecfile&quot;)&quot; ]; then
++	changed=&quot;+&quot;
++fi
+ 
++#echo &quot;** $script: Author: $author, Revision: $revision, Changed: $changed&quot;
++
+ ### Add Revision and Author to specfile
+-perl -pi.orig -0 -e 's|\n%changelog\n(\*\s.+)\n|\n%changelog\n$1 - '$revision'/'$author'\n|' $specfile
++perl -pi.orig -0 -e 's|\n%changelog\n(\*\s.+)\n|\n%changelog\n$1 - '$revision$changed'/'$author'\n|' $specfile
+ 
+-#diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;
+-#set +x
++#set +x; diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001796.html">[SVN] r2995 - in trunk/rpms: gaim-encryption gaim-festival	gaim-meanwhile hardinfo regionset
+</A></li>
+	<LI>Next message: <A HREF="001798.html">[SVN] r2997 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1797">[ date ]</a>
+              <a href="thread.html#1797">[ thread ]</a>
+              <a href="subject.html#1797">[ subject ]</a>
+              <a href="author.html#1797">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,418 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2002 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2002%20-%20trunk/tools/yam&In-Reply-To=%3C20040815134307.E552A17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000807.html">
+   <LINK REL="Next"  HREF="000809.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2002 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2002%20-%20trunk/tools/yam&In-Reply-To=%3C20040815134307.E552A17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2002 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Aug 15 15:43:07 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000807.html">[SVN] r2001 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="000809.html">[SVN] r2003 - trunk/rpms/pine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#808">[ date ]</a>
+              <a href="thread.html#808">[ thread ]</a>
+              <a href="subject.html#808">[ subject ]</a>
+              <a href="author.html#808">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-15 15:43:06 +0200 (Sun, 15 Aug 2004)
+New Revision: 2002
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/README
+   trunk/tools/yam/README.dnsmasq
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-example.conf
+   trunk/tools/yam/yam.conf
+Log:
+Another batch of updates.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-15 10:10:30 UTC (rev 2001)
++++ trunk/tools/yam/ChangeLog	2004-08-15 13:43:06 UTC (rev 2002)
+@@ -5,7 +5,7 @@
+ - Added more rsync options, to limit bandwidth and keep old packages
+ - Option -d is much more useful now
+ - <A HREF="file:///">file:///</A> support added
+-- Better handling of commands
++- Better handling of external commands
+ - Verbosity output improved (-v or -vv)
+ 
+ * 0.4
+
+Modified: trunk/tools/yam/README
+===================================================================
+--- trunk/tools/yam/README	2004-08-15 10:10:30 UTC (rev 2001)
++++ trunk/tools/yam/README	2004-08-15 13:43:06 UTC (rev 2002)
+@@ -1,6 +1,19 @@
+-Placeholder for a real README.
++Yam builds a local APT/Yum RPM repository from local ISO files, downloaded
++updates, and extra packages from 3rd party repositories. It takes care of
++setting up the ISO files, downloading the RPMs, configuring HTTP access
++and providing PXE/TFTP resources for remote installations.
+ 
++It was primarily intended for doing remote network installations of various
++distributions from a laptop without the need for CD media or floppies, but
++is equally suitable for an organisation's centralized update server.
+ 
++Doing a remote installation only requires a configured DHCP-server, the
++TFTP service and a Webserver configured with Yam. Then boot your system
++using a PXE-enabled network card.
++
++For updating your local systems, configure either Apt, Yum or up2date and
++point them to your local Yam server.
++
+ ---
+ Please send me improvements to this document.
+ 
+
+Modified: trunk/tools/yam/README.dnsmasq
+===================================================================
+--- trunk/tools/yam/README.dnsmasq	2004-08-15 10:10:30 UTC (rev 2001)
++++ trunk/tools/yam/README.dnsmasq	2004-08-15 13:43:06 UTC (rev 2002)
+@@ -10,7 +10,6 @@
+ /etc/ethers. eg.
+ 
+ 	/etc/hosts:
+-
+ 	127.0.0.1	localhost
+ 	10.0.0.1	yam
+ 	10.0.0.10	host1
+@@ -19,7 +18,9 @@
+ 
+ 	/etc/ethers:
+ 	00:0B:1C:2D:3E:4F	host1
+-	00:0B:1A:29:38:48	host2
++	00:0B:1A:29:38:47	host2
+ 
++Then restart dnsmasq and make sure your systems boot using PXE.
++
+ ---
+ Please send me improvements to this document.
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-15 10:10:30 UTC (rev 2001)
++++ trunk/tools/yam/TODO	2004-08-15 13:43:06 UTC (rev 2002)
+@@ -25,6 +25,7 @@
+ 
+ ### Remote installation
+ + Generate remote syslinux menu to boot any of the available dists
+++ Generate a dnsmasq-yam.conf of dnsmasq is installed
+ + Create small curses tool to manage systems / MAC-addresses / kickstart files
+ 
+ ### Bugs
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-15 10:10:30 UTC (rev 2001)
++++ trunk/tools/yam/yam	2004-08-15 13:43:06 UTC (rev 2002)
+@@ -1,4 +1,4 @@
+-#!/usr/bin/python2
++#!/usr/bin/python
+ 
+ import os, sys, glob, string, re, filecmp, shutil, getopt
+ import ConfigParser, urlparse
+@@ -12,8 +12,6 @@
+ class options:
+ 	def __init__(self, args):
+ 		self.configfile = '/etc/yam.conf'
+-		self.debug = None
+-#		self.debug = 'true'
+ 		self.dist = None
+ 		self.generate = False
+ 		self.quiet = False
+@@ -65,7 +63,7 @@
+   -g, --generate        generate repositories
+   -q, --quiet           minimal output
+   -u, --update          fetch updates (if possible)
+-  -v, --verbose         increase verbosity
++  -v, --verbose         increase verbosity (only Yam info)
+   -vv					increase verbosity more
+   -x, --extras          fetch extras (if possible)
+       --unmount         unmount distributions
+@@ -110,6 +108,8 @@
+ 		self.cmd['umount'] = self.getoption('main', 'umountcmd', '/bin/umount')
+ 		self.cmd['yumarch'] = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
+ 
++		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in ('no', 'off', 'false')
++
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bwlimit', None)
+ 		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in ('no', 'off', 'false')
+ 		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in ('no', 'off', 'false')
+@@ -140,7 +140,7 @@
+ 		try:
+ 			var = self.cfg.get(section, option)
+ 		except ConfigParser.NoSectionError, e:
+-			print 'Failed to find section: %s' % section
++			info(3, 'Failed to find section: %s' % section)
+ 		except ConfigParser.NoOptionError, e:
+ 			info(3, 'Failed to find option %s in section %s' % (option, section))
+ 			pass
+@@ -211,7 +211,7 @@
+ 				mount2 = mountpoint(iso)
+ 				if mount2 != mount:
+ 					if os.path.exists(mount) and not os.path.islink(mount):
+-						print '%s - %s' % (mount, os.tempnam(os.path.dirname(mount)))
++						info(3, '%s - %s' % (mount, os.tempnam(os.path.dirname(mount))))
+ 						os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
+ 					if not os.path.islink(mount):
+ 						info(2, '%s: Symlink ISO to %s' % (self.name, mount))
+@@ -245,35 +245,48 @@
+ 		&quot;Create an Apt repository for a specific dist&quot;
+ 		distdir = cf.wwwdir + '/' + self.name
+ 		if not os.path.isfile(cf.cmd['genbasedir']):
+-			info(1, 'genbasedir command not found as %s' % cf.cmd['genbasedir'])	
+-		repos = ''
+-		for repo in self.repos.keys():
+-				repos = repos + repo + ' '
+-		if repos:
+-			info(1, '%s: Create Apt repository for %s' % (self.name, repos))
+-			os.system('%s --flat --bloat --bz2only %s %s' % (cf.cmd['genbasedir'], distdir, repos))
++			info(1, '%s: genbasedir command not found as %s' % (self.name, cf.cmd['genbasedir']))
++		opts = ''
++		if op.verbose &gt;= 3: opts = ' --progress' + opts
++#		repos = ''
++#		for repo in self.repos.keys():
++#				repos = repos + repo + ' '
++#		if repos:
++#			info(1, '%s: Create Apt repository for %s' % (self.name, repos))
++#			os.system('%s %s --flat --bloat --bz2only %s %s' % (cf.cmd['genbasedir'], opts, distdir, repos))
++		info(1, '%s: Create Apt repository for %s' % (self.name, repos))
++		os.system('%s %s --flat --bloat --bz2only %s' % (cf.cmd['genbasedir'], opts, distdir))
+ 
+ 	def yumrepo(self):
+ 		&quot;Create an old-style Yum repository for a specific dist&quot;
+ 		distdir = cf.wwwdir + '/' + self.name
+ 		if not os.path.isfile(cf.cmd['yumarch']):
+ 			info(1, 'yum-arch command not found as %s' % cf.cmd['yumarch'])
+-		os.system('%s -q -l %s' % (cf.cmd['yumarch'], distdir + '/RPMS'))
++		opts = ''
++		if op.quiet or op.verbose &lt;= 1: opts = ' -q' + opts
++		elif op.verbose == 2: opts = ' -v' + opts
++		elif op.verbose &gt;= 3: opts = ' -vv' + opts
++		info(1, '%s: Create old-style Yum repository' % self.name)
++		os.system('%s %s -l %s' % (cf.cmd['yumarch'], opts, distdir + '/RPMS'))
+ 		for repo in self.repos.keys():
+ 			if os.path.exists(distdir + '/RPMS.' + repo):
+ 				info(1, '%s: Create old-style Yum repository for %s' % (self.name, repo))
+-				os.system('%s -q -l %s' % (cf.cmd['yumarch'], distdir + '/RPMS.' + repo))
++				os.system('%s %s -l %s' % (cf.cmd['yumarch'], opts, distdir + '/RPMS.' + repo))
+ 
+ 	def createrepo(self):
+ 		&quot;Create a new-style Yum repository for a specific dist&quot;
+ 		distdir = cf.wwwdir + '/' + self.name
+ 		if not os.path.isfile(cf.cmd['createrepo']):
+ 			info(1, 'createrepo command not found as %s' % cf.cmd['createrepo'])
+-#		os.system('%s %s' % (cf.cmd['createrepo'], distdir + '/RPMS'))
++		opts = ''
++		if op.quiet or op.verbose &lt;= 1: opts = ' -q' + opts
++		elif op.verbose &gt;= 2: opts = ' -v' + opts
++		info(1, '%s: Create new-style Yum repository' % self.name)
++		os.system('%s %s %s' % (cf.cmd['createrepo'], opts, distdir + '/RPMS'))
+ 		for repo in self.repos.keys():
+ 			if os.path.exists(distdir + '/RPMS.' + repo):
+ 				info(1, '%s: Create new-style Yum repository for %s' % (self.name, repo))
+-				os.system('%s %s' % (cf.cmd['createrepo'], distdir + '/RPMS.' + repo))
++				os.system('%s %s %s' % (cf.cmd['createrepo'], opts, distdir + '/RPMS.' + repo))
+ 
+ 	def htmlrepo(self):
+ 		&quot;Put html information in repository&quot;
+@@ -288,7 +301,7 @@
+ 
+ def die(ret, str):
+ 	&quot;Print error and exit with errorcode&quot;
+-	print str
++	info(0, str)
+ 	sys.exit(ret)
+ 
+ def readfile(file, len = 0):
+@@ -376,39 +389,41 @@
+ 	elif string.find(url, '<A HREF="file://">file://</A>') == 0:
+ 		mirrorfile(url, path)
+ 	elif string.find(url, '<A HREF="rhn://">rhn://</A>') == 0:
+-		print('<A HREF="rhn://">rhn://</A> method not implemented yet')
++		info(2, '<A HREF="rhn://">rhn://</A> method not implemented yet')
+ #		mirrorrhn(url, path)
+ 	else:
+-		print('Method not found for %s' % url)
++		info(2, 'Method not found for %s' % url)
+ 
+ def mirrorrsync(url, path):
+ 	&quot;Mirror everything from an <A HREF="rsync://">rsync://</A> URL&quot;
+-	if not os.path.isfile(cf.cmd['rsync']):
+-		die(4, 'rsync command not found as %s' % cf.cmd['rsync'])
++	if not cf.cmd['rsync']:
++		info(1, 'rsync was not found, rsync support is therefor disabled.')
+ 	mkdir(path)
+ 	opts = ''
+-
+ 	if cf.rsyncexclsrpm: opts = ' --exclude=\&quot;*.src.rpm\&quot; --exclude=\&quot;/SRPMS/\&quot;' + opts
+ 	if cf.rsyncexcldebug: opts = ' --exclude=\&quot;*-debuginfo-*.rpm\&quot; --exclude=\&quot;/debug/\&quot;' + opts 
+ 	opts = opts + ' --include=\&quot;*.rpm\&quot;'
+ 	if cf.rsyncexclsrpm or cf.rsyncexcldebug: opts = opts + ' --exclude=\&quot;*.*\&quot;'
+ 	if cf.rsynccleanup: opts = ' --delete-after --delete-excluded' + opts
+ 	if cf.rsyncbwlimit: opts = ' --bwlimit='+cf.rsyncbwlimit + opts
+-	if op.quiet: opts = + ' -q' + opts
+-	elif op.verbose: opts = ' -v --progress' + opts
++	if op.quiet: opts = ' -q' + opts
++	elif op.verbose == 2: opts = ' -v' + opts
++	elif op.verbose &gt;= 3: opts = ' -v --progress' + opts
+ 	opts = ' --timeout=30' + opts
+-
+-	print opts
++	info(3, '%s -ahL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+ 	os.system('%s -aHL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+ 
+ def mirrorlftp(url, path):
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+-	if not os.path.isfile(cf.cmd['lftp']):
+-		die(4, 'lftp command not found as %s' % cf.cmd['lftp'])
++	if not cf.cmd['lftp']:
++		info(1, 'lftp was not found, fish, ftp, http and sftp support is therefor disabled.')
+ 	mkdir(path)
+ 	opts = ''
+-	if op.quiet: opts=&quot;--verbose=0&quot;
+-	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror %s -a -I *.rpm -X *.src.rpm %s %s\'' % (cf.cmd['lftp'], opts, url, path))
++	if op.quiet: opts = '--verbose=0'
++	else: opts = '--verbose='+(op.verbose+1)
++	if cf.lftpexclsrpm: opts = opts + ' -X \&quot;*.src.rpm\&quot;'
++	info(3, '%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm %s %s %s\'' % (cf.cmd['lftp'], opts, url, path))
++	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm %s %s %s\'' % (cf.cmd['lftp'], opts, url, path))
+ 
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+@@ -451,13 +466,14 @@
+ 		if not os.path.isfile(cf.cmd[cmd]):
+ 			if cmd in ['createrepo', 'genbasedir', 'yum-arch']:
+ 				info(1, '%s command not found as %s, disabling %s' % (cmd, cf.cmd[cmd], cmd))
+-				cf.repo[cmd] = 'no'
++				cf.repo[cmd] = False
+ 			else:
+ 				info(1, '%s command not found as %s, support disabled' % (cmd, cf.cmd[cmd]))
+ 				cf.cmd[cmd] = ''
+ 		
+-
++	### Iterate over the available distributions
+ 	for dist in cf.dists:
++		info(1, '%s: Updating distribution' % dist.name)
+ 		if op.dist:
+ 			if dist.dist not in op.dist and dist.name not in op.dist:
+ 				info(2, '%s: Ignored, not requested' % dist.name)
+@@ -488,10 +504,20 @@
+ 			else:
+ 				if op.extra:
+ 					mirror(dist.repos[repo], cf.srcdir + '/' + dist.name + '/' + repo)
++	
+ 
+-		if not op.generate:
+-			continue
++	if not op.generate:
++		exit(0)
+ 
++	for dist in cf.dists:
++		info(1, '%s: Generating distribution meta-data' % dist.name)
++		if op.dist:
++			if dist.dist not in op.dist and dist.name not in op.dist:
++				info(2, '%s: Ignored, not requested' % dist.name)
++				continue
++
++		distdir = cf.wwwdir + '/' + dist.name
++
+ 		cleanup(distdir + '/RPMS')
+ 		for repo in dist.repos.keys():
+ 			cleanup(distdir + '/RPMS.' + repo)
+@@ -533,11 +559,11 @@
+ 			os.path.walk(srcdir, rpmtaglink, (dist.name, repo))
+ 
+ 		### Create apt/yum repository
+-		if cf.createrepo:
++		if cf.repo['createrepo']:
+ 			dist.createrepo()
+-		if cf.yum:
++		if cf.repo['yum']:
+ 			dist.yumrepo()
+-		if cf.apt:
++		if cf.repo['apt']:
+ 			dist.aptrepo()
+ 
+ 		### Create pxe boot
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2004-08-15 10:10:30 UTC (rev 2001)
++++ trunk/tools/yam/yam-example.conf	2004-08-15 13:43:06 UTC (rev 2002)
+@@ -26,6 +26,8 @@
+ createrepo = no
+ yum = yes
+ 
++lftp-exclude-srpm = yes
++
+ rsync-bandwidth-limit = None
+ rsync-cleanup = yes
+ rsync-exclude-debug = yes
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-08-15 10:10:30 UTC (rev 2001)
++++ trunk/tools/yam/yam.conf	2004-08-15 13:43:06 UTC (rev 2002)
+@@ -79,6 +79,7 @@
+ #
+ #iso=rhel-3-U2-$arch-es-disc?.iso rhel-3-U2-$arch-disc?.iso
+ #updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
++#updates=<A HREF="file:///var/up2date/">file:///var/up2date/</A>
+ #
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+@@ -88,6 +89,7 @@
+ #
+ #iso=RHEL2.1AS-U4-re0427.2.1-$arch-disc?.iso rhel-21-u2-$arch-disc?.iso
+ #updates=<A HREF="rhn://rhn.redhat.com/">rhn://rhn.redhat.com/</A>
++#updates=<A HREF="file:///var/up2date/">file:///var/up2date/</A>
+ #
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2/en/$arch/RPMS.$repo/</A>
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000807.html">[SVN] r2001 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="000809.html">[SVN] r2003 - trunk/rpms/pine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#808">[ date ]</a>
+              <a href="thread.html#808">[ thread ]</a>
+              <a href="subject.html#808">[ subject ]</a>
+              <a href="author.html#808">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

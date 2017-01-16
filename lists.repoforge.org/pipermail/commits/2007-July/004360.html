@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5561 - in trunk/tools/dar: . scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5561%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C20070701215013.A7B4C944B73%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004359.html">
+   <LINK REL="Next"  HREF="004361.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5561 - in trunk/tools/dar: . scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5561%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C20070701215013.A7B4C944B73%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5561 - in trunk/tools/dar: . scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jul  1 23:50:13 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004359.html">[svn] r5560 - in trunk/rpms: . pidgin-libnotify
+</A></li>
+        <LI>Next message: <A HREF="004361.html">[svn] r5562 - in trunk/rpms: . R amavisd-new cobbler dejavu-fonts	evolution-rss flood fslint hammerhead koan nagios-plugins	p7zip pam_shield perl-Test-Inline pidgin-plugin_pack poedit	siege subversion svnmailer wine xvidcore
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4360">[ date ]</a>
+              <a href="thread.html#4360">[ thread ]</a>
+              <a href="subject.html#4360">[ subject ]</a>
+              <a href="author.html#4360">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-07-01 23:50:12 +0200 (Sun, 01 Jul 2007)
+New Revision: 5561
+
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-perl.py
+   trunk/tools/dar/dar-shell
+   trunk/tools/dar/scripts/pre-brand.sh
+Log:
+Small improvements.
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2007-07-01 12:38:17 UTC (rev 5560)
++++ trunk/tools/dar/dar-build	2007-07-01 21:50:12 UTC (rev 5561)
+@@ -318,6 +318,10 @@
+ 			(
+ 				echo &quot;Build command:&quot; $BUILDCMD
+ 				echo &quot;Build path: $PATH&quot;
++
++				echo -e &quot;\n----- Spec file -----&quot;
++				cat &quot;$NEWSPECFILE&quot;
++
+ 				echo -e &quot;\n----- Build log -----&quot;
+ 
+ 				### Check for building as user
+@@ -353,6 +357,7 @@
+ 						--define '$DISTNICK 1' \
+ 						$NEWSPECFILE&quot;
+ 				fi
++
+ 			) &gt;&gt;&quot;$PACKAGEDIR/$app/_buildlogs/$LOGFILE&quot; 2&gt;&amp;1
+ #			CHROOT=&quot;/usr/bin/compartment --chroot $CHROOTDIR/$dist --user $BUILD_USER --group $BUILD_USER --init /usr/lib/dar/compartment.sh --quiet&quot;
+ 
+@@ -365,8 +370,6 @@
+ 			### Finish logging
+ 			(	echo -e &quot;\n----- Return code -----&quot;
+ 				echo &quot;$RC&quot;
+-				echo -e &quot;\n----- Spec file -----&quot;
+-				cat &quot;$NEWSPECFILE&quot;
+ 				if [ -d &quot;$TEMPDIR/$app-$VERSION-$RELEASE-root&quot; ]; then
+ 					echo -e &quot;\n----- Buildroot content -----&quot;
+ 					find &quot;$TEMPDIR/$app-$VERSION-$RELEASE-root&quot; 2&gt;/dev/null
+@@ -416,8 +419,10 @@
+ 		done
+ 	done
+ 
++	RPMFILE=&quot;$app-$VERSION-$RELEASE.$TAG.src.rpm&quot;
+ 	### Only build when there was a succesful binary build
+-	if [ &quot;$DARBUILDRC&quot; -eq 0 -a -z &quot;$NOSOURCE&quot; ]; then
++#	if [ -z &quot;$NOSOURCE&quot; -a &quot;$DARBUILDRC&quot; -eq 0 -o ! -f &quot;$PACKAGEDIR/$app/$RPMFILE&quot; ]; then
++	if [ -z &quot;$NOSOURCE&quot; -a &quot;$DARBUILDRC&quot; -eq 0 ]; then
+ 
+ 		if [ -z &quot;$SOURCE_DISTS&quot; ]; then SOURCE_DISTS=&quot;$DEFAULT_SOURCE_DISTS&quot;; fi
+ 
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2007-07-01 12:38:17 UTC (rev 5560)
++++ trunk/tools/dar/dar-functions	2007-07-01 21:50:12 UTC (rev 5561)
+@@ -95,8 +95,22 @@
+ 			local RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK rpm --version | cut -d' ' -f3)&quot;
+ 		fi
+ 
+-	(
+-	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su -lm $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNAME\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n128 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
++                                                --define &quot;_smp_mflags $MAKEFLAGS&quot; \
++                                                --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; \
++                                                --define &quot;_initrddir %{_sysconfdir}/rc.d/init.d&quot; \
++                                                --define &quot;_rpmdir $PACKAGEDIR/$app&quot; \
++                                                --define &quot;_sourcedir $SPECDIR&quot; \
++                                                --define &quot;_builddir $ROOT/build&quot; \
++                                                --define &quot;_buildroot $TEMPDIR/$app-$VERSION-$RELEASE-root&quot; \
++                                                --define &quot;debug_package %nil&quot; \
++                                                --define &quot;dist $DISTNAME&quot; \
++                                                --define &quot;disttag $DISTNAME&quot; \
++                                                --define &quot;$DISTNAME 1&quot; \
++                                                --define &quot;$DISTNICK 1&quot; \
++
++
++	
++	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su -lm $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNAME\&quot; -D \&quot;disttag $DISTNAME\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n128 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 		if ! grep -i &quot;^ *$CONFIG *:&quot; $SPECFILE | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 			debug &quot;Config $CONFIG not found in $SPECFILE&quot;
+ 		fi
+@@ -233,6 +247,7 @@
+ 	TAGS=&quot;$DEFAULT_TAGS&quot;
+ 	if [ -n &quot;$FORCE_TAG&quot; ]; then
+ 		TAG=&quot;$FORCE_TAG&quot;
++		TAGS=&quot;$FORCE_TAG&quot;
+ 	else
+ 		TAG=&quot;$(metaconf Tag)&quot;
+ 	fi
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-07-01 12:38:17 UTC (rev 5560)
++++ trunk/tools/dar/dar-perl.py	2007-07-01 21:50:12 UTC (rev 5561)
+@@ -57,7 +57,9 @@
+ 
+ def download(url):
+ 	filename = os.path.join(tmppath, os.path.basename(url))
+-	if not os.path.exists(filename):
++	### FIXME: Check if the files on disk are older than 1 day
++#	if not os.path.exists(filename):
++	if True:
+ 		try:
+ 			req = urllib2.Request(url)
+ 			fdin = urllib2.urlopen(req)
+@@ -80,7 +82,7 @@
+ 	return '%s:%s' % (epoch, version)
+ 
+ try:
+-	opts, args = getopt.getopt (args, 'dhnv',
++	opts, args = getopt.getopt (args, 'adhnv',
+ 		['debug', 'help', 'version'])
+ except getopt.error, exc:
+ 	print &gt;&gt;sys.stderr, 'dar-perl: %s, try dar-perl.py -h for a list of all the options' % str(exc)
+@@ -93,6 +95,8 @@
+ 		pass
+ 	elif opt in ['-d', '--debug']:
+ 		debug = True
++	elif opt in ['-a', '--arch']:
++		noarch = False
+ 
+ if not args:
+ 	print &gt;&gt;sys.stderr, 'You have to provide a module name.'
+@@ -207,11 +211,14 @@
+ 	### Parse META.yml (<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>)
+ 	if shortfile == 'META.yml':
+ 		member = distfd.getmember(file)
+-		meta = yaml.load(distfd.extractfile(member).read())
+-		if debug:
+-			print &gt;&gt;sys.stderr, 'META.yml contains the following info:'
+-			for key in meta.keys():
+-				print &gt;&gt;sys.stderr, '   %s: %s' % (key, meta[key])
++		try:
++			meta = yaml.load(distfd.extractfile(member).read())
++			if debug:
++				print &gt;&gt;sys.stderr, 'META.yml contains the following info:'
++				for key in meta.keys():
++					print &gt;&gt;sys.stderr, '   %s: %s' % (key, meta[key])
++		except:
++			pass
+ 
+ docs.sort()
+ 
+
+Modified: trunk/tools/dar/dar-shell
+===================================================================
+--- trunk/tools/dar/dar-shell	2007-07-01 12:38:17 UTC (rev 5560)
++++ trunk/tools/dar/dar-shell	2007-07-01 21:50:12 UTC (rev 5561)
+@@ -41,7 +41,7 @@
+ 		export arch=&quot;$DISTARCH&quot; dist=&quot;${DISTNAME// *}&quot; nick=&quot;$DISTNICK&quot; path=&quot;$DISTPATH&quot; repo=&quot;$REPO&quot; tag=&quot;${DISTTAG// *}&quot;
+ 	fi
+ 
+-	chroot $CHROOTDIR/$distname
++	setarch $DISTARCH chroot $CHROOTDIR/$distname
+ done
+ if [ -z &quot;$QUIET&quot; ]; then
+ 	echo -en &quot;$_BL_$_WH= Returning to parent shell. Press ENTER.$_DE&quot;
+
+Modified: trunk/tools/dar/scripts/pre-brand.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-brand.sh	2007-07-01 12:38:17 UTC (rev 5560)
++++ trunk/tools/dar/scripts/pre-brand.sh	2007-07-01 21:50:12 UTC (rev 5561)
+@@ -20,6 +20,8 @@
+ 		packager=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot; ;;
+ 	(bert)
+ 		packager=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot; ;;
++    (hadams)
++        packager=&quot;Heiko Adams &lt;info\@fedora-blog.de&gt;&quot; ;;
+ 	(dag|thias|matthias|*)
+ 		packager=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot; ;;
+ esac
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004359.html">[svn] r5560 - in trunk/rpms: . pidgin-libnotify
+</A></li>
+	<LI>Next message: <A HREF="004361.html">[svn] r5562 - in trunk/rpms: . R amavisd-new cobbler dejavu-fonts	evolution-rss flood fslint hammerhead koan nagios-plugins	p7zip pam_shield perl-Test-Inline pidgin-plugin_pack poedit	siege subversion svnmailer wine xvidcore
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4360">[ date ]</a>
+              <a href="thread.html#4360">[ thread ]</a>
+              <a href="subject.html#4360">[ subject ]</a>
+              <a href="author.html#4360">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

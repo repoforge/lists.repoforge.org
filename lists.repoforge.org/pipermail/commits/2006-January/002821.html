@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4021 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4021%20-%20trunk/tools/yam&In-Reply-To=%3C20060130125218.4104A318118%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002820.html">
+   <LINK REL="Next"  HREF="002822.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4021 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4021%20-%20trunk/tools/yam&In-Reply-To=%3C20060130125218.4104A318118%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4021 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jan 30 13:52:18 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002820.html">[svn] r4020 - trunk/rpms/xine
+</A></li>
+        <LI>Next message: <A HREF="002822.html">[svn] r4022 - trunk/rpms/asterisk-sounds
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2821">[ date ]</a>
+              <a href="thread.html#2821">[ thread ]</a>
+              <a href="subject.html#2821">[ subject ]</a>
+              <a href="author.html#2821">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-30 13:52:16 +0100 (Mon, 30 Jan 2006)
+New Revision: 4021
+
+Modified:
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Updates
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-01-30 12:12:33 UTC (rev 4020)
++++ trunk/tools/yam/TODO	2006-01-30 12:52:16 UTC (rev 4021)
+@@ -21,6 +21,11 @@
+ + Use mirrorlist option from .repo files as a source (for http)
+ + Autocreate yum .repo files and apt .list files to be used by local clients
+ 
++### RHN support
+++ Fix the 'cached' logininfo which causes old channel information to be present (relogin, logout ?)
+++ Check for existence of packages on ISOs (updates vs os)
+++ Allow Yam to create new systems (register) in RHN on demand
++
+ ### Repository metadata
+ + Think of a way to speed up generating repositories (new basegendir should improve)
+ + Add URPMI and Red Carpet support (help needed)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-01-30 12:12:33 UTC (rev 4020)
++++ trunk/tools/yam/yam	2006-01-30 12:52:16 UTC (rev 4021)
+@@ -591,6 +591,7 @@
+ 	symlink(os.path.join(cf.srcdir,dir), path)
+ 
+ cfg = {}
++loginInfo = {}
+ 
+ def mirrorrhn(url, path, dist):
+ 	sys.path.insert(0, '/usr/share/rhn/')
+@@ -608,9 +609,13 @@
+ 	error(4, 'Using RHN systemid from %s' % rhnsystemid)
+ 
+ 	from up2date_client import config, rpcServer, wrapperUtils, rhnChannel, repoDirector
++	from rhn import rpclib
+ 	import time, signal
+ 
+-	global cfg
++	### Clean up2date's global variabels
++	global cfg, loginInfo
++	cfg = {}
++
+ 	cfg['systemIdPath'] = rhnsystemid
+ 	cfg = config.initUp2dateConfig()
+ 	cfg['systemIdPath'] = rhnsystemid
+@@ -631,7 +636,7 @@
+ 		cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
+ 		cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
+ 
+-	if op.verbose &gt;= 2:
++	if op.verbose &gt;= 4:
+ 		cfg['debug'] = 10000
+ 
+ #	for key in cfg.keys():
+@@ -639,38 +644,58 @@
+ 
+ 	server = rpcServer.getServer()
+ 	systemid = open(cfg['systemIdPath']).read()
+-	rpcServer.doCall(server.up2date.login, systemid)
++	error(1, 'logininfo: %s' % loginInfo)
++	loginInfo = {'X-RHN-Auth-Server-Time': '1137770951.56', 'X-RHN-Auth': 'obUZ3ZXapH6gWNMSuE0PQw==', 'X-RHN-Server-Id': 1006246215, 'X-RHN-Auth-Channels': [['redhat-advanced-server-i386', '20060119123541', '1', '1']], 'X-RHN-Auth-User-Id': '', 'X-RHN-Auth-Expire-Offset': '3600.0'}
++	error(1, 'logininfo: %s' % loginInfo)
++	try:
++		loginInfo = rpcServer.doCall(server.up2date.login, systemid)
++	except rpclib.Fault, f:
++		error(0, 'Error logging in %s with systemid %s. %s' % (dist.nick, rhnsystemid, f.faultString))
++		return
++	error(1, 'logininfo: %s' % loginInfo)
+ 
+ 	mkdir(cfg['storageDir'])
+ 	repos = repoDirector.initRepoDirector()
+ 
++	rhnChannel.updateChannels(label)
++	channels = rpcServer.doCall(server.up2date.listChannels, systemid)
++	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in channels])
++	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
+ 	channel = rhnChannel.getChannels().getByLabel(label)
+ 	if not channel:
+ 		if cf.rhnlogin:
+ 			rhnusername, rhnpasswd = cf.rhnlogin.split(':')
+-			channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
++			try:
++				channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
++			except rpclib.Fault, f:
++				error(0, 'Error subscribing %s to channel %s. %s' % (dist.nick, label, f.faultString))
++				return
+ 			error(1, 'Subscribed to channel: %s' % label)
+-			rhnChannel.updateChannels(label)
+ 			channel = rhnChannel.getChannels().getByLabel(label)
+ #			version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
+ #			channel = rhnChannel.rhnChannel(label = label, version = '0', type = 'up2date', url = cfg['serverURL'])
+ 			if not channel:
+ 				error(1, 'Failed to subscribe RHN id %s to channel %s, dropping.' % (dist.nick, label))
+-				error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
+ 				return
+ 		else:
+ 			error(1, 'No RHN username or password supplied. Please add channel %s on RHN website.' % label)
+-			error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
+ 			return
+ 
+ 	package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	signal.signal(signal.SIGINT, signal.SIG_DFL)
+ 	for pkg in package_list:
+-		### FIXME: Check if not already on ISO-file or repository
+-		if op.verbose:
+-			rpcServer.doCall(repos.getPackage, pkg, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
+-		else:
+-			rpcServer.doCall(repos.getPackage, pkg)
++		### FIXME: Check if not already on ISO-file or repository as well
++		filename = '%s-%s-%s.%s.rpm' % (pkg[0], pkg[1], pkg[2], pkg[4])
++		if os.path.isfile(os.path.join(path, filename)):
++			error(4, 'File %s is already in %s' % (filename, path))
++			continue
++		try:
++			if op.verbose:
++				rpcServer.doCall(repos.getPackage, pkg, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
++			else:
++				rpcServer.doCall(repos.getPackage, pkg)
++		except rpclib.Fault, f:
++				error(0, 'Error getting package %s from %s. %s' % (filename, label, f.faultString))
+ 
+ def hardlink(srcdir):
+ 	info(1, 'Hardlinking duplicate packages in %s.' % srcdir)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002820.html">[svn] r4020 - trunk/rpms/xine
+</A></li>
+	<LI>Next message: <A HREF="002822.html">[svn] r4022 - trunk/rpms/asterisk-sounds
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2821">[ date ]</a>
+              <a href="thread.html#2821">[ thread ]</a>
+              <a href="subject.html#2821">[ subject ]</a>
+              <a href="author.html#2821">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

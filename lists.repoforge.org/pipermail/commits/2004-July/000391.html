@@ -1,0 +1,180 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1582 - in trunk/tools: . checkspec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1582%20-%20in%20trunk/tools%3A%20.%20checkspec&In-Reply-To=%3C20040718134049.E5F191FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000390.html">
+   <LINK REL="Next"  HREF="000392.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1582 - in trunk/tools: . checkspec</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1582%20-%20in%20trunk/tools%3A%20.%20checkspec&In-Reply-To=%3C20040718134049.E5F191FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1582 - in trunk/tools: . checkspec">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Jul 18 15:40:49 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000390.html">[SVN] r1581 - in trunk/rpms: gwenview krusader kxstitch	passwordmanager scorereadingtrainer tuxsaver
+</A></li>
+        <LI>Next message: <A HREF="000392.html">[SVN] r1583 - in trunk/rpms: . gip
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#391">[ date ]</a>
+              <a href="thread.html#391">[ thread ]</a>
+              <a href="subject.html#391">[ subject ]</a>
+              <a href="author.html#391">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-07-18 15:40:48 +0200 (Sun, 18 Jul 2004)
+New Revision: 1582
+
+Added:
+   trunk/tools/checkspec/
+   trunk/tools/checkspec/checkspec
+Log:
+add
+
+Added: trunk/tools/checkspec/checkspec
+===================================================================
+--- trunk/tools/checkspec/checkspec	2004-07-18 13:21:12 UTC (rev 1581)
++++ trunk/tools/checkspec/checkspec	2004-07-18 13:40:48 UTC (rev 1582)
+@@ -0,0 +1,102 @@
++#!/usr/bin/perl -W
++
++use strict;
++
++
++# Usage: checkspec specfile1 specfile2 ...
++
++# This small script does some checks on spec files to avoid errors which i
++# make a lot like forgetting the %clean section
++# Currently it checks the following:
++#   * %clean section
++#   * no LC_MESSAGES in %files section
++#   * no 'install ' but %{__install}
++
++# Feel free to add checks if you like
++
++my $DEBUG = 0;
++
++my %specproblems = ();
++
++sub debug {
++	my $line = pop;
++	if ($DEBUG) {
++		print $line . &quot;\n&quot;;
++	}
++}
++
++
++sub checkCleanSection {
++	my $METHOD_NAME = &quot;checkCleanSection - &quot;;
++	my ($filename, $filecontents) = @_;
++	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	if ($filecontents =~ /\%clean\n\%\{__rm\} \-rf \%\{buildroot\}/) {
++		debug($METHOD_NAME . &quot;clean section ok&quot;);
++	} else {
++		print stderr $filename . &quot;: %clean section not ok\n&quot;;
++		$specproblems{$filename} = 1;
++	}
++}
++
++sub checkNoLcMessagesInFilesSection {
++	my $METHOD_NAME = &quot;checkNoLcMessagesInFilesSection - &quot;;
++	my ($filename, $filecontents) = @_;
++	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	# get the %files part of the spec file
++	$filecontents =~ s/.*\%files//g;
++	debug($METHOD_NAME . &quot;files sections: \n##### START #####\n&quot; . $filecontents . &quot;##### END #####&quot;);
++	if (!($filecontents =~ /LC_MESSAGES/)) {
++		debug($METHOD_NAME . &quot;LC_MESSAGES in %files not found, ok&quot;);
++	} else {
++		print stderr $filename . &quot;: contains LC_MESSAGES in %files section\n&quot;;
++		$specproblems{$filename} = 1;
++	}
++}
++
++sub checkMacros {
++	my $METHOD_NAME = &quot;checkMacros - &quot;;
++	my ($filename, $filecontents) = @_;
++        debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	if ($filecontents =~ /^[ \t]*install/gm) {
++		print stderr $filename . &quot;: contains install, should be \%\{__install\}\n&quot;;
++		$specproblems{$filename} = 1;
++	} else {
++		debug($METHOD_NAME . &quot;checkMacros ok&quot;);
++	}
++}
++
++sub checkSpec {
++	my $METHOD_NAME = &quot;checkSpec - &quot;;
++	my $filename = pop;
++	debug($METHOD_NAME . &quot;start, filename is &quot; . $filename);
++	my $filecontents = &quot;&quot;;
++	open(FILE, &quot;&lt;$filename&quot;) or die &quot;could not open file &quot; . $filename;
++	while (&lt;FILE&gt;) {
++		$filecontents = $filecontents . $_;
++	}
++	close FILE;
++	debug(&quot;filecontents is: \n#### START ####\n&quot; . $filecontents . &quot;#### END ####&quot;);
++	checkCleanSection($filename, $filecontents);
++	checkNoLcMessagesInFilesSection($filename, $filecontents);
++	checkMacros($filename, $filecontents);
++}
++
++sub printJoeLine {
++	my $line = &quot;&quot;;
++	my $name;
++	foreach $name (keys %specproblems) {
++		chomp $name;
++		$line = $line . &quot; &quot; . $name;
++	}
++	print stderr &quot;joe &quot; . $line . &quot;\n&quot;;
++}
++
++
++my @filenames = @ARGV;
++
++my $fname;
++foreach $fname (sort @filenames) {
++#	print $fname . &quot;\n&quot;;
++	checkSpec $fname;
++}
++printJoeLine;
+
+
+Property changes on: trunk/tools/checkspec/checkspec
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000390.html">[SVN] r1581 - in trunk/rpms: gwenview krusader kxstitch	passwordmanager scorereadingtrainer tuxsaver
+</A></li>
+	<LI>Next message: <A HREF="000392.html">[SVN] r1583 - in trunk/rpms: . gip
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#391">[ date ]</a>
+              <a href="thread.html#391">[ thread ]</a>
+              <a href="subject.html#391">[ subject ]</a>
+              <a href="author.html#391">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

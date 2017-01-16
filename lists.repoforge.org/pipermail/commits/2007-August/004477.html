@@ -1,0 +1,847 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5678 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5678%20-%20trunk/tools/dar&In-Reply-To=%3C20070803144254.C4A23944A87%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004476.html">
+   <LINK REL="Next"  HREF="004478.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5678 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5678%20-%20trunk/tools/dar&In-Reply-To=%3C20070803144254.C4A23944A87%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5678 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug  3 16:42:54 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004476.html">[svn] r5677 - in trunk/rpms: . perl-Acme-Damn	perl-Affix-Infix2Postfix perl-App-CLI perl-Archive-Any	perl-CGI-Ex perl-CGI-Prototype perl-Catalyst-Runtime	perl-Class-Base perl-Class-C3-XS
+</A></li>
+        <LI>Next message: <A HREF="004478.html">[svn] r5679 - in trunk/rpms: . perl-Class-Data-Accessor	perl-Class-Gomor perl-Config-Any perl-Config-IniHash	perl-Convert-Binary-C
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4477">[ date ]</a>
+              <a href="thread.html#4477">[ thread ]</a>
+              <a href="subject.html#4477">[ subject ]</a>
+              <a href="author.html#4477">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-08-03 16:42:50 +0200 (Fri, 03 Aug 2007)
+New Revision: 5678
+
+Modified:
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-perl.py
+   trunk/tools/dar/dar.conf
+Log:
+Fixes to DAR and dar-perl
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2007-08-03 14:14:26 UTC (rev 5677)
++++ trunk/tools/dar/dar-functions	2007-08-03 14:42:50 UTC (rev 5678)
+@@ -95,21 +95,7 @@
+ 			local RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK rpm --version | cut -d' ' -f3)&quot;
+ 		fi
+ 
+-                                                --define &quot;_smp_mflags $MAKEFLAGS&quot; \
+-                                                --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; \
+-                                                --define &quot;_initrddir %{_sysconfdir}/rc.d/init.d&quot; \
+-                                                --define &quot;_rpmdir $PACKAGEDIR/$app&quot; \
+-                                                --define &quot;_sourcedir $SPECDIR&quot; \
+-                                                --define &quot;_builddir $ROOT/build&quot; \
+-                                                --define &quot;_buildroot $TEMPDIR/$app-$VERSION-$RELEASE-root&quot; \
+-                                                --define &quot;debug_package %nil&quot; \
+-                                                --define &quot;dist $DISTNAME&quot; \
+-                                                --define &quot;disttag $DISTNAME&quot; \
+-                                                --define &quot;$DISTNAME 1&quot; \
+-                                                --define &quot;$DISTNICK 1&quot; \
+-
+-
+-	
++    (
+ 	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su -lm $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNAME\&quot; -D \&quot;disttag $DISTNAME\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n128 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 		if ! grep -i &quot;^ *$CONFIG *:&quot; $SPECFILE | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 			debug &quot;Config $CONFIG not found in $SPECFILE&quot;
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-08-03 14:14:26 UTC (rev 5677)
++++ trunk/tools/dar/dar-perl.py	2007-08-03 14:42:50 UTC (rev 5678)
+@@ -4,23 +4,24 @@
+ ### for Perl modules based on CPAN information.
+ 
+ ### Example modules:
+-###	perl-Tree-Simple		tests META.yml
+-###	perl-Tree-Simple-Visitor	tests sub-modules
+-###	perl-Kwiki			tests perl Buildrequires epoch
++###     perl-Tree-Simple            tests META.yml
++###     perl-Tree-Simple-Visitor    tests sub-modules
++###     perl-Kwiki                  tests perl Buildrequires epoch
+ 
+ ### More documentation about:
+-###	META.yml			<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>
++###     META.yml    <A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>
+ 
+ import sys, os, time, getopt, urllib2, gzip, re, yaml, tarfile, rpm, types
+ import cElementTree as ElementTree
+ 
+ args = sys.argv[1:]
+ try:
+-	logname = os.getlogin()
++    logname = os.getlogin()
+ except:
+-	logname = 'dag'
++    logname = 'dag'
+ debug = False
+ noarch = True
++output = False
+ realversion = None
+ authors = []
+ email = ''
+@@ -37,78 +38,83 @@
+ ### SIGNATURE THANKS TODO UPGRADE VERSION *.txt  
+ 
+ docfiles = ('^ANNOUNCE', '^Artistic', '^AUTHORS', '^BUGS', '^ChangeLog',
+-	 '^Changes', '^Changes.pod', '^COPYING', '^COPYRIGHT', '^CREDITS',
+-	'^FAQ', '^GNU_LICENSE', '^HACKING', '^HISTORY', '^INFO', '^INSTALL',
+-	'^INSTALLING', '^LICENCE', '^LICENSE', '^MANIFEST', '^META.yml',
+-	'^NEWS', '^NOTES', '^NOTICE', '^PORTING', '^README', '^RELEASE_NOTES',
+-	'^SIGNATURE', '^THANKS', '^TODO', '^UPGRADE', '^VERSION', '^[^/]+.txt$')
++    '^Changes', '^Changes.pod', '^COPYING', '^COPYRIGHT', '^CREDITS',
++    '^FAQ', '^GNU_LICENSE', '^HACKING', '^HISTORY', '^INFO', '^INSTALL',
++    '^INSTALLING', '^LICENCE', '^LICENSE', '^MANIFEST', '^META.yml',
++    '^NEWS', '^NOTES', '^NOTICE', '^PORTING', '^README', '^RELEASE_NOTES',
++    '^SIGNATURE', '^THANKS', '^TODO', '^UPGRADE', '^VERSION', '^[^/]+.txt$')
+ 
++docdirs = ('contrib/', 'doc/', 'docs/', 'eg/', 'example/', 'examples/',
++    'htdocs/', 'notes/', 'samples/', 'tutorial/')
++
+ authorities = {
+-	'dag': 'Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;',
+-	'dries': 'Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;',
++    'dag': 'Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;',
++    'dries': 'Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;',
+ }
+ 
+ licenses = {
+-	'perl': 'Artistic/GPL',
++    'perl': 'Artistic/GPL',
+ }
+ 
+ ### FIXME: Add proper epochs to perl-dependencies
+ epochs = ( '5.0.0', '5.6.1', '5.8.0', '5.8.5', '5.8.8' )
+ 
+ def download(url):
+-	filename = os.path.join(tmppath, os.path.basename(url))
+-	### FIXME: Check if the files on disk are older than 1 day
+-#	if not os.path.exists(filename):
+-	if True:
+-		try:
+-			req = urllib2.Request(url)
+-			fdin = urllib2.urlopen(req)
+-		except:
+-			return
+-		fdout = open(filename, 'w')
+-		fdout.write(fdin.read())
+-		fdin.close()
+-		fdout.close()
++    filename = os.path.join(tmppath, os.path.basename(url))
++    ### FIXME: Check if the files on disk are older than 1 day
++#   if not os.path.exists(filename):
++    if True:
++        try:
++            req = urllib2.Request(url)
++            fdin = urllib2.urlopen(req)
++        except:
++            return
++        fdout = open(filename, 'w')
++        fdout.write(fdin.read())
++        fdin.close()
++        fdout.close()
+ 
+ ### FIXME: Create own version comparison instead of using RPM's
+ def vercmp(v1, v2):
+         return rpm.labelCompare((None, v1, None), (None, v2, None))
+ 
+ def epochify(version):
+-	epoch = 0
+-	for e, v in enumerate(epochs):
+-		if vercmp(str(version), v) &gt;= 0:
+-			epoch = e
+-	return '%s:%s' % (epoch, version)
++    epoch = 0
++    for e, v in enumerate(epochs):
++        if vercmp(str(version), v) &gt;= 0:
++            epoch = e
++    return '%s:%s' % (epoch, version)
+ 
+ try:
+-	opts, args = getopt.getopt (args, 'adhnv',
+-		['debug', 'help', 'version'])
++    opts, args = getopt.getopt (args, 'adhno:v',
++        ['debug', 'help', 'output=', 'version'])
+ except getopt.error, exc:
+-	print &gt;&gt;sys.stderr, 'dar-perl: %s, try dar-perl.py -h for a list of all the options' % str(exc)
+-	sys.exit(1)
++    print &gt;&gt;sys.stderr, 'dar-perl: %s, try dar-perl.py -h for a list of all the options' % str(exc)
++    sys.exit(1)
+ 
+ for opt, arg in opts:
+-	if opt in ['-h', '--help']:
+-		pass
+-	elif opt in ['-v', '--version']:
+-		pass
+-	elif opt in ['-d', '--debug']:
+-		debug = True
+-	elif opt in ['-a', '--arch']:
+-		noarch = False
++    if opt in ['-h', '--help']:
++        pass
++    elif opt in ['-v', '--version']:
++        pass
++    elif opt in ['-d', '--debug']:
++        debug = True
++    elif opt in ['-a', '--arch']:
++        noarch = False
++    elif opt in ['-o', '--output']:
++        output = arg
+ 
+ if not args:
+-	print &gt;&gt;sys.stderr, 'You have to provide a module name.'
+-	sys.exit(1)
++    print &gt;&gt;sys.stderr, 'You have to provide a module name.'
++    sys.exit(1)
+ 
+ module = args[0]
+ module = module.replace('::', '-')
+ modparts = module.split('-')
+ 
+ if module.startswith('perl-'):
+-	modparts = modparts[1:]
+-	module = '-'.join(modparts)
++    modparts = modparts[1:]
++    module = '-'.join(modparts)
+ 
+ pmodule = module.replace('-', '::')
+ 
+@@ -121,13 +127,13 @@
+ ### Find specific package in CPAN package list
+ fd = gzip.open(os.path.join(tmppath, '02packages.details.txt.gz'), 'r')
+ for line in fd.readlines():
+-	pinfo = line.split()
+-	if len(pinfo) &gt; 2 and pmodule == pinfo[0]:
+-		break
++    pinfo = line.split()
++    if len(pinfo) &gt; 2 and pmodule == pinfo[0]:
++        break
+ else:
+-	print &gt;&gt;sys.stderr, 'Module %s not found in CPAN.' % module
+-	sys.exit(1)
+-	
++    print &gt;&gt;sys.stderr, 'Module %s not found in CPAN.' % module
++    sys.exit(1)
++
+ version = pinfo[1]
+ location = pinfo[2]
+ 
+@@ -138,54 +144,54 @@
+ tree = ElementTree.ElementTree(file=os.path.join(tmppath, '00whois.xml'))
+ root = tree.getroot()
+ for elem in root.getiterator('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}cpanid'):
+-	if mnemo == elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}id').text:
+-		authorel = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}fullname')
+-		emailel = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}email')
+-		try:
+-			author = &quot;%s &lt;%s&gt;&quot; % (authorel.text, emailel.text.replace('@','$').replace('.',','))
+-		except:
+-			break
++    if mnemo == elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}id').text:
++        authorel = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}fullname')
++        emailel = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}email')
++        try:
++            author = &quot;%s &lt;%s&gt;&quot; % (authorel.text, emailel.text.replace('@','$').replace('.',','))
++        except:
++            break
+ 
+-		authors.append(author.encode('utf8', 'replace'))
+-		break
++        authors.append(author.encode('utf8', 'replace'))
++        break
+ 
+ ### Get the correct version from the source distribution
+ sdistname = &quot;%s-%s.tar.gz&quot; % (module, version)
+ cdistname = os.path.basename(location)
+ if sdistname != cdistname:
+-	realversion = version
+-	### FIXME: Get the version from the cdistname
+-	m = re.match('[^\d]+([\d\.]+).tar.gz', cdistname)
+-	if m:
+-	        l = m.groups()
+-		version = l[0]
++    realversion = version
++    ### FIXME: Get the version from the cdistname
++    m = re.match('[^\d]+([\d\.]+).tar.gz', cdistname)
++    if m:
++        l = m.groups()
++    version = l[0]
+ 
++if realversion == 'undef':
++    print &gt;&gt;sys.stderr, 'Version is undefined. Distribution %s is not a module.' % module
++    sys.exit(1)
++
+ ### Try to download distribution
+ archive = os.path.join(tmppath, cdistname)
+ if os.path.isfile(archive):
+-	 os.remove(archive)
++    os.remove(archive)
+ source = &quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], cdistname)
+ download(source)
+ if not os.path.isfile(archive):
+-	source = &quot;<A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
+-	download(source)
++    source = &quot;<A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
++    download(source)
+ 
+ ### Add %{version} and %{real_version} to source
+ source = source.replace(version, '%{version}')
+ if realversion:
+-	source = source.replace(realversion, '%{real_version}')
++    source = source.replace(realversion, '%{real_version}')
+ 
+ ### Create basedir out of cdistname
+ basedir = cdistname.replace('.tar.gz', '')
+ basedir = basedir.replace(version, '%{version}')
+ if realversion:
+-	basedir = basedir.replace(realversion, '%{real_version}')
++    basedir = basedir.replace(realversion, '%{real_version}')
+ basedir = basedir.replace(module, '%{real_name}')
+ 
+-if realversion == 'undef':
+-	print &gt;&gt;sys.stderr, 'Version is undefined. Distribution %s is not a module.' % module
+-	sys.exit(1)
+-
+ ### Inspect distribution and extract information (%doc, META.yml, arch/noarch)
+ distfd = tarfile.open(archive, 'r:gz')
+ ### Remove .tar.gz from base (Name-Version)
+@@ -195,255 +201,289 @@
+ docs = []
+ meta = {}
+ for file in distfd.getnames():
+-	### Remove Name-Version/ from filename
+-	l = file.split(base+'/')
+-	shortfile = l[1]
++    ### Remove Name-Version/ from filename
++    l = file.split(base+'/')
++    if len(l) == 2:
++        shortfile = l[1]
++    else:
++        shortfile = file
+ 
+-	### Check if this is a noarch or arch package
+-	if file.endswith('.c') or file.endswith('.h') or file.endswith('.cc') or file.endswith('.xs'):
+-		noarch = False
++    ### Check if this is a noarch or arch package
++    if file.endswith('.c') or file.endswith('.h') or file.endswith('.cc') or file.endswith('.xs'):
++        noarch = False
+ 
+-	### Create %docs list
+-	for docre in docfiles:
+-		if re.search(docre, shortfile, re.I):
+-			docs.append(shortfile)
++    ### Create %docs filelist
++    for docre in docfiles:
++        if re.search(docre, shortfile, re.I):
++            docs.append(shortfile)
+ 
+-	### Parse META.yml (<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>)
+-	if shortfile == 'META.yml':
+-		member = distfd.getmember(file)
+-		try:
+-			meta = yaml.load(distfd.extractfile(member).read())
+-			if debug:
+-				print &gt;&gt;sys.stderr, 'META.yml contains the following info:'
+-				for key in meta.keys():
+-					print &gt;&gt;sys.stderr, '   %s: %s' % (key, meta[key])
+-		except:
+-			pass
++    ### Create %docs directorylist
++    for dir in docdirs:
++        if shortfile == dir:
++            docs.append(shortfile)
+ 
++    ### Parse META.yml (<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>)
++    if shortfile == 'META.yml':
++        member = distfd.getmember(file)
++        try:
++            meta = yaml.load(distfd.extractfile(member).read())
++            if debug:
++                print &gt;&gt;sys.stderr, 'META.yml contains the following info:'
++                for key in meta.keys():
++                    print &gt;&gt;sys.stderr, '   %s: %s' % (key, meta[key])
++        except:
++            pass
++
+ docs.sort()
+ 
+ if os.path.isfile(archive):
+-	os.remove(archive)
++    os.remove(archive)
+ 
+ ### Compare deducted information with META.yml
+ if meta.has_key('name') and meta['name'] != module:
+-	print &gt;&gt;sys.stderr, 'Module %s is part of distribution %s. Please us that instead.' % (module, meta['name'])
+-	sys.exit(1)
++    print &gt;&gt;sys.stderr, 'Module %s is part of distribution %s. Please us that instead.' % (module, meta['name'])
++    sys.exit(1)
+ 
+ if meta.has_key('version') and str(meta['version']) != version:
+-	print &gt;&gt;sys.stderr, 'Module %s has version mismatch between archive (%s) and META.yml (%s).' % (module, version, meta['version'])
++    print &gt;&gt;sys.stderr, 'Module %s has version mismatch between archive (%s) and META.yml (%s).' % (module, version, meta['version'])
+ 
+ if meta.has_key('type') and meta['type'] != 'module':
+-	print &gt;&gt;sys.stderr, 'Distribution %s is not a module.' % module
+-	sys.exit(1)
++    print &gt;&gt;sys.stderr, 'Distribution %s is not a module.' % module
++    sys.exit(1)
+ 
+ if meta.has_key('author'):
+-	authors = []
+-        if isinstance(meta['author'], types.StringType):
+-		author = meta['author'].replace('@','$').replace('.',',')
+-		authors.append(meta['author'].encode('utf8', 'replace'))
+-	elif isinstance(meta['author'], types.ListType):
+-		for author in meta['author']:
+-			author = author.replace('@','$').replace('.',',')
+-			authors.append(author.encode('utf8', 'replace'))
++    authors = []
++    if isinstance(meta['author'], types.StringType):
++        author = meta['author'].replace('@','$').replace('.',',')
++        authors.append(meta['author'].encode('utf8', 'replace'))
++    elif isinstance(meta['author'], types.ListType):
++        for author in meta['author']:
++            author = author.replace('@','$').replace('.',',')
++            authors.append(author.encode('utf8', 'replace'))
+ 
+ if meta.has_key('license') and meta['license'] in licenses.keys():
+-	license = licenses[meta['license']]
++    license = licenses[meta['license']]
+ else:
+-	artistic = False
+-	gpl = False
+-	lgpl = False
+-	for doc in docs:
+-		if doc in ('Artistic', 'ARTISTIC', 'Artistic.txt'):
+-			artistic = True
+-		if doc in ('Copying', 'COPYING', 'GNU_GPL.txt', 'GNU_LICENSE'):
+-			gpl = True
+-		if doc in ('GNU_LGPL.txt'):
+-			lgpl = True
+-	if artistic:
+-		license = 'Artistic'
+-	if gpl:
+-		if license: license = license + '/'
+-		license = license + 'GPL'
+-	if lgpl:
+-		if license: license = license + '/'
+-		license = license + 'LGPL'
+-	if not license:
+-		license = 'Artistic/GPL'
+-		print &gt;&gt;sys.stderr, 'License could not be determined.'
++    artistic = False
++    gpl = False
++    lgpl = False
++    for doc in docs:
++        if doc in ('Artistic', 'ARTISTIC', 'Artistic.txt'):
++            artistic = True
++        if doc in ('Copying', 'COPYING', 'GNU_GPL.txt', 'GNU_LICENSE'):
++            gpl = True
++        if doc in ('GNU_LGPL.txt'):
++            lgpl = True
++    if artistic:
++        license = 'Artistic'
++    if gpl:
++        if license: license = license + '/'
++        license = license + 'GPL'
++    if lgpl:
++        if license: license = license + '/'
++        license = license + 'LGPL'
++    if not license:
++        license = 'Artistic/GPL'
++        print &gt;&gt;sys.stderr, 'License could not be determined.'
+ 
+ if meta.has_key('abstract'):
+-	summary = &quot;%s&quot; % meta['abstract']
+-	description = &quot;%s.&quot; % meta['abstract']
++    summary = &quot;%s&quot; % meta['abstract']
++    description = &quot;%s.&quot; % meta['abstract']
+ else:
+-	summary = &quot;Perl module named %s&quot; % module
+-	description = &quot;perl-%s is a Perl module.&quot; % module
+-	print &gt;&gt;sys.stderr, 'No abstract found.'
++    summary = &quot;Perl module named %s&quot; % module
++    description = &quot;perl-%s is a Perl module.&quot; % module
++    print &gt;&gt;sys.stderr, 'No abstract found.'
+ 
+ if meta.has_key('build_requires') and meta['build_requires'] and meta['build_requires'].has_key('perl-Inline'):
+-	noarch = False
++    noarch = False
+ if meta.has_key('requires') and meta['requires'] and meta['requires'].has_key('perl-Inline'):
+-	noarch = False
++    noarch = False
+ 
+ if debug:
+-	print &gt;&gt;sys.stderr, module, version, &quot;perl-%s/perl-%s.spec&quot; % (module, module)
+-	if noarch:
+-		print &gt;&gt;sys.stderr, 'noarch package'
+-	else:
+-		print &gt;&gt;sys.stderr, 'arch package'
+-	if realversion:
+-		print &gt;&gt;sys.stderr, 'source has different version format than CPAN (%s vs %s)' % (version, realversion)
+-	print &gt;&gt;sys.stderr, 'Found following docs:', ' '.join(docs)
+-	print &gt;&gt;sys.stderr, 'Distribution archive %s contains:' % cdistname
+-	for file in distfd.getnames():
+-		print &gt;&gt;sys.stderr, '  ', file
++    print &gt;&gt;sys.stderr, module, version, &quot;perl-%s/perl-%s.spec&quot; % (module, module)
++    if noarch:
++        print &gt;&gt;sys.stderr, 'noarch package'
++    else:
++        print &gt;&gt;sys.stderr, 'arch package'
++    if realversion:
++        print &gt;&gt;sys.stderr, 'source has different version format than CPAN (%s vs %s)' % (version, realversion)
++    print &gt;&gt;sys.stderr, 'Found following docs:', ' '.join(docs)
++    print &gt;&gt;sys.stderr, 'Distribution archive %s contains:' % cdistname
++    for file in distfd.getnames():
++        print &gt;&gt;sys.stderr, '  ', file
+ 
+-print '# $Id$'
+-print '# Authority:', logname
++### See if we have to write a file or write to stdout
++if output:
++    if os.path.exists(output):
++        print &gt;&gt;sys.stderr, 'File %s already exists.' % output
++        sys.exit(1)
+ 
++    outputdir = os.path.dirname(output)
++    if outputdir and not os.path.exists(outputdir):
++        os.mkdir(outputdir)
++
++    try:
++        out = open(output, 'w')
++    except:
++        print &gt;&gt;sys.stderr, 'Cannot write %s' % output
++        sys.exit(1)
++else:
++    out = sys.stdout
++
++print &gt;&gt;out, '# $Id$'
++print &gt;&gt;out, '# Authority:', logname
++
+ for author in authors:
+-	print &quot;# Upstream: %s&quot; % author
+-print
+-print '%define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)'
+-print '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'
+-print
+-print '%define real_name', module
++    print &gt;&gt;out, &quot;# Upstream: %s&quot; % author
++print &gt;&gt;out
++print &gt;&gt;out, '%define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)'
++print &gt;&gt;out, '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'
++print &gt;&gt;out
++print &gt;&gt;out, '%define real_name', module
+ 
+ if realversion:
+-	print '%define real_version', realversion
+-	
+-print
++    print &gt;&gt;out, '%define real_version', realversion
+ 
+-print &quot;Summary: %s&quot; % summary
+-print &quot;Name: perl-%s&quot; % module
+-print 'Version:', version
+-print 'Release: 1'
++print &gt;&gt;out
+ 
+-print 'License: %s' % license
+-print 'Group: Applications/CPAN'
+-print &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+-print
+-print &quot;Source: %s&quot; % source
+-print 'BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root'
+-print
++print &gt;&gt;out, &quot;Summary: %s&quot; % summary
++print &gt;&gt;out, &quot;Name: perl-%s&quot; % module
++print &gt;&gt;out, 'Version:', version
++print &gt;&gt;out, 'Release: 1'
++print &gt;&gt;out, 'License: %s' % license
++print &gt;&gt;out, 'Group: Applications/CPAN'
++print &gt;&gt;out, &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
++print &gt;&gt;out
+ 
++print &gt;&gt;out, &quot;Source: %s&quot; % source
++print &gt;&gt;out, 'BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root'
++print &gt;&gt;out
++
+ if noarch:
+-	print &quot;BuildArch: noarch&quot;
++    print &gt;&gt;out, &quot;BuildArch: noarch&quot;
+ 
+ ### FIXME: Add BuildRequires from Makefile.PL
+ if meta.has_key('requires') and meta['requires'] and meta['requires'].has_key('perl'):
+-	print &quot;BuildRequires: perl &gt;= %s &quot; % epochify(meta['requires']['perl'])
++    print &gt;&gt;out, &quot;BuildRequires: perl &gt;= %s &quot; % epochify(meta['requires']['perl'])
+ else:
+-	print &quot;BuildRequires: perl&quot;
++    print &gt;&gt;out, &quot;BuildRequires: perl&quot;
+ 
+ ### Requires are extracted by RPM itself
+ #print &quot;Requires: perl&quot;
+ #if meta.has_key('requires'):
+-#	for key in meta['requires']:
+-#		if meta['requires'][key]:
+-#			print &quot;Requires: perl(%s) &gt;= %s&quot; % (key, meta['requires'][key])
+-#		else:
+-#			print &quot;Requires: perl(%s)&quot; % key
++#   for key in meta['requires']:
++#       if meta['requires'][key]:
++#           print &gt;&gt;out, &quot;Requires: perl(%s) &gt;= %s&quot; % (key, meta['requires'][key])
++#       else:
++#           print &gt;&gt;out, &quot;Requires: perl(%s)&quot; % key
+ 
+ if meta.has_key('build_requires'):
+-	for key in meta['build_requires']:
+-		if meta['build_requires'][key]:
+-			print &quot;BuildRequires: perl(%s) &gt;= %s&quot; % (key, meta['build_requires'][key])
+-		else:
+-			print &quot;BuildRequires: perl(%s)&quot; % key
++    for key in meta['build_requires']:
++        if meta['build_requires'][key]:
++            print &gt;&gt;out, &quot;BuildRequires: perl(%s) &gt;= %s&quot; % (key, meta['build_requires'][key])
++        else:
++            print &gt;&gt;out, &quot;BuildRequires: perl(%s)&quot; % key
+ if meta.has_key('conflicts'):
+-	for key in meta['conflicts']:
+-		print &quot;Conflict: perl(%s)&quot; % key
+-print
++    for key in meta['conflicts']:
++        print &gt;&gt;out, &quot;Conflict: perl(%s)&quot; % key
++print &gt;&gt;out
+ 
+-print &quot;%description&quot;
+-print description
+-print
+-print &quot;%prep&quot;
+-print &quot;%%setup -n %s&quot; % basedir
+-print
+-print &quot;%build&quot;
++print &gt;&gt;out, &quot;%description&quot;
++print &gt;&gt;out, description
++print &gt;&gt;out
++
++print &gt;&gt;out, &quot;%prep&quot;
++print &gt;&gt;out, &quot;%%setup -n %s&quot; % basedir
++print &gt;&gt;out
++
++print &gt;&gt;out, &quot;%build&quot;
+ if noarch:
+-	print '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+-	print '%{__make} %{?_smp_mflags}'
++    print &gt;&gt;out, '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
++    print &gt;&gt;out, '%{__make} %{?_smp_mflags}'
+ else:
+-	print 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+-	print '%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;'
+-print
+-print '%install'
+-print '%{__rm} -rf %{buildroot}'
+-print '%makeinstall'
+-print
+-print '### Clean up buildroot'
+-if noarch:
+-	print '%{__rm} -rf %{buildroot}%{perl_archlib} %{buildroot}%{perl_vendorarch}'
+-else:
+-	print '%{__rm} -rf %{buildroot}%{perl_archlib} %{buildroot}%{perl_vendorarch}/auto/*{,/*{,/*}}/.packlist'
+-print
+-print '%clean'
+-print '%{__rm} -rf %{buildroot}'
+-print
++    print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
++    print &gt;&gt;out, '%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;'
++print &gt;&gt;out
+ 
++print &gt;&gt;out, '%install'
++print &gt;&gt;out, '%{__rm} -rf %{buildroot}'
++print &gt;&gt;out, '%{__make} pure_install'
++print &gt;&gt;out
++print &gt;&gt;out, '### Clean up buildroot'
++#if noarch:
++#   print &gt;&gt;out, '%{__rm} -rf %{buildroot}%{perl_archlib} %{buildroot}%{perl_vendorarch}'
++#else:
++#   print &gt;&gt;out, '%{__rm} -rf %{buildroot}%{perl_archlib} %{buildroot}%{perl_vendorarch}/auto/*{,/*{,/*}}/.packlist'
++print &gt;&gt;out, 'find %{buildroot} -name .packlist -exec %{__rm} {} \;'
++print &gt;&gt;out
++
++print &gt;&gt;out, '%clean'
++print &gt;&gt;out, '%{__rm} -rf %{buildroot}'
++print &gt;&gt;out
++
+ ### FIXME: Create filelist based on test-build or source-tree ?
+-print '%files'
+-print '%defattr(-, root, root, 0755)'
++print &gt;&gt;out, '%files'
++print &gt;&gt;out, '%defattr(-, root, root, 0755)'
+ ### Check DOCS in archive from &quot;grep -h '^%doc' /dar/rpms/perl*/perl*.spec | grep -v mandir | xargs -n 1 | sort | uniq&quot;
+-print '%doc', ' '.join(docs)
+-print &quot;%%doc %%{_mandir}/man3/%s.3pm*&quot; % pmodule
+-print '#%doc %{_mandir}/man3/*.3pm*'
++print &gt;&gt;out, '%doc', ' '.join(docs)
++print &gt;&gt;out, &quot;%%doc %%{_mandir}/man3/%s.3pm*&quot; % pmodule
++print &gt;&gt;out, &quot;#%%doc %%{_mandir}/man3/*.3pm*&quot;
+ 
+ if noarch:
+-	### Print directory entries (if any)
+-	if modparts[:-1]:
+-		str = '%dir %{perl_vendorlib}/'
+-		for nr, part in enumerate(modparts[:-1]):
+-			str = str + &quot;%s/&quot; % modparts[nr]
+-			print str
++    ### Print directory entries (if any)
++    if modparts[:-1]:
++        str = '%dir %{perl_vendorlib}/'
++        for nr, part in enumerate(modparts[:-1]):
++            str = str + &quot;%s/&quot; % modparts[nr]
++            print &gt;&gt;out, str
+ 
+-	### Print module directory
+-	str = '#%{perl_vendorlib}/'
+-	for nr, part in enumerate(modparts):
+-		str = str + &quot;%s/&quot; % modparts[nr]
+-	print str
++    ### Print module directory
++    str = '#%{perl_vendorlib}/'
++    for nr, part in enumerate(modparts):
++        str = str + &quot;%s/&quot; % modparts[nr]
++    print &gt;&gt;out, str
+ 
+-	### Print module
+-	if modparts[:-1]:
+-		str = '%{perl_vendorlib}/'
+-		for nr, part in enumerate(modparts[:-1]):
+-			str = str + &quot;%s/&quot; % modparts[nr]
+-		print str + &quot;%s.pm&quot; % modparts[-1]
+-	else:
+-		print '%%{perl_vendorlib}/%s.pm' % modparts[0]
++    ### Print module
++    if modparts[:-1]:
++        str = '%{perl_vendorlib}/'
++        for nr, part in enumerate(modparts[:-1]):
++            str = str + &quot;%s/&quot; % modparts[nr]
++        print &gt;&gt;out, str + &quot;%s.pm&quot; % modparts[-1]
++    else:
++        print &gt;&gt;out, '%%{perl_vendorlib}/%s.pm' % modparts[0]
+ else:
+-	### Print directory entries (if any)
+-	if modparts[:-1]:
+-		str = '%dir %{perl_vendorarch}/'
+-		for nr, part in enumerate(modparts[:-1]):
+-			str = str + &quot;%s/&quot; % modparts[nr]
+-			print str
++    ### Print directory entries (if any)
++    if modparts[:-1]:
++        str = '%dir %{perl_vendorarch}/'
++        for nr, part in enumerate(modparts[:-1]):
++            str = str + &quot;%s/&quot; % modparts[nr]
++            print &gt;&gt;out, str
+ 
+-	### Print module directory
+-	str = '%{perl_vendorarch}/'
+-	for nr, part in enumerate(modparts[:-1]):
+-		str = str + &quot;%s/&quot; % modparts[nr]
+-	print str + &quot;%s.pm&quot; % modparts[-1]
++    ### Print module directory
++    str = '%{perl_vendorarch}/'
++    for nr, part in enumerate(modparts[:-1]):
++        str = str + &quot;%s/&quot; % modparts[nr]
++    print &gt;&gt;out, str + &quot;%s.pm&quot; % modparts[-1]
+ 
+-	### Print auto directory entries (if any)
+-	if modparts[:-1]:
+-		str = '%dir %{perl_vendorarch}/auto/'
+-		for nr, part in enumerate(modparts[:-1]):
+-			str = str + &quot;%s/&quot; % modparts[nr]
+-			print str
++    ### Print auto directory entries (if any)
++    if modparts[:-1]:
++        str = '%dir %{perl_vendorarch}/auto/'
++        for nr, part in enumerate(modparts[:-1]):
++            str = str + &quot;%s/&quot; % modparts[nr]
++            print &gt;&gt;out, str
+ 
+-	### Print auto module directory
+-	str = '%{perl_vendorarch}/auto/'
+-	for nr, part in enumerate(modparts):
+-		str = str + &quot;%s/&quot; % modparts[nr]
+-	print str
++    ### Print auto module directory
++    str = '%{perl_vendorarch}/auto/'
++    for nr, part in enumerate(modparts):
++        str = str + &quot;%s/&quot; % modparts[nr]
++    print &gt;&gt;out, str
++print &gt;&gt;out
+ 
+-print
+-print '%changelog'
+-print '* %s %s - %s-1' % (time.strftime('%a %b %d %Y', time.localtime()), authorities[logname], version)
+-print '- Initial package. (using DAR)'
++print &gt;&gt;out, '%changelog'
++print &gt;&gt;out, '* %s %s - %s-1' % (time.strftime('%a %b %d %Y', time.localtime()), authorities[logname], version)
++print &gt;&gt;out, '- Initial package. (using DAR)'
+ 
++if output:
++    out.close()
++
+ sys.exit(0)
+
+Modified: trunk/tools/dar/dar.conf
+===================================================================
+--- trunk/tools/dar/dar.conf	2007-08-03 14:14:26 UTC (rev 5677)
++++ trunk/tools/dar/dar.conf	2007-08-03 14:42:50 UTC (rev 5678)
+@@ -33,6 +33,6 @@
+ #RSYNC_OPTIONS=&quot;-avHl --progress --delete-after --exclude /bert/ --exclude /dries/ --exclude /redhat/6.2/ --exclude /redhat/8.0/ --include /rpmforge/persona/dag/ --exclude /rpmforge/persona/* --delay-updates --fuzzy&quot;
+ RSYNC_TARGET=&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at rsync.sw.be</A>:dag.wieers.com/pub/&quot;
+ ### Use wondershaper
+-RSYNC_LIMIT=&quot;48&quot;
++RSYNC_LIMIT=&quot;16&quot;
+ GPG_PATH=&quot;/home/dag/.gnupg&quot;
+ GPG_NAME=&quot;Dag Wieers (Dag Apt Repository v1.0)&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004476.html">[svn] r5677 - in trunk/rpms: . perl-Acme-Damn	perl-Affix-Infix2Postfix perl-App-CLI perl-Archive-Any	perl-CGI-Ex perl-CGI-Prototype perl-Catalyst-Runtime	perl-Class-Base perl-Class-C3-XS
+</A></li>
+	<LI>Next message: <A HREF="004478.html">[svn] r5679 - in trunk/rpms: . perl-Class-Data-Accessor	perl-Class-Gomor perl-Config-Any perl-Config-IniHash	perl-Convert-Binary-C
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4477">[ date ]</a>
+              <a href="thread.html#4477">[ thread ]</a>
+              <a href="subject.html#4477">[ subject ]</a>
+              <a href="author.html#4477">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

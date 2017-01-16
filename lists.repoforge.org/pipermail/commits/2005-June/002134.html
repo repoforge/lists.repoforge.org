@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3332 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3332%20-%20trunk/tools/yam&In-Reply-To=%3C20050627142651.6458631804C%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002133.html">
+   <LINK REL="Next"  HREF="002135.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3332 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3332%20-%20trunk/tools/yam&In-Reply-To=%3C20050627142651.6458631804C%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3332 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jun 27 16:26:51 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002133.html">[svn] r3331 - trunk/rpms/gtkpod
+</A></li>
+        <LI>Next message: <A HREF="002135.html">[svn] r3333 - trunk/rpms/gentoo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2134">[ date ]</a>
+              <a href="thread.html#2134">[ thread ]</a>
+              <a href="subject.html#2134">[ subject ]</a>
+              <a href="author.html#2134">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-06-27 16:26:50 +0200 (Mon, 27 Jun 2005)
+New Revision: 3332
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-example.conf
+Log:
+Updates
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2005-06-27 11:34:38 UTC (rev 3331)
++++ trunk/tools/yam/ChangeLog	2005-06-27 14:26:50 UTC (rev 3332)
+@@ -5,6 +5,9 @@
+ - Removed [repos] support
+ - Changed regexp to .+[\._]i386.rpm$, allowing rpm apt cache (Franky Van Liedekerke)
+ - Added repoindex option to create a repository index
++- Changed default rsync options from '-aHL' to '-rtHL' (David Zambonini)
++- Mount ISO images as read-only (David Zambonini)
++- Options lftpoptions and rsyncoptions now overwrite the defaults
+ 
+ * 0.7.3 - released 25/03/2005
+ - Added ia64 support (Gareth Armstrong)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2005-06-27 11:34:38 UTC (rev 3331)
++++ trunk/tools/yam/yam	2005-06-27 14:26:50 UTC (rev 3332)
+@@ -22,7 +22,7 @@
+ archs = {
+ 	'i386': ['i386', 'i486', 'i586', 'i686', 'athlon'],
+ 	'ia64': ['i386', 'i686', 'ia64'],
+-	'ppc': ['ppc', 'ppc64'],
++	'ppc': ['ppc', 'ppc64', 'ppc64pseries', 'ppc64iseries'],
+ 	'x86_64': ['i386', 'i486', 'i586', 'i686', 'athlon', 'x86_64'],
+ }
+ 
+@@ -164,14 +164,14 @@
+ 		self.lftpcleanup = not self.getoption('main', 'lftp-cleanup', 'yes') in disable
+ 		self.lftpexcldebug = not self.getoption('main', 'lftp-exclude-debug', 'yes') in disable
+ 		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in disable
+-		self.lftpoptions = self.getoption('main', 'lftp-options', '')
++		self.lftpoptions = self.getoption('main', 'lftp-options', '-a -P')
+ 		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+ 		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in disable
+ 		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in disable
+ 		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in disable
+-		self.rsyncoptions = self.getoption('main', 'rsync-options', '')
++		self.rsyncoptions = self.getoption('main', 'rsync-options', '-rtHL --partial')
+ 		self.rsynctimeout = self.getoption('main', 'rsync-timeout', None)
+ 
+ 		self.shareiso = not self.getoption('main', 'shareiso', 'yes') in disable
+@@ -307,7 +307,7 @@
+ 				mkdir(mount)
+ 				if not os.path.ismount(mount):
+ 					info(2, '%s: Mount ISO %s to %s' % (self.nick, os.path.basename(iso), mount))
+-					run('%s -o loop %s %s' % (cf.cmd['mount'], iso, mount))
++					run('%s -o loop,ro %s %s' % (cf.cmd['mount'], iso, mount))
+ 		return discs
+ 	
+ 	def umount(self):
+@@ -518,7 +518,7 @@
+ 		return
+ 	mkdir(path)
+ 
+-	opts = '-aHL --partial ' + cf.rsyncoptions
++	opts = cf.rsyncoptions
+ 	if op.verbose &lt;= 1: opts = opts + ' -q'
+ 	elif op.verbose == 3: opts = opts + ' -v'
+ 	elif op.verbose &gt;= 4: opts = opts + ' -v --progress'
+@@ -544,7 +544,7 @@
+ 	if cf.lftptimeout: sets = sets + ' set net:timeout %s;' % cf.lftptimeout
+ 	if cf.lftpbwlimit: sets = sets + ' set net:limit-total-rate=%s:0;' % cf.lftpbwlimit
+ 
+-	opts = 'mirror -a -P' + cf.lftpoptions
++	opts = 'mirror ' + cf.lftpoptions
+ 	if op.verbose &lt;= 1: opts = opts + ' --verbose=0'
+ 	else: opts = '%s --verbose=%d' % (opts, op.verbose-1)
+ 	if cf.lftpcleanup: opts = opts + ' -e'
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2005-06-27 11:34:38 UTC (rev 3331)
++++ trunk/tools/yam/yam-example.conf	2005-06-27 14:26:50 UTC (rev 3332)
+@@ -57,7 +57,7 @@
+ lftp-exclude-srpm = yes
+ 
+ ## Add extra options to lftp
+-lftp-options =
++lftp-options = -a -P
+ 
+ ## Set the I/O timeout in seconds
+ lftp-timeout = 
+@@ -73,7 +73,7 @@
+ rsync-exclude-srpm = yes
+ 
+ ## Add extra options to rsync
+-rsync-options =
++rsync-options = -rtHL --partial
+ 
+ ## Set the I/O timeout in seconds
+ rsync-timeout = 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002133.html">[svn] r3331 - trunk/rpms/gtkpod
+</A></li>
+	<LI>Next message: <A HREF="002135.html">[svn] r3333 - trunk/rpms/gentoo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2134">[ date ]</a>
+              <a href="thread.html#2134">[ thread ]</a>
+              <a href="subject.html#2134">[ subject ]</a>
+              <a href="author.html#2134">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

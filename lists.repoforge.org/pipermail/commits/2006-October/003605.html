@@ -1,0 +1,380 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4805 - in trunk/tools/yam: . docs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4805%20-%20in%20trunk/tools/yam%3A%20.%20docs&In-Reply-To=%3C20061009181524.E6C34944A9D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003604.html">
+   <LINK REL="Next"  HREF="003606.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4805 - in trunk/tools/yam: . docs</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4805%20-%20in%20trunk/tools/yam%3A%20.%20docs&In-Reply-To=%3C20061009181524.E6C34944A9D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4805 - in trunk/tools/yam: . docs">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Oct  9 20:15:24 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003604.html">[svn] r4804 - in trunk/rpms: . aria2 biew bmon coretrace dkftpbench	gnome-schedule laptop-mode-tools libcli libcmt netmapr	netperf normalize obexftp perl-PatchReader python-ctypes	python-paramiko python-tdb python-utmp rpmstrap supertux
+</A></li>
+        <LI>Next message: <A HREF="003606.html">[svn] r4806 - trunk/rpms/gq
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3605">[ date ]</a>
+              <a href="thread.html#3605">[ thread ]</a>
+              <a href="subject.html#3605">[ subject ]</a>
+              <a href="author.html#3605">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-10-09 20:15:24 +0200 (Mon, 09 Oct 2006)
+New Revision: 4805
+
+Modified:
+   trunk/tools/yam/docs/redhat-network.txt
+   trunk/tools/yam/gensystemid
+   trunk/tools/yam/rhnget
+   trunk/tools/yam/yam
+Log:
+Improvements to rhnget and RHN username/password pass-through
+
+Modified: trunk/tools/yam/docs/redhat-network.txt
+===================================================================
+--- trunk/tools/yam/docs/redhat-network.txt	2006-10-09 18:13:40 UTC (rev 4804)
++++ trunk/tools/yam/docs/redhat-network.txt	2006-10-09 18:15:24 UTC (rev 4805)
+@@ -81,10 +81,22 @@
+ rhnlogin = username:password
+ ----
+ 
+-Of course this requires you to protect your Yam config-file. You may want
+-to do:
++Or you can supply them to rhnget at the appropriate time. Unfortunately since
++rhnget is a seperate tool invoked by Yam, you may need to provide this
++information several times (every time you need to subscribe to a new channel).
+ 
++You can also choose to only provide the username in /etc/yam.conf and provide
++the password interactively.
++
+ ----
++[main]
++rhnlogin = username
++----
++
++Of course if you put the password in /etc/yam.conf, you need to protect it.
++You may want to do:
++
++----
+ chmod og= /etc/yam.conf
+ chown root.root /etc/yam.conf
+ ----
+@@ -93,8 +105,8 @@
+ (only the very first time you access them) you may wish to remove the
+ login information from yam.conf after that.
+ 
+-Of course, you can always log on manually to the RHN website to subscribe
+-your system to the channels you require.
++You can also log on manually to the RHN website to subscribe your system
++to the channels you require.
+ 
+ 
+ Configuring up2date sources
+@@ -270,57 +282,6 @@
+ But not from the ES or WS channels and not from different architectures.
+ 
+ 
+-Known problems
+---------------
+-(Uninvestigated fully yet)
+-
+-I have seen the following problems:
+-
+-	'yam: Error subscribing %s to channel %s, skipping.'
+-or
+-	  File &quot;/usr/share/rhn/up2date_client/repoDirector.py&quot;, line 36, in getPackage
+-	    return self.handlers[channel['type']].getPackage(pkg, msgCallback, progressCallback)
+-	TypeError: unsubscriptable object
+-or
+-	yam: Error listing packages from channel rhel-i386-as-3-devsuite. Skipping.
+-	Error communicating with server. The message was:
+-	Authorization Required
+-
+-And when using a single systemid file, also:
+-
+-	'yam: Failed to subscribe RHN id %s to channel %s, skipping.'
+-or
+-	'Server already subscribed to ...'
+-
+-
+-Somehow there is loginInfo polution (subscribed channels from a previous
+-distribution login polutes a subsequent login, ie. a previous EL2 run
+-polutes the next EL3 channel subscription list in the same execute phase).
+-
+-A workaround in this case is instead of doing:
+-
+-----
+-yam -uqg
+-----
+-or
+-----
+-yam -uqg rhel2.1as rhel3as rhel4as-i386 rhel4as-x86_64
+-----
+-
+-to do:
+-
+-----
+-for dist in rhel2.1as rhel3as rhel4as-i386 rhel4as-x86_64; do
+-	yam -uqg $dist
+-done
+-----
+-
+-I still need to investigate and file a bugreport with Red Hat (seems to be
+-a problem with the implementation of the python classes and the use of
+-global variables in up2date). Although I clean the global variables used by
+-the up2date classes, somehow some data is persistent.
+-
+-
+ RHN documentation and references
+ --------------------------------
+ A useful list of RHN references:
+
+Modified: trunk/tools/yam/gensystemid
+===================================================================
+--- trunk/tools/yam/gensystemid	2006-10-09 18:13:40 UTC (rev 4804)
++++ trunk/tools/yam/gensystemid	2006-10-09 18:15:24 UTC (rev 4805)
+@@ -53,11 +53,11 @@
+ 	def __init__(self, args):
+ 		self.arch = None
+ 		self.hostname = None
+-		self.password = None
+ 		self.paths = None
+ 		self.quiet = False
++		self.rhnpassword = None
+ 		self.rhnrelease = None
+-		self.username = None
++		self.rhnusername = None
+ 		self.verbose = 1
+ 
+ 		try:
+@@ -73,13 +73,13 @@
+ 			elif opt in ['--hostname']:
+ 				self.hostname = arg
+ 			elif opt in ['-p', '--password']:
+-				self.password = arg
++				self.rhnpassword = arg
+ 			elif opt in ['-q', '--quiet']:
+ 				self.quiet = True
+ 			elif opt in ['-r', '--release']:
+ 				self.rhnrelease = arg
+ 			elif opt in ['-u', '--username']:
+-				self.username = arg
++				self.rhnusername = arg
+ 			elif opt in ['-h', '--help']:
+ 				self.usage()
+ 				self.help()
+@@ -160,11 +160,11 @@
+ 	sys.exit(ret)
+ 
+ def main():
+-	if not op.username:
+-		op.username = raw_input('RHN Username: ')
++	if not op.rhnusername:
++		op.rhnusername = raw_input('RHN Username: ')
+ 
+-	if not op.password:
+-		op.password = getpass.getpass('RHN Password: ')
++	if not op.rhnpassword:
++		op.rhnpassword = getpass.getpass('RHN Password: ')
+ 
+ 	rhnsystemid = '/tmp/systemid'
+ 	if os.path.isfile(rhnsystemid):
+@@ -199,15 +199,15 @@
+ 			'os_release': op.rhnrelease,
+ 			'release_name': 'redhat-release',
+ 			'architecture': '%s-redhat-linux' % op.arch,
+-			'username': op.username,
+-			'password': op.password,
++			'username': op.rhnusername,
++			'password': op.rhnpassword,
+ 			'uuid': '',
+ 			'rhnuuid': '',
+ 	}
+ 
+ 	s = rpcServer.getServer()
+ 	try:
+-		systemid = rpcServer.doCall(s.registration.new_user, op.username, op.password)
++		systemid = rpcServer.doCall(s.registration.new_user, op.rhnusername, op.rhnpassword)
+ 	except rpclib.Fault, f:
+ 		error(0, 'Error registering user. %s' % f.faultString)
+ 		sys.exit(1)
+
+Modified: trunk/tools/yam/rhnget
+===================================================================
+--- trunk/tools/yam/rhnget	2006-10-09 18:13:40 UTC (rev 4804)
++++ trunk/tools/yam/rhnget	2006-10-09 18:15:24 UTC (rev 4805)
+@@ -15,7 +15,7 @@
+ ### Copyright 2004-2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ import os, sys, shutil, getopt, ConfigParser, urlparse, types
+-import signal, xmlrpclib
++import signal, xmlrpclib, getpass
+ 
+ if os.path.exists('/usr/share/rhn/') and os.path.exists('/usr/share/rhn/up2date_client/'):
+ 	sys.path.insert(0, '/usr/share/rhn/')
+@@ -47,13 +47,16 @@
+ 		self.rhngetcleanup = False
+ 		self.rhngetdownloadall = False
+ 		self.rhngetsource = False
++		self.rhnpassword = None
+ 		self.rhnrelease = None
++		self.rhnusername = None
+ 		self.systemid = '/etc/sysconfig/rhn/systemid'
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'hnqr:s:v',
+-				('delete', 'download-all', 'dryrun', 'help', 'quiet', 'release=', 'source', 'systemid=', 'verbose', 'version' ))
++			opts, args = getopt.getopt (args, 'hnqp:r:s:u:v',
++				('delete', 'download-all', 'dryrun', 'help', 'password=', 'quiet',
++				 'release=', 'source', 'systemid=', 'username=', 'verbose', 'version' ))
+ 		except getopt.error, exc:
+ 			print 'rhnget: %s, try rhnget -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -70,6 +73,8 @@
+ 				sys.exit(0)
+ 			elif opt in ('-n', '--dry-run'):
+ 				self.dryrun = True
++			elif opt in ['-p', '--password']:
++				self.rhnpassword = arg
+ 			elif opt in ('-q', '--quiet'):
+ 				self.quiet = True
+ 			elif opt in ('-r', '--release'):
+@@ -78,6 +83,8 @@
+ 				self.rhngetsource = True
+ 			elif opt in ('-s', '--systemid'):
+ 				self.systemid = os.path.abspath(arg)
++			elif opt in ['-u', '--username']:
++				self.rhnusername = arg
+ 			elif opt in ('-v', '--verbose'):
+ 				self.verbose = self.verbose + 1
+ 			elif opt in ('--version', ):
+@@ -280,26 +287,29 @@
+ 	### Try to find a channel with label
+ 	channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
+ 	if not channel:
+-		raise(Exception('Error system not subscribe to channel %s, skipping.' % label))
+-#		if cf.rhnlogin:
+-#			rhnusername, rhnpasswd = cf.rhnlogin.split(':')
+-#		if True:
+-#			rhnusername, rhnpasswd = 'ericom-3ti', 'hfozs94772'
+-#		   	try:
+-#				server = rpcServer.getServer()
+-#				channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
+-#			except rpclib.Fault, f:
+-#				raise(Exception('Error subscribing to channel %s, skipping.%s' % (label, f.faultString)))
+-#			systemid = rhnlogin(url, path, force=True)
+-#			if not systemid:
+-#				return
+-#			info(4, '\nAFTER SUBSC: logininfo: %s\n' % loginInfo)
+-#			channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
+-#			if not channel:
+-#				raise(Exception('Failed to subscribe RHN id to channel %s, skipping.' % label))
+-#		else:
+-#			raise(Exception('No RHN username or password supplied in Yam configuration. Please add channel %s on RHN website manually.' % label))
++#		raise(Exception('Error system not subscribe to channel %s, skipping.' % label))
++		if not op.rhnusername:
++			op.rhnusername = raw_input('RHN Username: ')
+ 
++		if op.rhnusername and not op.rhnpassword:
++			op.rhnpassword = getpass.getpass('RHN Password for user %s: ' % op.rhnusername)
++
++		if op.rhnusername and op.rhnpassword:
++		   	try:
++				server = rpcServer.getServer()
++				channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), op.rhnusername, op.rhnpassword)
++			except rpclib.Fault, f:
++				raise(Exception('Error subscribing to channel %s, skipping.%s' % (label, f.faultString)))
++			systemid = rhnlogin(url, path, force=True)
++			if not systemid:
++				return
++			info(4, '\nAFTER SUBSC: logininfo: %s\n' % loginInfo)
++			channel = rhngetchannel(loginInfo.get('X-RHN-Auth-Channels'), label)
++			if not channel:
++				raise(Exception('Failed to subscribe RHN id to channel %s, skipping.' % label))
++		else:
++			raise(Exception('No RHN username or password supplied. Please add channel %s on RHN website manually. Skipping.' % label))
++
+ 	### Download packagelist for this channel
+ 	try:
+ 		repos = repoDirector.initRepoDirector()
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-10-09 18:13:40 UTC (rev 4804)
++++ trunk/tools/yam/yam	2006-10-09 18:15:24 UTC (rev 4805)
+@@ -164,8 +164,6 @@
+ 		self.mailto = self.getoption('main', 'mailto', None)
+ 		self.smtpserver = self.getoption('main', 'smtp-server', 'localhost')
+ 
+-#		self.rhnlogin = self.getoption('main', 'rhnlogin', None)
+-
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+ 		self.metadata = self.getoption('main', 'metadata', 'repomd repoview')
+ 
+@@ -208,6 +206,7 @@
+ 		self.lftpmirroroptions = self.getoption('main', 'lftp-mirror-options', '-c -P')
+ 		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
++		self.rhnlogin = self.getoption('main', 'rhnlogin', None)
+ 		self.rhngetoptions = self.getoption('main', 'rhnget-options', '')
+ 		self.rhngetcleanup = self.getoption('main', 'rhnget-cleanup', 'yes') not in disable
+ 		self.rhngetdownloadall = self.getoption('main', 'rhnget-download-all', 'no') not in disable
+@@ -1169,11 +1168,18 @@
+ 
+ 	systemidpath = os.path.join(cf.srcdir, dist.nick, 'systemid')
+ 	if os.path.isfile(systemidpath):
+-		opts = opts + ' --systemid=%s' % systemidpath
++		opts = opts + ' --systemid=&quot;%s&quot;' % systemidpath
+ 
+ 	if dist.rhnrelease:
+-		opts = opts + ' --release=%s' % dist.rhnrelease
++		opts = opts + ' --release=&quot;%s&quot;' % dist.rhnrelease
+ 
++	if cf.rhnlogin:
++		rhnlogin = cf.rhnlogin.split(':')
++		if len(rhnlogin) &gt; 0:
++			opts = opts + ' --username=&quot;%s&quot;' % rhnlogin[0]
++		if len(rhnlogin) &gt; 1:
++			opts = opts + ' --password=&quot;%s&quot;' % rhnlogin[1]
++
+ ##	opts = opts + ' -I \&quot;*.rpm\&quot;'
+ #	opts = opts + ' -G \&quot;headers\&quot; -G \&quot;repodata\&quot;'
+ #	if cf.mirrordirexclsrpm:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003604.html">[svn] r4804 - in trunk/rpms: . aria2 biew bmon coretrace dkftpbench	gnome-schedule laptop-mode-tools libcli libcmt netmapr	netperf normalize obexftp perl-PatchReader python-ctypes	python-paramiko python-tdb python-utmp rpmstrap supertux
+</A></li>
+	<LI>Next message: <A HREF="003606.html">[svn] r4806 - trunk/rpms/gq
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3605">[ date ]</a>
+              <a href="thread.html#3605">[ thread ]</a>
+              <a href="subject.html#3605">[ subject ]</a>
+              <a href="author.html#3605">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

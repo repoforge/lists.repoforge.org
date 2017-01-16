@@ -1,0 +1,948 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8044 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8044%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911270319.nAR3J8B8023828%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006838.html">
+   <LINK REL="Next"  HREF="006840.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8044 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8044%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911270319.nAR3J8B8023828%40surya.karan.org%3E"
+       TITLE="[svn] r8044 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Nov 27 04:19:08 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006838.html">[svn] r8043 - trunk/rpms/re-alpine
+</A></li>
+        <LI>Next message: <A HREF="006840.html">[svn] r8045 - trunk/rpms/awstats
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6839">[ date ]</a>
+              <a href="thread.html#6839">[ thread ]</a>
+              <a href="subject.html#6839">[ subject ]</a>
+              <a href="author.html#6839">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-11-27 03:19:07 +0000 (Fri, 27 Nov 2009)
+New Revision: 8044
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_battery.py
+   trunk/tools/dstat/plugins/dstat_mysql5_conn.py
+   trunk/tools/dstat/plugins/dstat_thermal.py
+   trunk/tools/dstat/plugins/dstat_top_bio.py
+   trunk/tools/dstat/plugins/dstat_top_cpu.py
+   trunk/tools/dstat/plugins/dstat_top_cputime.py
+   trunk/tools/dstat/plugins/dstat_top_cputime_avg.py
+   trunk/tools/dstat/plugins/dstat_top_io.py
+   trunk/tools/dstat/plugins/dstat_top_latency.py
+   trunk/tools/dstat/plugins/dstat_top_latency_avg.py
+   trunk/tools/dstat/plugins/dstat_top_mem.py
+   trunk/tools/dstat/plugins/dstat_top_oom.py
+   trunk/tools/dstat/plugins/dstat_vmk_nic.py
+   trunk/tools/dstat/plugins/dstat_wifi.py
+Log:
+- Fix external plugins on python 2.2 and older (eg. RHEL3)
+- Implement linecache for top-plugins (caching for statistics)
+
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/ChangeLog	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -1,6 +1,8 @@
+ * 0.7.0svn - ... - release 26/11/2009
+-- Fix top-plugins on python 2.2 and older
++- Fix external plugins on python 2.2 and older (eg. RHEL3)
+ - Documentation improvements
++- Implement linecache for top-plugins (caching for statistics)
++- Added external dstat_qmail plugin to show the length of qmail queues (Tom Van Looy)
+ 
+ * 0.7.0 - Tokyo - release 25/11/2009
+ - Fixed dstat_disk plugin for total calculation on 2.6.25+ kernels (Noel J. Bergman)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/dstat	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -16,24 +16,16 @@
+ 
+ from __future__ import generators
+ 
++try:
++    import sys, os, time, sched, re
++    import types, resource, getpass, glob, linecache
++except KeyboardInterrupt:
++    pass
++
+ VERSION = '0.7.0svn'
+ 
+ theme = { 'default': '' }
+ 
+-def addpath(path):
+-    if os.path.isdir(path) and path not in sys.path:
+-        sys.path.append(path)
+-
+-try:
+-    import sys, os, time, sched, re
+-    import types, resource, getpass, glob
+-    addpath(os.path.expanduser('~/.dstat/'))                                # home + /.dstat/
+-    addpath(os.path.abspath(os.path.dirname(sys.argv[0])) + '/plugins/')    # binary path + /plugins/
+-    addpath('/usr/share/dstat/')
+-    addpath('/usr/local/share/dstat/')
+-except KeyboardInterrupt, e:
+-    pass
+-
+ if sys.version_info &lt; (2, 2):
+     sys.exit('error: Python 2.2 or later required')
+ 
+@@ -46,7 +38,7 @@
+ 
+ ### Workaround for python &lt; 2.3
+ #if 'enumerate' not in __builtins__.__dict__.keys():
+-if sys.version_info &lt; (2, 3) and sys.version_info &gt;= (2, 2):
++if sys.version_info &gt;= (2, 2) and sys.version_info &lt; (2, 3):
+     def enumerate(sequence):
+         index = 0
+         for item in sequence:
+@@ -70,6 +62,13 @@
+             ret = ret + i
+         return ret
+ 
++pluginpath = [
++    os.path.expanduser('~/.dstat/'),                                # home + /.dstat/
++    os.path.abspath(os.path.dirname(sys.argv[0])) + '/plugins/',    # binary path + /plugins/
++    '/usr/share/dstat/',
++    '/usr/local/share/dstat/',
++]
++
+ class Options:
+     def __init__(self, args):
+         self.args = args
+@@ -372,7 +371,15 @@
+         for fd in self.fd:
+             fd.seek(0)
+             for line in fd.readlines():
+-                yield line
++               yield line
++        ### Implemented linecache (for top-plugins) but slows down normal plugins
++#        for fd in self.fd:
++#            i = 1
++#            while True:
++#                line = linecache.getline(fd.name, i);
++#                if not line: break
++#                yield line
++#                i += 1
+ 
+     def splitlines(self, delim=None, replace=None):
+         &quot;Return split lines from any file descriptor&quot;
+@@ -385,6 +392,15 @@
+                     yield line.replace(replace, ' ').split()
+                 else:
+                     yield line.split(delim)
++#        ### Implemented linecache (for top-plugins) but slows down normal plugins
++#        for fd in self.fd:
++#                if replace and delim:
++#                    yield line.replace(replace, delim).split(delim)
++#                elif replace:
++#                    yield line.replace(replace, ' ').split()
++#                else:
++#                    yield line.split(delim)
++#                i += 1
+ 
+     def statwidth(self):
+         &quot;Return complete stat width&quot;
+@@ -522,11 +538,11 @@
+ class dstat_aio(dstat):
+     def __init__(self):
+         self.name = 'async'
++        self.nick = ('#aio',)
++        self.vars = ('aio',)
+         self.type = 'd'
+         self.width = 5;
+         self.open('/proc/sys/fs/aio-nr')
+-        self.nick = ('#aio',)
+-        self.vars = ('aio',)
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -535,11 +551,11 @@
+ 
+ class dstat_cpu(dstat):
+     def __init__(self):
++        self.nick = ( 'usr', 'sys', 'idl', 'wai', 'hiq', 'siq' )
+         self.type = 'p'
+         self.width = 3
+         self.scale = 34
+         self.open('/proc/stat')
+-        self.nick = ( 'usr', 'sys', 'idl', 'wai', 'hiq', 'siq' )
+         self.cols = 6
+ 
+     def discover(self, *objlist):
+@@ -596,11 +612,11 @@
+ 
+ class dstat_cpu24(dstat):
+     def __init__(self):
++        self.nick = ( 'usr', 'sys', 'idl')
+         self.type = 'p'
+         self.width = 3
+         self.scale = 34
+         self.open('/proc/stat')
+-        self.nick = ( 'usr', 'sys', 'idl')
+         self.cols = 3
+ 
+     def discover(self, *objlist):
+@@ -652,10 +668,10 @@
+ 
+ class dstat_disk(dstat):
+     def __init__(self):
++        self.nick = ('read', 'writ')
+         self.type = 'd'
+         self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)$')
+         self.open('/proc/diskstats')
+-        self.nick = ('read', 'writ')
+         self.cols = 2
+ 
+     def discover(self, *objlist):
+@@ -719,10 +735,10 @@
+ 
+ class dstat_disk24(dstat):
+     def __init__(self):
++        self.nick = ('read', 'writ')
+         self.type = 'd'
+         self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)')
+         self.open('/proc/partitions')
+-        self.nick = ('read', 'writ')
+         if self.fd and not self.discover:
+             raise Exception, 'Kernel is not compiled with CONFIG_BLK_STATS'
+         self.cols = 2
+@@ -784,11 +800,11 @@
+ ### FIXME: Needs rework, does anyone care ?
+ class dstat_disk24old(dstat):
+     def __init__(self):
++        self.nick = ('read', 'writ')
+         self.type = 'd'
+         self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)')
++        self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
+         self.open('/proc/stat')
+-        self.nick = ('read', 'writ')
+-        self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
+         self.cols = 2
+ 
+     def discover(self, *objlist):
+@@ -864,12 +880,11 @@
+ class dstat_epoch(dstat):
+     def __init__(self):
+         self.name = 'epoch'
++        self.vars = ('epoch',)
+         self.width = 10
+-        self.scale = 0
+         if op.debug:
+             self.width = 13
+         self.scale = 0
+-        self.vars = ('epoch',)
+ 
+     ### We are now using the starttime instead of the execution time of this plugin
+     def extract(self):
+@@ -879,10 +894,10 @@
+ class dstat_fs(dstat):
+     def __init__(self):
+         self.name = 'filesystem'
++        self.vars = ('files', 'inodes')
+         self.type = 'd'
+         self.width = 6
+         self.scale = 1000
+-        self.vars = ('files', 'inodes')
+ 
+     def extract(self):
+         for line in dopen('/proc/sys/fs/file-nr'):
+@@ -1032,12 +1047,12 @@
+ 
+ class dstat_io(dstat):
+     def __init__(self):
++        self.nick = ('read', 'writ')
+         self.type = 'f'
+         self.width = 5
+         self.scale = 1000
+         self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)')
+         self.open('/proc/diskstats')
+-        self.nick = ('read', 'writ')
+         self.cols = 3
+ 
+     def discover(self, *objlist):
+@@ -1102,10 +1117,10 @@
+ class dstat_ipc(dstat):
+     def __init__(self):
+         self.name = 'sysv ipc'
++        self.vars = ('msg', 'sem', 'shm')
+         self.type = 'd'
+         self.width = 3
+         self.scale = 10
+-        self.vars = ('msg', 'sem', 'shm')
+ 
+     def extract(self):
+         for name in self.vars:
+@@ -1114,12 +1129,12 @@
+ class dstat_load(dstat):
+     def __init__(self):
+         self.name = 'load avg'
++        self.nick = ('1m', '5m', '15m')
++        self.vars = ('load1', 'load5', 'load15')
+         self.type = 'f'
+         self.width = 4
+         self.scale = 0.5
+         self.open('/proc/loadavg')
+-        self.nick = ('1m', '5m', '15m')
+-        self.vars = ('load1', 'load5', 'load15')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1131,12 +1146,12 @@
+ class dstat_lock(dstat):
+     def __init__(self):
+         self.name = 'file locks'
++        self.nick = ('pos', 'lck', 'rea', 'wri')
++        self.vars = ('posix', 'flock', 'read', 'write')
+         self.type = 'f'
+         self.width = 3
+         self.scale = 10
+         self.open('/proc/locks')
+-        self.nick = ('pos', 'lck', 'rea', 'wri')
+-        self.vars = ('posix', 'flock', 'read', 'write')
+ 
+     def extract(self):
+         for name in self.vars: self.val[name] = 0
+@@ -1154,9 +1169,9 @@
+ class dstat_mem(dstat):
+     def __init__(self):
+         self.name = 'memory usage'
+-        self.open('/proc/meminfo')
+         self.nick = ('used', 'buff', 'cach', 'free')
+         self.vars = ('MemUsed', 'Buffers', 'Cached', 'MemFree')
++        self.open('/proc/meminfo')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1168,10 +1183,10 @@
+ 
+ class dstat_net(dstat):
+     def __init__(self):
+-        self.open('/proc/net/dev')
++        self.nick = ('recv', 'send')
+         self.type = 'd'
+-        self.nick = ('recv', 'send')
+         self.totalfilter = re.compile('^(lo|bond[0-9]+|face|.+\.[0-9]+)$')
++        self.open('/proc/net/dev')
+         self.cols = 2
+ 
+     def discover(self, *objlist):
+@@ -1228,10 +1243,10 @@
+ class dstat_page(dstat):
+     def __init__(self):
+         self.name = 'paging'
++        self.nick = ('in', 'out')
++        self.vars = ('pswpin', 'pswpout')
+         self.type = 'd'
+         self.open('/proc/vmstat')
+-        self.nick = ('in', 'out')
+-        self.vars = ('pswpin', 'pswpout')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1247,10 +1262,10 @@
+ class dstat_page24(dstat):
+     def __init__(self):
+         self.name = 'paging'
++        self.nick = ('in', 'out')
++        self.vars = ('pswpin', 'pswpout')
+         self.type = 'd'
+         self.open('/proc/stat')
+-        self.nick = ('in', 'out')
+-        self.vars = ('pswpin', 'pswpout')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1268,12 +1283,12 @@
+ class dstat_proc(dstat):
+     def __init__(self):
+         self.name = 'procs'
++        self.nick = ('run', 'blk', 'new')
++        self.vars = ('procs_running', 'procs_blocked', 'processes')
+         self.type = 'f'
+         self.width = 3
+         self.scale = 10
+         self.open('/proc/stat')
+-        self.nick = ('run', 'blk', 'new')
+-        self.vars = ('procs_running', 'procs_blocked', 'processes')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1297,17 +1312,17 @@
+ class dstat_raw(dstat):
+     def __init__(self):
+         self.name = 'raw'
++        self.nick = ('raw',)
++        self.vars = ('sockets',)
+         self.type = 'd'
+         self.width = 3
+         self.scale = 100
+         self.open('/proc/net/raw')
+-        self.nick = ('raw',)
+-        self.vars = ('sockets',)
+ 
+     def extract(self):
+         lines = -1
+         for line in self.readlines():
+-            lines = lines + 1
++            lines += 1
+         self.val['sockets'] = lines
+         ### Cannot use len() on generator
+ #        self.val['sockets'] = len(self.readlines()) - 1
+@@ -1331,9 +1346,9 @@
+ class dstat_swap(dstat):
+     def __init__(self):
+         self.name = 'swap'
++        self.nick = ('used', 'free')
+         self.type = 'd'
+         self.open('/proc/swaps')
+-        self.nick = ('used', 'free')
+ 
+     def discover(self, *objlist):
+         ret = []
+@@ -1382,10 +1397,10 @@
+ class dstat_swapold(dstat):
+     def __init__(self):
+         self.name = 'swap'
++        self.nick = ('used', 'free')
++        self.vars = ('SwapUsed', 'SwapFree')
+         self.type = 'd'
+         self.open('/proc/meminfo')
+-        self.nick = ('used', 'free')
+-        self.vars = ('SwapUsed', 'SwapFree')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1398,12 +1413,12 @@
+ class dstat_sys(dstat):
+     def __init__(self):
+         self.name = 'system'
++        self.nick = ('int', 'csw')
++        self.vars = ('intr', 'ctxt')
+         self.type = 'd'
+         self.width = 5
+         self.scale = 1000
+         self.open('/proc/stat')
+-        self.nick = ('int', 'csw')
+-        self.vars = ('intr', 'ctxt')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1419,12 +1434,12 @@
+ class dstat_tcp(dstat):
+     def __init__(self):
+         self.name = 'tcp sockets'
++        self.nick = ('lis', 'act', 'syn', 'tim', 'clo')
++        self.vars = ('listen', 'established', 'syn', 'wait', 'close')
+         self.type = 'd'
+         self.width = 3
+         self.scale = 100
+         self.open('/proc/net/tcp', '/proc/net/tcp6')
+-        self.nick = ('lis', 'act', 'syn', 'tim', 'clo')
+-        self.vars = ('listen', 'established', 'syn', 'wait', 'close')
+ 
+     def extract(self):
+         for name in self.vars: self.val[name] = 0
+@@ -1463,12 +1478,12 @@
+ class dstat_udp(dstat):
+     def __init__(self):
+         self.name = 'udp'
++        self.nick = ('lis', 'act')
++        self.vars = ('listen', 'established')
+         self.type = 'd'
+         self.width = 3
+         self.scale = 100
+         self.open('/proc/net/udp', '/proc/net/udp6')
+-        self.nick = ('lis', 'act')
+-        self.vars = ('listen', 'established')
+ 
+     def extract(self):
+         for name in self.vars: self.val[name] = 0
+@@ -1479,12 +1494,12 @@
+ class dstat_unix(dstat):
+     def __init__(self):
+         self.name = 'unix sockets'
++        self.nick = ('dgm', 'str', 'lis', 'act')
++        self.vars = ('datagram', 'stream', 'listen', 'established')
+         self.type = 'd'
+         self.width = 3
+         self.scale = 100
+         self.open('/proc/net/unix')
+-        self.nick = ('dgm', 'str', 'lis', 'act')
+-        self.vars = ('datagram', 'stream', 'listen', 'established')
+ 
+     def extract(self):
+         for name in self.vars: self.val[name] = 0
+@@ -1501,12 +1516,12 @@
+ class dstat_vm(dstat):
+     def __init__(self):
+         self.name = 'virtual memory'
++        self.nick = ('majpf', 'minpf', 'alloc', 'free')
++        self.vars = ('pgmajfault', 'pgfault', 'pgalloc_normal', 'pgfree')
+         self.type = 'd'
+         self.width = 5
+         self.scale = 1000
+         self.open('/proc/vmstat')
+-        self.nick = ('majpf', 'minpf', 'alloc', 'free')
+-        self.vars = ('pgmajfault', 'pgfault', 'pgalloc_normal', 'pgfree')
+ 
+     def extract(self):
+         for l in self.splitlines():
+@@ -1717,6 +1732,24 @@
+         raise Exception, 'Nothing found during matchpipe data collection'
+     return None
+ 
++def linecache_readlines(filename):
++    ### Implemented linecache (for top-plugins)
++    i = 1
++    while True:
++        line = linecache.getline(filename, i);
++        if not line: break
++        yield line
++        i += 1
++
++def linecache_splitlines(filename):
++    ### Implemented linecache (for top-plugins)
++    i = 1
++    while True:
++        line = linecache.getline(filename, i);
++        if not line: break
++        yield line.split()
++        i += 1
++
+ def dchg(var, width, base):
+     &quot;Convert decimal to string given base and length&quot;
+     c = 0
+@@ -1950,7 +1983,8 @@
+ def getnamebypid(pid, name):
+     ret = None
+     try:
+-        cmdline = open('/proc/%s/cmdline' % pid).read().split('\0')
++#        cmdline = open('/proc/%s/cmdline' % pid).read().split('\0')
++        cmdline = linecache.getline('/proc/%s/cmdline' % pid, 1).split('\0')
+         ret = basename(cmdline[0])
+         if ret in ('bash', 'csh', 'ksh', 'perl', 'python', 'ruby', 'sh'):
+             ret = basename(cmdline[1])
+@@ -2072,7 +2106,7 @@
+         if filename.startswith('dstat_'):
+             plugins.append(remod.match(filename).groups()[0])
+     remod = re.compile('.+/dstat_(.+).py$')
+-    for path in sys.path:
++    for path in pluginpath:
+         for filename in glob.glob(path + '/dstat_*.py'):
+             plugins.append(remod.match(filename).groups()[0].replace('_', '-'))
+     plugins.sort()
+@@ -2097,7 +2131,7 @@
+             print mod+',',
+     print mod
+     remod = re.compile('.+/dstat_(.+).py$')
+-    for path in sys.path:
++    for path in pluginpath:
+         plugins = []
+         for filename in glob.glob(path + '/dstat_*.py'):
+             plugins.append(remod.match(filename).groups()[0].replace('_', '-'))
+@@ -2193,10 +2227,9 @@
+     linewidth = 0
+     totlist = []
+     for plugin in op.plugins:
+-        if plugin in ('list', 'help'):
+-            showplugins()
+-            exit(0)
+-        elif plugin == 'cpu':  mods = ( 'cpu', 'cpu24' )
++
++        ### Set up fallback lists
++        if plugin == 'cpu':  mods = ( 'cpu', 'cpu24' )
+         elif plugin == 'disk': mods = ( 'disk', 'disk24', 'disk24old' )
+         elif plugin == 'int':  mods = ( 'int', 'int24' )
+         elif plugin == 'page': mods = ( 'page', 'page24' )
+@@ -2208,7 +2241,8 @@
+             try:
+                 if pluginfile not in globals().keys():
+                     import imp
+-                    filename, pathname, description = imp.find_module(pluginfile)
++                    fp, pathname, description = imp.find_module(pluginfile, pluginpath)
++                    fp.close()
+ 
+                     ### TODO: Would using .pyc help with anything ?
+                     ### Try loading python plugin
+@@ -2216,7 +2250,7 @@
+                         execfile(pathname)
+                         exec 'o = dstat_plugin(); o.filename = &quot;%s&quot;; o.check(); o.prepare(); del(dstat_plugin);' % pluginfile
+ 
+-                    ### Try loading C plugin
++                    ### Try loading C plugin (not functional yet)
+                     elif description[0] == '.so':
+                         exec 'import %s' % pluginfile
+                         exec 'o = %s.new(); o.check(); o.prepare();' % pluginfile
+@@ -2242,22 +2276,17 @@
+ 
+             linewidth = linewidth + o.statwidth() + 1
+             totlist.append(o)
++
++            if op.debug:
++                print 'Module', pluginfile,
++                if hasattr(o, 'file'):
++                    print 'requires', o.file,
++                print
+             break
+ 
+     if not totlist:
+         die(8, 'None of the stats you selected are available.')
+ 
+-    if op.debug:
+-        for o in totlist:
+-            print 'Module',
+-            if hasattr(o, 'filename'):
+-                print o.filename,
+-            else:
+-                print str(o.__class__).split('.')[1],
+-            if hasattr(o, 'file'):
+-                print 'requires', o.file,
+-            print
+-
+     if op.output:
+         outputfile.write(csvheader(totlist))
+ 
+@@ -2274,6 +2303,7 @@
+         scheduler.run()
+         sys.stdout.flush()
+         update = update + interval
++        linecache.clearcache()
+ 
+     if op.update:
+         sys.stdout.write('\n')
+
+Modified: trunk/tools/dstat/plugins/dstat_battery.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_battery.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_battery.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -4,13 +4,16 @@
+     &quot;&quot;&quot;
+     Percentage of remaining battery power as reported by ACPI.
+     &quot;&quot;&quot;
+-
+     def __init__(self):
+         self.name = 'battery'
+         self.type = 'p'
+         self.width = 4
+         self.scale = 34
+ 
++    def check(self):
++        if not os.path.exists('/proc/acpi/battery/'):
++            raise Exception, &quot;No ACPI battery information found.&quot;
++
+     def vars(self):
+         ret = []
+         for battery in os.listdir('/proc/acpi/battery/'):
+
+Modified: trunk/tools/dstat/plugins/dstat_mysql5_conn.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_mysql5_conn.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_mysql5_conn.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -36,7 +36,7 @@
+             thread = c.fetchone()
+             if thread[0] in self.vars:
+                 self.set2[thread[0]] = float(thread[1])
+-                self.set2['Threads'] = float(thread[1] / float(max[1]) 1.0 * 100)
++                self.set2['Threads'] = float(thread[1]) / float(max[1]) * 100.0
+ 
+             for name in self.vars:
+                 self.val[name] = self.set2[name] * 1.0 / elapsed
+
+Modified: trunk/tools/dstat/plugins/dstat_thermal.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_thermal.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_thermal.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -24,6 +24,10 @@
+         else:
+             raise Exception, 'Needs kernel ACPI or IBM-ACPI support'
+ 
++    def check(self):
++        if not os.path.exists('/proc/acpi/ibm/thermal') and not os.path.exists('/proc/acpi/thermal_zone/'):
++            raise Exception, 'Needs kernel ACPI or IBM-ACPI support'
++
+     def extract(self):
+         if os.path.exists('/proc/acpi/ibm/thermal'):
+             for line in dopen('/proc/acpi/ibm/thermal'):
+
+Modified: trunk/tools/dstat/plugins/dstat_top_bio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_bio.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_bio.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -37,11 +37,13 @@
+                     self.pidset1[pid] = {'read_bytes:': 0, 'write_bytes:': 0}
+ 
+                 ### Extract name
+-                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
+ 
+                 ### Extract counters
+-                for line in open('/proc/%s/io' % pid).readlines():
+-                    l = line.split()
++#                for line in open('/proc/%s/io' % pid).readlines():
++#                l = line.split()
++                for l in linecache_splitlines('/proc/%s/io' % pid):
+                     if len(l) != 2: continue
+                     self.pidset2[pid][l[0]] = int(l[1])
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_top_cpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_cpu.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_cpu.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -29,7 +29,8 @@
+                 if pid == self.pid: continue
+ 
+                 ### Using dopen() will cause too many open files
+-                l = open('/proc/%s/stat' % pid).read().split()
++#                l = open('/proc/%s/stat' % pid).read().split()
++                l = linecache.getline('/proc/%s/stat' % pid, 1).split()
+ 
+             except ValueError:
+                 continue
+@@ -42,7 +43,7 @@
+             if not self.pidset1.has_key(pid):
+                 self.pidset1[pid] = 0
+ 
+-            self.pidset2[pid] = int(l[13]) + int(l[14])
++            self.pidset2[pid] = long(l[13]) + long(l[14])
+             usage = (self.pidset2[pid] - self.pidset1[pid]) * 1.0 / elapsed / cpunr
+ 
+             ### Is it a new topper ?
+@@ -52,7 +53,8 @@
+ 
+             self.val['max'] = usage
+             self.val['pid'] = pid
+-            self.val['name'] = getnamebypid(pid, name)
++#            self.val['name'] = getnamebypid(pid, name)
++            self.val['name'] = name
+ 
+         if self.val['max'] != 0.0:
+             self.val['cpu process'] = '%-*s%s' % (self.width-3, self.val['name'][0:self.width-3], cprint(self.val['max'], 'f', 3, 34))
+
+Modified: trunk/tools/dstat/plugins/dstat_top_cputime.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_cputime.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_cputime.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -38,10 +38,12 @@
+                     self.pidset1[pid] = {'run_ticks': 0}
+ 
+                 ### Extract name
+-                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
+ 
+                 ### Extract counters
+-                l = open('/proc/%s/schedstat' % pid).read().split()
++#                l = open('/proc/%s/schedstat' % pid).read().split()
++                l = linecache.getline('/proc/%s/schedstat' % pid, 1).split()
+ 
+             except ValueError:
+                 continue
+
+Modified: trunk/tools/dstat/plugins/dstat_top_cputime_avg.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_cputime_avg.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_cputime_avg.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -36,10 +36,12 @@
+                     self.pidset1[pid] = {'run_ticks': 0, 'ran': 0}
+ 
+                 ### Extract name
+-                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
+ 
+                 ### Extract counters
+-                l = open('/proc/%s/schedstat' % pid).read().split()
++#                l = open('/proc/%s/schedstat' % pid).read().split()
++                l = linecache.getline('/proc/%s/schedstat' % pid, 1).split()
+ 
+             except ValueError:
+                 continue
+
+Modified: trunk/tools/dstat/plugins/dstat_top_io.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_io.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_io.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -35,11 +35,13 @@
+                     self.pidset1[pid] = {'rchar:': 0, 'wchar:': 0}
+ 
+                 ### Extract name
+-                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
+ 
+                 ### Extract counters
+-                for line in open('/proc/%s/io' % pid).readlines():
+-                    l = line.split()
++#                for line in open('/proc/%s/io' % pid).readlines():
++#                    l = line.split()
++                for l in linecache_splitlines('/proc/%s/io' % pid):
+                     if len(l) != 2: continue
+                     self.pidset2[pid][l[0]] = int(l[1])
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_top_latency.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_latency.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_latency.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -42,10 +42,12 @@
+                     self.pidset1[pid] = {'wait_ticks': 0}
+ 
+                 ### Extract name
+-                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
+ 
+                 ### Extract counters
+-                l = open('/proc/%s/schedstat' % pid).read().split()
++#                l = open('/proc/%s/schedstat' % pid).read().split()
++                l = linecache.getline('/proc/%s/schedstat' % pid, 1).split()
+ 
+             except ValueError:
+                 continue
+
+Modified: trunk/tools/dstat/plugins/dstat_top_latency_avg.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_latency_avg.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_latency_avg.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -36,10 +36,12 @@
+                     self.pidset1[pid] = {'wait_ticks': 0, 'ran': 0}
+ 
+                 ### Extract name
+-                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
+ 
+                 ### Extract counters
+-                l = open('/proc/%s/schedstat' % pid).read().split()
++#                l = open('/proc/%s/schedstat' % pid).read().split()
++                l = linecache.getline('/proc/%s/stat' % pid, 1).split()
+ 
+             except ValueError:
+                 continue
+
+Modified: trunk/tools/dstat/plugins/dstat_top_mem.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_mem.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_mem.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -27,7 +27,8 @@
+                 if pid == self.pid: continue
+ 
+                 ### Using dopen() will cause too many open files
+-                l = open('/proc/%s/stat' % pid).read().split()
++#                l = open('/proc/%s/stat' % pid).read().split()
++                l = linecache.getline('/proc/%s/stat' % pid, 1).split()
+ 
+             except ValueError:
+                 continue
+
+Modified: trunk/tools/dstat/plugins/dstat_top_oom.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_top_oom.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_top_oom.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -31,10 +31,12 @@
+                 if pid == self.pid: continue
+ 
+                 ### Extract name
+-                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++#                name = open('/proc/%s/stat' % pid).read().split()[1][1:-1]
++                name = linecache.getline('/proc/%s/stat' % pid, 1).split()[1][1:-1]
+ 
+                 ### Using dopen() will cause too many open files
+-                l = open('/proc/%s/oom_score' % pid).read().split()
++#                l = open('/proc/%s/oom_score' % pid).read().split()
++                l = linecache.getline('/proc/%s/oom_score' % pid, 1).split()
+ 
+             except ValueError:
+                 continue
+
+Modified: trunk/tools/dstat/plugins/dstat_vmk_nic.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vmk_nic.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_vmk_nic.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -55,7 +55,7 @@
+ 
+     def extract(self):
+         self.set2['total'] = [0, 0]
+-        for line in self.readlines():
++        for line in self.fd[0].readlines():
+             l = line.replace(' /','/').split()
+             if len(l) != 12: continue
+             if l[2][:5] == '&lt;Link': continue
+
+Modified: trunk/tools/dstat/plugins/dstat_wifi.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_wifi.py	2009-11-26 12:12:44 UTC (rev 8043)
++++ trunk/tools/dstat/plugins/dstat_wifi.py	2009-11-27 03:19:07 UTC (rev 8044)
+@@ -4,19 +4,18 @@
+     def __init__(self):
+         self.name = 'wifi'
+         self.nick = ('lnk', 's/n')
+-        self.vars = iwlibs.getNICnames()
+         self.type = 'd'
+         self.width = 3
+-        self.scale = 33
++        self.scale = 34
+         self.cols = 2
+ 
+-    def check(self): 
++    def check(self):
+         global iwlibs
+-        try:
+-            from pythonwifi import iwlibs
+-        except:
+-            raise Exception, 'Needs python-wifi module'
++        from pythonwifi import iwlibs
+ 
++    def vars(self):
++        return iwlibs.getNICnames()
++
+     def extract(self):
+         for name in self.vars:
+             wifi = iwlibs.Wireless(name)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006838.html">[svn] r8043 - trunk/rpms/re-alpine
+</A></li>
+	<LI>Next message: <A HREF="006840.html">[svn] r8045 - trunk/rpms/awstats
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6839">[ date ]</a>
+              <a href="thread.html#6839">[ thread ]</a>
+              <a href="subject.html#6839">[ subject ]</a>
+              <a href="author.html#6839">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

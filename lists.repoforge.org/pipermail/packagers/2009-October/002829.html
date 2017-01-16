@@ -1,0 +1,309 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] [PATCH 2/2] Add security fix for CVE-2009-2411 for	subversion 1.3.2
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20%5BPATCH%202/2%5D%20Add%20security%20fix%20for%20CVE-2009-2411%20for%0A%09subversion%201.3.2&In-Reply-To=%3C8379e6984a45d04e91e72215cba3102b38ce8ba7.1254743923.git.tgc%40statsbiblioteket.dk%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002830.html">
+   <LINK REL="Next"  HREF="002831.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] [PATCH 2/2] Add security fix for CVE-2009-2411 for	subversion 1.3.2</H1>
+    <B>Tom G. Christensen</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20%5BPATCH%202/2%5D%20Add%20security%20fix%20for%20CVE-2009-2411%20for%0A%09subversion%201.3.2&In-Reply-To=%3C8379e6984a45d04e91e72215cba3102b38ce8ba7.1254743923.git.tgc%40statsbiblioteket.dk%3E"
+       TITLE="[packagers] [PATCH 2/2] Add security fix for CVE-2009-2411 for	subversion 1.3.2">tgc at statsbiblioteket.dk
+       </A><BR>
+    <I>Mon Oct  5 14:50:20 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002830.html">[packagers] [PATCH 1/2] Add security fix for CVE-2009-2411 for	subversion 1.4.6
+</A></li>
+        <LI>Next message: <A HREF="002831.html">[packagers] [PATCH 0/2] subversion security fix for CVE-2009-2411
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2829">[ date ]</a>
+              <a href="thread.html#2829">[ thread ]</a>
+              <a href="subject.html#2829">[ subject ]</a>
+              <a href="author.html#2829">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Add BR for db4-devel, gettext and neon so the build will succeed in mock.
+---
+ ...ubversion-1.3.2-CVE-2009-2411-from-ubuntu.patch |  190 ++++++++++++++++++++
+ subversion/subversion-1.3.spec                     |   11 +-
+ 2 files changed, 198 insertions(+), 3 deletions(-)
+ create mode 100644 subversion/subversion-1.3.2-CVE-2009-2411-from-ubuntu.patch
+
+diff --git a/subversion/subversion-1.3.2-CVE-2009-2411-from-ubuntu.patch b/subversion/subversion-1.3.2-CVE-2009-2411-from-ubuntu.patch
+new file mode 100644
+index 0000000..7424596
+--- /dev/null
++++ b/subversion/subversion-1.3.2-CVE-2009-2411-from-ubuntu.patch
+@@ -0,0 +1,190 @@
++Patch extracted from here:
++<A HREF="http://bazaar.launchpad.net/~ubuntu-branches/ubuntu/dapper/subversion/dapper-security/annotate/head%3A/debian/patches/fix-binary-diff-security.patch">http://bazaar.launchpad.net/~ubuntu-branches/ubuntu/dapper/subversion/dapper-security/annotate/head%3A/debian/patches/fix-binary-diff-security.patch</A>
++
++diff -Nur -x '*.orig' -x '*~' subversion-1.3.1/subversion/libsvn_delta/svndiff.c subversion-1.3.1.new/subversion/libsvn_delta/svndiff.c
++--- subversion-1.3.1/subversion/libsvn_delta/svndiff.c	2005-09-20 03:01:59.000000000 -0700
+++++ subversion-1.3.1.new/subversion/libsvn_delta/svndiff.c	2009-08-06 16:09:56.000000000 -0700
++@@ -40,10 +40,23 @@
++   apr_pool_t *pool;
++ };
++ 
+++/* This is at least as big as the largest size of an integer that
+++   encode_int can generate; it is sufficient for creating buffers for
+++   it to write into.  This assumes that integers are at most 64 bits,
+++   and so 10 bytes (with 7 bits of information each) are sufficient to
+++   represent them. */
+++#define MAX_ENCODED_INT_LEN 10
+++/* This is at least as big as the largest size for a single instruction. */
+++#define MAX_INSTRUCTION_LEN (2*MAX_ENCODED_INT_LEN+1)
+++/* This is at least as big as the largest possible instructions
+++   section: in theory, the instructions could be SVN_DELTA_WINDOW_SIZE
+++   1-byte copy-from-source instructions (though this is very unlikely). */
+++#define MAX_INSTRUCTION_SECTION_LEN (SVN_DELTA_WINDOW_SIZE*MAX_INSTRUCTION_LEN)
++ 
++ /* Encode VAL into the buffer P using the variable-length svndiff
++    integer format.  Return the incremented value of P after the
++-   encoded bytes have been written.
+++   encoded bytes have been written.  P must point to a buffer of size
+++   at least MAX_ENCODED_INT_LEN.
++ 
++    This encoding uses the high bit of each byte as a continuation bit
++    and the other seven bits as data bits.  High-order data bits are
++@@ -76,6 +89,8 @@
++       n++;
++     }
++ 
+++  assert(n &lt;= MAX_ENCODED_INT_LEN);
+++
++   /* Encode the remaining bytes; n is always the number of bytes
++      coming after the one we're encoding.  */
++   while (--n &gt;= 0)
++@@ -93,7 +108,7 @@
++ append_encoded_int (svn_stringbuf_t *header, svn_filesize_t val,
++                     apr_pool_t *pool)
++ {
++-  char buf[128], *p;
+++  char buf[MAX_ENCODED_INT_LEN], *p;
++ 
++   p = encode_int (buf, val);
++   svn_stringbuf_appendbytes (header, buf, p - buf);
++@@ -107,7 +122,7 @@
++   apr_pool_t *pool = svn_pool_create (eb-&gt;pool);
++   svn_stringbuf_t *instructions = svn_stringbuf_create (&quot;&quot;, pool);
++   svn_stringbuf_t *header = svn_stringbuf_create (&quot;&quot;, pool);
++-  char ibuf[128], *ip;
+++  char ibuf[MAX_INSTRUCTION_LEN], *ip;
++   const svn_txdelta_op_t *op;
++   svn_error_t *err;
++   apr_size_t len;
++@@ -272,6 +287,10 @@
++              const unsigned char *p,
++              const unsigned char *end)
++ {
+++  if (p + MAX_ENCODED_INT_LEN &lt; end)
+++    end = p + MAX_ENCODED_INT_LEN;
+++  if (p + MAX_ENCODED_INT_LEN &lt; end)
+++    end = p + MAX_ENCODED_INT_LEN;
++   /* Decode bytes until we're done.  */
++   *val = 0;
++   while (p &lt; end)
++@@ -342,26 +361,26 @@
++   while (p &lt; end)
++     {
++       p = decode_instruction (&amp;op, p, end);
++-      if (p == NULL || op.length &lt;= 0 || op.length &gt; tview_len - tpos)
++-        {
++-          if (p == NULL)
++-            return svn_error_createf
++-              (SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
++-               _(&quot;Invalid diff stream: insn %d cannot be decoded&quot;), n);
++-          else if (op.length &lt;= 0)
++-            return svn_error_createf
++-              (SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
++-               _(&quot;Invalid diff stream: insn %d has non-positive length&quot;), n);
++-          else
++-            return svn_error_createf
++-              (SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
++-               _(&quot;Invalid diff stream: insn %d overflows the target view&quot;), n);
++-        }
+++
+++      /* Detect any malformed operations from the instruction stream. */
+++      if (p == NULL)
+++        return svn_error_createf
+++          (SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
+++           _(&quot;Invalid diff stream: insn %d cannot be decoded&quot;), n);
+++      else if (op.length == 0)
+++        return svn_error_createf
+++          (SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
+++           _(&quot;Invalid diff stream: insn %d has length zero&quot;), n);
+++      else if (op.length &gt; tview_len - tpos)
+++        return svn_error_createf
+++          (SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
+++           _(&quot;Invalid diff stream: insn %d overflows the target view&quot;), n);
++ 
++       switch (op.action_code)
++         {
++         case svn_txdelta_source:
++-          if (op.length &gt; sview_len - op.offset)
+++          if (op.length &gt; sview_len - op.offset ||
+++              op.offset &gt; sview_len)
++             return svn_error_createf
++               (SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
++                _(&quot;Invalid diff stream: &quot;
++@@ -518,6 +537,14 @@
++       if (p == NULL)
++         return SVN_NO_ERROR;
++ 
+++      if (tview_len &gt; SVN_DELTA_WINDOW_SIZE ||
+++          sview_len &gt; SVN_DELTA_WINDOW_SIZE ||
+++          /* for svndiff1, newlen includes the original length */
+++          newlen &gt; SVN_DELTA_WINDOW_SIZE + MAX_ENCODED_INT_LEN ||
+++          inslen &gt; MAX_INSTRUCTION_SECTION_LEN)
+++        return svn_error_create(SVN_ERR_SVNDIFF_CORRUPT_WINDOW, NULL,
+++                                _(&quot;Svndiff contains a too-large window&quot;));
+++
++       /* Check for integer overflow.  */
++       if (sview_offset &lt; 0 || inslen + newlen &lt; inslen
++           || sview_len + tview_len &lt; sview_len
++@@ -673,6 +700,14 @@
++   SVN_ERR (read_one_size (inslen, stream));
++   SVN_ERR (read_one_size (newlen, stream));
++ 
+++  if (*tview_len &gt; SVN_DELTA_WINDOW_SIZE ||
+++      *sview_len &gt; SVN_DELTA_WINDOW_SIZE ||
+++      /* for svndiff1, newlen includes the original length */
+++      *newlen &gt; SVN_DELTA_WINDOW_SIZE + MAX_ENCODED_INT_LEN ||
+++      *inslen &gt; MAX_INSTRUCTION_SECTION_LEN)
+++    return svn_error_create(SVN_ERR_SVNDIFF_CORRUPT_WINDOW, NULL,
+++                            _(&quot;Svndiff contains a too-large window&quot;));
+++
++   /* Check for integer overflow.  */
++   if (*sview_offset &lt; 0 || *inslen + *newlen &lt; *inslen
++       || *sview_len + *tview_len &lt; *sview_len
++diff -Nur -x '*.orig' -x '*~' subversion-1.3.1/subversion/libsvn_delta/text_delta.c subversion-1.3.1.new/subversion/libsvn_delta/text_delta.c
++--- subversion-1.3.1/subversion/libsvn_delta/text_delta.c	2005-10-10 12:54:15.000000000 -0700
+++++ subversion-1.3.1.new/subversion/libsvn_delta/text_delta.c	2009-08-06 16:09:56.000000000 -0700
++@@ -472,8 +472,8 @@
++ /* Functions for applying deltas.  */
++ 
++ /* Ensure that BUF has enough space for VIEW_LEN bytes.  */
++-static APR_INLINE void
++-size_buffer (char **buf, apr_size_t *buf_size,
+++static APR_INLINE svn_error_t *
+++size_buffer(char **buf, apr_size_t *buf_size,
++              apr_size_t view_len, apr_pool_t *pool)
++ {
++   if (view_len &gt; *buf_size)
++@@ -481,8 +481,13 @@
++       *buf_size *= 2;
++       if (*buf_size &lt; view_len)
++         *buf_size = view_len;
++-      *buf = apr_palloc (pool, *buf_size);
+++      if (APR_ALIGN_DEFAULT(*buf_size) &lt; *buf_size)
+++        return svn_error_create(SVN_ERR_SVNDIFF_INVALID_OPS, NULL,
+++                                &quot;Diff stream resulted in invalid buffer size.&quot;);
+++      *buf = apr_palloc(pool, *buf_size);
++     }
+++
+++  return SVN_NO_ERROR;
++ }
++ 
++ 
++@@ -570,7 +575,7 @@
++                   &gt;= ab-&gt;sbuf_offset + ab-&gt;sbuf_len)));
++ 
++   /* Make sure there's enough room in the target buffer.  */
++-  size_buffer (&amp;ab-&gt;tbuf, &amp;ab-&gt;tbuf_size, window-&gt;tview_len, ab-&gt;pool);
+++  SVN_ERR(size_buffer(&amp;ab-&gt;tbuf, &amp;ab-&gt;tbuf_size, window-&gt;tview_len, ab-&gt;pool));
++ 
++   /* Prepare the source buffer for reading from the input stream.  */
++   if (window-&gt;sview_offset != ab-&gt;sbuf_offset
++@@ -579,7 +584,8 @@
++       char *old_sbuf = ab-&gt;sbuf;
++ 
++       /* Make sure there's enough room.  */
++-      size_buffer (&amp;ab-&gt;sbuf, &amp;ab-&gt;sbuf_size, window-&gt;sview_len, ab-&gt;pool);
+++      SVN_ERR(size_buffer(&amp;ab-&gt;sbuf, &amp;ab-&gt;sbuf_size, window-&gt;sview_len,
+++              ab-&gt;pool));
++ 
++       /* If the existing view overlaps with the new view, copy the
++        * overlap to the beginning of the new buffer.  */
+diff --git a/subversion/subversion-1.3.spec b/subversion/subversion-1.3.spec
+index 1158342..1738fd2 100644
+--- a/subversion/subversion-1.3.spec
++++ b/subversion/subversion-1.3.spec
+@@ -26,7 +26,7 @@ Summary: Modern Version Control System designed to replace CVS
+ Name: subversion
+ Version: 1.3.2
+ ### FC3 comes with release 1.1
+-Release: 0.1
++Release: 0.2
+ License: BSD
+ Group: Development/Tools
+ URL: <A HREF="http://subversion.tigris.org/">http://subversion.tigris.org/</A>
+@@ -41,12 +41,13 @@ Patch2: subversion-0.20.1-deplibs.patch
+ Patch3: subversion-0.31.0-rpath.patch
+ Patch6: subversion-1.3.0-pie.patch
+ Patch7: subversion-1.1.3-java.patch
++Patch10: subversion-1.3.2-CVE-2009-2411-from-ubuntu.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: autoconf, libtool, python, python-devel, texinfo, which
+-BuildRequires: expat-devel, docbook-style-xsl
++BuildRequires: db4-devel &gt;= 4.1.25, expat-devel, docbook-style-xsl, gettext
+ BuildRequires: apr-devel &gt;= 0.9.3-2, apr-util-devel &gt;= 0.9.3-2, openssl-devel
+-BuildRequires: neon-devel &gt;= 0.24.7-1
++BuildRequires: neon &gt;= 0.24.7-1, neon-devel &gt;= 0.24.7-1
+ #%{!?_without_swig:BuildRequires: swig &gt;= 1.3.21-5}
+ #%{!?_without_swig:BuildRequires: swig}
+ 
+@@ -103,6 +104,7 @@ This package includes the Perl bindings to the Subversion libraries.
+ %patch2 -p1 -b .deplibs
+ %patch3 -p1 -b .rpath
+ %{!?_without_pie:%patch6 -p1 -b .pie}
++%patch10 -p1 -b .cve2411
+ 
+ %{__rm} -rf neon apr apr-util
+ 
+@@ -256,6 +258,9 @@ find tools/ -type f -exec %{__chmod} -x {} \;
+ %endif
+ 
+ %changelog
++* Mon Oct  05 2009 Tom G. Christensen &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">swpkg at statsbiblioteket.dk</A>&gt; - 1.3.2-0.2
++- add security fix for CVE-2009-2411
++
+ * Tue Aug 01 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt; - 1.3.2-0.1
+ - Updated to release 1.3.2
+ 
+-- 
+1.6.4.4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002830.html">[packagers] [PATCH 1/2] Add security fix for CVE-2009-2411 for	subversion 1.4.6
+</A></li>
+	<LI>Next message: <A HREF="002831.html">[packagers] [PATCH 0/2] subversion security fix for CVE-2009-2411
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2829">[ date ]</a>
+              <a href="thread.html#2829">[ thread ]</a>
+              <a href="subject.html#2829">[ subject ]</a>
+              <a href="author.html#2829">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

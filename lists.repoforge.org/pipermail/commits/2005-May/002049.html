@@ -1,0 +1,413 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3247 - in trunk/tools/pydar2: . pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3247%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar&In-Reply-To=%3C20050528103001.7EC701D02A0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002048.html">
+   <LINK REL="Next"  HREF="002050.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3247 - in trunk/tools/pydar2: . pydar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3247%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar&In-Reply-To=%3C20050528103001.7EC701D02A0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3247 - in trunk/tools/pydar2: . pydar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat May 28 12:30:01 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002048.html">[svn] r3246 - trunk/rpms/sylpheed-claws
+</A></li>
+        <LI>Next message: <A HREF="002050.html">[svn] r3248 - in trunk/tools/pydar2: dries/pydar2 pydar scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2049">[ date ]</a>
+              <a href="thread.html#2049">[ thread ]</a>
+              <a href="subject.html#2049">[ subject ]</a>
+              <a href="author.html#2049">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-05-28 12:30:00 +0200 (Sat, 28 May 2005)
+New Revision: 3247
+
+Added:
+   trunk/tools/pydar2/pydar/acceptcommandscript.py
+   trunk/tools/pydar2/pydar/filepathscript.py
+Modified:
+   trunk/tools/pydar2/pydar-buildserver-slave.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/pydar/yumbasedbuildroot.py
+Log:
+update
+
+Added: trunk/tools/pydar2/pydar/acceptcommandscript.py
+===================================================================
+--- trunk/tools/pydar2/pydar/acceptcommandscript.py	2005-05-26 22:09:26 UTC (rev 3246)
++++ trunk/tools/pydar2/pydar/acceptcommandscript.py	2005-05-28 10:30:00 UTC (rev 3247)
+@@ -0,0 +1,26 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; A wrapper around a user defined function/script which decides if a certain spec file is accepted for a certain object (for example a target) or not &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import sys
++from log4py import Logger
++from callablescript import CallableScript
++
++class AcceptCommandScript(CallableScript):
++    def acceptCommand(self,aCommand):
++        return self._getMethod().__call__(aCommand)
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-05-26 22:09:26 UTC (rev 3246)
++++ trunk/tools/pydar2/pydar/config.py	2005-05-28 10:30:00 UTC (rev 3247)
+@@ -29,6 +29,7 @@
+ from targetlist import TargetList
+ from target import Target
+ from preparespecfilescript import PrepareSpecFileScript
++from acceptcommandscript import AcceptCommandScript
+ from updatesitescript import UpdateSiteScript
+ from buildrootlist import BuildRootList
+ import yumbasedbuildroot
+@@ -128,6 +129,8 @@
+                 sr.appendPrepareSpecFileScript(PrepareSpecFileScript(myParser.get(name,'preparescript'),myParser.get(name,'preparefunction')))
+             if myParser.has_option(name,'updatesitescript') and myParser.has_option(name,'updatesitefunction'):
+                 sr.setUpdateSiteScript(UpdateSiteScript(myParser.get(name,'updatesitescript'),myParser.get(name,'updatesitefunction')))    
++            if myParser.has_option(name,'acceptcommandscript') and myParser.has_option(name,'acceptcommandfunction'):
++                sr.setAcceptCommandScript(AcceptCommandScript(myParser.get(name,'acceptcommandscript'),myParser.get(name,'acceptcommandfunction')))
+             self.__cat.debug('going to add: ' + name)
+             self.getSpecRepositoryList().add(sr)
+         # should this become options?
+@@ -139,8 +142,16 @@
+         for i in myParser.sections():
+             name=i
+             t = Target(name)
++            if myParser.has_option(name,'srpmsdir'):
++                t.setSrpmsDir(myParser.get(name,'srpmsdir'))
++            if myParser.has_option(name,'getsrpmdatascript') and myParser.has_option(name,'getsrpmdatafunction'):
++                t.setGetSrpmDataScript(FilePathScript(myParser.get(name,'getsrpmdatascript'),myParser.get(name,'getsrpmdatafunction')))
++            if myParser.has_option(name,'movecommandresultsscript') and myParser.has_option(name,'movecommandresultsfunction'):
++                t.setMoveCommandResultsScript(FilePathScript(myParser.get(name,'movecommandresultsscript'),myParser.get(name,'movecommandresultsfunction')))
+             if myParser.has_option(name,'preparescript') and myParser.has_option(name,'preparefunction'):
+                 t.appendPrepareSpecFileScript(PrepareSpecFileScript(myParser.get(name,'preparescript'),myParser.get(name,'preparefunction')))
++            if myParser.has_option(name,'acceptcommandscript') and myParser.has_option(name,'acceptcommandfunction'):
++                t.setAcceptCommandScript(AcceptCommandScript(myParser.get(name,'acceptcommandscript'),myParser.get(name,'acceptcommandfunction')))
+             self.getTargetList().addTarget(t)
+         # setup the accounts
+         myParser = ConfigParser.ConfigParser()
+
+Added: trunk/tools/pydar2/pydar/filepathscript.py
+===================================================================
+--- trunk/tools/pydar2/pydar/filepathscript.py	2005-05-26 22:09:26 UTC (rev 3246)
++++ trunk/tools/pydar2/pydar/filepathscript.py	2005-05-28 10:30:00 UTC (rev 3247)
+@@ -0,0 +1,26 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; A wrapper around a user defined function/script in a seperate .py file which is able to do something with a file or directory &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import sys
++from log4py import Logger
++from callablescript import CallableScript
++
++class FilePathScript(CallableScript):
++    def runScript(self,filePath):
++        return self._getMethod().__call__(filePath)
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-05-26 22:09:26 UTC (rev 3246)
++++ trunk/tools/pydar2/pydar/target.py	2005-05-28 10:30:00 UTC (rev 3247)
+@@ -27,10 +27,29 @@
+         self.__name = name
+         self.__id = -1
+         self.__prepareSpecFileScriptList = PrepareSpecFileScriptList()
++        self.__acceptCommandScript = None
++        self.__srpmsDir = None
++        self.__getSrpmDataScript = None
++        self.__moveCommandResultsScript = None
+         
++    def setSrpmsDir(self, srpmsDir):
++        self.__srpmsDir = srpmsDir
++        
++    def getSrpmsDir(self):
++        return self.__srpmsDir
++    
+     def getName(self):
+         return self.__name
+ 
++    def supportsAutoQueueing(self):
++        retval = False
++        if self.__srpmsDir == None or self.__acceptCommandScript == None or self.__getSrpmDataScript == None or self.__moveCommandResultsScript == None:
++            retval = False
++        else:
++            retval = True
++        self.__cat.debug(&quot;retval: &quot; + str(retval))
++        return retval
++        
+     def getId(self):
+         return self.__id
+         
+@@ -43,4 +62,33 @@
+     def runPrepareSpecFileScripts(self,aCommand,commanddir):
+         self.__prepareSpecFileScriptList.runScripts(aCommand,commanddir)
+ 
++    def setGetSrpmDataScript(self, newScript):
++        self.__getSrpmDataScript = newScript
+         
++    def setAcceptCommandScript(self,newScript):
++        self.__acceptCommandScript = newScript
++        
++    def setMoveCommandResultsScript(self,newScript):
++        self.__moveCommandResultsScript = newScript
++        
++    # get some data from an srpm
++    def getSrpmData(self, srpmPath):
++        if self.__getSrpmDataScript != None:
++            return self.__getSrpmDataScript.runScript(srpmPath)
++        else:
++            return None
++            
++    # check if a certain command is accepted for this target or not
++    def acceptCommand(self, command):
++        if self.__acceptCommandScript != None:
++            return self.__acceptCommandScript.acceptCommand(command)
++        else:
++            return True
++        
++    # move the results of a command (an srpm, rpm(s), buildlog.txt.gz, .. ) to their final place
++    def moveCommandResults(self, filePath):
++        if self.__moveCommandResultsScript != None:
++            return self.__acceptCommandScript.runScript(filePath)
++        else:
++            return True
++    
+
+Modified: trunk/tools/pydar2/pydar/yumbasedbuildroot.py
+===================================================================
+--- trunk/tools/pydar2/pydar/yumbasedbuildroot.py	2005-05-26 22:09:26 UTC (rev 3246)
++++ trunk/tools/pydar2/pydar/yumbasedbuildroot.py	2005-05-28 10:30:00 UTC (rev 3247)
+@@ -178,6 +178,8 @@
+     def __getLogsAndRpmsAndSrpm(self,command,brr):
+         self.__cat.debug(&quot;start&quot;)
+         shutil.copy(os.path.join(self.rootdir, &quot;buildlog.txt&quot;), command.getBuildDir())
++        cmd = &quot;gzip &quot; + command.getBuildDir() + &quot;/buildlog.txt&quot;
++        self.logCommand(cmd,brr)
+         # search in the /usr/src/redhat/RPMS and /usr/src/redhat/SRPMS dirs..
+         rpmsdir = os.path.join(self.rootdir,'usr/src/redhat/RPMS')
+         ld = os.listdir(rpmsdir)
+
+Modified: trunk/tools/pydar2/pydar-buildserver-slave.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-slave.py	2005-05-26 22:09:26 UTC (rev 3246)
++++ trunk/tools/pydar2/pydar-buildserver-slave.py	2005-05-28 10:30:00 UTC (rev 3247)
+@@ -28,8 +28,12 @@
+ from xmlrpclib import Server
+ import time
+ import smtplib
++from gzip import GzipFile
+ from svn import fs, repos
+ from email.MIMEText import MIMEText
++from email.MIMEMultipart import MIMEMultipart
++from email.MIMEBase import MIMEBase
++from email import Encoders
+ from optparse import OptionParser
+ 
+ class Slave:
+@@ -173,114 +177,42 @@
+         output = output + &quot;priority: &quot; + str(command.getPriority()) + &quot;\n&quot;
+         output = output + &quot;to email: &quot; + command.getToEmail() + &quot;\n&quot;
+         output = output + &quot;target id: &quot; + str(command.getTargetId()) + &quot;\n&quot;
++        output = output + rpmspart + &quot;\n&quot;
+         output = output + &quot;\nLog:\n&quot;
+         output = output + brr.getLog()
+         
+-        msg = MIMEText(output)
++        msg = MIMEMultipart()
+         msg['Subject'] = subject
+         msg['From'] = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
+         msg['To'] = command.getToEmail()
+         me = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pydar-dries at vmhosting.org</A>&quot;
+         you = command.getToEmail()
++
++        attachAsGzip = False
++        if attachAsGzip:
++            msgpart = MIMEBase(&quot;application&quot;, &quot;x-zip&quot;)
++            fp = open(command.getBuildDir() + &quot;/buildlog.txt.gz&quot;, &quot;rb&quot;)
++            strarr = fp.read()
++            msgpart.set_payload(strarr)
++            fp.close()
++            msgpart.add_header('Content-Disposition', 'attachment', filename=&quot;buildlog.txt.gz&quot;)
++            Encoders.encode_base64(msgpart)
++        else:
++            fp = GzipFile(command.getBuildDir() + &quot;/buildlog.txt.gz&quot;, &quot;rb&quot;)
++            strarr = fp.read()
++            fp.close()
++            msgpart = MIMEText(strarr)
++        
++        msg.attach(MIMEText(output))
++        msg.attach(msgpart)
+         # copypaste from example on www.python.org
+         s = smtplib.SMTP(self.__config.getSmtpServer())
+         #s.connect()
++        fp = open(command.getBuildDir() + &quot;/mail&quot;, &quot;wb&quot;)
++        fp.write(msg.as_string())
++        fp.close()
+         s.sendmail(me, [you], msg.as_string())
+         s.close()
+-    
+-    # @deprecated
+-    def informMasterAfterRebuild(self,buildResult, logbuffer, srpmname, rpmsnames, command, dirName):
+-        METHOD_NAME=&quot;informMasterAfterRebuild(..) - &quot;
+-        self.cat.debug(&quot;start&quot;)
+-        if buildResult:
+-            fileName = self.getRpmFileName(srpmname)
+-            self.myserverclient.sendResultFileName(self.__config.getBuildMachineId(), command.commandId,fileName)
+-            for rpm in rpmsnames:
+-                fileName = self.getRpmFileName(rpm)
+-                self.myserverclient.sendResultFileName(self.__config.getBuildMachineId(), command.commandId, fileName)
+-        self.myserverclient.sendBuildResult(self.__config.getBuildMachineId(), command.commandId, buildResult)
+ 
+-    # @deprecated
+-    def doBuildSpecMachBased(self,command):
+-        specFileName=command.specName
+-        #lastChangedSvnRevId = self.getLastChangedSvnRevId(self.dirMapping[specFileName], command.specName)
+-        finalOutputDir = &quot;&quot;
+-        self.cat.debug(&quot;start, specFileName=&quot; + specFileName)
+-        buffer = StringFile()
+-        buffer2 = StringFile()
+-        buildResult = 0
+-        srpm = &quot;&quot;
+-        rpms = ()
+-        try:
+-            self.cat.debug(&quot;dir will be: &quot; + self.dirMapping[specFileName])
+-            mach.config['quiet'] = 1
+-            mach.config['release'] = command.releaseTag
+-            mach.config['lastchangedsvnrevid'] = lastChangedSvnRevId
+-            mach.config['defaultroot'] = command.machRoot
+-            self.cat.debug(&quot;mach config set to quiet&quot;)
+-            os.chdir(self.dirMapping[specFileName])
+-            shutil.copyfile(specFileName,'rpmforge-' + specFileName)
+-            commandLine = 'perl -i -npe ' + &quot;'&quot; + 'if ($ch==1) {chomp; $_ = $_ . &quot; #' + lastChangedSvnRevId + '\n&quot;; $ch=0;} if (/\%changelog/) {$ch=1;}' + &quot;' rpmforge-&quot; + specFileName;
+-            self.cat.debug(&quot;command: &quot; + commandLine)
+-            os.system(commandLine)
+-            sys.stdout = buffer2
+-            sys.stderr = buffer2
+-            mach.config['collect'] = 1
+-            mach.DEBUG = 1
+-            mach.main(mach.config,[&quot;unlock&quot;])
+-            mach.main(mach.config,[&quot;clean&quot;])
+-            mach.main(mach.config,[&quot;setup&quot;, &quot;build&quot;])
+-            sys.stdout = buffer
+-            sys.stderr = buffer
+-            myparams = ()
+-            if command.machRoot == &quot;fedora-1-i386-core&quot;:
+-                myparams = [&quot;build&quot;, 'rpmforge-' + specFileName, '--define', '&quot;fc1', '1&quot;']
+-            else:
+-                if command.machRoot == &quot;fedora-2-i386-core&quot;:
+-                    myparams = [&quot;build&quot;, 'rpmforge-' + specFileName, '--define', '&quot;fc2', '1&quot;']
+-                else:
+-                    if command.machRoot == &quot;fedora-3-i386-core&quot;:
+-                        myparams = [&quot;build&quot;, 'rpmforge-' + specFileName, '--define', '&quot;fc3', '1&quot;']
+-                    else:
+-                        if command.machRoot == &quot;aurora-1.92-sparc-core&quot;:
+-                            myparams = [&quot;build&quot;, 'rpmforge-' + specFileName, '--define', '&quot;fc2', '1&quot;']
+-                        else:
+-                            myparams = [&quot;build&quot;, 'rpmforge-' + specFileName]
+-            print &quot;myparams=&quot;, myparams
+-            (srpm, rpms) = mach.main(mach.config,myparams)
+-            self.cat.debug(&quot;srpm:&quot; + srpm)
+-            self.cat.debug(&quot;rpms:&quot; + str(rpms))
+-            buildResult = 1
+-            os.mkdir(str(command.commandId))
+-            myFileName = self.getRpmFileName(srpm)
+-            # os.rename(myFileName , str(command.commandId) + &quot;/&quot; + myFileName)
+-            for rpmname in rpms:
+-                myFileName = self.getRpmFileName(rpmname)
+-                os.rename(myFileName, str(command.commandId) + &quot;/&quot; + myFileName)
+-            os.system(&quot;mv *.log *.md5sum *.*.spec &quot; + str(command.commandId))                
+-        except:
+-            sys.stdout = sys.__stdout__
+-            sys.stderr = sys.__stderr__
+-            self.cat.debug(&quot;in except part&quot;)
+-            self.cat.print_exc()
+-            buildResult = 0
+-        sys.stdout = sys.__stdout__
+-        sys.stderr = sys.__stderr__
+-        self.cat.debug(&quot;buffer contains: &quot;)
+-        tempbuf = &quot;&quot;
+-        for line in buffer.readlines():
+-            #self.cat.debug(&quot;line: &quot; + line)
+-            tempbuf = tempbuf + line
+-        #  blabla to server
+-        self.informMasterAfterRebuild(buildResult, tempbuf, srpm, rpms, command, self.dirMapping[specFileName])
+-        self.mailOutput(tempbuf,command.toEmail, specFileName, &quot;build: &quot; + str(buildResult), command)
+-        
+-    # @deprecated
+-    def getRpmFileName(self, rpmname):
+-        METHOD_NAME = &quot;getRpmFile(..) - &quot;
+-        fileName = rpmname[string.rfind(rpmname, '/') + 1:]
+-        self.cat.debug(&quot;fileName=&quot; + fileName)
+-        return fileName
+-
+ myInstance = Slave()
+ myInstance.run()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002048.html">[svn] r3246 - trunk/rpms/sylpheed-claws
+</A></li>
+	<LI>Next message: <A HREF="002050.html">[svn] r3248 - in trunk/tools/pydar2: dries/pydar2 pydar scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2049">[ date ]</a>
+              <a href="thread.html#2049">[ thread ]</a>
+              <a href="subject.html#2049">[ subject ]</a>
+              <a href="author.html#2049">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

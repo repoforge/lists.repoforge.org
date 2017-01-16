@@ -1,0 +1,225 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3401 - trunk/rpms/mplayer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3401%20-%20trunk/rpms/mplayer&In-Reply-To=%3C20050719233933.C9C61944A76%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002202.html">
+   <LINK REL="Next"  HREF="002204.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3401 - trunk/rpms/mplayer</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3401%20-%20trunk/rpms/mplayer&In-Reply-To=%3C20050719233933.C9C61944A76%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3401 - trunk/rpms/mplayer">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jul 20 01:39:33 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002202.html">[svn] r3400 - trunk/rpms/mplayer
+</A></li>
+        <LI>Next message: <A HREF="002204.html">[svn] r3402 - in trunk/rpms: . fish lshw mimedefang python-flac trac
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2203">[ date ]</a>
+              <a href="thread.html#2203">[ thread ]</a>
+              <a href="subject.html#2203">[ subject ]</a>
+              <a href="author.html#2203">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-07-20 01:39:32 +0200 (Wed, 20 Jul 2005)
+New Revision: 3401
+
+Added:
+   trunk/rpms/mplayer/MPlayer-1.0pre7-x86_64.patch
+Log:
+Added mplayer patch missing from the last commit.
+
+
+Added: trunk/rpms/mplayer/MPlayer-1.0pre7-x86_64.patch
+===================================================================
+--- trunk/rpms/mplayer/MPlayer-1.0pre7-x86_64.patch	2005-07-19 23:38:16 UTC (rev 3400)
++++ trunk/rpms/mplayer/MPlayer-1.0pre7-x86_64.patch	2005-07-19 23:39:32 UTC (rev 3401)
+@@ -0,0 +1,153 @@
++diff -ur MPlayer-1.0pre7/libavcodec/libpostproc/postprocess_template.c MPlayer-1.0pre8/libavcodec/libpostproc/postprocess_template.c
++--- MPlayer-1.0pre7/libavcodec/libpostproc/postprocess_template.c	2005-07-20 00:25:49.000000000 +0900
+++++ MPlayer-1.0pre8/libavcodec/libpostproc/postprocess_template.c	2005-07-20 00:25:23.000000000 +0900
++@@ -3349,6 +3349,9 @@
++ static void RENAME(postProcess)(uint8_t src[], int srcStride, uint8_t dst[], int dstStride, int width, int height,
++ 	QP_STORE_T QPs[], int QPStride, int isColor, PPContext *c2)
++ {
+++	long srcStrideLong = (long)srcStride;
+++	long dstStrideLong = (long)dstStride;
+++
++ 	PPContext __attribute__((aligned(8))) c= *c2; //copy to stack for faster access
++ 	int x,y;
++ #ifdef COMPILE_TIME_MODE
++@@ -3398,6 +3401,7 @@
++ 	else copyAhead=8;
++ 
++ 	copyAhead-= 8;
+++	long copyAheadLong = (long)copyAhead;
++ 
++ 	if(!isColor)
++ 	{
++@@ -3480,7 +3484,7 @@
++ 			prefetcht0(dstBlock + (((x&gt;&gt;2)&amp;6) + 5)*dstStride + 32);
++ 			prefetcht0(dstBlock + (((x&gt;&gt;2)&amp;6) + 6)*dstStride + 32);
++ */
++-
+++			long xLong = (long)x;
++ 			asm(
++ 				&quot;mov %4, %%&quot;REG_a&quot;		\n\t&quot;
++ 				&quot;shr $2, %%&quot;REG_a&quot;		\n\t&quot;
++@@ -3495,8 +3499,8 @@
++ 				&quot;add %3, %%&quot;REG_d&quot;		\n\t&quot;
++ 				&quot;prefetchnta 32(%%&quot;REG_a&quot;, %0)	\n\t&quot;
++ 				&quot;prefetcht0 32(%%&quot;REG_d&quot;, %2)	\n\t&quot;
++-			:: &quot;r&quot; (srcBlock), &quot;r&quot; ((long)srcStride), &quot;r&quot; (dstBlock), &quot;r&quot; ((long)dstStride),
++-			&quot;m&quot; ((long)x), &quot;m&quot; ((long)copyAhead)
+++			:: &quot;r&quot; (srcBlock), &quot;r&quot; (srcStrideLong), &quot;r&quot; (dstBlock), &quot;r&quot; (dstStrideLong),
+++			&quot;m&quot; (xLong), &quot;m&quot; (copyAheadLong)
++ 			: &quot;%&quot;REG_a, &quot;%&quot;REG_d
++ 			);
++ 
++@@ -3588,6 +3592,8 @@
++ 		// with the L1 Cache of the P4 ... or only a few blocks at a time or soemthing
++ 		for(x=0; x&lt;width; x+=BLOCK_SIZE)
++ 		{
+++			long xLong = (long)x;
+++
++ 			const int stride= dstStride;
++ #ifdef HAVE_MMX
++ 			uint8_t *tmpXchg;
++@@ -3641,8 +3647,8 @@
++ 				&quot;add %3, %%&quot;REG_d&quot;		\n\t&quot;
++ 				&quot;prefetchnta 32(%%&quot;REG_a&quot;, %0)	\n\t&quot;
++ 				&quot;prefetcht0 32(%%&quot;REG_d&quot;, %2)	\n\t&quot;
++-			:: &quot;r&quot; (srcBlock), &quot;r&quot; ((long)srcStride), &quot;r&quot; (dstBlock), &quot;r&quot; ((long)dstStride),
++-			&quot;m&quot; ((long)x), &quot;m&quot; ((long)copyAhead)
+++			:: &quot;r&quot; (srcBlock), &quot;r&quot; (srcStrideLong), &quot;r&quot; (dstBlock), &quot;r&quot; (dstStrideLong),
+++			&quot;m&quot; (xLong), &quot;m&quot; (copyAheadLong)
++ 			: &quot;%&quot;REG_a, &quot;%&quot;REG_d
++ 			);
++ 
++diff -ur MPlayer-1.0pre7/postproc/swscale_template.c MPlayer-1.0pre8/postproc/swscale_template.c
++--- MPlayer-1.0pre7/postproc/swscale_template.c	2005-07-20 00:25:49.000000000 +0900
+++++ MPlayer-1.0pre8/postproc/swscale_template.c	2005-07-20 00:17:36.000000000 +0900
++@@ -759,20 +759,23 @@
++ 				    int16_t *chrFilter, int16_t **chrSrc, int chrFilterSize,
++ 				    uint8_t *dest, uint8_t *uDest, uint8_t *vDest, int dstW, int chrDstW)
++ {
+++	long chrDstWLong = (long)chrDstW;
+++	long dstWLong = (long)dstWLong;
+++	
++ #ifdef HAVE_MMX
++ 	if(uDest != NULL)
++ 	{
++ 		asm volatile(
++ 				YSCALEYUV2YV12X(0, CHR_MMX_FILTER_OFFSET)
++ 				:: &quot;r&quot; (&amp;c-&gt;redDither),
++-				&quot;r&quot; (uDest), &quot;m&quot; ((long)chrDstW)
+++				&quot;r&quot; (uDest), &quot;m&quot; (chrDstWLong)
++ 				: &quot;%&quot;REG_a, &quot;%&quot;REG_d, &quot;%&quot;REG_S
++ 			);
++ 
++ 		asm volatile(
++ 				YSCALEYUV2YV12X(4096, CHR_MMX_FILTER_OFFSET)
++ 				:: &quot;r&quot; (&amp;c-&gt;redDither),
++-				&quot;r&quot; (vDest), &quot;m&quot; ((long)chrDstW)
+++				&quot;r&quot; (vDest), &quot;m&quot; (chrDstWLong)
++ 				: &quot;%&quot;REG_a, &quot;%&quot;REG_d, &quot;%&quot;REG_S
++ 			);
++ 	}
++@@ -780,7 +783,7 @@
++ 	asm volatile(
++ 			YSCALEYUV2YV12X(0, LUM_MMX_FILTER_OFFSET)
++ 			:: &quot;r&quot; (&amp;c-&gt;redDither),
++-			   &quot;r&quot; (dest), &quot;m&quot; ((long)dstW)
+++			   &quot;r&quot; (dest), &quot;m&quot; (dstWLong)
++ 			: &quot;%&quot;REG_a, &quot;%&quot;REG_d, &quot;%&quot;REG_S
++ 		);
++ #else
++@@ -808,20 +811,22 @@
++ static inline void RENAME(yuv2yuv1)(int16_t *lumSrc, int16_t *chrSrc,
++ 				    uint8_t *dest, uint8_t *uDest, uint8_t *vDest, int dstW, int chrDstW)
++ {
+++	long chrDstWLong = (long)chrDstW;
+++	long dstWLong = (long)dstW;
++ #ifdef HAVE_MMX
++ 	if(uDest != NULL)
++ 	{
++ 		asm volatile(
++ 				YSCALEYUV2YV121
++ 				:: &quot;r&quot; (chrSrc + chrDstW), &quot;r&quot; (uDest + chrDstW),
++-				&quot;g&quot; ((long)-chrDstW)
+++				&quot;g&quot; (-chrDstWLong)
++ 				: &quot;%&quot;REG_a
++ 			);
++ 
++ 		asm volatile(
++ 				YSCALEYUV2YV121
++ 				:: &quot;r&quot; (chrSrc + 2048 + chrDstW), &quot;r&quot; (vDest + chrDstW),
++-				&quot;g&quot; ((long)-chrDstW)
+++				&quot;g&quot; (-chrDstWLong)
++ 				: &quot;%&quot;REG_a
++ 			);
++ 	}
++@@ -829,7 +834,7 @@
++ 	asm volatile(
++ 		YSCALEYUV2YV121
++ 		:: &quot;r&quot; (lumSrc + dstW), &quot;r&quot; (dest + dstW),
++-		&quot;g&quot; ((long)-dstW)
+++		&quot;g&quot; (-dstWLong)
++ 		: &quot;%&quot;REG_a
++ 	);
++ #else
++@@ -2520,6 +2525,10 @@
++ #endif
++ 	  int xInc_hi=xInc&gt;&gt;16;
++ 	  int xInc_lo=xInc&amp;0xffff;
+++
+++	long xInc_hi_long = (long)xInc_hi;
+++	long dstWidthLong = (long)dstWidth;
+++
++ 	asm volatile(
++ 		&quot;xor %%&quot;REG_a&quot;, %%&quot;REG_a&quot;	\n\t&quot; // i
++ 		&quot;xor %%&quot;REG_b&quot;, %%&quot;REG_b&quot;		\n\t&quot; // xx
++@@ -2553,7 +2562,7 @@
++ 		&quot;cmp %2, %%&quot;REG_a&quot;		\n\t&quot;
++ 		&quot; jb 1b				\n\t&quot;
++ 
++-		:: &quot;m&quot; (src1), &quot;m&quot; (dst), &quot;m&quot; ((long)dstWidth), &quot;m&quot; ((long)(xInc_hi)), &quot;m&quot; ((xInc_lo)),
+++		:: &quot;m&quot; (src1), &quot;m&quot; (dst), &quot;m&quot; (dstWidthLong), &quot;m&quot; ((xInc_hi_long)), &quot;m&quot; ((xInc_lo)),
++ 		&quot;r&quot; (src2)
++ 		: &quot;%&quot;REG_a, &quot;%&quot;REG_b, &quot;%ecx&quot;, &quot;%&quot;REG_D, &quot;%esi&quot;
++ 		);
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002202.html">[svn] r3400 - trunk/rpms/mplayer
+</A></li>
+	<LI>Next message: <A HREF="002204.html">[svn] r3402 - in trunk/rpms: . fish lshw mimedefang python-flac trac
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2203">[ date ]</a>
+              <a href="thread.html#2203">[ thread ]</a>
+              <a href="subject.html#2203">[ subject ]</a>
+              <a href="author.html#2203">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

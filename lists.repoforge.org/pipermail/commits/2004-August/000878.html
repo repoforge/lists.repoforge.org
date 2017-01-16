@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2072 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2072%20-%20trunk/tools/yam&In-Reply-To=%3C20040823160153.DA6C717F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000877.html">
+   <LINK REL="Next"  HREF="000879.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2072 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2072%20-%20trunk/tools/yam&In-Reply-To=%3C20040823160153.DA6C717F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2072 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Aug 23 18:01:53 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000877.html">[SVN] r2071 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="000879.html">[SVN] r2073 - trunk/rpms/labrea
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#878">[ date ]</a>
+              <a href="thread.html#878">[ thread ]</a>
+              <a href="subject.html#878">[ subject ]</a>
+              <a href="author.html#878">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-23 18:01:52 +0200 (Mon, 23 Aug 2004)
+New Revision: 2072
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+Log:
+Fixed a bug when using ISOs without os-repo.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-23 15:12:28 UTC (rev 2071)
++++ trunk/tools/yam/ChangeLog	2004-08-23 16:01:52 UTC (rev 2072)
+@@ -6,6 +6,7 @@
+ - Run external commands much better and print on errors
+ - Added examples of IP or hostname based restriction and HTTP authentication
+ - Make use of os.path.join() and urlparse()
++- Fixed a bug that skipped metadata generation for os-packages from ISOs (reported by James Norris)
+ 
+ * 0.5
+ - Skipped a 0.4 release to indicate this is an important update.
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-23 15:12:28 UTC (rev 2071)
++++ trunk/tools/yam/yam	2004-08-23 16:01:52 UTC (rev 2072)
+@@ -3,7 +3,7 @@
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse
+ 
+-VERSION = '0.5'
++VERSION = '0.6'
+ 
+ archs = {
+ 	'i386': ['i386', 'i486', 'i586', 'i686', 'athlon'],
+@@ -11,7 +11,7 @@
+ 	'ppc64': ['ppc', 'ppc64'],
+ }
+ 
+-class options:
++class Options:
+ 	def __init__(self, args):
+ 		self.configfile = '/etc/yam.conf'
+ 		self.dist = None
+@@ -65,7 +65,7 @@
+ 		print 'yam %s' % VERSION
+ 		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
+ 		print
+-		print 'platform %s, os %s' % (sys.platform, os.name)
++		print 'platform %s/%s' % (os.name, sys.platform)
+ 		print 'python %s' % sys.version
+ 
+ 	def usage(self):
+@@ -86,7 +86,7 @@
+       --unmount         unmount distribution ISOs
+ '''
+ 
+-class config:
++class Config:
+ 	def __init__(self):
+ 		self.configfile = op.configfile
+ 		self.cfg = ConfigParser.ConfigParser()
+@@ -147,7 +147,7 @@
+ 			else:
+ 				archs = self.getoption(section, 'arch', self.arch).split()
+ 				for arch in archs:
+-					self.dists.append(distclass(self.wwwdir, section, arch))
++					self.dists.append(Dist(self.wwwdir, section, arch))
+ 					self.dists[-1].arch = arch;
+ 					for option in self.cfg.options(section):
+ 						if option in ['iso', 'name', 'release', 'repo', 'tag']:
+@@ -179,7 +179,7 @@
+ 					repos[repo]=url.split()
+ 		return repos
+ 
+-class distclass:
++class Dist:
+ 	def __init__(self, dir, dist, arch):
+ 		self.arch = arch
+ 		self.dist = dist
+@@ -576,10 +576,13 @@
+ 		dist.html()
+ 
+ 		dist.clean()
++		if dist.isos():
++			dist.clean('os')
+ 		for repo in dist.repos.keys():
+ 			dist.clean(repo)
+ 		for repo in cf.repos:
+ 			dist.clean(repo)
++		dist.clean('local')
+ 
+ 		for repo in dist.repos.keys():
+ 			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+@@ -592,6 +595,7 @@
+ 		if dist.isos():
+ 			for disc in discs:
+ 				dist.link(os.path.join(dist.dir, disc), 'os')
++				dist.repos['os'] = None
+ 
+ 		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
+ 		### Maybe add a hardlink utility for cleaning up afterwards
+@@ -599,7 +603,6 @@
+ 
+ 		### Link custom local packages
+ 		srcdir = os.path.join(cf.srcdir, dist.nick, 'local')
+-		dist.clean('local')
+ 		if os.path.exists(srcdir):
+ 			dist.link(srcdir, 'local')
+ 
+@@ -644,8 +647,8 @@
+ 
+ ### Main entrance
+ if __name__ == '__main__':
+-	op=options(sys.argv[1:])
+-	cf=config()
++	op=Options(sys.argv[1:])
++	cf=Config()
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000877.html">[SVN] r2071 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="000879.html">[SVN] r2073 - trunk/rpms/labrea
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#878">[ date ]</a>
+              <a href="thread.html#878">[ thread ]</a>
+              <a href="subject.html#878">[ subject ]</a>
+              <a href="author.html#878">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

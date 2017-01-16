@@ -1,0 +1,384 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6681 - trunk/tools/comment_moderation
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6681%20-%20trunk/tools/comment_moderation&In-Reply-To=%3C200902030435.n134Z8TJ012432%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005479.html">
+   <LINK REL="Next"  HREF="005481.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6681 - trunk/tools/comment_moderation</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6681%20-%20trunk/tools/comment_moderation&In-Reply-To=%3C200902030435.n134Z8TJ012432%40surya.karan.org%3E"
+       TITLE="[svn] r6681 - trunk/tools/comment_moderation">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Feb  3 05:35:08 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005479.html">[svn] r6680 - trunk/tools/comment_moderation
+</A></li>
+        <LI>Next message: <A HREF="005481.html">[svn] r6682 - trunk/tools/disclaimer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5480">[ date ]</a>
+              <a href="thread.html#5480">[ thread ]</a>
+              <a href="subject.html#5480">[ subject ]</a>
+              <a href="author.html#5480">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-02-03 04:35:07 +0000 (Tue, 03 Feb 2009)
+New Revision: 6681
+
+Modified:
+   trunk/tools/comment_moderation/CHANGELOG.txt
+   trunk/tools/comment_moderation/comment_moderation.module
+   trunk/tools/comment_moderation/comment_moderation.tpl.php
+Log:
+Lots of improvements.
+
+Modified: trunk/tools/comment_moderation/CHANGELOG.txt
+===================================================================
+--- trunk/tools/comment_moderation/CHANGELOG.txt	2009-02-02 22:53:52 UTC (rev 6680)
++++ trunk/tools/comment_moderation/CHANGELOG.txt	2009-02-03 04:35:07 UTC (rev 6681)
+@@ -1,2 +1,12 @@
++* Tue Feb 03 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.x-dev
++- Added number of comments left in queue tp block
++- Make block configure work
++- Allow to configure number of comments shown in block (defaults to 5)
++- Added navigation buttons to browse through approval queue
++- Make edit and delete button return to next comment in queue
++- Added 'report to mollom' button (until we have each action included)
++- Added node title in breadcrumbs
++- Show comment info (author, email, homepage)
++
+ * Sun Feb 01 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.x-dev
+ - Initial release.
+
+Modified: trunk/tools/comment_moderation/comment_moderation.module
+===================================================================
+--- trunk/tools/comment_moderation/comment_moderation.module	2009-02-02 22:53:52 UTC (rev 6680)
++++ trunk/tools/comment_moderation/comment_moderation.module	2009-02-03 04:35:07 UTC (rev 6681)
+@@ -18,17 +18,17 @@
+     ),
+     'comment_moderation' =&gt; array(
+       'template' =&gt; 'comment_moderation',
+-      'arguments' =&gt; array('comment' =&gt; NULL, 'node' =&gt; NULL, 'links' =&gt; array()),
++      'arguments' =&gt; array('comment' =&gt; NULL, 'node' =&gt; NULL, 'links' =&gt; array(), 'navlinks' =&gt; array()),
+     ),
+     'comment_moderation_view' =&gt; array(
+-      'arguments' =&gt; array('comment' =&gt; NULL, 'node' =&gt; NULL, 'links' =&gt; array()),
++      'arguments' =&gt; array('comment' =&gt; NULL, 'node' =&gt; NULL, 'links' =&gt; array(), 'navlinks' =&gt; array()),
+     ),
+   );
+ }
+ 
+ // Register the module's configuration page to the menu
+ function comment_moderation_menu() {
+-  $items['admin/content/comment/moderation'] = array(
++/*  $items['admin/content/comment/moderation'] = array(
+     'title' =&gt; 'Moderation queue',
+ //    'page callback' =&gt; 'comment_moderation_overview',
+     'page arguments' =&gt; array('moderation'),
+@@ -36,7 +36,7 @@
+     'type' =&gt; MENU_LOCAL_TASK,
+     'file' =&gt; 'comment_moderation.admin.inc',
+   );
+-//    'description' =&gt; 'Moderate comments in an improve moderation queue interface.',
++*/
+   $items['admin/settings/comment_moderation'] = array(
+     'title' =&gt; t('Comment moderation'),
+     'description' =&gt; t('Configure advanced comment moderation.'),
+@@ -63,19 +63,39 @@
+ function comment_moderation_block($op = 'list', $delta = 0, $edit = array()) {
+   if (user_access('administer comments')) {
+     switch ($op) {
++      case 'configure':
++        $numbers = array('0' =&gt; t('Disabled')) + drupal_map_assoc(array(1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 25));
++        $form['comment_moderation_block_num'] = array(
++          '#type' =&gt; 'select',
++          '#title' =&gt; t(&quot;Number of comments to display&quot;),
++          '#default_value' =&gt; variable_get('comment_moderation_block_num', 5),
++          '#options' =&gt; $numbers,
++          '#description' =&gt; t('How many unpublished comments to display in moderation block.')
++        );
++        return $form;
++
+       case 'list':
+         $blocks[0]['info'] = t('Comment moderation');
+         $blocks[0]['cache'] = BLOCK_NO_CACHE;
+         return $blocks;  
++
++      case 'save':
++        variable_set('comment_moderation_block_num', $edit['comment_moderation_block_num']);
++        break;
++
+       case 'view': default:
+         $block['subject'] = t('Comment moderation');
+         $block['content'] = theme('comment_moderation_block');
+-//        $block['content'] = ('Testing this shit...');
+         return $block;
+     }
+   }
+ }
+ 
++function comment_moderation_count() {
++  $count = db_result(db_query('SELECT count(1) FROM {comments} c INNER JOIN {node} n ON n.nid = c.nid WHERE n.status = 1 AND c.status = %d ORDER BY c.timestamp DESC', COMMENT_NOT_PUBLISHED));
++  return $count;
++}
++
+ function comment_moderation_get_recent($number = 5) {
+   $comments = array();
+   // From among the comments on the nodes selected in the first query,
+@@ -88,60 +108,88 @@
+   return $comments;
+ }
+ 
++function comment_moderation_get_prev($comment) {
++  return db_fetch_object(db_query_range('SELECT c.cid FROM comments c INNER JOIN node n ON n.nid = c.nid WHERE n.status = 1 AND c.status = %d AND c.timestamp &gt; %d ORDER BY c.timestamp ASC', COMMENT_NOT_PUBLISHED, $comment-&gt;timestamp, 0, 1));
++}
++
++function comment_moderation_get_next($comment) {
++  return db_fetch_object(db_query_range('SELECT c.cid FROM comments c INNER JOIN node n ON n.nid = c.nid WHERE n.status = 1 AND c.status = %d AND c.timestamp &lt; %d ORDER BY c.timestamp DESC', COMMENT_NOT_PUBLISHED, $comment-&gt;timestamp, 0, 1));
++}
++
+ function comment_moderate($comment) {
+   $output = '';
+ 
+   if (user_access('administer comments')) {
+     if ($comment) {
++      $links = array();
++      $navlinks = array();
+       $node = node_load($comment-&gt;nid);
++      $prev = comment_moderation_get_prev($comment);
++      $next = comment_moderation_get_next($comment);
+ 
+-      $links = array(
+-	'comment_publish' =&gt; array(
+-	  'title' =&gt; t('publish'),
+-	  'href' =&gt; t(''),
+-	),
+-	'comment_reply' =&gt; array(
+-	  'title' =&gt; t('reply'),
+-	  'href' =&gt; t(&quot;comment/reply/$node-&gt;nid/$comment-&gt;cid&quot;),
+-	),
+-	'comment_edit' =&gt; array(
+-	  'title' =&gt; t('edit'),
+-	  'href' =&gt; t(&quot;comment/edit/$comment-&gt;cid&quot;),
+-	),
+-	'comment_delete' =&gt; array(
+-	  'title' =&gt; t('delete'),
+-	  'href' =&gt; t(&quot;comment/delete/$comment-&gt;cid&quot;),
+-	),
+-        'comment_spam' =&gt; array(
+-          'title' =&gt; t('report as spam'),
+-          'href' =&gt; &quot;mollom/comment/$comment-&gt;cid&quot;
+-        ),
+-        'comment_obscene' =&gt; array(
+-          'title' =&gt; t('report as obscene'),
+-          'href' =&gt; &quot;&quot;
+-        ),
+-        'comment_lowquality' =&gt; array(
+-          'title' =&gt; t('report as low quality'),
+-          'href' =&gt; &quot;&quot;
+-        ),
+-        'comment_offtopic' =&gt; array(
+-          'title' =&gt; t('report as offtopic'),
+-          'href' =&gt; &quot;&quot;
+-        ),
+-        'comment_previous' =&gt; array(
+-          'title' =&gt; t('previous'),
+-          'href' =&gt; &quot;&quot;
+-        ),
+-        'comment_next' =&gt; array(
+-          'title' =&gt; t('next'),
+-          'href' =&gt; &quot;&quot;
+-        ),
++      $links['comment_publish'] = array(
++        'title' =&gt; t('publish'),
++        'href' =&gt; &quot;comment/publish/$comment-&gt;cid&quot;,
++        'query' =&gt; &quot;destination=&quot;. drupal_urlencode(&quot;comment/moderate/$next-&gt;cid&quot;),
+       );
++      $links['comment_reply'] = array(
++        'title' =&gt; t('reply'),
++        'href' =&gt; &quot;comment/publish/$comment-&gt;cid&quot;,
++        'query' =&gt; &quot;destination=&quot;. drupal_urlencode(&quot;comment/reply/$node-&gt;nid/$comment-&gt;cid&quot;),
++      );
++      $links['comment_edit'] = array(
++        'title' =&gt; t('edit'),
++        'href' =&gt; &quot;comment/edit/$comment-&gt;cid&quot;,
++        'query' =&gt; &quot;destination=&quot;. drupal_urlencode(&quot;comment/moderate/$comment-&gt;cid&quot;),
++      );
++      $links['comment_delete'] = array(
++        'title' =&gt; t('delete'),
++        'href' =&gt; &quot;comment/delete/$comment-&gt;cid&quot;,
++        'query' =&gt; &quot;destination=&quot;. drupal_urlencode(&quot;comment/moderate/$next-&gt;cid&quot;),
++      );
++      $links['comment_mollom'] = array(
++        'title' =&gt; t('report to mollom'),
++        'href' =&gt; &quot;mollom/comment/$comment-&gt;cid&quot;,
++        'query' =&gt; &quot;destination=&quot;. drupal_urlencode(&quot;comment/moderate/$next-&gt;cid&quot;),
++      );
++/*      $links['comment_spam'] = array(
++        'title' =&gt; t('as spam'),
++        'href' =&gt; &quot;mollom/comment/$comment-&gt;cid&quot;,
++      );
++      $links['comment_obscene'] = array(
++        'title' =&gt; t('as obscene'),
++        'href' =&gt; &quot;mollom/comment/$comment-&gt;cid&quot;,
++      );
++      $links['comment_lowquality'] = array(
++        'title' =&gt; t('as low quality'),
++        'href' =&gt; &quot;mollom/comment/$comment-&gt;cid&quot;,
++      );
++      $links['comment_offtopic'] = array(
++        'title' =&gt; t('as offtopic'),
++        'href' =&gt; &quot;mollom/comment/$comment-&gt;cid&quot;
++      );
++*/
++      if ($prev) {
++        $navlinks['comment_previous'] = array(
++          'title' =&gt; '&#171;&#171;' . t('previous') . '&#171;',
++          'href' =&gt; &quot;comment/moderate/$prev-&gt;cid&quot;
++        );
++      }
++      if ($next) {
++        $navlinks['comment_next'] = array(
++          'title' =&gt; '&#187;' . t('next') . '&#187;&#187;',
++          'href' =&gt; &quot;comment/moderate/$next-&gt;cid&quot;
++        );
++      }
+ 
+       // Set the breadcrumb trail.
+-      drupal_set_breadcrumb(array(l(t('Home'), NULL), l($node-&gt;title, &quot;node/$node-&gt;nid&quot;)));
++      drupal_set_breadcrumb(array(
++        l(t('Home'), NULL), 
++        l($node-&gt;title, &quot;node/$node-&gt;nid&quot;),
++//        l($comment-&gt;subject, 'node/'. $comment-&gt;nid, array('fragment' =&gt; &quot;comment-$comment-&gt;cid&quot;)),
++      ));
+       $comment-&gt;name = $comment-&gt;uid ? $comment-&gt;registered_name : $comment-&gt;name;
+-      $output .= theme('comment_moderation_view', $comment, $node, $links);
++      $output .= theme('comment_moderation_view', $comment, $node, $links, $navlinks);
+     }
+     else {
+       drupal_set_message(t('The comment you are moderating does not exist.'), 'error');
+@@ -157,14 +205,25 @@
+ }
+ 
+ function theme_comment_moderation_block() {
++  $output = '';
+   $items = array();
+-  foreach (comment_moderation_get_recent() as $comment) {
+-    $items[] = l($comment-&gt;subject, 'comment/moderate/' . $comment-&gt;cid);
++  $count = comment_moderation_count();
++  if ($count &gt; 0) {
++    $number = variable_get('comment_moderation_block_num', 5);
++    foreach (comment_moderation_get_recent($number) as $comment) {
++      $items[] = l($comment-&gt;subject, 'comment/moderate/' . $comment-&gt;cid);
++    }
++    if ($items) {
++      $output .= theme('item_list', $items);
++    }
++    if ($count &gt; 1) {
++      $text = t(&quot;@number more queued&quot;, array('@number' =&gt; $count - $number));
++    } else {
++      $text = t(&quot;@number more queued&quot;, array('@number' =&gt; $count - $number));
++    }
++    $output .= '&lt;div class=&quot;more-link&quot;&gt;'. l($text, 'admin/content/comment/approval') .'&lt;/div&gt;';
+   }
+-  if ($items) {
+-    return theme('item_list', $items);
+-  }
+-  // FIXME: Add link to moderation queue
++  return $output;
+ }
+ 
+ function template_preprocess_comment_moderation(&amp;$variables) {
+@@ -175,6 +234,7 @@
+   $variables['author']    = theme('username', $comment);
+   $variables['content']   = $comment-&gt;comment;
+   $variables['date']      = format_date($comment-&gt;timestamp);
++  $variables['navlinks']     = isset($variables['navlinks']) ? theme('links', $variables['navlinks']) : '';
+   $variables['links']     = isset($variables['links']) ? theme('links', $variables['links']) : '';
+   $variables['new']       = $comment-&gt;new ? t('new') : '';
+   $variables['picture']   = theme_get_setting('toggle_comment_user_picture') ? theme('user_picture', $comment) : '';
+@@ -191,7 +251,7 @@
+   }
+ }
+ 
+-function theme_comment_moderation_view($comment, $node, $links = array()) {
++function theme_comment_moderation_view($comment, $node, $links = array(), $navlinks) {
+   $output = '';
+ 
+   $output .= &quot;&lt;a id=\&quot;comment-$comment-&gt;cid\&quot;&gt;&lt;/a&gt;\n&quot;;
+@@ -201,7 +261,7 @@
+ 
+   comment_invoke_comment($comment, 'moderate');
+ 
+-  $output .= theme('comment_moderation', $comment, $node, $links);
++  $output .= theme('comment_moderation', $comment, $node, $links, $navlinks);
+ 
+   return $output;
+ }
+
+Modified: trunk/tools/comment_moderation/comment_moderation.tpl.php
+===================================================================
+--- trunk/tools/comment_moderation/comment_moderation.tpl.php	2009-02-02 22:53:52 UTC (rev 6680)
++++ trunk/tools/comment_moderation/comment_moderation.tpl.php	2009-02-03 04:35:07 UTC (rev 6681)
+@@ -27,13 +27,20 @@
+  */
+ ?&gt;
+ &lt;div class=&quot;comment &lt;?print $status ?&gt; clear-block&quot;&gt;
++  &lt;?php if ($navlinks) { print $navlinks; } ?&gt;
++  &lt;?php if ($links) { print $links; } ?&gt;
++
+   &lt;?php print $comment-&gt;picture ?&gt;
+ 
+   &lt;h3&gt;&lt;?php print $title ?&gt;&lt;/h3&gt;
+   &lt;b&gt;Name:&lt;/b&gt; &lt;?php print $comment-&gt;name . ' (&lt;a href=&quot;<A HREF="http://tools.whois.net/?fuseaction=ipaddress.results&amp;submit=Search&amp;host=">http://tools.whois.net/?fuseaction=ipaddress.results&amp;submit=Search&amp;host=</A>' . $comment-&gt;hostname . '&quot;&gt;' . $comment-&gt;hostname . '&lt;/a&gt;)' ?&gt;&lt;br&gt;
+ 
++  &lt;?php if ($comment-&gt;mail): ?&gt;
+   &lt;b&gt;Email:&lt;/b&gt; &lt;?php print $email ?&gt;&lt;br&gt;
++  &lt;?php endif; ?&gt;
++  &lt;?php if ($comment-&gt;homepage): ?&gt;
+   &lt;b&gt;Homepage:&lt;/b&gt; &lt;?php print $homepage ?&gt;&lt;br&gt;
++  &lt;?php endif; ?&gt;
+   &lt;b&gt;Date:&lt;/b&gt; &lt;?php print $date ?&gt;&lt;br&gt;
+ 
+   &lt;div class=&quot;content&quot;&gt;
+@@ -45,6 +52,4 @@
+     &lt;?php endif; ?&gt;
+   &lt;/div&gt;
+ 
+-  &lt;?php if ($links) { print $links; } ?&gt;
+-
+ &lt;/div&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005479.html">[svn] r6680 - trunk/tools/comment_moderation
+</A></li>
+	<LI>Next message: <A HREF="005481.html">[svn] r6682 - trunk/tools/disclaimer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5480">[ date ]</a>
+              <a href="thread.html#5480">[ thread ]</a>
+              <a href="subject.html#5480">[ subject ]</a>
+              <a href="author.html#5480">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

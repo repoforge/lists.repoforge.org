@@ -1,0 +1,163 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8647 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8647%20-%20trunk/tools/dstat&In-Reply-To=%3C201002171325.o1HDPulS005622%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007441.html">
+   <LINK REL="Next"  HREF="007443.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8647 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8647%20-%20trunk/tools/dstat&In-Reply-To=%3C201002171325.o1HDPulS005622%40surya.karan.org%3E"
+       TITLE="[svn] r8647 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Feb 17 14:25:56 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007441.html">[svn] r8646 - trunk/rpms/bash-completion-perl
+</A></li>
+        <LI>Next message: <A HREF="007443.html">[svn] r8648 - in trunk/rpms: . libconfuse
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7442">[ date ]</a>
+              <a href="thread.html#7442">[ thread ]</a>
+              <a href="subject.html#7442">[ subject ]</a>
+              <a href="author.html#7442">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2010-02-17 13:25:56 +0000 (Wed, 17 Feb 2010)
+New Revision: 8647
+
+Modified:
+   trunk/tools/dstat/dstat
+Log:
+Small changes to profiling
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2010-02-16 20:49:20 UTC (rev 8646)
++++ trunk/tools/dstat/dstat	2010-02-17 13:25:56 UTC (rev 8647)
+@@ -89,7 +89,7 @@
+         self.header = True
+         self.output = False
+         self.pidfile = False
+-        self.profile = False
++        self.profile = ''
+ 
+         ### List of available plugins
+         allplugins = listplugins()
+@@ -198,7 +198,7 @@
+             elif opt in ['--pidfile']:
+                 self.pidfile = arg
+             elif opt in ['--profile']:
+-                self.profile = True
++                self.profile = 'dstat_profile.log'
+             elif opt in ['-h', '--help']:
+                 self.usage()
+                 self.help()
+@@ -2155,23 +2155,6 @@
+ #    sp.sched_priority = nb
+ #    sched_setscheduler (0,SCHED_FIFO , &amp;sp);
+ 
+-def exit(ret):
+-    sys.stdout.write(ansi['reset'])
+-
+-    if op.profile:
+-        rows, cols = gettermsize()
+-        import pstats
+-        p = pstats.Stats('dstat_profile.log')
+-#        p.sort_stats('name')
+-#        p.print_stats()
+-        p.sort_stats('cumulative').print_stats(rows - 12)
+-#        p.sort_stats('time').print_stats(rows - 12)
+-#        p.sort_stats('file').print_stats('__init__')
+-#        p.sort_stats('time', 'cum').print_stats(.5, 'init')
+-#        p.print_callees()
+-
+-    sys.exit(ret)
+-
+ def listplugins():
+     plugins = []
+     remod = re.compile('dstat_(.+)$')
+@@ -2221,6 +2204,29 @@
+                 print mod+',',
+         print mod
+ 
++def exit(ret):
++    sys.stdout.write(ansi['reset'])
++    sys.stdout.flush()
++
++    if op.pidfile and os.path.exists(op.pidfile):
++        os.remove(op.pidfile)
++
++    if op.profile and os.path.exists(op.profile):
++        rows, cols = gettermsize()
++        import pstats
++        p = pstats.Stats(op.profile)
++#        p.sort_stats('name')
++#        p.print_stats()
++        p.sort_stats('cumulative').print_stats(rows - 13)
++#        p.sort_stats('time').print_stats(rows - 13)
++#        p.sort_stats('file').print_stats('__init__')
++#        p.sort_stats('time', 'cum').print_stats(.5, 'init')
++#        p.print_callees()
++    elif op.profile:
++        print &gt;&gt;sys.stderr, &quot;No profiling data was found, maybe profiler was interrupted ?&quot;
++
++    sys.exit(ret)
++
+ def main():
+     &quot;Initialization of the program, terminal, internal structures&quot;
+     global pagesize, cpunr, hz, ansi, theme, outputfile
+@@ -2508,17 +2514,14 @@
+         theme = set_theme()
+         if op.profile:
+             import profile
+-            profile.run('main()', 'dstat_profile.log')
++            if os.path.exists(op.profile):
++                os.remove(op.profile)
++            profile.run('main()', op.profile)
+         else:
+             main()
+     except KeyboardInterrupt, e:
+         if op.update:
+             sys.stdout.write('\n')
+-        sys.stdout.write(theme['default'])
+-
+-    if op.pidfile and os.path.exists(op.pidfile):
+-        os.remove(op.pidfile)
+-
+     exit(0)
+ else:
+     op = Options('')
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007441.html">[svn] r8646 - trunk/rpms/bash-completion-perl
+</A></li>
+	<LI>Next message: <A HREF="007443.html">[svn] r8648 - in trunk/rpms: . libconfuse
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7442">[ date ]</a>
+              <a href="thread.html#7442">[ thread ]</a>
+              <a href="subject.html#7442">[ subject ]</a>
+              <a href="author.html#7442">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

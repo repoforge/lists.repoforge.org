@@ -1,0 +1,341 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2437 - trunk/tools/dconf
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2437%20-%20trunk/tools/dconf&In-Reply-To=%3C20041107160854.5701117F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001242.html">
+   <LINK REL="Next"  HREF="001244.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2437 - trunk/tools/dconf</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2437%20-%20trunk/tools/dconf&In-Reply-To=%3C20041107160854.5701117F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2437 - trunk/tools/dconf">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Nov  7 17:08:54 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001242.html">[SVN] r2436 - trunk/tools/pydar2/tests
+</A></li>
+        <LI>Next message: <A HREF="001244.html">[SVN] r2438 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1243">[ date ]</a>
+              <a href="thread.html#1243">[ thread ]</a>
+              <a href="subject.html#1243">[ subject ]</a>
+              <a href="author.html#1243">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-07 17:08:52 +0100 (Sun, 07 Nov 2004)
+New Revision: 2437
+
+Modified:
+   trunk/tools/dconf/ChangeLog
+   trunk/tools/dconf/TODO
+   trunk/tools/dconf/dconf
+   trunk/tools/dconf/dconf-custom.conf
+   trunk/tools/dconf/dconf.conf
+   trunk/tools/dconf/dconf.spec
+Log:
+Fixed a bug. Added smoe more config files.
+
+Modified: trunk/tools/dconf/ChangeLog
+===================================================================
+--- trunk/tools/dconf/ChangeLog	2004-11-07 10:36:30 UTC (rev 2436)
++++ trunk/tools/dconf/ChangeLog	2004-11-07 16:08:52 UTC (rev 2437)
+@@ -1,3 +1,7 @@
++* 0.4
++- Fixed a problem with unowned files. (Alain Rykaert)
++- Added cups, ltsp, nscd and smbldap config. (Alain Rykaert)
++
+ * 0.3
+ - Added lots of extra sections (more additions welcome !)
+ - Filtered out iptables and netstat counters
+
+Modified: trunk/tools/dconf/TODO
+===================================================================
+--- trunk/tools/dconf/TODO	2004-11-07 10:36:30 UTC (rev 2436)
++++ trunk/tools/dconf/TODO	2004-11-07 16:08:52 UTC (rev 2437)
+@@ -2,6 +2,7 @@
+ + Check against RPM database (if inside and not changed, leave it out)
+ + Make mailing diffs smart (keep the headers and diff content)
+ + Add support for (recursive) dirs
+++ Currently dconf fails if email is specified but mailserver is not working
+ 
+ ### Output
+ + Sort the different sections
+
+Modified: trunk/tools/dconf/dconf
+===================================================================
+--- trunk/tools/dconf/dconf	2004-11-07 10:36:30 UTC (rev 2436)
++++ trunk/tools/dconf/dconf	2004-11-07 16:08:52 UTC (rev 2437)
+@@ -1,10 +1,10 @@
+ #!/usr/bin/python2
+ 
+ import os, sys, glob, re, shutil, getopt, popen2, time
+-import ConfigParser, urlparse, pwd, grp, stat
++import ConfigParser, urlparse, pwd, grp, stat, socket
+ import difflib, smtplib, gzip
+ 
+-VERSION = &quot;0.3&quot;
++VERSION = &quot;0.4&quot;
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -222,6 +222,20 @@
+ 	smtp.quit()
+ 
+ def main():
++	global extension, hostname, timestamp
++
++	extension = ''
++	if cf.compression == 'bzip2':
++		from bz2 import BZ2File as open
++		extension = '.bz2'
++	elif cf.compression == 'gzip':
++		from gzip import open
++		extension = '.gz'
++
++#	hostname = os.uname()[1].split('.')[0]
++	hostname = socket.gethostbyaddr(socket.gethostname())[0]
++	timestamp = time.strftime('%Y%m%d-%H%M%S', time.localtime()) 
++
+ 	os.umask(077)
+ 
+ 	### Add to cron
+@@ -280,9 +294,9 @@
+ 						(mode, t, t, t, uid, gid, size, t, t, t) = os.stat(cmd)
+ 						info(4, 'Processing cmd %s' % cmd)
+ 						try: owner = pwd.getpwuid(uid)
+-						except: owner = (uid)
++						except: owner = (uid,)
+ 						try: group = grp.getgrgid(gid)
+-						except: group = (gid)
++						except: group = (gid,)
+ 						if not stitle:
+ 							info(3, 'Processing section [%s]' % section)
+ 							stitle = '== ' + section.upper() + ' =='
+@@ -312,9 +326,9 @@
+ #										info(1, 'YES!!! File %s _has_ been changed since installation.' % file)
+ 							info(4, 'Processing file %s' % file)
+ 							try: owner = pwd.getpwuid(uid)
+-							except: owner = (uid)
++							except: owner = (uid,)
+ 							try: group = grp.getgrgid(gid)
+-							except: group = (gid)
++							except: group = (gid,)
+ 							if not stitle:
+ 								info(3, 'Processing section [%s]' % section)
+ 								stitle = '== ' + section.upper() + ' =='
+@@ -371,17 +385,6 @@
+ 		else:
+ 			info(3, 'Configfile %s does not exist, ignoring.')
+ 
+-	extension = ''
+-	if cf.compression == 'bzip2':
+-		from bz2 import BZ2File as open
+-		extension = '.bz2'
+-	elif cf.compression == 'gzip':
+-		from gzip import open
+-		extension = '.gz'
+-
+-	hostname = os.uname()[1].split('.')[0]
+-	timestamp = time.strftime('%Y%m%d-%H%M%S', time.localtime()) 
+-
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+
+Modified: trunk/tools/dconf/dconf-custom.conf
+===================================================================
+--- trunk/tools/dconf/dconf-custom.conf	2004-11-07 10:36:30 UTC (rev 2436)
++++ trunk/tools/dconf/dconf-custom.conf	2004-11-07 16:08:52 UTC (rev 2437)
+@@ -1,10 +1,10 @@
+ ### Customized configuration
+ [main]
+-mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
+-cron = hourly
++#mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
++cron = daily
+ 
+ [custom]
+ files =	
+ 	/etc/rc.d/rc.custom
+ 	/etc/profile.d/custom.sh
+-        /etc/sysconfig/network/if-*.d/custom-poc
++        /etc/sysconfig/network/if-*.d/custom
+
+Modified: trunk/tools/dconf/dconf.conf
+===================================================================
+--- trunk/tools/dconf/dconf.conf	2004-11-07 10:36:30 UTC (rev 2436)
++++ trunk/tools/dconf/dconf.conf	2004-11-07 16:08:52 UTC (rev 2437)
+@@ -16,6 +16,7 @@
+ files =
+ 	/boot/grub/menu.lst
+ 	/etc/grub.conf
++	/etc/inittab
+ 	/etc/lilo.conf
+ 	/etc/rc.d/boot.local
+ 	/etc/rc.d/rc.local
+@@ -100,6 +101,8 @@
+ 
+ [printer]
+ files =
++	/etc/cups/cupsd.conf
++	/etc/cups/printers.conf
+ 	/etc/lpd.conf
+ 	/etc/lpd.perms
+ 	/etc/printcap
+@@ -142,7 +145,6 @@
+ cmds =	uname -a
+ files =
+ 	/etc/redhat-release
+-	/etc/samba/smb.conf
+ 	/etc/suseservers
+ 	/etc/sysconfig/onlineupdate
+ 	/etc/sysconfig/prelink
+@@ -191,9 +193,17 @@
+ 	/proc/swaps
+ 	/proc/tty/drivers
+ 
++[mpp]
++cmds =	mppUtil -V
++files =
++	/etc/mpp.conf
++	/var/mpp/devicemapping
++
+ [qlogic]
+ cmds =	/root/qla-autoconf -v
+-files =	/proc/scsi/qla2300/? | grep -v -i -E '(number| reqs| free count) '
++files =
++	/etc/qla2300.conf
++	/proc/scsi/qla2300/? | grep -v -i -E '(number| reqs| free count) '
+ 
+ ### Software tools
+ [afick]
+@@ -233,9 +243,13 @@
+ 	/etc/rndc.conf
+ 	/etc/rndc.key
+ 	/etc/sysconfig/named
++	/var/named/chroot/etc/named.conf
+ 
+ [clamav]
+-files = /etc/clamav.conf
++files =
++	/etc/clamd.conf
++	/etc/freshclam.conf
++	/etc/sysconfig/clamav-milter
+ 
+ [cron]
+ files = /etc/crontab
+@@ -279,6 +293,7 @@
+ 
+ [gpfs]
+ cmds =	
++	/usr/lpp/mmfs/bin/mmgetstate -aL
+ #	/usr/lpp/mmfs/bin/mmfsadm dump config
+ 	/usr/lpp/mmfs/bin/mmlscluster
+ 	/usr/lpp/mmfs/bin/mmlsconfig
+@@ -326,6 +341,11 @@
+ [lftp]
+ files = /etc/lftp.conf
+ 
++[ltsp]
++files =
++	/etc/ltsp.conf
++	/opt/ltsp/*/etc/lts.conf
++
+ [mirror]
+ files =	/etc/mirror.conf
+ 
+@@ -351,6 +371,9 @@
+ 	/etc/httpd/conf.d/nagios
+ 	/etc/nagios/*.cfg
+ 
++[nscd]
++files =	/etc/nscd.conf
++
+ [ntp]
+ files =
+ 	/etc/ntp.conf
+@@ -466,6 +489,7 @@
+ 	/etc/smbusers
+ 	/etc/samba/lmhosts
+ 	/etc/samba/smb.conf
++	/etc/samba/smbpasswd
+ 	/etc/samba/smbusers
+ 	/etc/sysconfig/samba
+ 
+@@ -482,6 +506,11 @@
+ 	/etc/mail/virtusertable
+ 	/etc/sysconfig/sendmail
+ 
++[smbldap]
++files =
++	/etc/smbldap-tools/smbldap.conf
++	/etc/smbldap-tools/smbldap_bind.conf
++
+ [smunge]
+ files =	/etc/sysconfig/smunged
+ 
+
+Modified: trunk/tools/dconf/dconf.spec
+===================================================================
+--- trunk/tools/dconf/dconf.spec	2004-11-07 10:36:30 UTC (rev 2436)
++++ trunk/tools/dconf/dconf.spec	2004-11-07 16:08:52 UTC (rev 2437)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Collect a system's hardware and software configuration
+ Name: dconf
+-Version: 0.3
++Version: 0.4
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -16,6 +16,7 @@
+ Source: <A HREF="http://dag.wieers.com/home-made/dconf/dconf-%{version">http://dag.wieers.com/home-made/dconf/dconf-%{version</A>}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
++BuildArch: noarch
+ Requires: python
+ 
+ %description
+@@ -52,5 +53,8 @@
+ %{_bindir}/dconf
+ 
+ %changelog
++* Sun Nov 07 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4-1
++- Updated to release 0.4.
++
+ * Sun Oct 24 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.3-1
+ - Updated to release 0.3.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001242.html">[SVN] r2436 - trunk/tools/pydar2/tests
+</A></li>
+	<LI>Next message: <A HREF="001244.html">[SVN] r2438 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1243">[ date ]</a>
+              <a href="thread.html#1243">[ thread ]</a>
+              <a href="subject.html#1243">[ subject ]</a>
+              <a href="author.html#1243">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

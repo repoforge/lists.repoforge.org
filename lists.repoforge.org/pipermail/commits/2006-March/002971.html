@@ -1,0 +1,1096 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4171 - in trunk/tools/sarah: . patches
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4171%20-%20in%20trunk/tools/sarah%3A%20.%20patches&In-Reply-To=%3C20060314135002.82380318096%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002970.html">
+   <LINK REL="Next"  HREF="002972.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4171 - in trunk/tools/sarah: . patches</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4171%20-%20in%20trunk/tools/sarah%3A%20.%20patches&In-Reply-To=%3C20060314135002.82380318096%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4171 - in trunk/tools/sarah: . patches">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Mar 14 14:50:02 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002970.html">[svn] r4170 - in trunk/rpms: . gaim-otr libotr
+</A></li>
+        <LI>Next message: <A HREF="002972.html">[svn] r4172 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2971">[ date ]</a>
+              <a href="thread.html#2971">[ thread ]</a>
+              <a href="subject.html#2971">[ subject ]</a>
+              <a href="author.html#2971">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-03-14 14:50:00 +0100 (Tue, 14 Mar 2006)
+New Revision: 4171
+
+Added:
+   trunk/tools/sarah/patches/
+   trunk/tools/sarah/patches/aerrate-changes-dag-20060202.diff
+   trunk/tools/sarah/patches/aerrate-changes-dag-20060210.diff
+   trunk/tools/sarah/patches/aerrate-changes-dag-20060314.diff
+Modified:
+   trunk/tools/sarah/README
+   trunk/tools/sarah/TODO
+   trunk/tools/sarah/sarahdb.py
+   trunk/tools/sarah/sarahinfo.py
+Log:
+Updates
+
+Modified: trunk/tools/sarah/README
+===================================================================
+--- trunk/tools/sarah/README	2006-03-14 06:57:32 UTC (rev 4170)
++++ trunk/tools/sarah/README	2006-03-14 13:50:00 UTC (rev 4171)
+@@ -7,18 +7,19 @@
+ 
+ 	svn co <A HREF="http://caphrim.net/svn/fermi/aerrate/trunk">http://caphrim.net/svn/fermi/aerrate/trunk</A> aerrate
+ 
+-And issuing the following script:
++Then apply the latest patch from patches/:
+ 
++	patch -p0 &lt; patches/aerrate-changes-dag-TIMESTAMP.diff
++
++And issue the following command to scrape the RHN website for the most up-to-date
++advisories:
++
+ 	cd aerrate
+-	for release in rh{el4,el3,21}{as,es,ws} rh-desktop-{4,3} rh21aw rhel{4,3}-extras rhel3{cluster,devsuite} rhshas; do
+-		echo &quot;== $release ==&quot;
+-		python ./aerrate.py -r --source=site --type=all --release=$release
+-	done
++	./aerrate.py -r --source=site --type=all --release=enterprise
+ 	cd -
+ 
+ This will copy all errata as XML files into ./aerrata/advisories/
+ 
+-
+ USING SARAH
+ ^^^^^^^^^^^
+ sarah currently expects the advisories to be available from ./advisories/. So
+@@ -26,7 +27,7 @@
+ 
+ 	ln -sf aerrate/advisories .
+ 
+-Then to create an sqlite database out of these XML files, run:
++Then create an sqlite database out of these XML files, by doing:
+ 
+ 	./sarahdb.py
+ 
+@@ -37,7 +38,8 @@
+ 
+ The sarahinfo utility currently shows how to query the database. Not all
+ information is currently available in the XML files. Red Hat will be releasing
+-these XML files in the future with much more info.
++these XML files in the future with more information we can get out of the 
++RHN website.
+ 
+ I also added sarahsql to allow to query the database on the commandline, you
+ can do queries in bash, like:
+
+Modified: trunk/tools/sarah/TODO
+===================================================================
+--- trunk/tools/sarah/TODO	2006-03-14 06:57:32 UTC (rev 4170)
++++ trunk/tools/sarah/TODO	2006-03-14 13:50:00 UTC (rev 4171)
+@@ -1,7 +1,10 @@
+ aerrate.py: scrapes rhn advisory information
+ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-+ Allow to list a number of releases (eg. --release=rhel4as,rhel3as,rhel2.1as)
+-+ Make aerrate smart about advisories already scraped (recently)
+++ Fix file-element syntax to match new RHN xml output
+++ Fix reference-element syntax to match new RHN xml output
+++ Add bugzilla references and bugzilla reference synopsis information
+++ Add references to RHBA and RHEA as well
+++ Fix the problem with RHBA-2004-470.xml (aerrate freezes)
+ + Use timestamp and HTTP HEAD requests to check for updates
+ + Parallelize the download process (use HTTP Pipelining and use
+   eg. 4 connections)
+
+Added: trunk/tools/sarah/patches/aerrate-changes-dag-20060202.diff
+===================================================================
+--- trunk/tools/sarah/patches/aerrate-changes-dag-20060202.diff	2006-03-14 06:57:32 UTC (rev 4170)
++++ trunk/tools/sarah/patches/aerrate-changes-dag-20060202.diff	2006-03-14 13:50:00 UTC (rev 4171)
+@@ -0,0 +1,261 @@
++Index: parsers/security.py
++===================================================================
++--- parsers/security.py	(revision 16)
+++++ parsers/security.py	(working copy)
++@@ -24,6 +24,7 @@
++ 		errata_p.__init__(self)
++ 		self.odir		= &quot;advisories/&quot;
++ 		self.ofile 		= &quot;security.xml&quot;
+++		self.synopsis		= []
++ 		self.detail		= []
++ 		self.cve_counter	= 0
++ 		self.errata_counter	= 0
++@@ -41,7 +42,7 @@
++ 			if os.environ['http_proxy'] == '':
++ 				self.proxy = None
++ 			else:
++-				self.proxy		= { 'http' : os.environ['http_proxy'] }
+++				self.proxy		= { 'http' : os.environ['http_proxy'], 'https' : os.environ['http_proxy'] }
++ 		except:
++ 			self.proxy = None
++ 
++@@ -93,6 +94,13 @@
++ 
++ 		self.detail = result
++ 
+++		# Get RHSA title (contains severity and synopsis)
+++		result = re.search('&lt;h1&gt;(.+?)&lt;/h1&gt;', page,  re.I | re.M)
+++		if result:
+++			self.synopsis = result.group(1)
+++		else:
+++			self.synopsis = 'Unknown: Unknown'
+++
++ 	def update_database(self, link):
++ 		&quot;&quot;&quot;
++ 		Updates the output XML file to reflect the new contents
++@@ -111,15 +119,20 @@
++ 		# 6 - RPMs Required
++ 		# 7 - References
++ 		# 8 - Requirements (not used)
++-		self.get_rhsa_detail(link)
+++		try:
+++			self.get_rhsa_detail(link)
+++		except urlgrabber.grabber.URLGrabError:
+++			print 'Error grabbing link', link
+++			return
++ 
++ 		# Hack to get past RPMs that outdate other rpms.
++ 		# FIXME: Check to see what RPM is outdated and update XML file
++ 		# as necessary
++-		for detail in self.detail:
++-			if detail.find(&quot;File outdated&quot;) &gt; 0:
++-				#print &quot;Encountered outdated RPM&quot;
++-				return
+++#		if not __main__.all_advisories:
+++#			for detail in self.detail:
+++#				if detail.find(&quot;File outdated&quot;) &gt; 0:
+++#					#print &quot;Encountered outdated RPM&quot;
+++#					return
++ 
++ 		self.advisory_url = link
++ 
++@@ -162,7 +175,7 @@
++ 		self.parse_rights(w)
++ 		self.parse_type(w)
++ 
++-		self.parse_synopsis(w, self.detail[1])
+++		self.parse_synopsis(w, self.synopsis)
++ 		self.parse_issue_date(w, self.strip_html(self.detail[0]))
++ 		self.parse_updated_on(w, self.strip_html(self.detail[0]))
++ 
++@@ -268,30 +281,16 @@
++ 		&quot;&quot;&quot;
++ 		data = self.tags_to_space(data)
++ 		data = self.strip_html(data)
++-		block = data.split(&quot;\n&quot;)
+++		line = data.strip().split(':')
++ 
++-		# Red hat doesnt separate out the severity information
++-		# in their webpages like they do in their email archives.
++-		# Therefore I'm looking for the severity string to
++-		# determine the severity level.
++-		for line in block:
++-			if line.find(&quot;moderate security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;moderate&quot;)
++-				break
++-			elif line.find(&quot;important security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;important&quot;)
++-				break
++-			elif line.find(&quot;critical security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;critical&quot;)
++-				break
++-			elif line.find(&quot;low security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;low&quot;)
++-				break
+++		severity = line[0].strip().lower()
+++		synopsis = ':'.join(line[1:]).strip()
+++
+++		if severity in ('low', 'moderate', 'important', 'critical'):
+++			w.element('severity', severity)
++ 		else:
++-			w.element(&quot;severity&quot;, &quot;unknown&quot;)
+++			w.element('severity', 'unknown')
++ 
++-		synopsis = block[0].strip()
++-
++ 		w.element(&quot;synopsis&quot;, synopsis, lang=&quot;en_US&quot;)
++ 
++ 	def tags_to_space(self, item):
++@@ -464,7 +463,7 @@
++ 		# in the script to differentiate between releases
++ 		for i in block:
++ 			item = i.strip()
++-			if item == &quot;&quot;:
+++			if not item:
++ 				continue
++ 			else:
++ 				if self.at_arch(item[0:-1]):
++@@ -508,9 +507,8 @@
++ 					self.parse_srpm_arch(w, block, item)
++ 				elif self.at_arch(item):
++ 					self.parse_arch(w, block, item)
++-				elif item == &quot;&quot;:
++-					item = block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++-					continue
+++				elif not item:
+++					pass
++ 				else:
++ 					block.append(item)
++ 					break
++@@ -561,11 +559,11 @@
++ 					error = &quot;new_arch&quot;
++ 					break
++ 
++-				if filename == &quot;&quot;:
+++				elif not filename:
++ 					error = &quot;new_arch&quot;
++ 					break
++ 
++-				if not self.linked:
+++				elif not self.linked:
++ 					junk = block.pop()
++ 
++ 				checksum	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++@@ -594,18 +592,21 @@
++ 				error = &quot;header&quot;
++ 				break
++ 
++-			if self.at_arch(filename):
+++			elif self.at_arch(filename):
++ 				error = &quot;new_arch&quot;
++ 				break
++ 
++-			if filename == &quot;&quot;:
+++			elif not filename:
++ 				error = &quot;new_arch&quot;
++ 				break
++ 
++-			if not self.linked:
+++			elif not self.linked:
++ 				junk = block.pop()
++ 
++-			checksum 	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
+++			try:
+++				checksum = block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
+++			except IndexError:
+++				break
++ 
++ 			# Hack to make RH webpages that list IA-32 stuff
++ 			# equal the data that is actually listed in the
++@@ -618,7 +619,7 @@
++ 			w.element(&quot;sum&quot;, checksum, type=&quot;md5&quot;)
++ 			w.end(&quot;file&quot;)
++ 
++-		if error == &quot;header&quot; or error == &quot;new_arch&quot;:
+++		if error in ('header', 'new_arch'):
++ 			block.append(filename)
++ 		return
++ 
++Index: scrapers/site.py
++===================================================================
++--- scrapers/site.py	(revision 16)
+++++ scrapers/site.py	(working copy)
++@@ -63,7 +63,11 @@
++ 		self.releases 	= {}
++ 		p 		= re.compile('\&lt;ul\&gt;')
++ 
++-		page = urlgrabber.urlread(self.release_list+&quot;/errata&quot;, proxies=self.proxy)
+++		try:
+++			page = urlgrabber.urlread(self.release_list+&quot;/errata&quot;, proxies=self.proxy)
+++		except urlgrabber.grabber.URLGrabError:
+++			print 'Error grabbing list of all releases from', self.release_list+&quot;/errata&quot;
+++			return
++ 
++ 		result = p.split(page)
++ 
++Index: aerrate.py
++===================================================================
++--- aerrate.py	(revision 16)
+++++ aerrate.py	(working copy)
++@@ -30,8 +30,11 @@
++ 	enhancements
++ 
++ Argument list
++-  --source		Source to read from
+++  --all                 Download al advisories (do not skip outdated advisories)
++ 
+++  --source		Source to read from (either archive, feed or site)
+++			*Defaults to site*
+++
++   --type		The type of errata list to read from
++ 
++   --release		Parse errata for specified release
++@@ -42,11 +45,13 @@
++ 	source		= 0
++ 	type 		= 0
++ 	release		= 'none'
+++	all_advisories  = 0
++ 	print_releases	= 0
++ 
++ 	# Try to parse any command line arguments
++ 	try:
++ 		opts, args = getopt.getopt(sys.argv[1:], &quot;hstru&quot;, [	&quot;help&quot;,
+++									&quot;all&quot;,
++ 									&quot;source=&quot;,
++ 									&quot;type=&quot;,
++ 									&quot;printreleases&quot;,
++@@ -63,24 +68,27 @@
++ 		if o in (&quot;-h&quot;, &quot;--help&quot;):
++ 			usage()
++ 			sys.exit()
++-		if o in (&quot;-s&quot;, &quot;--source&quot;):
+++		elif o in (&quot;-s&quot;, &quot;--source&quot;):
++ 			source = a
++-		if o in (&quot;-t&quot;, &quot;--type&quot;):
+++		elif o in (&quot;-t&quot;, &quot;--type&quot;):
++ 			type = a
++-		if o in (&quot;-p&quot;, &quot;--printreleases&quot;):
+++		elif o in (&quot;-a&quot;, &quot;--all&quot;):
+++			all_advisories = 1
+++		elif o in (&quot;-p&quot;, &quot;--printreleases&quot;):
++ 			print_releases = 1
++-		if o in (&quot;-r&quot;, &quot;--release&quot;):
+++		elif o in (&quot;-r&quot;, &quot;--release&quot;):
++ 			release = a
+++		else:
+++			print 'Option %s not understood.' %o
+++			sys.exit(1)
++ 
++ 	# Print releases is one argument in particular
++ 	# that doesnt require the source argument.
++ 	# So if that argument has been sent, skip
++ 	# over this small argument checking block
++ 	if not print_releases:
++-		# The source argument is required always
++ 		if not source:
++-			usage()
++-			sys.exit(0)
+++			source = &quot;site&quot;
++ 		# The site argument requires a type
++ 		# argument and a release arg be sent too
++ 		if source == &quot;site&quot;:
+
+Added: trunk/tools/sarah/patches/aerrate-changes-dag-20060210.diff
+===================================================================
+--- trunk/tools/sarah/patches/aerrate-changes-dag-20060210.diff	2006-03-14 06:57:32 UTC (rev 4170)
++++ trunk/tools/sarah/patches/aerrate-changes-dag-20060210.diff	2006-03-14 13:50:00 UTC (rev 4171)
+@@ -0,0 +1,232 @@
++Index: parsers/security.py
++===================================================================
++--- parsers/security.py	(revision 19)
+++++ parsers/security.py	(working copy)
++@@ -94,6 +94,15 @@
++ 
++ 		self.detail = result
++ 
+++		# Get RHSA title (contains severity and synopsis)
+++		result = re.search('&lt;h1&gt;(.+?)&lt;/h1&gt;', page,  re.I | re.M)
+++#		result = re.search('&lt;h1&gt;(?P&lt;severity&gt;.+?): (?P&lt;synopsis&gt;.+?)&lt;/h1&gt;', page,  re.I | re.M)
+++		if result:
+++			self.synopsis = result.group(1)
+++		else:
+++			self.synopsis = 'Unknown: Unknown'
+++
+++
++ 	def update_database(self, link):
++ 		&quot;&quot;&quot;
++ 		Updates the output XML file to reflect the new contents
++@@ -168,7 +177,7 @@
++ 		self.parse_rights(w)
++ 		self.parse_type(w)
++ 
++-		self.parse_synopsis(w, self.detail[1], self.detail[0])
+++		self.parse_synopsis(w, self.synopsis)
++ 		self.parse_issue_date(w, self.strip_html(self.detail[0]))
++ 		self.parse_updated_on(w, self.strip_html(self.detail[0]))
++ 
++@@ -240,7 +249,7 @@
++ 		separated to different files. This should be the only script
++ 		that parses the RHSA errata
++ 		&quot;&quot;&quot;
++-		w.element(&quot;type&quot;, &quot;Red Hat Security Advisory&quot;, short=&quot;RHSA&quot;)
+++		w.element(&quot;type&quot;, short=&quot;RHSA&quot;)
++ 
++ 	def parse_relevant_releases(self, w, data):
++ 		&quot;&quot;&quot;
++@@ -267,61 +276,26 @@
++ 			elif tmp[0].find('#Power') &gt; 0:
++ 				self.releases.append(self.strip_html(tmp[0]))
++ 
++-	def parse_synopsis(self, w, data, fallback_data):
+++	def parse_synopsis(self, w, data):
++ 		&quot;&quot;&quot;
++ 		Specifically parses the 'Synopsis' line from the
++ 		RHSA notice.
++ 		&quot;&quot;&quot;
++ 		data = self.tags_to_space(data)
++ 		data = self.strip_html(data)
++-		block = data.split(&quot;\n&quot;)
++-		synops	= block
+++		line = data.strip().split(':')
++ 
++-		# Red hat doesnt separate out the severity information
++-		# in their webpages like they do in their email archives.
++-		# Therefore I'm looking for the severity string to
++-		# determine the severity level.
++-		for line in block:
++-			if line.find(&quot;moderate security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;moderate&quot;)
++-				break
++-			elif line.find(&quot;important security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;important&quot;)
++-				break
++-			elif line.find(&quot;critical security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;critical&quot;)
++-				break
++-			elif line.find(&quot;low security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;low&quot;)
++-				break
++-		else:
++-			data = self.tags_to_space(fallback_data)
++-			data = self.strip_html(fallback_data)
++-			block = data.split(&quot;\n&quot;)
+++		severity = line[0].strip().lower()
+++		synopsis = ':'.join(line[1:]).strip()
++ 
++-			for line in block:
++-				if line.find(&quot;Moderate&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;moderate&quot;)
++-					break
++-				elif line.find(&quot;Important&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;important&quot;)
++-					break
++-				elif line.find(&quot;Critical&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;critical&quot;)
++-					break
++-				elif line.find(&quot;Low&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;low&quot;)
++-					break
++-			else:
++-				w.element(&quot;severity&quot;, &quot;unknown&quot;)
++-
++-		# Get RHSA title (contains severity and synopsis)
++-		result = re.search('&lt;h1&gt;(.+?)&lt;/h1&gt;', fallback_data,  re.I | re.M)
++-		if result:
++-			synopsis = result.group(1)
+++		if severity in ('low', 'moderate', 'important', 'critical'):
+++			w.element('severity', level=severity)
++ 		else:
++-			synopsis = 'Unknown: Unknown'
+++			w.element('severity', level='unknown')
++ 
+++		if not synopsis:
+++			synopsis = data.strip()
+++
++ 		w.element(&quot;synopsis&quot;, synopsis, lang=&quot;en_US&quot;)
++ 
++ 	def tags_to_space(self, item):
++@@ -366,7 +340,7 @@
++ 		RHSA notice. Note that html is stripped from the
++ 		line before it is written to the XML file
++ 		&quot;&quot;&quot;
++-		w.element(&quot;reference&quot;, self.advisory_url, type=&quot;self&quot;)
+++		w.element(&quot;reference&quot;, type=&quot;self&quot;, href=self.advisory_url)
++ 
++ 	def parse_issue_date(self, w, data):
++ 		&quot;&quot;&quot;
++@@ -516,11 +490,11 @@
++ 			filename 	= ''
++ 
++ 			try:
++-				item 		= block.pop()
+++				item  = block.pop()
++ 			except IndexError:
++ 				break
++ 
++-			item	= item.replace(&quot;&amp;#160;&quot;, '').strip()
+++			item = item.replace(&quot;&amp;#160;&quot;, '').strip()
++ 
++ 			if self.at_release(item):
++ 				try:
++@@ -592,7 +566,7 @@
++ 		while 1:
++ 			outdated = 0;
++ 			try:
++-				filename 	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
+++				filename = block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++ 				if self.at_arch(filename):
++ 					error = &quot;new_arch&quot;
++ 					break
++@@ -602,18 +576,15 @@
++ 				elif not self.linked:
++ 					junk = block.pop()
++ 
++-				checksum	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
+++				checksum = block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++ 
++ 				if self.at_outdated(checksum):
++-					try:
++-						tmp_outdate = checksum.replace(&quot;&amp;#160;&quot;, '').strip()
++-						outdate = checksum[tmp_outdate.find(':')+1:].strip()
+++					tmp_outdate = checksum.replace(&quot;&amp;#160;&quot;, '').strip()
+++					outdate = checksum[tmp_outdate.find(':')+1:].strip()
++ 
++-						outdated = 1
+++					outdated = 1
++ 
++-						checksum	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++-					except IndexError:
++-						break
+++					checksum = block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++ 
++ 			except IndexError:
++ 				break
++@@ -641,35 +612,32 @@
++ 		while 1:
++ 			outdated = 0;
++ 			try:
++-				filename 	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++-			except IndexError:
++-				break
+++				filename = block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++ 
++-			if self.at_release(filename):
++-				error = &quot;header&quot;
++-				break
++-			elif self.at_arch(filename):
++-				error = &quot;new_arch&quot;
++-				break
++-			elif not filename:
++-				error = &quot;new_arch&quot;
++-				break
++-			elif not self.linked:
++-				junk = block.pop()
+++				if self.at_release(filename):
+++					error = &quot;header&quot;
+++					break
+++				elif self.at_arch(filename):
+++					error = &quot;new_arch&quot;
+++					break
+++				elif not filename:
+++					error = &quot;new_arch&quot;
+++					break
+++				elif not self.linked:
+++					junk = block.pop()
++ 			
++-			checksum 	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
+++				checksum = block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++ 
++-			if self.at_outdated(checksum):
++-				try:
+++				if self.at_outdated(checksum):
++ 					tmp_outdate = checksum.replace(&quot;&amp;#160;&quot;, '').strip()
++ 					outdate = checksum[tmp_outdate.find(':')+1:].strip()
++ 
++ 					outdated = 1
++ 
++ 					checksum 	= block.pop().replace(&quot;&amp;#160;&quot;, '').strip()
++-				except IndexError:
++-					break
++ 
+++			except IndexError:
+++				break
++ 
++ 			# Hack to make RH webpages that list IA-32 stuff
++ 			# equal the data that is actually listed in the
++Index: aerrate.py
++===================================================================
++--- aerrate.py	(revision 19)
+++++ aerrate.py	(working copy)
++@@ -71,6 +71,9 @@
++ 			print_releases = 1
++ 		elif o in (&quot;-r&quot;, &quot;--release&quot;):
++ 			release = a
+++		else:
+++			print 'Option %s not understood.' %o
+++			sys.exit(1)
++ 
++ 	# Print releases is one argument in particular
++ 	# that doesnt require the source argument.
+
+Added: trunk/tools/sarah/patches/aerrate-changes-dag-20060314.diff
+===================================================================
+--- trunk/tools/sarah/patches/aerrate-changes-dag-20060314.diff	2006-03-14 06:57:32 UTC (rev 4170)
++++ trunk/tools/sarah/patches/aerrate-changes-dag-20060314.diff	2006-03-14 13:50:00 UTC (rev 4171)
+@@ -0,0 +1,330 @@
++Index: aerrate/parsers/enhancements.py
++===================================================================
++--- aerrate/parsers/enhancements.py	(revision 20)
+++++ aerrate/parsers/enhancements.py	(working copy)
++@@ -185,7 +185,7 @@
++ 
++ 		# New pushcounts will be higher. This signifies that
++ 		# the XML file for the specific advisory needs to be updated
++-		if pushcount_new &gt; pushcount_old:
+++		if int(pushcount_new) &gt; int(pushcount_old):
++ 			return True
++ 		else:
++ 			return False
++@@ -262,12 +262,13 @@
++ 		Specifically parses the 'Synopsis' line from the
++ 		RHEA notice.
++ 		&quot;&quot;&quot;
++-		# Get RHEA title (contains severity and synopsis)
+++		# Get RHEA title
++ 		result = re.search('&lt;h1&gt;(.+?)&lt;/h1&gt;', data,  re.I | re.M)
++ 		if result:
++ 			synopsis = self.strip_html(result.group(1))
+++			synopsis = synopsis.strip()
++ 		else:
++-			synopsis = 'Unknown: Unknown'
+++			synopsis = 'Unknown'
++ 
++ 		w.element(&quot;synopsis&quot;, synopsis, lang=&quot;en_US&quot;)
++ 
++Index: aerrate/parsers/errata_parser.py
++===================================================================
++--- aerrate/parsers/errata_parser.py	(revision 20)
+++++ aerrate/parsers/errata_parser.py	(working copy)
++@@ -41,8 +41,8 @@
++ 				&quot;Red Hat Enterprise Linux AS version 3&quot;:&quot;3AS&quot;,
++ 				&quot;Red Hat Enterprise Linux AS (v. 3)&quot;:&quot;3AS&quot;,
++ 
++-				&quot;Red Hat Desktop version 3&quot;:&quot;3desktop&quot;,
++-				&quot;Red Hat Desktop (v. 3)&quot;:&quot;3desktop&quot;,
+++				&quot;Red Hat Desktop version 3&quot;:&quot;3Desktop&quot;,
+++				&quot;Red Hat Desktop (v. 3)&quot;:&quot;3Desktop&quot;,
++ 
++ 				&quot;Red Hat Enterprise Linux ES version 3&quot;:&quot;3ES&quot;,
++ 				&quot;Red Hat Enterprise Linux ES (v. 3)&quot;:&quot;3ES&quot;,
++Index: aerrate/parsers/bugs.py
++===================================================================
++--- aerrate/parsers/bugs.py	(revision 20)
+++++ aerrate/parsers/bugs.py	(working copy)
++@@ -185,7 +185,7 @@
++ 
++ 		# New pushcounts will be higher. This signifies that
++ 		# the XML file for the specific advisory needs to be updated
++-		if pushcount_new &gt; pushcount_old:
+++		if int(pushcount_new) &gt; int(pushcount_old):
++ 			return True
++ 		else:
++ 			return False
++@@ -262,12 +262,13 @@
++ 		Specifically parses the 'Synopsis' line from the
++ 		RHBA notice.
++ 		&quot;&quot;&quot;
++-		# Get RHBA title (contains severity and synopsis)
+++		# Get RHBA title
++ 		result = re.search('&lt;h1&gt;(.+?)&lt;/h1&gt;', data,  re.I | re.M)
++ 		if result:
++ 			synopsis = self.strip_html(result.group(1))
+++			synopsis = synopsis.strip()
++ 		else:
++-			synopsis = 'Unknown: Unknown'
+++			synopsis = 'Unknown'
++ 
++ 		w.element(&quot;synopsis&quot;, synopsis, lang=&quot;en_US&quot;)
++ 
++Index: aerrate/parsers/security.py
++===================================================================
++--- aerrate/parsers/security.py	(revision 20)
+++++ aerrate/parsers/security.py	(working copy)
++@@ -195,7 +195,7 @@
++ 
++ 		# New pushcounts will be higher. This signifies that
++ 		# the XML file for the specific advisory needs to be updated
++-		if pushcount_new &gt; pushcount_old:
+++		if int(pushcount_new) &gt; int(pushcount_old):
++ 			return True
++ 		else:
++ 			return False
++@@ -283,16 +283,16 @@
++ 		# determine the severity level.
++ 		for line in block:
++ 			if line.find(&quot;moderate security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;moderate&quot;)
+++				w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;moderate&quot;)
++ 				break
++ 			elif line.find(&quot;important security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;important&quot;)
+++				w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;important&quot;)
++ 				break
++ 			elif line.find(&quot;critical security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;critical&quot;)
+++				w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;critical&quot;)
++ 				break
++ 			elif line.find(&quot;low security&quot;) &gt; -1:
++-				w.element(&quot;severity&quot;, &quot;low&quot;)
+++				w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;low&quot;)
++ 				break
++ 		else:
++ 			data = self.tags_to_space(fallback_data)
++@@ -301,26 +301,29 @@
++ 
++ 			for line in block:
++ 				if line.find(&quot;Moderate&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;moderate&quot;)
+++					w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;moderate&quot;)
++ 					break
++ 				elif line.find(&quot;Important&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;important&quot;)
+++					w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;important&quot;)
++ 					break
++ 				elif line.find(&quot;Critical&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;critical&quot;)
+++					w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;critical&quot;)
++ 					break
++ 				elif line.find(&quot;Low&quot;) &gt; -1:
++-					w.element(&quot;severity&quot;, &quot;low&quot;)
+++					w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;low&quot;)
++ 					break
++ 			else:
++-				w.element(&quot;severity&quot;, &quot;unknown&quot;)
+++				w.element(&quot;severity&quot;, &quot;&quot;, level=&quot;unknown&quot;)
++ 
++-		# Get RHSA title (contains severity and synopsis)
+++		# Get advisory title (RHSA contains severity and synopsis)
++ 		result = re.search('&lt;h1&gt;(.+?)&lt;/h1&gt;', fallback_data,  re.I | re.M)
++ 		if result:
++ 			synopsis = self.strip_html(result.group(1))
+++			if synopsis.rfind(':') != -1:
+++				synopsis = synopsis.split(':')[1]
+++			synopsis = synopsis.strip()
++ 		else:
++-			synopsis = 'Unknown: Unknown'
+++			synopsis = 'Unknown'
++ 
++ 		w.element(&quot;synopsis&quot;, synopsis, lang=&quot;en_US&quot;)
++ 
++Index: aerrate/scrapers/feed.py
++===================================================================
++--- aerrate/scrapers/feed.py	(revision 20)
+++++ aerrate/scrapers/feed.py	(working copy)
++@@ -99,7 +99,7 @@
++ 		# Create a new progress bar
++ 		prog = progressBar(0, len(links), 40)
++ 
++-		print &quot;Running...&quot;
+++#		print &quot;Running...&quot;
++ 
++ 		# For each of the &lt;link&gt; blocks that we received,
++ 		# and after having filtered out the ones we dont
++@@ -113,4 +113,4 @@
++ 			ae.update_database(link)
++ 			prog.updateAmount(counter)
++ 			time.sleep(.05)
++-		print &quot;\nFinished&quot;
+++#		print &quot;\nFinished&quot;
++Index: aerrate/scrapers/site.py
++===================================================================
++--- aerrate/scrapers/site.py	(revision 20)
+++++ aerrate/scrapers/site.py	(working copy)
++@@ -45,7 +45,7 @@
++ 		self.links		= []
++ 		self.release_list	= &quot;<A HREF="https://rhn.redhat.com">https://rhn.redhat.com</A>&quot;
++ 		self.type		= type
++-		self.release		= release
+++		self.release		= release.split(',')
++ 		self.releases		= {}
++ 
++ 		self.type_map		= {'security':&quot;RHSA&quot;,'bugs':&quot;RHBA&quot;,'enhancements':&quot;RHEA&quot;}
++@@ -70,7 +70,8 @@
++ 			page = urlgrabber.urlread(self.release_list+&quot;/errata&quot;, proxies=self.proxy)
++ 		except urlgrabber.grabber.URLGrabError:
++ 			print 'Error grabbing list of all releases from',self.release_list+&quot;/errata&quot;
++-			return
+++#			return
+++			sys.exit(1)
++ 
++ 		result = p.split(page)
++ 
++@@ -181,43 +182,64 @@
++ 			return ae
++ 
++ 	def main_run(self):
++-		print &quot;Running...&quot;
+++#		print &quot;Running...&quot;
++ 
++-		if self.type != &quot;all&quot;:
++-			ae = self.get_parser_obj(self.type)
++-			self.get_errata_links(self.type_map[self.type], self.release)
+++		self.get_releases()
+++		allreleases = ['-'.join(os.path.basename(r).split('-')[0:-1]) for r in self.releases.values()]
+++		allreleases.sort()
++ 
++-			prog = progressBar(0, len(self.links), 40)
++-			counter = 0
+++		if self.release == ['all',]:
+++			self.release = allreleases
+++		elif self.release == ['enterprise',]:
+++			self.release = [r for r in allreleases if r not in ('rh62', 'rh62-powertools', 'rh62EE', 'rh7', 'rh7-powertools', 'rh71', 'rh71-powertools', 'rh71iseries', 'rh71pseries', 'rh72', 'rh73', 'rh8', 'rh9', 'rhdb71')]
++ 
++-			for link in self.links:
++-				counter += 1
++-				sys.stderr.write(str(prog)+&quot;\tPages Scraped: &quot;+str(counter)+&quot;\r&quot;)
+++		print self.release
++ 
++-				ae.cleanup()
++-				ae.update_database(link)
++-				prog.updateAmount(counter)
++-				time.sleep(.05)
++-		else:
++-			for x in [&quot;RHSA&quot;,&quot;RHBA&quot;,&quot;RHEA&quot;]:
++-				ae = self.get_parser_obj(self.rtype_map[x])
++-				self.get_errata_links(x, self.release)
+++		links = []
+++		for release in self.release:
+++			if release not in allreleases:
+++				print 'Release %s is not valid.' % release
+++				continue
++ 
+++			if self.type != &quot;all&quot;:
+++				ae = self.get_parser_obj(self.type)
+++				print &quot;Downloading errata list...&quot;,
+++				self.get_errata_links(self.type_map[self.type], release)
+++				print &quot;done\r                               \r&quot;,
+++	
++ 				prog = progressBar(0, len(self.links), 40)
++ 				counter = 0
++-
++-				print &quot;\nGetting&quot;,x,&quot;errata\n&quot;
++-
+++	
++ 				for link in self.links:
++ 					counter += 1
++-					sys.stderr.write(str(prog)+&quot;\tPages Scraped: &quot;+str(counter)+&quot;\r&quot;)
++-
+++					prog.updateAmount(counter)
+++					advid = os.path.basename(link).split('.')[0]
+++					sys.stderr.write(&quot;%s/%s:%s %3d/%s pages (%s)\r&quot; % (release, type, prog, counter, len(self.links), advid))
++ 					ae.cleanup()
++ 					ae.update_database(link)
++-					prog.updateAmount(counter)
++-					time.sleep(.05)
+++#					time.sleep(.05)
+++				print
+++	
+++			else:
+++				### Keep a list of already scraped links (as RHSA
+++				for type in (&quot;RHSA&quot;,&quot;RHBA&quot;,&quot;RHEA&quot;):
+++					ae = self.get_parser_obj(self.rtype_map[type])
+++					print &quot;Downloading errata list...&quot;,
+++					self.get_errata_links(type, release)
+++					print &quot;done\r                               \r&quot;,
+++					prog = progressBar(0, len(self.links), 40)
+++					counter = 0
+++	
+++					for link in self.links:
+++						counter += 1
+++						prog.updateAmount(counter)
+++						advid = os.path.basename(link).split('.')[0]
+++						sys.stderr.write(&quot;%s/%s:%s %3d/%s pages (%s)\r&quot; % (release, type, prog, counter, len(self.links), advid))
+++						if link in links: continue
+++						links.append(link)
+++						ae.cleanup()
+++						ae.update_database(link)
+++#						time.sleep(.05)
+++					print
++ 
++-				print &quot;\nFinished grabbing&quot;,x,&quot;errata&quot;
++-
++-		print &quot;\nFinished&quot;
++ 		sys.exit(ae.exit_status)
++Index: aerrate/aerrate.py
++===================================================================
++--- aerrate/aerrate.py	(revision 20)
+++++ aerrate/aerrate.py	(working copy)
++@@ -6,6 +6,8 @@
++ 
++ from scrapers.scraper import scrape
++ 
+++sys.stdout = os.fdopen(1, 'w', 0)
+++
++ def usage():
++ 	&quot;&quot;&quot;
++ 	Prints out a usage message the explains
++@@ -14,7 +16,7 @@
++ 
++ 	print &quot;&quot;&quot;
++ Usage:  aerrate [OPTIONS]
++-	aerrate --source=site --type=[TYPE] --release=[RELEASE]
+++	aerrate --source=site --type=[TYPE] --release=[RELEASE],[RELEASE]
++ 	aerrate --source=feed --type=[TYPE]
++ 	aerrate --printreleases
++ 
++@@ -25,6 +27,7 @@
++   --help		Display this help and exit
++ 
++ Known values for TYPE are
+++	all
++ 	security
++ 	bugs
++ 	enhancements
++@@ -95,6 +98,7 @@
++ 				sys.exit(0)
++ 
++ 	try:
+++		print &quot;Downloading release list...&quot;,
++ 		if source == &quot;archive&quot;:
++ 			# For parsing the email archives
++ 			# of the enterprise-watch-list
++@@ -125,11 +129,12 @@
++ 			sc = feed_scraper(type)
++ 		else:
++ 			pass
+++		print &quot;done&quot;
++ 
++ 		# Run the main loop of whichever scraper chosen above
++ 		sc.main_run()
++ 	except KeyboardInterrupt:
++ 		# Useless I know, but added it in case it's used
++ 		# in the future for cleanup tasks
++-		print &quot;\nCleaning up&quot;
+++#		print &quot;\nCleaning up&quot;
++ 		sys.exit(0)
+
+Modified: trunk/tools/sarah/sarahdb.py
+===================================================================
+--- trunk/tools/sarah/sarahdb.py	2006-03-14 06:57:32 UTC (rev 4170)
++++ trunk/tools/sarah/sarahdb.py	2006-03-14 13:50:00 UTC (rev 4171)
+@@ -54,7 +54,7 @@
+ filelist = glob.glob('advisories/RH?A-*.xml')
+ #filelist = glob.glob('advisories/RHSA-*.xml')
+ #filelist = ['advisories/RHSA-2005-791.xml', ]
+-filelist.sort()
++#filelist.sort()
+ 
+ for file in filelist:
+ 	try:
+@@ -72,9 +72,10 @@
+ 		advrec['advid'] = findel(root, 'id')
+ 		advrec['pushcount'] = findel(root, 'pushcount')
+ 
+-		### FIXME: aerrate does not (always) add type short info (use filename)
+-		try: advrec['type'] = findelattr(root, 'type', 'short')
+-		except: advrec['type'] = file[0:4]
++		### FIXME: aerrate does not (always) add type short info, use filename (unverified)
++#		try: advrec['type'] = findelattr(root, 'type', 'short')
++#		except: advrec['type'] = file[0:4]
++		advrec['type'] = findelattr(root, 'type', 'short')
+ 
+ 		try: advrec['keywords'] = ' '.join(findel(root, 'keywords'))
+ 		except: advrec['keywords'] = None
+@@ -86,9 +87,10 @@
+ 		if advrec['type'] in ('RHBA', 'RHEA'):
+ 			advrec['severity'] = None
+ 		else:
+-			### FIXME: aerrate uses severity element text and not level attribute
+-			try: advrec['severity'] = findelattr(root, 'severity', 'level')
+-			except: advrec['severity'] = findel(root, 'severity')
++			### FIXME: aerrate uses severity element text and not level attribute (patched)
++#			try: advrec['severity'] = findelattr(root, 'severity', 'level')
++#			except: advrec['severity'] = findel(root, 'severity')
++			advrec['severity'] = findelattr(root, 'severity', 'level')
+ 
+ 		advrec['synopsis'] = findel(root, 'synopsis')
+ 		advrec['issued'] = findelattr(root, 'issued', 'date')
+@@ -98,14 +100,13 @@
+ 		### FIXME: aerrate should replace &lt;p&gt; by \n\n for better formatting or not replace at all
+ 		advrec['description'] = findel(root, 'description')
+ 
+-#		print 'advrec:', advrec.keys()
+ #		print 'advrec:', advrec
+ 		sarahlib.insertrec(cur, 'adv', advrec)
+ 
+ 		for refnode in find(root, 'references'):
+ 			refrec = { 'advid': advrec['advid'] }
+ 			refrec['reftype'] = elattr(refnode, 'type')
+-			### FIXME: aerrate still implements the old format for reference information, skip
++			### FIXME: aerrate still implements the old format for reference information
+ 			refrec['reference'] = elattr(refnode, 'href', fail=False)
+ 
+ 			if refrec['reftype'] == 'self':
+@@ -129,16 +130,14 @@
+ 
+ 		for pronode in find(root, 'rpmlist'):
+ 			prorec = { 'advid': advrec['advid'] }
+-			### FIXME: aerrate does not (always) add product info, skip
+-			try:
+-				prorec['prodshort'] = elattr(pronode, 'short')
+-				prorec['product'] = findel(pronode, 'name')
+-#				print prorec
+-				try: sarahlib.insertrec(cur, 'pro', prorec)
+-				except: pass
+-			except:
+-				pass
++			### FIXME: aerrate does not (always) add product info, skip (unverified)
++			prorec['prodshort'] = elattr(pronode, 'short', fail=False)
++			prorec['product'] = findel(pronode, 'name', fail=False)
+ 
++#			print prorec
++			try: sarahlib.insertrec(cur, 'pro', prorec)
++			except: pass
++
+ 			for rpmnode in findall(pronode, 'file'):
+ 				rpmrec = { 'advid': advrec['advid'], 'prodshort': prorec['prodshort'] }
+ 				rpmrec['arch'] = elattr(rpmnode, 'arch')
+@@ -151,12 +150,13 @@
+ #				print rpmrec
+ 				sarahlib.insertrec(cur, 'rpm', rpmrec)
+ 			
+-		print '\033[0;32m%s\033[0;0m' % os.path.basename(file).strip('.xml'),
++		print 'Processing: \033[0;32m%s\033[0;0m  \r' % os.path.basename(file).strip('.xml'),
+ 
+ 	except Exception, e:
+ #	except (xml.sax._exceptions.SAXParseException, AttributeError, KeyError), e:
+-		print '\033[0;31m%s\033[0;0m' % os.path.basename(file),
++		print 'Error: \033[0;31m%s\033[0;0m' % os.path.basename(file),
+ 		print e
+ #		raise
+ 		continue
++print 'Writing out sqlite database.\r'
+ con.commit()
+
+Modified: trunk/tools/sarah/sarahinfo.py
+===================================================================
+--- trunk/tools/sarah/sarahinfo.py	2006-03-14 06:57:32 UTC (rev 4170)
++++ trunk/tools/sarah/sarahinfo.py	2006-03-14 13:50:00 UTC (rev 4171)
+@@ -56,8 +56,8 @@
+ 	if key in ('2.1AS', '2.1ES', '2.1WS', '2.1AW'):
+ 		print '%s: %s  ' % (key, count[key]),
+ 		continue
+-	### FIXME: aerrate should rename 3desktop to 3Desktop
+-	elif key in ('3AS', '3ES', '3WS', '3Desktop', '3desktop'):
++	### FIXME: aerrate should rename 3desktop to 3Desktop (patched)
++	elif key in ('3AS', '3ES', '3WS', '3Desktop'):
+ 		print '%s: %s  ' % (key, count[key]),
+ 		continue
+ 	elif key in ('4AS', '4ES', '4WS', '4Desktop'):
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002970.html">[svn] r4170 - in trunk/rpms: . gaim-otr libotr
+</A></li>
+	<LI>Next message: <A HREF="002972.html">[svn] r4172 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2971">[ date ]</a>
+              <a href="thread.html#2971">[ thread ]</a>
+              <a href="subject.html#2971">[ subject ]</a>
+              <a href="author.html#2971">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

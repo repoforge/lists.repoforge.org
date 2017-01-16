@@ -1,0 +1,376 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5807 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5807%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C20070903092900.D6F4D944A8E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004605.html">
+   <LINK REL="Next"  HREF="004607.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5807 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5807%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C20070903092900.D6F4D944A8E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5807 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Sep  3 11:29:00 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004605.html">[svn] r5806 - in trunk/rpms: dnsmasq seismictoolkit
+</A></li>
+        <LI>Next message: <A HREF="004607.html">[svn] r5808 - in trunk/rpms: geomview ncc osh youtube-dl
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4606">[ date ]</a>
+              <a href="thread.html#4606">[ thread ]</a>
+              <a href="subject.html#4606">[ subject ]</a>
+              <a href="author.html#4606">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-09-03 11:29:00 +0200 (Mon, 03 Sep 2007)
+New Revision: 5807
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/docs/dstat.1.txt
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topcpu.py
+   trunk/tools/dstat/plugins/dstat_topio.py
+   trunk/tools/dstat/plugins/dstat_topmem.py
+Log:
+Updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2007-09-03 09:23:39 UTC (rev 5806)
++++ trunk/tools/dstat/ChangeLog	2007-09-03 09:29:00 UTC (rev 5807)
+@@ -11,6 +11,8 @@
+ - Fixed a few inaccuracies in the man page. (John Goggan)
+ - Fixed opening vanished files in /proc in dstat_topcpu.
+ - Fixed formatting bug in dstat_topcpu.
++- Added external dstat_mysql_* and dstat_innodb_* plugins
++- Added greppipe() and matchpipe() to improve performance on pipe-handling
+ - Added external dstat_topio and dstat_topbio plugins
+ 
+ * 0.6.6 - Unemployed - released 28/04/2007
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2007-09-03 09:23:39 UTC (rev 5806)
++++ trunk/tools/dstat/TODO	2007-09-03 09:29:00 UTC (rev 5807)
+@@ -22,6 +22,7 @@
+ + Allow for different types of export modules (only CSV now)
+ + Allow to write out to syslog (or remote syslog)
+ + Allow to write unbuffered to disk
+++ Write out user input to CSV
+ 
+ ### Plugin improvements
+ + Don't calculate counters twice when a plugin is loaded twice
+
+Modified: trunk/tools/dstat/docs/dstat.1.txt
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1.txt	2007-09-03 09:23:39 UTC (rev 5806)
++++ trunk/tools/dstat/docs/dstat.1.txt	2007-09-03 09:29:00 UTC (rev 5807)
+@@ -1,21 +1,17 @@
+-dstat(1)
+-========
++= dstat(1)
+ Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ v0.6.4, December 2006
+ 
+ 
+-NAME
+-----
++== NAME
+ dstat - versatile tool for generating system resource statistics
+ 
+ 
+-SYNOPSIS
+---------
++== SYNOPSIS
+ dstat [-afv] [options..] [delay [count]]
+ 
+ 
+-DESCRIPTION
+------------
++== DESCRIPTION
+ Dstat is a versatile replacement for vmstat, iostat and ifstat. Dstat
+ overcomes some of the limitations and adds some extra features.
+ 
+@@ -42,8 +38,7 @@
+ information.
+ 
+ 
+-OPTIONS
+--------
++== OPTIONS
+ -c, --cpu::
+ 	enable cpu stats
+ 
+@@ -148,8 +143,7 @@
+ 	write CSV output to file
+ 
+ 
+-ARGUMENTS
+----------
++== ARGUMENTS
+ *delay* is the delay in seconds between each update
+ 
+ *count* is the number of updates to display before exiting
+@@ -157,8 +151,7 @@
+ The default delay is 1 and count is unspecified (unlimited)
+ 
+ 
+-INTERMEDIATE UPDATES
+---------------------
++== INTERMEDIATE UPDATES
+ When invoking dstat with a *delay* greater than 1 and without the
+ *--noupdate* option, it will show intermediate updates, ie. the first
+ time a 1 sec average, the second update a 2 second average, etc. until
+@@ -170,8 +163,7 @@
+ average on a new line, just like with vmstat.
+ 
+ 
+-USAGE
+------
++== USAGE
+ Using dstat to relate disk-throughput with network-usage (eth0), total CPU-usage and system counters:
+ ----
+ dstat -dnyc -N eth0 -C total -f 5
+@@ -197,8 +189,7 @@
+ ----
+ 
+ 
+-BUGS
+-----
++== BUGS
+ Since it's practically impossible to test dstat on every possible
+ permutation of kernel, python or distribution version, I need your
+ help and your feedback to fix the remaining problems. If you have
+@@ -209,8 +200,7 @@
+ Please see the TODO file for known bugs and future plans.
+ 
+ 
+-FILES
+------
++== FILES
+ Paths that may contain external dstat_* plugins:
+ 
+ 	~/.dstat/
+@@ -221,51 +211,40 @@
+ 	/usr/local/share/dstat/
+ 
+ 
+-SEE ALSO
+---------
+-Performance tools
+-~~~~~~~~~~~~~~~~~
++== SEE ALSO
++
++=== Performance tools
+ 	ifstat(1), iftop(8), iostat(1), mpstat(1), netstat(1), nfsstat(1), nstat, vmstat(1), xosview(1)
+ 
+-Debugging tools
+-~~~~~~~~~~~~~~~
++=== Debugging tools
+ 	htop, lslk(1), lsof(8), top(1)
+ 
+-Process tracing
+-~~~~~~~~~~~~~~~
++=== Process tracing
+ 	ltrace(1), pmap(1), ps(1), pstack(1), strace(1)
+ 
+-Binary debugging
+-~~~~~~~~~~~~~~~~
++=== Binary debugging
+ 	ldd(1), file(1), nm(1), objdump(1), readelf(1)
+ 
+-Memory usage tools
+-~~~~~~~~~~~~~~~~~~
++=== Memory usage tools
+ 	free(1), memusage, memusagestat, slabtop(1)
+ 
+-Accounting tools
+-~~~~~~~~~~~~~~~~
++=== Accounting tools
+ 	dump-acct, dump-utmp, sa(8)
+ 
+-Hardware debugging tools
+-~~~~~~~~~~~~~~~~~~~~~~~~
++=== Hardware debugging tools
+ 	dmidecode, ifinfo(1), lsdev(1), lshal(1), lshw(1), lsmod(8), lspci(8), lsusb(8), smartctl(8), x86info(1)
+ 
+-Application debugging
+-~~~~~~~~~~~~~~~~~~~~~
++=== Application debugging
+ 	mailstats(8), qshape(1)
+ 
+-Xorg related tools
+-~~~~~~~~~~~~~~~~~~
++=== Xorg related tools
+ 	xdpyinfo(1), xrestop(1)
+ 
+-Other useful info
+-~~~~~~~~~~~~~~~~~
++=== Other useful info
+ 	proc(5)
+ 
+ 
+-AUTHOR
+-------
++== AUTHOR
+ Written by Dag Wieers mailto:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>[]
+ 
+ Homepage at <A HREF="http://dag.wieers.com/home-made/dstat/[">http://dag.wieers.com/home-made/dstat/[</A>]
+
+Modified: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	2007-09-03 09:23:39 UTC (rev 5806)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2007-09-03 09:29:00 UTC (rev 5807)
+@@ -48,8 +48,10 @@
+                     if len(l) != 2: continue
+                     self.cn2[pid][l[0]] = int(l[1])
+ 
+-            except ValueError or IOError:
++            except ValueError:
+                 continue
++            except IOError:
++                continue
+ 
+             read_usage = (self.cn2[pid]['read_bytes:'] - self.cn1[pid]['read_bytes:']) * 1.0 / tick
+             write_usage = (self.cn2[pid]['write_bytes:'] - self.cn1[pid]['write_bytes:']) * 1.0 / tick
+@@ -81,7 +83,8 @@
+ #           self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.format[1]-6, self.val['name'])
+ 
+         if step == op.delay:
+-            self.cn1.update(self.cn2)
++            for pid in self.cn2.keys():
++                self.cn1[pid].update(self.cn2[pid])
+ 
+     def show(self):
+         if self.val['usage'] == 0.0:
+
+Modified: trunk/tools/dstat/plugins/dstat_topcpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topcpu.py	2007-09-03 09:23:39 UTC (rev 5806)
++++ trunk/tools/dstat/plugins/dstat_topcpu.py	2007-09-03 09:29:00 UTC (rev 5807)
+@@ -31,6 +31,11 @@
+ 
+                 if len(l) &lt; 15: continue
+ 
++                ### Get commandline
++                m = string.split(open('/proc/%s/cmdline' % pid).read(), '\0')
++                if len(m) &gt; 1:
++                    cmd = os.path.basename(m[1])
++
+                 ### Reset previous value if it doesn't exist
+                 if not self.cn1.has_key(pid):
+                     self.cn1[pid] = 0
+@@ -38,15 +43,18 @@
+                 self.cn2[pid] = int(l[13]) + int(l[14])
+                 usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
+ 
+-            except ValueError or IOError:
++            except ValueError:
+                 continue
++            except IOError:
++                continue
+ 
+             ### Get the process that spends the most jiffies
+             if usage &gt;= self.val['usage']:
+                 self.val['usage'] = usage
+                 self.val['name'] = l[1][1:-1]
+                 self.val['pid'] = pid
+-                st = os.stat(&quot;/proc/%s&quot; % pid)
++                self.val['cmd'] = cmd
++#                st = os.stat(&quot;/proc/%s&quot; % pid)
+ #                if st:
+ #                    pw = pwd.getpwuid(st.st_uid)
+ #                    if pw:
+@@ -61,11 +69,7 @@
+         else:
+             ### If the name is a known interpreter, take the second argument from the cmdline
+             if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
+-                ### Using dopen() will cause too many open files
+-#               l = string.split(dopen('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
+-                l = string.split(open('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
+-                if len(l) &gt; 2:
+-                    self.val['process'] = os.path.basename(l[1])
++                self.val['process'] = os.path.basename(cmd)
+             else:
+                 self.val['process'] = self.val['name']
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topio.py	2007-09-03 09:23:39 UTC (rev 5806)
++++ trunk/tools/dstat/plugins/dstat_topio.py	2007-09-03 09:29:00 UTC (rev 5807)
+@@ -48,8 +48,10 @@
+                     if len(l) != 2: continue
+                     self.cn2[pid][l[0]] = int(l[1])
+ 
+-            except ValueError or IOError:
++            except ValueError:
+                 continue
++            except IOError:
++                continue
+ 
+             read_usage = (self.cn2[pid]['rchar:'] - self.cn1[pid]['rchar:']) * 1.0 / tick
+             write_usage = (self.cn2[pid]['wchar:'] - self.cn1[pid]['wchar:']) * 1.0 / tick
+@@ -83,7 +85,8 @@
+ #           self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.format[1]-6, self.val['name'])
+ 
+         if step == op.delay:
+-            self.cn1.update(self.cn2)
++            for pid in self.cn2.keys():
++                self.cn1[pid].update(self.cn2[pid])
+ 
+     def show(self):
+         if self.val['usage'] == 0.0:
+
+Modified: trunk/tools/dstat/plugins/dstat_topmem.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topmem.py	2007-09-03 09:23:39 UTC (rev 5806)
++++ trunk/tools/dstat/plugins/dstat_topmem.py	2007-09-03 09:29:00 UTC (rev 5807)
+@@ -32,8 +32,10 @@
+                 if len(l) &lt; 23: continue
+                 usage = int(l[23]) * pagesize
+ 
+-            except ValueError or IOError:
++            except ValueError:
+                 continue
++            except IOError:
++                continue
+ 
+             ### Get the process that uses the most memory
+             if usage &gt;= self.val['usage']:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004605.html">[svn] r5806 - in trunk/rpms: dnsmasq seismictoolkit
+</A></li>
+	<LI>Next message: <A HREF="004607.html">[svn] r5808 - in trunk/rpms: geomview ncc osh youtube-dl
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4606">[ date ]</a>
+              <a href="thread.html#4606">[ thread ]</a>
+              <a href="subject.html#4606">[ subject ]</a>
+              <a href="author.html#4606">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

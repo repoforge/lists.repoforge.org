@@ -1,0 +1,888 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3107 - in trunk/rpms: asterisk asterisk-sounds zaptel
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3107%20-%20in%20trunk/rpms%3A%20asterisk%20asterisk-sounds%20zaptel&In-Reply-To=%3C20050405095720.477175C51F6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001908.html">
+   <LINK REL="Next"  HREF="001910.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3107 - in trunk/rpms: asterisk asterisk-sounds zaptel</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3107%20-%20in%20trunk/rpms%3A%20asterisk%20asterisk-sounds%20zaptel&In-Reply-To=%3C20050405095720.477175C51F6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3107 - in trunk/rpms: asterisk asterisk-sounds zaptel">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Apr  5 11:57:20 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001908.html">[svn] r3106 - in trunk/rpms: liboil swfdec
+</A></li>
+        <LI>Next message: <A HREF="001910.html">[svn] r3108 - in trunk/rpms: . gaim gaim-encryption kismet	pamtester smbldap-tools subversion timer-applet tnef zoo zsync
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1909">[ date ]</a>
+              <a href="thread.html#1909">[ thread ]</a>
+              <a href="subject.html#1909">[ subject ]</a>
+              <a href="author.html#1909">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-04-05 11:57:17 +0200 (Tue, 05 Apr 2005)
+New Revision: 3107
+
+Added:
+   trunk/rpms/zaptel/zaptel-1.0.6-makefile.patch
+Removed:
+   trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch
+Modified:
+   trunk/rpms/asterisk-sounds/asterisk-sounds.spec
+   trunk/rpms/asterisk/asterisk-1.0-RC2-cdr.patch
+   trunk/rpms/asterisk/asterisk.spec
+   trunk/rpms/zaptel/zaptel.spec
+Log:
+Update asterisk, asterisk-sounds and zaptel to 1.0.7.
+
+
+Modified: trunk/rpms/asterisk/asterisk-1.0-RC2-cdr.patch
+===================================================================
+--- trunk/rpms/asterisk/asterisk-1.0-RC2-cdr.patch	2005-04-05 09:51:17 UTC (rev 3106)
++++ trunk/rpms/asterisk/asterisk-1.0-RC2-cdr.patch	2005-04-05 09:57:17 UTC (rev 3107)
+@@ -49,342 +49,3 @@
+  			return -1;
+  		}
+  	} else {
+-diff -Naupr asterisk-1.0-RC2.orig/cdr/cdr_pgsql.c.orig asterisk-1.0-RC2/cdr/cdr_pgsql.c.orig
+---- asterisk-1.0-RC2.orig/cdr/cdr_pgsql.c.orig	1970-01-01 01:00:00.000000000 +0100
+-+++ asterisk-1.0-RC2/cdr/cdr_pgsql.c.orig	2004-07-28 20:42:35.000000000 +0200
+-@@ -0,0 +1,335 @@
+-+/*
+-+ * Asterisk -- A telephony toolkit for Linux.
+-+ *
+-+ * PostgreSQL CDR logger 
+-+ *
+-+ * Matthew D. Hardeman &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">mhardemn at papersoft.com</A>&gt; 
+-+ * Adapted from the MySQL CDR logger originally by James Sharp 
+-+ *
+-+ * Modified September 2003
+-+ * Matthew D. Hardeman &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">mhardemn at papersoft.com</A>&gt;
+-+ *
+-+ * This program is free software, distributed under the terms of
+-+ * the GNU General Public License.
+-+ *
+-+ */
+-+
+-+#include &lt;sys/types.h&gt;
+-+#include &lt;asterisk/config.h&gt;
+-+#include &lt;asterisk/options.h&gt;
+-+#include &lt;asterisk/channel.h&gt;
+-+#include &lt;asterisk/cdr.h&gt;
+-+#include &lt;asterisk/module.h&gt;
+-+#include &lt;asterisk/logger.h&gt;
+-+#include &quot;../asterisk.h&quot;
+-+
+-+#include &lt;stdio.h&gt;
+-+#include &lt;string.h&gt;
+-+
+-+#include &lt;stdlib.h&gt;
+-+#include &lt;unistd.h&gt;
+-+#include &lt;time.h&gt;
+-+
+-+#include &lt;libpq-fe.h&gt;
+-+
+-+#define DATE_FORMAT &quot;%Y-%m-%d %T&quot;
+-+
+-+static char *desc = &quot;PostgreSQL CDR Backend&quot;;
+-+static char *name = &quot;pgsql&quot;;
+-+static char *config = &quot;cdr_pgsql.conf&quot;;
+-+static char *pghostname = NULL, *pgdbname = NULL, *pgdbuser = NULL, *pgpassword = NULL, *pgdbsock = NULL, *pgdbport = NULL;
+-+static int hostname_alloc = 0, dbname_alloc = 0, dbuser_alloc = 0, password_alloc = 0, dbsock_alloc = 0, dbport_alloc = 0;
+-+static int connected = 0;
+-+
+-+AST_MUTEX_DEFINE_STATIC(pgsql_lock);
+-+
+-+PGconn		*conn;
+-+PGresult	*result;
+-+
+-+static int pgsql_log(struct ast_cdr *cdr)
+-+{
+-+	struct tm tm;
+-+	char sqlcmd[2048] = &quot;&quot;, timestr[128];
+-+	char *pgerror;
+-+
+-+	ast_mutex_lock(&amp;pgsql_lock);
+-+
+-+	localtime_r(&amp;cdr-&gt;start.tv_sec,&amp;tm);
+-+	strftime(timestr, sizeof(timestr), DATE_FORMAT, &amp;tm);
+-+
+-+	if ((!connected) &amp;&amp; pghostname &amp;&amp; pgdbuser &amp;&amp; pgpassword &amp;&amp; pgdbname) {
+-+		conn = PQsetdbLogin(pghostname, pgdbport, NULL, NULL, pgdbname, pgdbuser, pgpassword);
+-+		if (PQstatus(conn) != CONNECTION_BAD) {
+-+			connected = 1;
+-+		} else {
+-+			pgerror = PQerrorMessage(conn);
+-+			ast_log(LOG_ERROR, &quot;cdr_pgsql: Unable to connect to database server %s.  Calls will not be logged!\n&quot;, pghostname);
+-+                        ast_log(LOG_ERROR, &quot;cdr_pgsql: Reason: %s\n&quot;, pgerror);
+-+		}
+-+	}
+-+
+-+	if (connected) {
+-+		char *clid=NULL, *dcontext=NULL, *channel=NULL, *dstchannel=NULL, *lastapp=NULL, *lastdata=NULL;
+-+		char *uniqueid=NULL, *userfield=NULL;
+-+
+-+		/* Maximum space needed would be if all characters needed to be escaped, plus a trailing NULL */
+-+		if ((clid = alloca(strlen(cdr-&gt;clid) * 2 + 1)) != NULL)
+-+			PQescapeString(clid, cdr-&gt;clid, strlen(cdr-&gt;clid));
+-+		if ((dcontext = alloca(strlen(cdr-&gt;dcontext) * 2 + 1)) != NULL)
+-+			PQescapeString(dcontext, cdr-&gt;dcontext, strlen(cdr-&gt;dcontext));
+-+		if ((channel = alloca(strlen(cdr-&gt;channel) * 2 + 1)) != NULL)
+-+			PQescapeString(channel, cdr-&gt;channel, strlen(cdr-&gt;channel));
+-+		if ((dstchannel = alloca(strlen(cdr-&gt;dstchannel) * 2 + 1)) != NULL)
+-+			PQescapeString(dstchannel, cdr-&gt;dstchannel, strlen(cdr-&gt;dstchannel));
+-+		if ((lastapp = alloca(strlen(cdr-&gt;lastapp) * 2 + 1)) != NULL)
+-+			PQescapeString(lastapp, cdr-&gt;lastapp, strlen(cdr-&gt;lastapp));
+-+		if ((lastdata = alloca(strlen(cdr-&gt;lastdata) * 2 + 1)) != NULL)
+-+			PQescapeString(lastdata, cdr-&gt;lastdata, strlen(cdr-&gt;lastdata));
+-+		if ((uniqueid = alloca(strlen(cdr-&gt;uniqueid) * 2 + 1)) != NULL)
+-+			PQescapeString(uniqueid, cdr-&gt;uniqueid, strlen(cdr-&gt;uniqueid));
+-+		if ((userfield = alloca(strlen(cdr-&gt;userfield) * 2 + 1)) != NULL)
+-+			PQescapeString(userfield, cdr-&gt;userfield, strlen(cdr-&gt;userfield));
+-+
+-+		/* Check for all alloca failures above at once */
+-+		if ((!clid) || (!dcontext) || (!channel) || (!dstchannel) || (!lastapp) || (!lastdata) || (!uniqueid) || (!userfield)) {
+-+			ast_log(LOG_ERROR, &quot;cdr_pgsql:  Out of memory error (insert fails)\n&quot;);
+-+			ast_mutex_unlock(&amp;pgsql_lock);
+-+			return -1;
+-+		}
+-+
+-+		ast_log(LOG_DEBUG,&quot;cdr_pgsql: inserting a CDR record.\n&quot;);
+-+
+-+		snprintf(sqlcmd,sizeof(sqlcmd),&quot;INSERT INTO cdr (calldate,clid,src,dst,dcontext,channel,dstchannel,lastapp,lastdata,duration,billsec,disposition,amaflags,accountcode,uniqueid,userfield) VALUES ('%s','%s','%s','%s','%s', '%s','%s','%s','%s',%i,%i,'%s',%i,'%s','%s','%s')&quot;,timestr,clid,cdr-&gt;src, cdr-&gt;dst, dcontext,channel, dstchannel, lastapp, lastdata,cdr-&gt;duration,cdr-&gt;billsec,ast_cdr_disp2str(cdr-&gt;disposition),cdr-&gt;amaflags, cdr-&gt;accountcode, uniqueid, userfield);
+-+		ast_log(LOG_DEBUG,&quot;cdr_pgsql: SQL command executed:  %s\n&quot;,sqlcmd);
+-+	
+-+		/* Test to be sure we're still connected... */
+-+		/* If we're connected, and connection is working, good. */
+-+		/* Otherwise, attempt reconnect.  If it fails... sorry... */
+-+		if (PQstatus(conn) == CONNECTION_OK) {
+-+			connected = 1;
+-+		} else {
+-+			ast_log(LOG_ERROR, &quot;cdr_pgsql: Connection was lost... attempting to reconnect.\n&quot;);
+-+			PQreset(conn);
+-+			if (PQstatus(conn) == CONNECTION_OK) {
+-+				ast_log(LOG_ERROR, &quot;cdr_pgsql: Connection reestablished.\n&quot;);
+-+				connected = 1;
+-+			} else {
+-+				pgerror = PQerrorMessage(conn);
+-+				ast_log(LOG_ERROR, &quot;cdr_pgsql: Unable to reconnect to database server %s. Calls will not be logged!\n&quot;, pghostname);
+-+				ast_log(LOG_ERROR, &quot;cdr_pgsql: Reason: %s\n&quot;, pgerror);
+-+				connected = 0;
+-+				ast_mutex_unlock(&amp;pgsql_lock);
+-+				return -1;
+-+			}
+-+		}
+-+		result = PQexec(conn, sqlcmd);
+-+		if ( PQresultStatus(result) != PGRES_COMMAND_OK) {
+-+                        pgerror = PQresultErrorMessage(result);
+-+			ast_log(LOG_ERROR,&quot;cdr_pgsql: Failed to insert call detail record into database!\n&quot;);
+-+                        ast_log(LOG_ERROR,&quot;cdr_pgsql: Reason: %s\n&quot;, pgerror);
+-+			ast_mutex_unlock(&amp;pgsql_lock);
+-+			return -1;
+-+		}
+-+	}
+-+	ast_mutex_unlock(&amp;pgsql_lock);
+-+	return 0;
+-+}
+-+
+-+char *description(void)
+-+{
+-+	return desc;
+-+}
+-+
+-+static int my_unload_module(void)
+-+{ 
+-+	if (conn)
+-+		PQfinish(conn);
+-+	conn = NULL;
+-+	connected = 0;
+-+	if (pghostname &amp;&amp; hostname_alloc) {
+-+		free(pghostname);
+-+		pghostname = NULL;
+-+		hostname_alloc = 0;
+-+	}
+-+	if (pgdbname &amp;&amp; dbname_alloc) {
+-+		free(pgdbname);
+-+		pgdbname = NULL;
+-+		dbname_alloc = 0;
+-+	}
+-+	if (pgdbuser &amp;&amp; dbuser_alloc) {
+-+		free(pgdbuser);
+-+		pgdbuser = NULL;
+-+		dbuser_alloc = 0;
+-+	}
+-+	if (pgdbsock &amp;&amp; dbsock_alloc) {
+-+		free(pgdbsock);
+-+		pgdbsock = NULL;
+-+		dbsock_alloc = 0;
+-+	}
+-+	if (pgpassword &amp;&amp; password_alloc) {
+-+		free(pgpassword);
+-+		pgpassword = NULL;
+-+		password_alloc = 0;
+-+	}
+-+	if (pgdbport &amp;&amp; dbport_alloc) {
+-+		free(pgdbport);
+-+		pgdbport = NULL;
+-+		dbport_alloc = 0;
+-+	}
+-+	ast_cdr_unregister(name);
+-+	return 0;
+-+}
+-+
+-+static int my_load_module(void)
+-+{
+-+	int res;
+-+	struct ast_config *cfg;
+-+	struct ast_variable *var;
+-+        char *pgerror;
+-+	char *tmp;
+-+
+-+	cfg = ast_load(config);
+-+	if (!cfg) {
+-+		ast_log(LOG_WARNING, &quot;Unable to load config for PostgreSQL CDR's: %s\n&quot;, config);
+-+		return 0;
+-+	}
+-+	
+-+	var = ast_variable_browse(cfg, &quot;global&quot;);
+-+	if (!var) {
+-+		/* nothing configured */
+-+		return 0;
+-+	}
+-+
+-+	tmp = ast_variable_retrieve(cfg,&quot;global&quot;,&quot;hostname&quot;);
+-+	if (tmp) {
+-+		pghostname = malloc(strlen(tmp) + 1);
+-+		if (pghostname != NULL) {
+-+			memset(pghostname, 0, strlen(tmp) + 1);
+-+			hostname_alloc = 1;
+-+			strncpy(pghostname, tmp, strlen(tmp));
+-+		} else {
+-+			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+-+			return -1;
+-+		}
+-+	} else {
+-+		ast_log(LOG_WARNING,&quot;PostgreSQL server hostname not specified.  Assuming localhost\n&quot;);
+-+		pghostname = &quot;localhost&quot;;
+-+	}
+-+
+-+	tmp = ast_variable_retrieve(cfg,&quot;global&quot;,&quot;dbname&quot;);
+-+	if (tmp) {
+-+		pgdbname = malloc(strlen(tmp) + 1);
+-+		if (pgdbname != NULL) {
+-+			memset(pgdbname, 0, strlen(tmp) + 1);
+-+			dbname_alloc = 1;
+-+			strncpy(pgdbname, tmp, strlen(tmp));
+-+		} else {
+-+			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+-+			return -1;
+-+		}
+-+	} else {
+-+		ast_log(LOG_WARNING,&quot;PostgreSQL database not specified.  Assuming asterisk\n&quot;);
+-+		pgdbname = &quot;asteriskcdrdb&quot;;
+-+	}
+-+
+-+	tmp = ast_variable_retrieve(cfg,&quot;global&quot;,&quot;user&quot;);
+-+	if (tmp) {
+-+		pgdbuser = malloc(strlen(tmp) + 1);
+-+		if (pgdbuser != NULL) {
+-+			memset(pgdbuser, 0, strlen(tmp) + 1);
+-+			dbuser_alloc = 1;
+-+			strncpy(pgdbuser, tmp, strlen(tmp));
+-+		} else {
+-+			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+-+			return -1;
+-+		}
+-+	} else {
+-+		ast_log(LOG_WARNING,&quot;PostgreSQL database user not specified.  Assuming root\n&quot;);
+-+		pgdbuser = &quot;root&quot;;
+-+	}
+-+
+-+	tmp = ast_variable_retrieve(cfg,&quot;global&quot;,&quot;password&quot;);
+-+	if (tmp) {
+-+		pgpassword = malloc(strlen(tmp) + 1);
+-+		if (pgpassword != NULL) {
+-+			memset(pgpassword, 0, strlen(tmp) + 1);
+-+			password_alloc = 1;
+-+			strncpy(pgpassword, tmp, strlen(tmp));
+-+		} else {
+-+			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+-+			return -1;
+-+		}
+-+	} else {
+-+		ast_log(LOG_WARNING,&quot;PostgreSQL database password not specified.  Assuming blank\n&quot;);
+-+		pgpassword = &quot;&quot;;
+-+	}
+-+
+-+	tmp = ast_variable_retrieve(cfg,&quot;global&quot;,&quot;port&quot;);
+-+	if (tmp) {
+-+		pgdbport = malloc(strlen(tmp) + 1);
+-+		if (pgdbport != NULL) {
+-+			memset(pgdbport, 0, strlen(tmp) + 1);
+-+			dbport_alloc = 1;
+-+			strncpy(pgdbport, tmp, strlen(tmp));
+-+		} else {
+-+			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+-+			return -1;
+-+		}
+-+	} else {
+-+		ast_log(LOG_WARNING,&quot;PostgreSQL database port not specified.  Using default 5432.\n&quot;);
+-+		pgdbport = &quot;5432&quot;;
+-+	}
+-+
+-+	ast_destroy(cfg);
+-+
+-+	ast_log(LOG_DEBUG,&quot;cdr_pgsql: got hostname of %s\n&quot;,pghostname);
+-+	ast_log(LOG_DEBUG,&quot;cdr_pgsql: got port of %s\n&quot;,pgdbport);
+-+	if (pgdbsock)
+-+		ast_log(LOG_DEBUG,&quot;cdr_pgsql: got sock file of %s\n&quot;,pgdbsock);
+-+	ast_log(LOG_DEBUG,&quot;cdr_pgsql: got user of %s\n&quot;,pgdbuser);
+-+	ast_log(LOG_DEBUG,&quot;cdr_pgsql: got dbname of %s\n&quot;,pgdbname);
+-+	ast_log(LOG_DEBUG,&quot;cdr_pgsql: got password of %s\n&quot;,pgpassword);
+-+
+-+	conn = PQsetdbLogin(pghostname, pgdbport, NULL, NULL, pgdbname, pgdbuser, pgpassword);
+-+	if (PQstatus(conn) != CONNECTION_BAD) {
+-+		ast_log(LOG_DEBUG,&quot;Successfully connected to PostgreSQL database.\n&quot;);
+-+		connected = 1;
+-+	} else {
+-+                pgerror = PQerrorMessage(conn);
+-+		ast_log(LOG_ERROR, &quot;cdr_pgsql: Unable to connect to database server %s.  Calls will not be logged!\n&quot;, pghostname);
+-+                ast_log(LOG_ERROR, &quot;cdr_pgsql: Reason: %s\n&quot;, pgerror);
+-+		connected = 0;
+-+	}
+-+
+-+	res = ast_cdr_register(name, desc, pgsql_log);
+-+	if (res) {
+-+		ast_log(LOG_ERROR, &quot;Unable to register PGSQL CDR handling\n&quot;);
+-+	}
+-+	return res;
+-+}
+-+
+-+int load_module(void)
+-+{
+-+	return my_load_module();
+-+}
+-+
+-+int unload_module(void)
+-+{
+-+	return my_unload_module();
+-+}
+-+
+-+int reload(void)
+-+{
+-+	my_unload_module();
+-+	return my_load_module();
+-+}
+-+
+-+int usecount(void)
+-+{
+-+	return connected;
+-+}
+-+
+-+char *key()
+-+{
+-+	return ASTERISK_GPL_KEY;
+-+}
+
+Modified: trunk/rpms/asterisk/asterisk.spec
+===================================================================
+--- trunk/rpms/asterisk/asterisk.spec	2005-04-05 09:51:17 UTC (rev 3106)
++++ trunk/rpms/asterisk/asterisk.spec	2005-04-05 09:57:17 UTC (rev 3107)
+@@ -9,9 +9,9 @@
+ #define prever RC2
+ #define cvs 20041125
+ 
+-Summary: The Asterisk PBX and telephony application and toolkit
++Summary: PBX and telephony application and toolkit
+ Name: asterisk
+-Version: 1.0.5
++Version: 1.0.7
+ Release: %{?prever:0.%{prever}.}%{?cvs:1.%{cvs}.}1
+ License: GPL
+ Group: Applications/Internet
+@@ -138,6 +138,12 @@
+ 
+ 
+ %changelog
++* Tue Apr  5 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.7-1
++- Update to 1.0.7.
++
++* Tue Mar  8 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.6-1
++- Update to 1.0.6.
++
+ * Wed Feb  2 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.5-1
+ - Update to 1.0.5.
+ - Don't create nor include sbin/safe_asterisk.orig.
+
+Modified: trunk/rpms/asterisk-sounds/asterisk-sounds.spec
+===================================================================
+--- trunk/rpms/asterisk-sounds/asterisk-sounds.spec	2005-04-05 09:51:17 UTC (rev 3106)
++++ trunk/rpms/asterisk-sounds/asterisk-sounds.spec	2005-04-05 09:57:17 UTC (rev 3107)
+@@ -7,7 +7,7 @@
+ 
+ Summary: Sound files for the Asterisk PBX and telephony application and toolkit
+ Name: asterisk-sounds
+-Version: 1.0.1
++Version: 1.0.7
+ Release: %{?prever:0.%{prever}.}1
+ License: BSD
+ Group: Applications/Internet
+@@ -51,10 +51,13 @@
+ %files
+ %defattr(0644, root, root, 0755)
+ %doc README.txt sounds-extra.txt
+-%{_var}/lib/asterisk/sounds
++%{_var}/lib/asterisk/sounds/
+ 
+ 
+ %changelog
++* Tue Apr  5 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.7-1
++- Update to 1.0.7.
++
+ * Wed Feb  2 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.1-1
+ - Minor cleanups.
+ 
+
+Deleted: trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch
+===================================================================
+--- trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch	2005-04-05 09:51:17 UTC (rev 3106)
++++ trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch	2005-04-05 09:57:17 UTC (rev 3107)
+@@ -1,156 +0,0 @@
+-diff -Naupr zaptel-1.0.4.orig/Makefile zaptel-1.0.4/Makefile
+---- zaptel-1.0.4.orig/Makefile	2005-01-17 01:57:59.000000000 +0100
+-+++ zaptel-1.0.4/Makefile	2005-02-02 12:46:49.046727824 +0100
+-@@ -4,6 +4,9 @@
+- #
+- BASEADDR=0xd0000
+- 
+-+# Kernel version
+-+KVERSION=$(uname -r)
+-+
+- #
+- # Okay, the people at RedHat have to break everything they can possibly even attempt to.
+- # So, we have to look in /usr/src/linux-2.4/include for header files given their brain dead
+-@@ -13,15 +16,15 @@ BASEADDR=0xd0000
+- # (assuming He's running Linux -- which we all know He must).
+- #
+- HOSTCC=gcc
+--KINCLUDES=$(shell if [ -d /usr/src/linux-2.4/include ]; then echo /usr/src/linux-2.4/include ; else echo /usr/src/linux/include ; fi)
+-+KINCLUDES=/lib/modules/$(KVERSION)/build/include
+- 
+--CFLAGS+=-I. -O4 -g -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
+-+CFLAGS+=-I. -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
+- CFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-fsigned-char&quot;; fi)
+- CFLAGS+=$(shell if uname -m | grep -q x86_64; then echo &quot;-m64&quot;; fi)
+- LCFLAGS=-fPIC $(CFLAGS) -DBUILDING_TONEZONE
+--KFLAGS+=-I/usr/src/linux-2.4/include -O6
+--KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB -I/usr/src/linux/drivers/net \
+--	-Wall -I. -Wstrict-prototypes -fomit-frame-pointer -I/usr/src/linux/drivers/net/wan -I /usr/src/linux/include -I/usr/src/linux/include/net
+-+KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB
+-+KFLAGS+=-Wall -Wstrict-prototypes -fomit-frame-pointer
+-+KFLAGS+=-I. -Wall -I$(KINCLUDES) -I$(KINCLUDES)/net -I$(KINCLUDES)/net/wan
+- KFLAGS+=$(shell [ -f $(KINCLUDES)/linux/modversions.h ] &amp;&amp; echo &quot;-DMODVERSIONS -include $(KINCLUDES)/linux/modversions.h&quot;)
+- KFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-msoft-float -fsigned-char&quot;; fi)
+- #
+-@@ -38,8 +41,8 @@ INSTALL_PREFIX=
+- CONFIG_FILE=$(INSTALL_PREFIX)/etc/zaptel.conf
+- CFLAGS+=-DZAPTEL_CONFIG=\&quot;$(CONFIG_FILE)\&quot;
+- 
+--BUILDVER=$(shell if uname -r | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
+--MODCONF=$(shell if [ -d $(ROOT_PREFIX)/etc/modprobe.d ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(ROOT_PREFIX)/etc/modutils ]; then echo &quot;$(ROOT_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(ROOT_PREFIX)/etc/modprobe.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.conf&quot;; elif [ -f $(ROOT_PREFIX)/etc/modules.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modules.conf&quot;; else echo $(ROOT_PREFIX)/etc/conf.modules ; fi)
+-+BUILDVER=$(shell if echo $(KVERSION) | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
+-+MODCONF=$(shell if [ -d $(ROOT_PREFIX)/etc/modprobe.d ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(ROOT_PREFIX)/etc/modutils ]; then echo &quot;$(ROOT_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(ROOT_PREFIX)/etc/modules.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modules.conf&quot;; else echo $(ROOT_PREFIX)/etc/modprobe.conf ; fi)
+- 
+- ifeq (${BUILDVER},linux24)
+- #We only support DEVFS in linux 2.4 kernels, since its considered obsolete post 2.4
+-@@ -67,7 +70,7 @@ BINS=ztcfg torisatool makefw ztmonitor z
+- PRIMARY=torisa
+- #PRIMARY=wcfxo
+- PWD=$(shell pwd)
+--KERNEL_SOURCE?=/lib/modules/`uname -r`/build
+-+KERNEL_SOURCE?=/lib/modules/$(KVERSION)/build
+- 
+- all: $(BUILDVER)
+- 
+-@@ -240,43 +243,43 @@ ifeq ($(DYNFS),)
+- 	rm -f $(INSTALL_PREFIX)/dev/zap/252
+- 	rm -f $(INSTALL_PREFIX)/dev/zap/251
+- 	rm -f $(INSTALL_PREFIX)/dev/zap/250
+--	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
+--	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
+--	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
+--	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
+--	N=1; \
+--	while [ $$N -lt 250 ]; do \
+--		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
+--		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
+--		N=$$[$$N+1]; \
+--	done
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
+-+#	N=1; \
+-+#	while [ $$N -lt 250 ]; do \
+-+#		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
+-+#		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
+-+#		N=$$[$$N+1]; \
+-+#	done
+- else
+- 	@echo &quot;**** Dynamic filesystem detected -- not creating device nodes&quot;
+- 	@echo &quot;**** If you are running udev, read README.udev&quot;
+- endif
+- 
+- install:  all devices $(LIBTONEZONE)
+--	install -D -m 755 ztcfg $(INSTALL_PREFIX)/sbin/ztcfg
+-+	install -D -m 755 ztcfg $(INSTALL_PREFIX)/usr/sbin/ztcfg
+- 	if [ -f sethdlc-new ]; then \
+--		install -D -m 755 sethdlc-new $(INSTALL_PREFIX)/sbin/sethdlc; \
+-+		install -D -m 755 sethdlc-new $(INSTALL_PREFIX)/usr/sbin/sethdlc; \
+- 	elif [ -f sethdlc ]; then \
+--		install -D -m 755 sethdlc $(INSTALL_PREFIX)/sbin/sethdlc ; \
+-+		install -D -m 755 sethdlc $(INSTALL_PREFIX)/usr/sbin/sethdlc ; \
+- 	fi
+--	if [ -f zttool ]; then install -D -m 755 zttool $(INSTALL_PREFIX)/sbin/zttool; fi
+-+	if [ -f zttool ]; then install -D -m 755 zttool $(INSTALL_PREFIX)/usr/sbin/zttool; fi
+- 
+- 	if [ -f zaptel.ko ]; then \
+- 		for x in $(MODULESKO) ztdummy.ko; do \
+--			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/$$x ; \
+-+			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/$$x ; \
+- 		done; \
+- 		if ! [ -f wcfxsusb.ko ]; then \
+--			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.o; \
+-+			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.o; \
+- 		fi; \
+- 	else \
+- 		for x in $(MODULESO); do \
+--			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/$$x ; \
+-+			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/$$x ; \
+- 		done; \
+- 		if ! [ -f wcfxsusb.o ]; then \
+--			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.ko; \
+-+			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.ko; \
+- 		fi; \
+- 	fi
+- 
+-@@ -287,11 +290,14 @@ install:  all devices $(LIBTONEZONE)
+- 	install -D -m 644 tonezone.h $(INSTALL_PREFIX)/usr/include/tonezone.h
+- 	( cd $(INSTALL_PREFIX)/usr/lib ; rm -f libtonezone.so ; ln -sf $(LIBTONEZONE) libtonezone.so )
+- 	[ `id -u` = 0 ] &amp;&amp; /sbin/ldconfig || :
+--	if [ -f $(MODCONF) ]; then mv -f $(MODCONF) $(MODCONF).bak ; fi
+--	cat $(MODCONF).bak | grep -v &quot;alias char-major-250&quot; | \
+--	grep -v &quot;post-install torisa /sbin/ztcfg&quot; | \
+--	grep -v &quot;post-install wcfxsusb /sbin/ztcfg&quot; | \
+--	grep -v &quot;post-install wcfxs /sbin/ztcfg&quot; &gt; $(MODCONF) || true
+-+#	if [ -f $(MODCONF) ]; then mv -f $(MODCONF) $(MODCONF).bak ; fi
+-+#	cat $(MODCONF).bak | grep -v &quot;alias char-major-250&quot; | \
+-+#
+-+	mkdir -p `dirname $(MODCONF)`
+-+	touch $(MODCONF)
+-+#	grep -v &quot;post-install torisa /sbin/ztcfg&quot; | \
+-+#	grep -v &quot;post-install wcfxsusb /sbin/ztcfg&quot; | \
+-+#	grep -v &quot;post-install wcfxs /sbin/ztcfg&quot; &gt; $(MODCONF) || true
+- 	if ! grep &quot;options torisa&quot; $(MODCONF); then \
+- 		echo &quot;options torisa base=$(BASEADDR)&quot; &gt;&gt; $(MODCONF); \
+- 	fi
+-@@ -303,8 +309,8 @@ install:  all devices $(LIBTONEZONE)
+- 		if ! grep &quot;post-install $$x&quot; $(MODCONF); then \
+- 			if ! grep &quot;install $$x &quot; $(MODCONF); then \
+- 				if [ &quot;$$x&quot; != &quot;zaptel&quot; ] ; then \
+--					if [ -f zaptel.ko ]; then echo &quot;install $$x /sbin/modprobe --ignore-install $$x &amp;&amp; /sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
+--					else echo &quot;post-install $$x /sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
+-+					if [ -f zaptel.ko ]; then echo &quot;install $$x /sbin/modprobe --ignore-install $$x &amp;&amp; /usr/sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
+-+					else echo &quot;post-install $$x /usr/sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
+- 					fi; \
+- 				fi; \
+- 			fi; \
+-@@ -312,7 +318,7 @@ install:  all devices $(LIBTONEZONE)
+- 	done
+- 
+- 	if [ -d /etc/modutils ]; then \
+--		/sbin/update-modules ; \
+-+		[ `id -u` = 0 ] &amp;&amp; /sbin/update-modules ; \
+- 	fi
+- 	[ `id -u` = 0 ] &amp;&amp; /sbin/depmod -a || :
+- 	[ -f $(CONFIG_FILE) ] || install -D -m 644 zaptel.conf.sample $(CONFIG_FILE)
+
+Added: trunk/rpms/zaptel/zaptel-1.0.6-makefile.patch
+===================================================================
+--- trunk/rpms/zaptel/zaptel-1.0.6-makefile.patch	2005-04-05 09:51:17 UTC (rev 3106)
++++ trunk/rpms/zaptel/zaptel-1.0.6-makefile.patch	2005-04-05 09:57:17 UTC (rev 3107)
+@@ -0,0 +1,53 @@
++diff -Naupr zaptel-1.0.6.orig/Makefile zaptel-1.0.6/Makefile
++--- zaptel-1.0.6.orig/Makefile	2005-02-07 05:20:33.000000000 +0100
+++++ zaptel-1.0.6/Makefile	2005-03-10 19:23:35.631437440 +0100
++@@ -13,7 +13,8 @@ BASEADDR=0xd0000
++ # (assuming He's running Linux -- which we all know He must).
++ #
++ HOSTCC=gcc
++-KINCLUDES=$(shell if [ -d /usr/src/linux-2.4/include ]; then echo /usr/src/linux-2.4/include ; else echo /usr/src/linux/include ; fi)
+++[ -z &quot;${KVERSION}&quot; ] &amp;&amp; KVERSION=`uname -r`
+++KINCLUDES=$(shell if [ -d /usr/src/linux-2.4/include ]; then echo /usr/src/linux-2.4/include ; else echo /lib/modules/${KVERSION}/build ; fi)
++ 
++ CFLAGS+=-I. -O4 -g -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
++ CFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-fsigned-char&quot;; fi)
++@@ -38,7 +39,7 @@ INSTALL_PREFIX=
++ CONFIG_FILE=$(INSTALL_PREFIX)/etc/zaptel.conf
++ CFLAGS+=-DZAPTEL_CONFIG=\&quot;$(CONFIG_FILE)\&quot;
++ 
++-BUILDVER=$(shell if uname -r | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
+++BUILDVER=$(shell if echo ${KVERSION} | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
++ MODCONF=$(shell if [ -d $(ROOT_PREFIX)/etc/modprobe.d ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(ROOT_PREFIX)/etc/modutils ]; then echo &quot;$(ROOT_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(ROOT_PREFIX)/etc/modprobe.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.conf&quot;; elif [ -f $(ROOT_PREFIX)/etc/modules.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modules.conf&quot;; else echo $(ROOT_PREFIX)/etc/conf.modules ; fi)
++ 
++ ifeq (${BUILDVER},linux24)
++@@ -67,7 +68,7 @@ BINS=ztcfg torisatool makefw ztmonitor z
++ PRIMARY=torisa
++ #PRIMARY=wcfxo
++ PWD=$(shell pwd)
++-KERNEL_SOURCE?=/lib/modules/`uname -r`/build
+++KERNEL_SOURCE=/lib/modules/${KVERSION}/build
++ 
++ all: $(BUILDVER)
++ 
++@@ -266,17 +266,17 @@ install:  all devices $(LIBTONEZONE)
++ 
++ 	if [ -f zaptel.ko ]; then \
++ 		for x in $(MODULESKO) ztdummy.ko; do \
++-			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/$$x ; \
+++			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/${KVERSION}/misc/$$x ; \
++ 		done; \
++ 		if ! [ -f wcfxsusb.ko ]; then \
++-			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.o; \
+++			rm -f $(INSTALL_PREFIX)/lib/modules/${KVERSION}/misc/wcfxsusb.o; \
++ 		fi; \
++ 	else \
++ 		for x in $(MODULESO); do \
++-			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/$$x ; \
+++			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/${KVERSION}/misc/$$x ; \
++ 		done; \
++ 		if ! [ -f wcfxsusb.o ]; then \
++-			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.ko; \
+++			rm -f $(INSTALL_PREFIX)/lib/modules/${KVERSION}/misc/wcfxsusb.ko; \
++ 		fi; \
++ 	fi
++ 
+
+Modified: trunk/rpms/zaptel/zaptel.spec
+===================================================================
+--- trunk/rpms/zaptel/zaptel.spec	2005-04-05 09:51:17 UTC (rev 3106)
++++ trunk/rpms/zaptel/zaptel.spec	2005-04-05 09:57:17 UTC (rev 3107)
+@@ -6,28 +6,28 @@
+ 
+ # &quot;uname -r&quot; output of the kernel to build for, the running one
+ # if none was specified with &quot;--define 'kernel &lt;uname -r&gt;'&quot;
+-#%{!?kernel: %{expand: %%define kernel %(uname -r)}}
++%{!?kernel: %{expand: %%define kernel %(uname -r)}}
+  
+-#%define kversion %(echo %{kernel} | sed -e s/smp// -)
+-#%define krelver  %(echo %{kversion} | tr -s '-' '_')
+-#%if %(echo %{kernel} | grep -c smp)
+-#        %{expand:%%define ksmp -smp}
+-#%endif
++%define kversion %(echo %{kernel} | sed -e s/smp// -)
++%define krelver  %(echo %{kversion} | tr -s '-' '_')
++%if %(echo %{kernel} | grep -c smp)
++        %{expand:%%define ksmp -smp}
++%endif
+ 
+-Summary: Zaptel telephony interface support
++Summary: Telephony interface support
+ Name: zaptel
+-Version: 1.0.4
+-Release: %{?prever:0.%{prever}.}0
++Version: 1.0.7
++Release: %{?prever:0.%{prever}.}1
+ License: GPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
+ Source0: <A HREF="ftp://ftp.asterisk.org/pub/zaptel/zaptel-%{version">ftp://ftp.asterisk.org/pub/zaptel/zaptel-%{version</A>}%{?prever:-%{prever}}.tar.gz
+ Source1: zaptel-makedev.d.txt
+-Patch: zaptel-1.0.4-makefile.patch
++Patch: zaptel-1.0.6-makefile.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-#Requires: kernel-module-zaptel
+-#BuildRequires: newt-devel, kernel-source = %{kversion}, MAKEDEV
++BuildRequires: kernel-devel = %{kversion}
+ BuildRequires: newt-devel, MAKEDEV
++Provides: %{name}-devel = %{version}-%{release}
+ 
+ %description
+ This package contains the libraries, device entries, startup scripts and tools
+@@ -35,46 +35,50 @@
+ interfaces.
+ 
+ You will also need to install a kernel modules package matching your current
+-kernel for everything to work, and edit /etc/modules.conf.
++kernel for everything to work, and edit /etc/modprobe.conf.
+ 
+ 
+-#%package -n kernel%{?ksmp}-module-zaptel
+-#Summary: Kernel modules for the Zaptel devices.
+-#Release: %{release}_%{krelver}
+-#Group: System Environment/Kernel
+-#Requires: kernel%{?ksmp} = %{kversion}, /sbin/depmod
+-#Provides: kernel-modules
+-#%{?ksmp:Provides: kernel-module-zaptel = %{version}-%{release}_%{krelver}}
+-#
+-#%description -n kernel%{?ksmp}-module-zaptel
+-#This package contains the zaptel kernel modules for the Linux kernel package :
+-#%{kversion} (%{_target_cpu}%{?ksmp:, SMP}).
++%package -n kernel%{?ksmp}-module-zaptel
++Summary: Kernel modules required for some hardware to operate with Zaptel
++Release: %{release}_%{krelver}
++Group: System Environment/Kernel
++Requires: kernel%{?ksmp} = %{kversion}, /sbin/depmod
++Provides: kernel-modules
++%{?ksmp:Provides: kernel-module-zaptel = %{version}-%{release}_%{krelver}}
+ 
++%description -n kernel%{?ksmp}-module-zaptel
++This package contains the zaptel kernel modules for the Linux kernel package :
++%{kversion} (%{_target_cpu}%{?ksmp:, SMP}).
+ 
++
+ %prep
+ %setup -n zaptel-%{version}%{?prever:-%{prever}}
+ %patch -p1 -b .makefile
+ 
+ 
+ %build
+-# Only build the binaries, not the kernel modules
+-%{__perl} -pi -e 's|^all.*|all: \$(BINS)|g' Makefile
+ export CFLAGS=&quot;%{optflags}&quot;
+-%{__make} %{?_smp_mflags}
++%{__make} %{?_smp_mflags} \
++    KVERSION=&quot;%{kversion}&quot;
+ 
+ 
+ %install
+ %{__rm} -rf %{buildroot}
++# Install checks the presence of this file to decide which to modify
++%{__mkdir_p} %{buildroot}%{_sysconfdir}
++touch %{buildroot}%{_sysconfdir}/modprobe.conf
++# Main install
+ %{__make} install \
+-    KVERSION=%{kversion} \
+-    INSTALL_PREFIX=%{buildroot} \
+-    ROOT_PREFIX=%{buildroot}
++    KVERSION=&quot;%{kversion}&quot; \
++    INSTALL_PREFIX=&quot;%{buildroot}&quot; \
++    ROOT_PREFIX=&quot;%{buildroot}&quot;
+ 
+ # Install and generate all the device stuff
+ %{__install} -Dp -m0644 %{SOURCE1} %{buildroot}%{_sysconfdir}/makedev.d/zaptel
+  
+ # Create entry list
+-/dev/MAKEDEV \
++[ -x /sbin/MAKEDEV ] &amp;&amp; MAKEDEV=/sbin/MAKEDEV || MAKEDEV=/dev/MAKEDEV
++${MAKEDEV} \
+     -c %{buildroot}%{_sysconfdir}/makedev.d \
+     -d %{buildroot}/dev -M zaptel | sed 's|%{buildroot}||g' | \
+     grep -v 'dir /dev$' &gt; device.list
+@@ -91,9 +95,16 @@
+         %{buildroot}/lib/modules/%{kernel}/kernel/
+ 
+ # Move the modules config file back in order to put it in docs instead
+-%{__mv} %{buildroot}%{_sysconfdir}/{modprobe,modules}.conf . || :
++%{__mv} %{buildroot}%{_sysconfdir}/modprobe.conf . || :
+ 
++# Move the binaries from /sbin back to /usr/sbin
++%{__mkdir_p} %{buildroot}%{_sbindir}
++%{__mv} %{buildroot}/sbin/* %{buildroot}%{_sbindir}/
+ 
++# Remove the backup of the empty file we created earlier
++%{__rm} -f %{buildroot}%{_sysconfdir}/modprobe.conf.bak || :
++
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+@@ -104,13 +115,14 @@
+ %postun
+ /sbin/ldconfig
+ 
+-#%post -n kernel%{?ksmp}-module-zaptel
+-#/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
+-#
+-#%postun -n kernel%{?ksmp}-module-zaptel
+-#/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
+ 
++%post -n kernel%{?ksmp}-module-zaptel
++/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &amp;&gt;/dev/null || :
+ 
++%postun -n kernel%{?ksmp}-module-zaptel
++/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &amp;&gt;/dev/null || :
++
++
+ %files -f device.list
+ %defattr(-, root, root, 0755)
+ %doc ChangeLog README.fxsusb mod*.conf
+@@ -119,18 +131,27 @@
+ %config(noreplace) %{_sysconfdir}/zaptel.conf
+ %{_sysconfdir}/makedev.d/zaptel
+ %{_sysconfdir}/rc.d/init.d/zaptel
++%{_includedir}/*.h
++%{_includedir}/linux/*.h
+ %{_sbindir}/ztcfg
+ %{_sbindir}/zttool
+-%{_includedir}/*.h
+-%{_includedir}/linux/*.h
+ %{_libdir}/*.so*
+ 
+-#%files -n kernel%{?ksmp}-module-zaptel
+-#%defattr(-, root, root, 0755)
+-#/lib/modules/%{kernel}/kernel/misc/*
++%files -n kernel%{?ksmp}-module-zaptel
++%defattr(-, root, root, 0755)
++/lib/modules/%{kernel}/kernel/misc/
+ 
+ 
+ %changelog
++* Tue Apr  5 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.7-0
++- Update to 1.0.7.
++- This spec still doesn't build with mach (sub-package release tag bug).
++
++* Tue Mar  8 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.6-0
++- Update to 1.0.6.
++- Change /dev/MAKEDEV calls to /sbin/MAKEDEV for FC3.
++- Rework and re-enable the kernel modules, only through kernel-devel, though.
++
+ * Wed Feb  2 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.4-0
+ - Update to 1.0.4.
+ - Updated makefile patch.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001908.html">[svn] r3106 - in trunk/rpms: liboil swfdec
+</A></li>
+	<LI>Next message: <A HREF="001910.html">[svn] r3108 - in trunk/rpms: . gaim gaim-encryption kismet	pamtester smbldap-tools subversion timer-applet tnef zoo zsync
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1909">[ date ]</a>
+              <a href="thread.html#1909">[ thread ]</a>
+              <a href="subject.html#1909">[ subject ]</a>
+              <a href="author.html#1909">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

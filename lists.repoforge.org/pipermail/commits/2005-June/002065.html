@@ -1,0 +1,249 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3263 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3263%20-%20trunk/tools/dstat&In-Reply-To=%3C20050601011939.ACB3E1D02A0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002064.html">
+   <LINK REL="Next"  HREF="002066.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3263 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3263%20-%20trunk/tools/dstat&In-Reply-To=%3C20050601011939.ACB3E1D02A0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3263 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jun  1 03:19:39 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002064.html">[svn] r3262 - in trunk/tools/pydar2: . pydar scripts sql
+</A></li>
+        <LI>Next message: <A HREF="002066.html">[svn] r3264 - in trunk/tools/dar: . dists/el3a dists/el3i
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2065">[ date ]</a>
+              <a href="thread.html#2065">[ thread ]</a>
+              <a href="subject.html#2065">[ subject ]</a>
+              <a href="author.html#2065">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-06-01 03:19:39 +0200 (Wed, 01 Jun 2005)
+New Revision: 3263
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Added listing of available modules.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-05-31 22:15:15 UTC (rev 3262)
++++ trunk/tools/dstat/ChangeLog	2005-06-01 01:19:39 UTC (rev 3263)
+@@ -1,3 +1,7 @@
++* 0.6.1 - Fishkill - released ??/??/2005
++- Look for plugins in ~/.dstat/ too
++- Added -M list to show the list of available modules per path
++
+ * 0.6.0 - Bettiesbaai - released 29/05/2005
+ - Removed keyboard input prevention patch. (Dbt 304673, Marc Lehmann)
+ - Fixed bug with: dstat -tit -I 177
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-05-31 22:15:15 UTC (rev 3262)
++++ trunk/tools/dstat/TODO	2005-06-01 01:19:39 UTC (rev 3263)
+@@ -20,6 +20,7 @@
+ + Look at /proc/fs/cifs/stats
+ + Look at /proc/net/rpc/nfsd and /proc/net/rpc/nfs
+ + Allow for SNMP counters to be added
+++ Add LVM stats
+ 
+ ### Documentation (help welcome!)
+ + Improve manpage
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-05-31 22:15:15 UTC (rev 3262)
++++ trunk/tools/dstat/dstat	2005-06-01 01:19:39 UTC (rev 3263)
+@@ -19,10 +19,12 @@
+ try:
+ 	import sys, signal, os, re, time
+ 	import types, signal, resource
+-	pwd = os.path.dirname(sys.argv[0])
+-	sys.path.insert(0, '/usr/share/dstat/')
+-	sys.path.insert(0, pwd + '/plugins/')
+-	sys.path.insert(0, pwd)
++	cwd = os.path.abspath(os.path.dirname(sys.argv[0]))
++	sys.path.insert(0, os.getenv('HOME') + '/.dstat/')
++	if cwd in sys.path: sys.path.remove(cwd)
++	sys.path.insert(1, cwd)
++	sys.path.insert(2, cwd + '/plugins/')
++	sys.path.insert(3, '/usr/share/dstat/')
+ except KeyboardInterrupt, e:
+ 	pass
+ 
+@@ -61,7 +63,7 @@
+ 	True = 1
+ 	False = 0
+ 
+-VERSION = '0.6.0'
++VERSION = '0.6.1'
+ 
+ class Options:
+ 	def __init__(self, args):
+@@ -1543,8 +1545,29 @@
+ #	termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ 	sys.exit(ret)
+ 
++def listmodules():
++	import glob
++	global cols
++	remod = re.compile('.+/dstat_(.+).py$')
++	for path in sys.path:
++		list = []
++		for file in glob.glob(path + '/dstat_*.py'):
++			list.append(remod.match(file).groups()[0])
++		if not list: continue
++		list.sort()
++		cols2 = cols - 8
++		print '%s:\n\t' % os.path.abspath(path),
++		for mod in list:
++			cols2 = cols2 - len(mod) - 2
++			if cols2 &lt;= 0:
++				print '\n\t',
++				cols2 = cols - len(mod) - 10
++			print mod + ',',
++		print
++	exit(0)
++
+ def main():
+-	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile, tick
++	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile, tick, cols
+ 
+ 	loop = update = 0
+ 	step = op.delay
+@@ -1593,7 +1616,8 @@
+ 	oldvislist = []
+ 	totlist = []
+ 	for module in op.modlist:
+-		if module == 'cpu':    mods = ( 'cpu', 'cpu24' )
++		if module == 'list' or module == 'help': listmodules()
++		elif module == 'cpu':  mods = ( 'cpu', 'cpu24' )
+ 		elif module == 'disk': mods = ( 'disk', 'disk24', 'disk24old' )
+ 		elif module == 'int':  mods = ( 'int', 'int24' )
+ 		elif module == 'page': mods = ( 'page', 'page24' )
+
+Modified: trunk/tools/dstat/dstat.1
+===================================================================
+--- trunk/tools/dstat/dstat.1	2005-05-31 22:15:15 UTC (rev 3262)
++++ trunk/tools/dstat/dstat.1	2005-06-01 01:19:39 UTC (rev 3263)
+@@ -95,7 +95,8 @@
+   cpu, disk, int, ipc, load, lock, mem, net, page,
+   proc, raw, swap, sys, tcp, time, udp, unix
+ 
+-Also see /usr/share/dstat/ for external stats
++Possible external stats can be listed using:
++  dstat -M list
+ .TP
+ \fB\-a\fR, \fB\-\-all\fR
+ equals \fB\-cdngy\fR (default)
+@@ -131,15 +132,19 @@
+ .SH INTERMEDIATE UPDATES
+ When invoking dstat with a \fBdelay\fR greater than 1 and without the \fB--noupdate\fR option, it will show intermediate updates, ie. the first time a 1 sec average, the second update a 2 second average, etc. until the delay has been reached.
+ 
+-\fBSo the 9 intermediate updates are NOT snapshots\fR, they are averages over the time that passed since the last final update. The end result is that you get a 10 second average on a new line, just like vmstat.      
++So in case you specified a delay of 10, \fBthe 9 intermediate updates are NOT snapshots\fR, they are averages over the time that passed since the last final update. The end result is that you get a 10 second average on a new line, just like with vmstat.
+ 
+ .SH BUGS
+-Since it's practically impossible to test dstat on every possible permutation of kernel , python or distribution version, I need your help and your feedback to fix the remaining problems. If you have improvements or bugreports, please send them to: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++Since it's practically impossible to test dstat on every possible permutation of kernel , python or distribution version, I need your help and your feedback to fix the remaining problems. If you have improvements or bugreports, please send them to: \<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">fBdag at wieers.com</A>\fR
+ 
+ Please see the TODO file for known bugs and future plans.
+ 
+ .SH FILES
+-/usr/share/dstat/, contains extra external stats
++.SS ~/.dstat/
++.SS ./
++.SS ./plugins/
++.SS /usr/share/dstat/
++paths that may contain external dstat_* modules
+ 
+ .SH SEE ALSO
+ .SS Performance tools
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2005-05-31 22:15:15 UTC (rev 3262)
++++ trunk/tools/dstat/dstat.spec	2005-06-01 01:19:39 UTC (rev 3263)
+@@ -9,7 +9,7 @@
+ 
+ Summary: Versatile resource statistics tool
+ Name: dstat
+-Version: 0.6.0
++Version: 0.6.1
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -76,6 +76,9 @@
+ %{_datadir}/dstat/
+ 
+ %changelog
++* Tue May 31 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.1-1
++- Updated to release 0.6.1.
++
+ * Sun May 29 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.0-1
+ - Updated to release 0.6.0.
+ 
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-05-31 22:15:15 UTC (rev 3262)
++++ trunk/tools/dstat/dstat15	2005-06-01 01:19:39 UTC (rev 3263)
+@@ -20,9 +20,10 @@
+ 	import sys, signal, os, re, time, string
+ 	import types, signal, resource
+ 	pwd = os.path.dirname(sys.argv[0])
+-	sys.path.insert(0, '/usr/share/dstat/')
+-	sys.path.insert(0, pwd + '/plugins/')
+-	sys.path.insert(0, pwd)
++	sys.path.insert(0, os.getenv('HOME') + '/.dstat/')
++	sys.path.insert(1, pwd)
++	sys.path.insert(2, pwd + '/plugins/')
++	sys.path.insert(3, '/usr/share/dstat/')
+ except KeyboardInterrupt, e:
+ 	pass
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002064.html">[svn] r3262 - in trunk/tools/pydar2: . pydar scripts sql
+</A></li>
+	<LI>Next message: <A HREF="002066.html">[svn] r3264 - in trunk/tools/dar: . dists/el3a dists/el3i
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2065">[ date ]</a>
+              <a href="thread.html#2065">[ thread ]</a>
+              <a href="subject.html#2065">[ subject ]</a>
+              <a href="author.html#2065">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

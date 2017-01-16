@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2661 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2661%20-%20trunk/tools/yam&In-Reply-To=%3C20041212045055.C984117F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001465.html">
+   <LINK REL="Next"  HREF="001467.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2661 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2661%20-%20trunk/tools/yam&In-Reply-To=%3C20041212045055.C984117F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2661 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Dec 12 05:50:55 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001465.html">[SVN] r2660 - trunk/rpms/perl-Lingua-Stem-Snowball
+</A></li>
+        <LI>Next message: <A HREF="001467.html">[SVN] r2662 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1466">[ date ]</a>
+              <a href="thread.html#1466">[ thread ]</a>
+              <a href="subject.html#1466">[ subject ]</a>
+              <a href="author.html#1466">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-12 05:50:54 +0100 (Sun, 12 Dec 2004)
+New Revision: 2661
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-complex.conf
+   trunk/tools/yam/yam-example.conf
+   trunk/tools/yam/yam.httpd
+   trunk/tools/yam/yam.spec
+Log:
+Added extra functionality
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-12-11 19:48:23 UTC (rev 2660)
++++ trunk/tools/yam/ChangeLog	2004-12-12 04:50:54 UTC (rev 2661)
+@@ -4,6 +4,8 @@
+ - Added example config for Yellow Dog 4 (Jarod Wilson)
+ - Complain when no ISO files are found, but continue (Jeff Pitman)
+ - Complain when no repo metadata tools are installed, but continue (Jarod Wilson)
++- Added $srcdir as a possible option in yam.conf, ie. <A HREF="file://$srcdir/$nick/">file://$srcdir/$nick/</A> (Jeff Pitman)
++- Added lftp-options and rsync-options so people can fine-tune (David Dollar)
+ 
+ * 0.7.1
+ - Number the ISOs in the order they are listed (globs are sorted)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-12-11 19:48:23 UTC (rev 2660)
++++ trunk/tools/yam/TODO	2004-12-12 04:50:54 UTC (rev 2661)
+@@ -21,6 +21,7 @@
+ + Add cron-script for automatic updating
+ + Generate sample yum.conf and apt .list files for people to use
+ + Generate yam-chain.conf for more easily chaining Yam servers
+++ Add a yam and yam.conf manpage
+ 
+ ### Web front-end
+ + Improve SHTML output (more condensed and useful information)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-12-11 19:48:23 UTC (rev 2660)
++++ trunk/tools/yam/yam	2004-12-12 04:50:54 UTC (rev 2661)
+@@ -17,7 +17,7 @@
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse
+ 
+-VERSION = &quot;0.7.2&quot;
++VERSION = '0.7.2'
+ 
+ archs = {
+ 	'i386': ['i386', 'i486', 'i586', 'i686', 'athlon'],
+@@ -165,12 +165,14 @@
+ 		self.lftpcleanup = not self.getoption('main', 'lftp-cleanup', 'yes') in disable
+ 		self.lftpexcldebug = not self.getoption('main', 'lftp-exclude-debug', 'yes') in disable
+ 		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in disable
++		self.lftpoptions = self.getoption('main', 'lftp-options', '')
+ 		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+ 		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in disable
+ 		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in disable
+ 		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in disable
++		self.rsyncoptions = self.getoption('main', 'rsync-options', '')
+ 		self.rsynctimeout = self.getoption('main', 'rsync-timeout', None)
+ 
+ 		self.shareiso = not self.getoption('main', 'shareiso', 'yes') in disable
+@@ -184,7 +186,7 @@
+ 			else:
+ 				archs = self.getoption(section, 'arch', self.arch).split()
+ 				for arch in archs:
+-					self.dists.append(Dist(self.wwwdir, section, arch))
++					self.dists.append(Dist(self.srcdir, self.wwwdir, section, arch))
+ 					self.dists[-1].arch = arch;
+ 					for option in self.cfg.options(section):
+ 						if option in ['iso', 'name', 'release', 'repo', 'tag']:
+@@ -216,18 +218,21 @@
+ 		return repos
+ 
+ class Dist:
+-	def __init__(self, dir, dist, arch):
++	def __init__(self, srcdir, wwwdir, dist, arch):
++		global cf
++
+ 		self.arch = arch
+ 		self.dist = dist
+ 		self.nick = dist + '-' + arch
+ 		if arch == 'none':
+ 			self.nick = dist
+ 		self.name = self.nick
+-		self.dir = os.path.join(dir, self.nick)
++		self.dir = os.path.join(wwwdir, self.nick)
+ 		self.iso = None
+ 		self.release = None
+ 		self.repos = {}
+ 		self.tag = self.dist
++		self.srcdir = srcdir
+ 
+ #	def __repr__(self):
+ #		for key, value in vars(self).iteritems():
+@@ -495,7 +500,7 @@
+ 		return
+ 	mkdir(path)
+ 
+-	opts = '-aHL --partial'
++	opts = '-aHL --partial' + cf.rsyncoptions
+ 	if op.verbose &lt;= 1: opts = opts + ' -q'
+ 	elif op.verbose == 3: opts = opts + ' -v'
+ 	elif op.verbose &gt;= 4: opts = opts + ' -v --progress'
+@@ -521,7 +526,7 @@
+ 	if cf.lftptimeout: sets = sets + ' set net:timeout %s;' % cf.lftptimeout
+ 	if cf.lftpbwlimit: sets = sets + ' set net:limit-total-rate=%s:0;' % cf.lftpbwlimit
+ 
+-	opts = 'mirror -a -P'
++	opts = 'mirror -a -P' + cf.lftpoptions
+ 	if op.verbose &lt;= 1: opts = opts + ' --verbose=0'
+ 	else: opts = '%s --verbose=%d' % (opts, op.verbose-1)
+ 	if cf.lftpcleanup: opts = opts + ' -e'
+@@ -754,8 +759,8 @@
+ 
+ ### Main entrance
+ if __name__ == '__main__':
+-	op=Options(sys.argv[1:])
+-	cf=Config()
++	op = Options(sys.argv[1:])
++	cf = Config()
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+
+Modified: trunk/tools/yam/yam-complex.conf
+===================================================================
+--- trunk/tools/yam/yam-complex.conf	2004-12-11 19:48:23 UTC (rev 2660)
++++ trunk/tools/yam/yam-complex.conf	2004-12-12 04:50:54 UTC (rev 2661)
+@@ -69,7 +69,7 @@
+ #updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+ #dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+-#[ydl4]
++#[yd4]
+ #name=Yellow Dog Linux $release ($arch)
+ #arch=ppc
+ #release=4.0
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2004-12-11 19:48:23 UTC (rev 2660)
++++ trunk/tools/yam/yam-example.conf	2004-12-12 04:50:54 UTC (rev 2661)
+@@ -55,6 +55,9 @@
+ lftp-exclude-debug = yes
+ lftp-exclude-srpm = yes
+ 
++## Add extra options to lftp
++lftp-options =
++
+ ## Set the I/O timeout in seconds
+ lftp-timeout = 
+ 
+@@ -68,6 +71,9 @@
+ rsync-exclude-debug = yes
+ rsync-exclude-srpm = yes
+ 
++## Add extra options to rsync
++rsync-options =
++
+ ## Set the I/O timeout in seconds
+ rsync-timeout = 
+ 
+
+Modified: trunk/tools/yam/yam.httpd
+===================================================================
+--- trunk/tools/yam/yam.httpd	2004-12-11 19:48:23 UTC (rev 2660)
++++ trunk/tools/yam/yam.httpd	2004-12-12 04:50:54 UTC (rev 2661)
+@@ -57,6 +57,8 @@
+ 	AddDescription &quot;SuSE Enterprise Server 9 for i386&quot; sles9-i386
+ 	AddDescription &quot;Tao Linux 1 for i386&quot; tao1-i386
+ 	AddDescription &quot;Tao Linux 1 for x86_64&quot; tao1-x86-64
++	AddDescription &quot;Yellow Dog Linux 3.0 for PPC&quot; yd3-ppc
++	AddDescription &quot;Yellow Dog Linux 4.0 for PPC&quot; yd4-ppc
+ &lt;/Directory&gt;
+ 
+ &lt;VirtualHost *:80&gt;
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2004-12-11 19:48:23 UTC (rev 2660)
++++ trunk/tools/yam/yam.spec	2004-12-12 04:50:54 UTC (rev 2661)
+@@ -58,7 +58,7 @@
+ %{_localstatedir}/www/yam/
+ 
+ %changelog
+-* Sun Nov 07 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.7.2-1
++* Sun Nov 28 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.7.2-1
+ - Updated to release 0.7.2.
+ 
+ * Sun Nov 07 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.7.1-1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001465.html">[SVN] r2660 - trunk/rpms/perl-Lingua-Stem-Snowball
+</A></li>
+	<LI>Next message: <A HREF="001467.html">[SVN] r2662 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1466">[ date ]</a>
+              <a href="thread.html#1466">[ thread ]</a>
+              <a href="subject.html#1466">[ subject ]</a>
+              <a href="author.html#1466">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

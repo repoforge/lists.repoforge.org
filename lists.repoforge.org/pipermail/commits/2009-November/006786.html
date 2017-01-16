@@ -1,0 +1,219 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7991 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7991%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200911051504.nA5F41sI014249%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006785.html">
+   <LINK REL="Next"  HREF="006787.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7991 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7991%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200911051504.nA5F41sI014249%40surya.karan.org%3E"
+       TITLE="[svn] r7991 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Nov  5 16:04:01 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006785.html">[svn] r7990 - trunk/rpms/cfengine
+</A></li>
+        <LI>Next message: <A HREF="006787.html">[svn] r7992 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6786">[ date ]</a>
+              <a href="thread.html#6786">[ thread ]</a>
+              <a href="subject.html#6786">[ subject ]</a>
+              <a href="author.html#6786">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-11-05 15:04:01 +0000 (Thu, 05 Nov 2009)
+New Revision: 7991
+
+Added:
+   trunk/tools/dstat/plugins/dstat_vzio.py
+Modified:
+   trunk/tools/dstat/docs/dstat.1.txt
+   trunk/tools/dstat/dstat
+Log:
+Added OpenVZ I/O accounting test plugin.
+
+Modified: trunk/tools/dstat/docs/dstat.1.txt
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1.txt	2009-11-04 08:38:33 UTC (rev 7990)
++++ trunk/tools/dstat/docs/dstat.1.txt	2009-11-05 15:04:01 UTC (rev 7991)
+@@ -1,6 +1,6 @@
+ = dstat(1)
+ Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-v0.6.9, December 2006
++v0.7.0, November 2009
+ 
+ 
+ == NAME
+@@ -135,8 +135,8 @@
+     load, lock, mem, net, page, page24, proc, raw, socket, swap, swapold,
+     sys, tcp, time, udp, unix, vm
+ 
+-Possible plugin stats can be listed using::
+-    dstat --list
++--list::
++    list the internal and external plugin names
+ 
+ -a, --all::
+     equals -cdngy (default)
+@@ -147,8 +147,8 @@
+ -v, --vmstat::
+     equals -pmgdsc -D total
+ 
+---list::
+-    list the internal and external plugin names
++--bw, --blackonwhite::
++    change colors for white background terminal
+ 
+ --integer::
+     show integer values
+@@ -192,17 +192,21 @@
+ dstat -dnyc -N eth0 -C total -f 5
+ ----
+ 
+-Checking dstat's behaviour and the system's impact on dstat:
++Checking dstat's behaviour and the system impact of dstat:
+ ----
+ dstat -taf --debug
+ ----
+ 
+ Using the time plugin together with cpu, net, disk, system, load, proc and topcpu plugins:
+ ----
+-dstat -tcndylp -M topcpu
++dstat -tcndylp --topcpu
+ ----
+ this is identical to
+ ----
++dstat --time --cpu --net --disk --sys --load --proc --topcpu
++----
++and identical to
++----
+ dstat -M time,cpu,net,disk,sys,load,proc,topcpu
+ ----
+ 
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-11-04 08:38:33 UTC (rev 7990)
++++ trunk/tools/dstat/dstat	2009-11-05 15:04:01 UTC (rev 7991)
+@@ -335,7 +335,9 @@
+                 self.val[name] = self.set1[name] = self.set2[name] = 0
+         else:
+             for name in self.vars + [ 'total', ]:
+-                self.val[name] = self.set1[name] = self.set2[name] = range(self.cols)
++                self.val[name] = range(self.cols)
++                self.set1[name] = range(self.cols)
++                self.set2[name] = range(self.cols)
+                 for i in range(self.cols):
+                     self.val[name][i] = self.set1[name][i] = self.set2[name][i] = 0
+ #        print self.val
+@@ -1631,7 +1633,8 @@
+     &quot;Open a file for reuse, if already opened, return file descriptor&quot;
+     global fds
+     if not os.path.exists(filename):
+-        return None
++        raise 'File %s does not exist' % filename
++#        return None
+     if 'fds' not in globals().keys():
+         fds = {}
+     if file not in fds.keys():
+
+Added: trunk/tools/dstat/plugins/dstat_vzio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vzio.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_vzio.py	2009-11-05 15:04:01 UTC (rev 7991)
+@@ -0,0 +1,60 @@
++### Example content for /proc/bc/&lt;veid&gt;/ioacct
++#       read                         2773011640320
++#       write                        2095707136000
++#       dirty                        4500342390784
++#       cancel                       4080624041984
++#       missed                                   0
++#       syncs_total                              2
++#       fsyncs_total                       1730732
++#       fdatasyncs_total                      3266
++#       range_syncs_total                        0
++#       syncs_active                             0
++#       fsyncs_active                            0
++#       fdatasyncs_active                        0
++#       range_syncs_active                       0
++#       vfs_reads                       3717331387
++#       vfs_read_chars         3559144863185798078
++#       vfs_writes                       901216138
++#       vfs_write_chars          23864660931174682
++#       io_pbs                                  16
++
++class dstat_vzio(dstat):
++    def __init__(self):
++        self.nick = ['read', 'write']
++        self.cols = 2
++        info(1, 'Module dstat_vzio is still experimental.')
++
++    def name(self):
++        return ['ve/'+name for name in self.vars]
++
++    def vars(self):
++        ret = []
++        if not op.full:
++            varlist = ['total',]
++        else:
++            varlist = [os.path.basename(veid) for veid in glob.glob('/proc/vz/*')]
++        ret = varlist
++        return ret
++
++    def extract(self):
++        global update
++        for veid in self.vars:
++            self.set2['total'] = {}
++            for line in dopen('/proc/bc/%s/ioacct' % veid).readlines():
++#            for line in dopen('ioacct.%d' % (update % 3)).readlines():
++                l = line.split()
++                if len(l) != 2: continue
++                if l[0] not in self.nick: continue
++                index = self.nick.index(l[0])
++                self.set2[veid][index] = long(l[1])
++                self.set2['total'][index] = self.set2['total'][index] + long(l[1])
++#            print veid, self.val[veid], self.set2[veid][0], self.set2[veid][1]
++#            print veid, self.val[veid], self.set1[veid][0], self.set1[veid][1]
++            self.val[veid] = (
++                (self.set2[veid][0] - self.set1[veid][0]) / tick,
++                (self.set2[veid][1] - self.set1[veid][1]) / tick,
++            )
++        if step == op.delay:
++            self.set1.update(self.set2)
++
++# vim:ts=4:sw=4:et
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006785.html">[svn] r7990 - trunk/rpms/cfengine
+</A></li>
+	<LI>Next message: <A HREF="006787.html">[svn] r7992 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6786">[ date ]</a>
+              <a href="thread.html#6786">[ thread ]</a>
+              <a href="subject.html#6786">[ subject ]</a>
+              <a href="author.html#6786">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

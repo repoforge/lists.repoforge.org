@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5476 - trunk/rpms/nvidia-x11-drv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5476%20-%20trunk/rpms/nvidia-x11-drv&In-Reply-To=%3C20070605085658.13B28318162%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004274.html">
+   <LINK REL="Next"  HREF="004276.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5476 - trunk/rpms/nvidia-x11-drv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5476%20-%20trunk/rpms/nvidia-x11-drv&In-Reply-To=%3C20070605085658.13B28318162%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5476 - trunk/rpms/nvidia-x11-drv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jun  5 10:56:58 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004274.html">[svn] r5475 - trunk/rpms/ktorrent
+</A></li>
+        <LI>Next message: <A HREF="004276.html">[svn] r5477 - in trunk/rpms: . pidgin-encryption
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4275">[ date ]</a>
+              <a href="thread.html#4275">[ thread ]</a>
+              <a href="subject.html#4275">[ subject ]</a>
+              <a href="author.html#4275">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-06-05 10:56:56 +0200 (Tue, 05 Jun 2007)
+New Revision: 5476
+
+Added:
+   trunk/rpms/nvidia-x11-drv/nvidia.nodes
+Modified:
+   trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec
+Log:
+Fix nvidia driver on F7 with selinux enabled.
+
+
+Modified: trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec
+===================================================================
+--- trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec	2007-06-04 21:59:40 UTC (rev 5475)
++++ trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec	2007-06-05 08:56:56 UTC (rev 5476)
+@@ -1,7 +1,7 @@
+ # $Id$
+ # Authority: matthias
+ # Dist: nodist
+-# ExclusiveDist: fc6 el5
++# ExclusiveDist: fc6 el5 fc7
+ 
+ %define majmin          1.0
+ %define relver          9762
+@@ -16,7 +16,7 @@
+ Summary: Proprietary NVIDIA hardware accelerated OpenGL display driver
+ Name: nvidia-x11-drv
+ Version: %{majmin}.%{relver}
+-Release: 1%{?beta}
++Release: 2%{?beta}
+ License: Proprietary
+ Group: User Interface/X Hardware Support
+ URL: <A HREF="http://www.nvidia.com/object/unix.html">http://www.nvidia.com/object/unix.html</A>
+@@ -28,6 +28,7 @@
+ Source3: nvidia.csh
+ Source4: nvidia-config-display
+ Source5: nvidia.modprobe
++Source6: nvidia.nodes
+ # <A HREF="http://www.nvnews.net/vbulletin/attachment.php?attachmentid=20486&amp;d=1158955681">http://www.nvnews.net/vbulletin/attachment.php?attachmentid=20486&amp;d=1158955681</A>
+ Patch0: NVIDIA_kernel-1.0-9625-NOSMBUS.diff.txt
+ # <A HREF="http://www.nvnews.net/vbulletin/showthread.php?t=77597">http://www.nvnews.net/vbulletin/showthread.php?t=77597</A>
+@@ -207,7 +208,11 @@
+ %{__install} -D -p -m 0755 %{SOURCE4} \
+     %{buildroot}%{_sbindir}/nvidia-config-display
+ 
++# Install udev &quot;configuration&quot; file, required as of F7
++%{__install} -D -p -m 0644 %{SOURCE6} \
++    %{buildroot}%{_sysconfdir}/udev/makedev.d/60-nvidia.nodes
+ 
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+@@ -243,6 +248,8 @@
+ # Kernel and dkms related bits
+ %config %{_sysconfdir}/modprobe.d/nvidia
+ %{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++# udev &quot;configuration&quot;
++%config %{_sysconfdir}/udev/makedev.d/60-nvidia.nodes
+ # Devices for udev to copy directly
+ %attr(0600,root,root) %dev(c,195,0) %{_sysconfdir}/udev/devices/nvidia0
+ %attr(0600,root,root) %dev(c,195,1) %{_sysconfdir}/udev/devices/nvidia1
+@@ -288,6 +295,10 @@
+ 
+ 
+ %changelog
++* Tue Jun  5 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.9762-2
++- Add 60-nvidia.nodes udev file to have device nodes copied in F7 and get
++  things right with selinux.
++
+ * Fri May 18 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.9762-1
+ - Update to 1.0-9762.
+ 
+
+Added: trunk/rpms/nvidia-x11-drv/nvidia.nodes
+===================================================================
+--- trunk/rpms/nvidia-x11-drv/nvidia.nodes	                        (rev 0)
++++ trunk/rpms/nvidia-x11-drv/nvidia.nodes	2007-06-05 08:56:56 UTC (rev 5476)
+@@ -0,0 +1,11 @@
++nvidia0
++nvidia1
++nvidia2
++nvidia3
++nvidia4
++nvidia5
++nvidia6
++nvidia7
++nvidia8
++nvidia9
++nvidiactl
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004274.html">[svn] r5475 - trunk/rpms/ktorrent
+</A></li>
+	<LI>Next message: <A HREF="004276.html">[svn] r5477 - in trunk/rpms: . pidgin-encryption
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4275">[ date ]</a>
+              <a href="thread.html#4275">[ thread ]</a>
+              <a href="subject.html#4275">[ subject ]</a>
+              <a href="author.html#4275">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

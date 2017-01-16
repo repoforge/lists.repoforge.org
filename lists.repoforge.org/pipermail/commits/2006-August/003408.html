@@ -1,0 +1,435 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4608 - in trunk/rpms: . subversion viewvc
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4608%20-%20in%20trunk/rpms%3A%20.%20subversion%20viewvc&In-Reply-To=%3C20060802153231.42F0B94525E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003407.html">
+   <LINK REL="Next"  HREF="003409.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4608 - in trunk/rpms: . subversion viewvc</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4608%20-%20in%20trunk/rpms%3A%20.%20subversion%20viewvc&In-Reply-To=%3C20060802153231.42F0B94525E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4608 - in trunk/rpms: . subversion viewvc">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Aug  2 17:32:31 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003407.html">[svn] r4607 - trunk/rpms/x264
+</A></li>
+        <LI>Next message: <A HREF="003409.html">[svn] r4609 - trunk/rpms/tintin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3408">[ date ]</a>
+              <a href="thread.html#3408">[ thread ]</a>
+              <a href="subject.html#3408">[ subject ]</a>
+              <a href="author.html#3408">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-08-02 17:32:29 +0200 (Wed, 02 Aug 2006)
+New Revision: 4608
+
+Added:
+   trunk/rpms/viewvc/
+   trunk/rpms/viewvc/viewvc-tools.patch
+   trunk/rpms/viewvc/viewvc.spec
+Modified:
+   trunk/rpms/subversion/subversion.spec
+Log:
+Updates
+
+Modified: trunk/rpms/subversion/subversion.spec
+===================================================================
+--- trunk/rpms/subversion/subversion.spec	2006-08-01 11:43:04 UTC (rev 4607)
++++ trunk/rpms/subversion/subversion.spec	2006-08-02 15:32:29 UTC (rev 4608)
+@@ -6,7 +6,7 @@
+ 
+ %{?dist: %{expand: %%define %dist 1}}
+ 
+-%{?el3:%define _without_swig 1}
++#{?el3:#define _without_swig 1}
+ %{?rh9:%define _without_pie 1}
+ %{?rh9:%define _without_swig 1}
+ %{?rh7:%define _without_pie 1}
+@@ -14,6 +14,8 @@
+ %{?el2:%define _without_pie 1}
+ %{?el2:%define _without_swig 1}
+ 
++%define swig_version 1.3.25
++
+ # set to zero to avoid running test suite
+ %define make_check 0
+ 
+@@ -22,9 +24,9 @@
+ 
+ Summary: Modern Version Control System designed to replace CVS
+ Name: subversion
+-Version: 1.2.1
++Version: 1.3.2
+ ### FC3 comes with release 1.1
+-Release: 0.1.2
++Release: 0.1
+ License: BSD
+ Group: Development/Tools
+ URL: <A HREF="http://subversion.tigris.org/">http://subversion.tigris.org/</A>
+@@ -33,19 +35,20 @@
+ Source1: subversion.conf
+ Source3: filter-requires.sh
+ Source4: <A HREF="http://www.xsteve.at/prg/emacs/psvn.el">http://www.xsteve.at/prg/emacs/psvn.el</A>
+-Patch1: subversion-0.24.2-swig.patch
++Source10: <A HREF="http://dl.sf.net/swig/swig-%{swig_version">http://dl.sf.net/swig/swig-%{swig_version</A>}.tar.gz
++#Patch1: subversion-0.24.2-swig.patch
+ Patch2: subversion-0.20.1-deplibs.patch
+ Patch3: subversion-0.31.0-rpath.patch
+-Patch6: subversion-1.0.3-pie.patch
++Patch6: subversion-1.3.0-pie.patch
+ Patch7: subversion-1.1.3-java.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-BuildRequires: autoconf, libtool, python, python-devel, texinfo
++BuildRequires: autoconf, libtool, python, python-devel, texinfo, which
+ BuildRequires: expat-devel, docbook-style-xsl
+ BuildRequires: apr-devel &gt;= 0.9.3-2, apr-util-devel &gt;= 0.9.3-2, openssl-devel
+ BuildRequires: neon-devel &gt;= 0.24.7-1
+ #%{!?_without_swig:BuildRequires: swig &gt;= 1.3.21-5}
+-%{!?_without_swig:BuildRequires: swig}
++#%{!?_without_swig:BuildRequires: swig}
+ 
+ %define __perl_requires %{SOURCE3}
+ 
+@@ -92,19 +95,28 @@
+ This package includes the Perl bindings to the Subversion libraries.
+ 
+ %prep
+-%setup
+-%patch1 -p1 -b .swig
++%setup -a 10
++#patch1 -p1 -b .swig
+ %patch2 -p1 -b .deplibs
+ %patch3 -p1 -b .rpath
+ %{!?_without_pie:%patch6 -p1 -b .pie}
+ 
+ %{__rm} -rf neon apr apr-util
+ 
+-echo _without_swig: %{_without_swig}
+-echo _without_pie: %{_without_pie}
+-echo dist: %{dist}
++echo _without_swig: %_without_swig
++echo _without_pie: %_without_pie
++echo dist: %dist
+ 
+ %build
++%if %{!?_without_swig:1}0
++cd swig-%{swig_version}
++[ ! -r configure ] &amp;&amp; ./autogen.sh
++%configure --prefix=&quot;$(pwd)/install&quot; --exec-prefix=&quot;$(pwd)/install&quot; --bindir=&quot;$(pwd)/install/bin&quot; --datadir=&quot;$(pwd)/install/share&quot;
++%{__make}
++%{__make} install
++cd -
++%endif
++
+ ./autogen.sh
+ 
+ # requirement for apr 0.9.5 seems to be bogus
+@@ -119,17 +131,17 @@
+ 	--with-apr-util=&quot;%{_prefix}&quot; \
+         --with-apxs=&quot;%{_sbindir}/apxs&quot; \
+ 	--disable-mod-activation \
+-	--with-neon=&quot;%{_prefix}&quot; \
+-%{!?_without_swig:--with-swig} \
++%{!?_without_swig:--with-swig=swig-%{swig_version}/install} \
+ 	--with-expat \
+ 	--with-ssl
++#	--with-neon=&quot;%{_prefix}&quot; \
++# 1.3.0 tarball ships with generated swig sources
++#make extraclean-swig-headers swig-headers
+ %{__make} %{?_smp_mflags} all
+ 
+ %if %{!?_without_swig:1}0
+-%{__make} %{?_smp_mflags} swig-py %{swigdirs}
++%{__make} %{?_smp_mflags} swig-pl swig-py %{swigdirs}
+ 
+-%{__make} %{?_smp_mflags} swig-pl %{swigdirs}
+-
+ # build the perl modules
+ #pushd subversion/bindings/swig/perl
+ #CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot;
+@@ -143,16 +155,14 @@
+ 	DESTDIR=&quot;%{buildroot}&quot;
+ 
+ %if %{!?_without_swig:1}0
+-%{__make} install-swig-py %{swigdirs} \
++%{__make} install-swig-py install-swig-pl-lib %{swigdirs} \
+         DESTDIR=&quot;%{buildroot}&quot;
+-%{__make} install-swig-pl-lib %{swigdirs} \
+-        DESTDIR=&quot;%{buildroot}&quot;
+ 
+ %{__make} pure_vendor_install -C subversion/bindings/swig/perl/native \
+         PERL_INSTALL_ROOT=&quot;%{buildroot}&quot;
+ %endif
+ 
+-%find_lang %{name}
++%{__install} -d -m0755 ${RPM_BUILD_ROOT}%{_sysconfdir}/subversion
+ 
+ # Add subversion.conf configuration file into httpd/conf.d directory.
+ %{__install} -Dp -m0644 %{SOURCE1} %{buildroot}%{_sysconfdir}/httpd/conf.d/subversion.conf
+@@ -186,6 +196,8 @@
+ # Rename authz_svn INSTALL doc for docdir
+ ln -f subversion/mod_authz_svn/INSTALL mod_authz_svn-INSTALL
+ 
++%find_lang %{name}
++
+ %if %{make_check}
+ %check
+ export LANG=C LC_ALL=C
+@@ -206,11 +218,10 @@
+ %defattr(-, root, root, 0755)
+ %doc BUGS CHANGES COMMITTERS COPYING HACKING INSTALL README
+ %doc mod_authz_svn-INSTALL subversion/LICENSE tools/
+-%doc doc/book/svn-book.html
+ %doc contrib/client-side/svn_load_dirs{.pl,_*,.README}
+-%{_bindir}/*
++%{_bindir}/svn*
+ %{_libdir}/libsvn_*.so.*
+-%{_mandir}/man*/*
++%{_mandir}/man?/svn*
+ %{_datadir}/emacs/site-lisp/
+ %{_datadir}/xemacs/site-packages/lisp/
+ %{!?_without_swig:%exclude %{_libdir}/libsvn_swig_perl*}
+@@ -221,9 +232,9 @@
+ %files devel
+ %defattr(-, root, root, 0755)
+ %{_includedir}/subversion-1/
+-%{_libdir}/libsvn*.a
+-%{_libdir}/libsvn*.la
+-%{_libdir}/libsvn*.so
++%{_libdir}/libsvn_*.a
++%{_libdir}/libsvn_*.la
++%{_libdir}/libsvn_*.so
+ %{!?_without_swig:%exclude %{_libdir}/libsvn_swig_perl*}
+ 
+ %files -n mod_dav_svn
+@@ -242,8 +253,8 @@
+ %endif
+ 
+ %changelog
+-* Sat Apr 08 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 1.2.1-0.1.2
+-- Rebuild for Fedora Core 5.
++* Tue Aug 01 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.3.2-0.1
++- Updated to release 1.3.2
+ 
+ * Wed Jul 13 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.2.1-0.1
+ - Updated to release 1.2.1
+
+Added: trunk/rpms/viewvc/viewvc-tools.patch
+===================================================================
+--- trunk/rpms/viewvc/viewvc-tools.patch	2006-08-01 11:43:04 UTC (rev 4607)
++++ trunk/rpms/viewvc/viewvc-tools.patch	2006-08-02 15:32:29 UTC (rev 4608)
+@@ -0,0 +1,49 @@
++--- viewvc/bin/make-database.orig	2006-01-21 18:18:09.000000000 -0500
+++++ viewvc/bin/make-database	2006-01-23 00:45:27.000000000 -0500
++@@ -48,15 +48,15 @@
++ CREATE TABLE checkins (
++   type enum('Change','Add','Remove'),
++   ci_when datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
++-  whoid mediumint(9) DEFAULT '0' NOT NULL,
++-  repositoryid mediumint(9) DEFAULT '0' NOT NULL,
++-  dirid mediumint(9) DEFAULT '0' NOT NULL,
++-  fileid mediumint(9) DEFAULT '0' NOT NULL,
+++  whoid mediumint(9)  NOT NULL,
+++  repositoryid mediumint(9)  NOT NULL,
+++  dirid mediumint(9)  NOT NULL,
+++  fileid mediumint(9)  NOT NULL,
++   revision varchar(32) binary DEFAULT '' NOT NULL,
++   stickytag varchar(255) binary DEFAULT '' NOT NULL,
++-  branchid mediumint(9) DEFAULT '0' NOT NULL,
++-  addedlines int(11) DEFAULT '0' NOT NULL,
++-  removedlines int(11) DEFAULT '0' NOT NULL,
+++  branchid mediumint(9)  NOT NULL,
+++  addedlines int(11)  NOT NULL,
+++  removedlines int(11)  NOT NULL,
++   descid mediumint(9),
++   UNIQUE repositoryid (repositoryid,dirid,fileid,revision),
++   KEY ci_when (ci_when),
++@@ -71,7 +71,7 @@
++ CREATE TABLE descs (
++   id mediumint(9) NOT NULL auto_increment,
++   description text,
++-  hash bigint(20) DEFAULT '0' NOT NULL,
+++  hash bigint(20)  NOT NULL,
++   PRIMARY KEY (id),
++   KEY hash (hash)
++ );
++@@ -110,10 +110,10 @@
++ 
++ DROP TABLE IF EXISTS tags;
++ CREATE TABLE tags (
++-  repositoryid mediumint(9) DEFAULT '0' NOT NULL,
++-  branchid mediumint(9) DEFAULT '0' NOT NULL,
++-  dirid mediumint(9) DEFAULT '0' NOT NULL,
++-  fileid mediumint(9) DEFAULT '0' NOT NULL,
+++  repositoryid mediumint(9)  NOT NULL,
+++  branchid mediumint(9)  NOT NULL,
+++  dirid mediumint(9)  NOT NULL,
+++  fileid mediumint(9)  NOT NULL,
++   revision varchar(32) binary DEFAULT '' NOT NULL,
++   UNIQUE repositoryid (repositoryid,dirid,fileid,branchid,revision),
++   KEY repositoryid_2 (repositoryid),
+
+Added: trunk/rpms/viewvc/viewvc.spec
+===================================================================
+--- trunk/rpms/viewvc/viewvc.spec	2006-08-01 11:43:04 UTC (rev 4607)
++++ trunk/rpms/viewvc/viewvc.spec	2006-08-02 15:32:29 UTC (rev 4608)
+@@ -0,0 +1,114 @@
++# $Id$
++# Authority: dag
++
++Summary: Web-interface for CVS and Subversion version control repositories
++Name: viewvc
++Version: 1.0.1
++Release: 2
++License: BSD
++Group: System/Servers
++URL: <A HREF="http://www.viewvc.org/">http://www.viewvc.org/</A>
++
++Source0: <A HREF="http://www.viewvc.org/viewvc-%{version">http://www.viewvc.org/viewvc-%{version</A>}.tar.gz
++Patch0: viewvc-tools.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}
++
++BuildArch: noarch
++BuildRequires: python &gt;= 1.5.2
++Requires: httpd, python &gt;= 1.5.2
++Obsoletes: viewcvs
++Provides: viewcvs = %{version}-%{release}
++
++%description
++ViewVC is a browser interface for CVS and Subversion version control 
++repositories. It generates templatized HTML to present navigable 
++directory, revision, and change log listings. It can display specific 
++versions of files as well as diffs between those versions. Basically, 
++ViewVC provides the bulk of the report-like functionality you expect out 
++of your version control tool, but much more prettily than the average 
++textual command-line program output.
++
++%prep
++%setup
++%patch0 -p1
++find . -type d -name .svn | xargs %{__rm} -rf
++
++%{__cat} &lt;&lt;EOF &gt;viewvc.httpd
++### viewvc sample configuration
++
++#ScriptAlias /viewvc %{_localstatedir}/www/cgi-bin/viewvc.cgi
++#ScriptAlias /query %{_localstatedir}/www/cgi-bin/query.cgi
++#Alias /viewvc-static %{_localstatedir}/www/viewvc
++#
++#&lt;Directory %{_localstatedir}/www/viewvc&gt;
++#	Allow from all
++#&lt;/Directory&gt;
++EOF
++
++%build
++
++%install
++%{__rm} -rf %{buildroot}
++%{__python} viewvc-install --destdir=&quot;%{buildroot}&quot; --prefix=&quot;%{_datadir}/viewvc&quot;
++
++### Remove mod_python files
++%{__rm} -rf %{buildroot}%{_datadir}/viewvc/bin/mod_python
++
++### Fix python files perms and shellbang
++%{__perl} -pi \
++	-e 's|/usr/local/bin/python|%{_bindir}/python|g;' \
++	-e 's|\s*/usr/bin/env python|%{_bindir}/python|g;' \
++	-e 's|CONF_PATHNAME =.*|CONF_PATHNAME = r&quot;%{_sysconfdir}/viewvc/viewvc.conf&quot;|g;' \
++	$(find %{buildroot}%{_datadir}/viewvc/ -type f)
++
++### Install CGI's to www directory
++%{__mkdir_p} %{buildroot}%{_localstatedir}/www/cgi-bin
++%{__install} -p -m0755 %{buildroot}%{_datadir}/viewvc/bin/cgi/*.cgi %{buildroot}%{_localstatedir}/www/cgi-bin/
++%{__rm} -rf %{buildroot}%{_datadir}/viewvc/bin/cgi
++
++### Fix paths in configuration
++%{__perl} -pi \
++	-e 's|templates/|%{_datadir}/viewvc/templates/|g;' \
++	-e 's|^#docroot = .*|docroot = /viewvc-static|;' \
++	-e 's|^cvsgraph_conf = .*|cvsgraph_conf = %{_sysconfdir}/viewvc/cvsgraph.conf|;' \
++	%{buildroot}%{_datadir}/viewvc/viewvc.conf
++
++### Install config to sysconf directory
++%{__install} -Dp -m0644 %{buildroot}%{_datadir}/viewvc/viewvc.conf %{buildroot}%{_sysconfdir}/viewvc/viewvc.conf
++%{__rm} -f %{buildroot}%{_datadir}/viewvc/viewvc.conf
++%{__install} -Dp -m0644 %{buildroot}%{_datadir}/viewvc/cvsgraph.conf %{buildroot}%{_sysconfdir}/viewvc/cvsgraph.conf
++%{__rm} -f %{buildroot}%{_datadir}/viewvc/cvsgraph.conf
++
++### Move static files under %{_localstatedir}/www
++%{__mv} %{buildroot}%{_datadir}/viewvc/templates/docroot %{buildroot}%{_localstatedir}/www/viewvc
++
++### Compile the python files
++find %{buildroot}%{_datadir}/viewvc/lib -type f -name &quot;*.pyc&quot; | xargs %{__rm} -f
++%{__python} -O %{_libdir}/python*/compileall.py %{buildroot}%{_datadir}/viewvc/lib
++
++### Install viewcv Apache configuration
++%{__install} -Dp -m0644 viewvc.httpd %{buildroot}/etc/httpd/conf.d/viewvc.conf
++
++### Set mode 755 on executable scripts
++%{__grep} -rl '^#!' %{buildroot}%{_datadir}/viewvc | xargs %{__chmod} 0755
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc CHANGES README INSTALL TODO
++%config(noreplace) %{_sysconfdir}/viewvc/
++%config(noreplace) %{_sysconfdir}/httpd/conf.d/viewvc.conf
++%{_datadir}/viewvc/
++%dir %{_localstatedir}/www/cgi-bin/
++%{_localstatedir}/www/cgi-bin/viewvc.cgi
++%{_localstatedir}/www/cgi-bin/query.cgi
++%{_localstatedir}/www/viewvc/
++
++%changelog
++* Tue Aug 01 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.0.1-2
++- Provide a better default httpd setup using Alias and ScriptALias /viewvc-static.
++
++* Tue Aug 01 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.0.1-1
++- Initial package based on Mandrake.
+
+
+Property changes on: trunk/rpms/viewvc/viewvc.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003407.html">[svn] r4607 - trunk/rpms/x264
+</A></li>
+	<LI>Next message: <A HREF="003409.html">[svn] r4609 - trunk/rpms/tintin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3408">[ date ]</a>
+              <a href="thread.html#3408">[ thread ]</a>
+              <a href="subject.html#3408">[ subject ]</a>
+              <a href="author.html#3408">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

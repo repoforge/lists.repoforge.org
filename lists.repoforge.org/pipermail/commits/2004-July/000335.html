@@ -1,0 +1,365 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1526 - in trunk/rpms: . ucarp
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1526%20-%20in%20trunk/rpms%3A%20.%20ucarp&In-Reply-To=%3C20040709152258.AAC9F1FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000334.html">
+   <LINK REL="Next"  HREF="000336.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1526 - in trunk/rpms: . ucarp</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1526%20-%20in%20trunk/rpms%3A%20.%20ucarp&In-Reply-To=%3C20040709152258.AAC9F1FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1526 - in trunk/rpms: . ucarp">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Jul  9 17:22:58 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000334.html">[SVN] r1525 - trunk/rpms/hackedbox
+</A></li>
+        <LI>Next message: <A HREF="000336.html">[SVN] r1527 - trunk/rpms/ucarp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#335">[ date ]</a>
+              <a href="thread.html#335">[ thread ]</a>
+              <a href="subject.html#335">[ subject ]</a>
+              <a href="author.html#335">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-07-09 17:22:56 +0200 (Fri, 09 Jul 2004)
+New Revision: 1526
+
+Added:
+   trunk/rpms/ucarp/
+   trunk/rpms/ucarp/carp.init
+   trunk/rpms/ucarp/ucarp.spec
+   trunk/rpms/ucarp/vip-001.conf.example
+Log:
+Initial import.
+
+
+Added: trunk/rpms/ucarp/carp.init
+===================================================================
+--- trunk/rpms/ucarp/carp.init	2004-07-09 07:07:17 UTC (rev 1525)
++++ trunk/rpms/ucarp/carp.init	2004-07-09 15:22:56 UTC (rev 1526)
+@@ -0,0 +1,143 @@
++#!/bin/bash
++# $Id$
++#
++# chkconfig: - 91 09
++# description: Starts and stops ucarp. \
++#	       used to provide common address redundancy.
++
++# Source function library.
++. /etc/init.d/functions
++
++# Source networking configuration.
++. /etc/sysconfig/network
++
++# Check that networking is up.
++[ ${NETWORKING} = &quot;no&quot; ] &amp;&amp; exit 0
++
++get_files() {
++    FILES=`find /etc/sysconfig/carp -type f -name 'vip-*.conf' -maxdepth 1 \
++           -printf &quot;%f\n&quot; | LC_COLLATE=&quot;C&quot; sort`
++}
++
++prog=$&quot;common address redundancy protocol daemon&quot;
++RETVAL=0
++
++start() {
++    echo -n $&quot;Starting ${prog}: &quot;
++
++    get_files
++
++    if [ -z &quot;${FILES}&quot; ]; then
++        failure $&quot;no virtual addresses are configured in /etc/sysconfig/carp/&quot;
++        RETVAL=1
++    else
++        for FILE in ${FILES}; do
++            # Check that the file name gives us an ID between 1 and 255
++            ID=`echo ${FILE}| sed 's/^vip-\(.*\).conf/\1/'`
++            if [ ${ID} -lt 1 -o ${ID} -gt 255 ]; then
++                initlog $INITLOG_ARGS -n carp -s &quot;configuration file name ${FILE} gave us a bad ID of ${ID}:&quot; -e 2
++                RETVAL=1
++                break
++            fi
++
++            # Source ucarp settings
++            . /etc/sysconfig/carp/${FILE}
++
++            # Check that we have the ifcfg-&lt;if&gt; file for the main interface
++            if [ -f /etc/sysconfig/network-scripts/ifcfg-${BIND_INTERFACE} ]; then
++                . /etc/sysconfig/network-scripts/ifcfg-${BIND_INTERFACE}
++            else
++                initlog $INITLOG_ARGS -n carp -s $&quot;no ifcfg-${BIND_INTERFACE} file found for carp ${FILE} configuration:&quot; -e 2
++                RETVAL=1
++                break
++            fi
++            # Check that the ifcfg-&lt;if&gt; file does have an IPADDR
++            BIND_ADDRESS=${IPADDR}
++            if [ -z &quot;${BIND_ADDRESS}&quot; ]; then
++                initlog $INITLOG_ARGS -n carp -s $&quot;no IPADDR found in interface file ifcfg-${BIND_INTERFACE}:&quot; -e 2
++                RETVAL=1
++                break
++            fi
++
++            # Check that we have the ifcfg-&lt;if&gt; file for the virtual interface
++            if [ -f /etc/sysconfig/network-scripts/ifcfg-${VIP_INTERFACE} ]; then
++                . /etc/sysconfig/network-scripts/ifcfg-${VIP_INTERFACE}
++            else
++                initlog $INITLOG_ARGS -n carp -s $&quot;no ifcfg-${VIP_INTERFACE} file found for carp ${FILE} configuration:&quot; -e 2
++                RETVAL=1
++                break
++            fi
++            # Check that the ifcfg-&lt;if&gt; file does have an IPADDR
++            VIP_ADDRESS=${IPADDR}
++            if [ -z &quot;${VIP_ADDRESS}&quot; ]; then
++                initlog $INITLOG_ARGS -n carp -s &quot;no IPADDR found in interface file ifcfg-${VIP_INTERFACE}:&quot; -e 2
++                RETVAL=1
++                break
++            fi
++
++            daemon /usr/sbin/ucarp -v ${ID} -p ${PASSWORD} -s ${BIND_ADDRESS} -a ${VIP_ADDRESS} -i ${VIP_INTERFACE} ${OPTIONS} -B --upscript=/etc/sysconfig/carp/vip-up --downscript=/etc/sysconfig/carp/vip-down
++            LAUNCH_RETVAL=$?
++            [ ${LAUNCH_RETVAL} -ne 0 ] &amp;&amp; RETVAL=1
++        done
++        [ &quot;${RETVAL}&quot; -ne 0 ] &amp;&amp; failure $&quot;error in one or more of the carp configurations, see above:&quot;
++    fi
++    echo
++    [ &quot;$RETVAL&quot; -eq 0 ] &amp;&amp; touch /var/lock/subsys/carp
++}
++
++stop() {
++    echo -n $&quot;Shutting down $prog: &quot;
++    killproc /usr/sbin/ucarp
++    RETVAL=$?
++
++    # We put all interfaces managed by ucarp down when stopping the service
++    # to avoid conflicting &quot;leftovers&quot;
++
++    get_files
++
++    [ ! -z &quot;${FILES}&quot; ] &amp;&amp; \
++    for FILE in ${FILES}; do
++
++        # Source ucarp settings
++        . /etc/sysconfig/carp/${FILE}
++
++        # Check that we have the ifcfg-&lt;if&gt; file for the virtual interface
++        if [ -f /etc/sysconfig/network-scripts/ifcfg-${VIP_INTERFACE} ]; then
++            if /sbin/ifconfig ${VIP_INTERFACE} down &gt;/dev/null 2&gt;&amp;1; then
++                initlog $INITLOG_ARGS -n carp -s $&quot;bringing down carp managed interface ${VIP_INTERFACE}:&quot; -e 1
++            else
++                initlog $INITLOG_ARGS -n carp -s $&quot;bringing down carp managed interface ${VIP_INTERFACE}:&quot; -e 2
++            fi
++        fi
++    done
++    echo
++    [ &quot;$RETVAL&quot; -eq 0 ] &amp;&amp; rm -f /var/lock/subsys/carp
++}
++
++# See how we were called.
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	stop
++	;;
++  restart|reload)
++	stop
++	start
++	;;
++  condrestart)
++	if [ -f /var/lock/subsys/carp ]; then
++	    stop
++	    start
++	fi
++	;;
++  status)
++	status /usr/sbin/ucarp
++	;;
++  *)
++	echo $&quot;Usage: $0 {start|stop|restart|condrestart|status}&quot;
++	exit 1
++esac
++
++exit $RETVAL
+
+
+Property changes on: trunk/rpms/ucarp/carp.init
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/rpms/ucarp/ucarp.spec
+===================================================================
+--- trunk/rpms/ucarp/ucarp.spec	2004-07-09 07:07:17 UTC (rev 1525)
++++ trunk/rpms/ucarp/ucarp.spec	2004-07-09 15:22:56 UTC (rev 1526)
+@@ -0,0 +1,103 @@
++# $Id$
++
++Summary: Common Address Redundancy Protocol (CARP) for Unix
++Name: ucarp
++Version: 1.0
++Release: 1
++License: BSD
++Group: System Environment/Daemons
++URL: <A HREF="http://www.ucarp.org/">http://www.ucarp.org/</A>
++Source: <A HREF="http://www.pureftpd.org/ucarp/ucarp-%{version">http://www.pureftpd.org/ucarp/ucarp-%{version</A>}.tar.bz2
++Source1: carp.init
++Source2: vip-001.conf.example
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++Requires(post): /sbin/chkconfig
++Requires(preun): /sbin/chkconfig, /sbin/service
++Requires(postun): /sbin/service
++BuildRequires: libpcap, gettext
++
++
++%description
++UCARP allows a couple of hosts to share common virtual IP addresses in order
++to provide automatic failover. It is a portable userland implementation of the
++secure and patent-free Common Address Redundancy Protocol (CARP, OpenBSD's
++alternative to the patents-bloated VRRP).
++Strong points of the CARP protocol are: very low overhead, cryptographically
++signed messages, interoperability between different operating systems and no
++need for any dedicated extra network link between redundant hosts.
++
++
++%prep
++%setup
++
++
++%build
++%configure
++%{__make} %{?_smp_mflags}
++
++
++%install
++%{__rm} -rf %{buildroot}
++%makeinstall
++%find_lang %{name}
++
++# Install the init script
++%{__install} -D -m 0755 %{SOURCE1} \
++    %{buildroot}/etc/rc.d/init.d/carp
++
++# Install the example config file
++%{__install} -D -m 0600 %{SOURCE2} \
++    %{buildroot}/etc/sysconfig/carp/vip-001.conf.example
++
++# Install trivial interface up/down scripts
++%{__cat} &lt;&lt; 'EOF' &gt; %{buildroot}/etc/sysconfig/carp/vip-up
++#!/bin/sh
++# We could use ifup directly, but it complains if the address is already used
++#/sbin/ifup $1
++. /etc/sysconfig/network-scripts/ifcfg-$1
++#exec /sbin/ip addr add ${IPADDR}/${NETMASK} dev &quot;$1&quot;
++exec /sbin/ifconfig $1 ${IPADDR} netmask ${NETMASK} up
++EOF
++%{__cat} &lt;&lt; 'EOF' &gt; %{buildroot}/etc/sysconfig/carp/vip-down
++#!/bin/sh
++#. /etc/sysconfig/network-scripts/ifcfg-$1
++#exec /sbin/ip addr del ${IPADDR}/${NETMASK} dev &quot;$1&quot;
++exec /sbin/ifconfig $1 down
++EOF
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++if [ $1 -eq 1 ]; then
++    /sbin/chkconfig --add carp
++fi
++
++%preun
++if [ $1 -eq 0 ]; then
++    /sbin/service carp stop &gt;/dev/null 2&gt;&amp;1 || :
++    /sbin/chkconfig --del carp
++fi
++
++%postun
++if [ $1 -ge 1 ]; then
++    /sbin/service carp condrestart &gt;/dev/null 2&gt;&amp;1 || :
++fi
++
++
++%files -f %{name}.lang
++%defattr(-, root, root, 0755)
++%doc AUTHORS COPYING ChangeLog NEWS README examples/linux/*.sh
++/etc/rc.d/init.d/carp
++/etc/sysconfig/carp/vip-001.conf.example
++%attr(0700, root, root) %config(noreplace) /etc/sysconfig/carp/vip-up
++%attr(0700, root, root) %config(noreplace) /etc/sysconfig/carp/vip-down
++%{_sbindir}/ucarp
++
++
++%changelog
++* Fri Jul  9 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/ucarp/ucarp.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id HeadURL
+
+Added: trunk/rpms/ucarp/vip-001.conf.example
+===================================================================
+--- trunk/rpms/ucarp/vip-001.conf.example	2004-07-09 07:07:17 UTC (rev 1525)
++++ trunk/rpms/ucarp/vip-001.conf.example	2004-07-09 15:22:56 UTC (rev 1526)
+@@ -0,0 +1,20 @@
++# Virtual IP configuration file for UCARP
++# The number (from 001 to 255) in the name of the file is the identifier
++# $Id$
++
++# Set the same password on all mamchines sharing the same virtual IP
++PASSWORD=&quot;love&quot;
++
++# You are required to have an IPADDR= line in the configuration file for
++# this interface (so no DHCP allowed)
++BIND_INTERFACE=&quot;eth0&quot;
++
++# Do *NOT* use a main interface for the virtual IP, use an ethX:Y alias
++# with the corresponding /etc/sysconfig/network-scripts/ifcfg-ethX:Y file
++# already configured and ith ONBOOT=no
++VIP_INTERFACE=&quot;eth0:0&quot;
++
++# If you have extra options to add, see &quot;ucarp --help&quot; output
++# (the lower the &quot;-k &lt;val&gt;&quot; the higher priority and &quot;-P&quot; to become master ASAP)
++OPTIONS=&quot;-k 128 -P&quot;
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000334.html">[SVN] r1525 - trunk/rpms/hackedbox
+</A></li>
+	<LI>Next message: <A HREF="000336.html">[SVN] r1527 - trunk/rpms/ucarp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#335">[ date ]</a>
+              <a href="thread.html#335">[ thread ]</a>
+              <a href="subject.html#335">[ subject ]</a>
+              <a href="author.html#335">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3510 - trunk/tools/dar/python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3510%20-%20trunk/tools/dar/python&In-Reply-To=%3C20050817232900.1590C318042%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002310.html">
+   <LINK REL="Next"  HREF="002312.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3510 - trunk/tools/dar/python</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3510%20-%20trunk/tools/dar/python&In-Reply-To=%3C20050817232900.1590C318042%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3510 - trunk/tools/dar/python">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Aug 18 01:29:00 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002310.html">[svn] r3509 - trunk/tools/dar/python
+</A></li>
+        <LI>Next message: <A HREF="002312.html">[svn] r3511 - in trunk/rpms: . pari perl-Audio-CoolEdit	perl-Crypt-Random perl-File-Backup perl-Font-TTF perl-IO-Stty	perl-Lingua-EN-Inflect perl-Math-Gsl perl-Math-PRSG	perl-Math-Pari perl-Text-PDF perl-Tie-Restore perl-User-Utmp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2311">[ date ]</a>
+              <a href="thread.html#2311">[ thread ]</a>
+              <a href="subject.html#2311">[ subject ]</a>
+              <a href="author.html#2311">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-08-18 01:28:59 +0200 (Thu, 18 Aug 2005)
+New Revision: 3510
+
+Added:
+   trunk/tools/dar/python/create-infodb.py
+Log:
+Updates
+
+Added: trunk/tools/dar/python/create-infodb.py
+===================================================================
+--- trunk/tools/dar/python/create-infodb.py	2005-08-17 23:28:49 UTC (rev 3509)
++++ trunk/tools/dar/python/create-infodb.py	2005-08-17 23:28:59 UTC (rev 3510)
+@@ -0,0 +1,68 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string, rpm
++
++packagedir = '/dar/packages/'
++infodb = '/dar/tmp/state/infodb.sqlite'
++
++infohdr = ('name', 'summary', 'description', 'url', 'license', 'category', 'parent')
++
++ts = rpm.TransactionSet(&quot;&quot;, (rpm._RPMVSF_NOSIGNATURES or rpm.RPMVSF_NOHDRCHK or rpm._RPMVSF_NODIGESTS or rpm.RPMVSF_NEEDPAYLOAD))
++
++def readfile(file):
++	return re.search('(?P&lt;name&gt;[^/]+)-(?P&lt;version&gt;[\w\.]+)-(?P&lt;release&gt;[\w\.]+)\.(?P&lt;arch&gt;\w+).rpm$', file).groupdict()
++
++def getHeader(filename):
++	'''Read a rpm header.'''
++	fd = os.open(filename, os.O_RDONLY)
++	h = ts.hdrFromFdno(fd)
++	os.close(fd)
++	return h
++
++def readrpm(file):
++	header = getHeader(file)
++	rec = {
++		'parent': os.path.basename(os.path.dirname(file)),
++		'name': header[rpm.RPMTAG_NAME],
++		'summary': header[rpm.RPMTAG_SUMMARY].replace('&quot;', '\''),
++		'description': header[rpm.RPMTAG_DESCRIPTION].replace('&quot;', '\''),
++		'category': header[rpm.RPMTAG_GROUP],
++		'license': header[rpm.RPMTAG_LICENSE],
++		'url': header[rpm.RPMTAG_URL],
++	}
++	return rec
++
++sys.stdout = os.fdopen(1, 'w', 0)
++
++dropsta = 'drop table info'
++
++createsta = 'create table info ( '
++for key in infohdr: createsta += '%s varchar(10), ' % key
++createsta = createsta.rstrip(', ') + ' )'
++
++insertsta = 'insert into info ( '
++for key in infohdr: insertsta += '%s, ' % key
++insertsta = insertsta.rstrip(', ') + ' ) values ( '
++for key in infohdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
++insertsta = insertsta.rstrip(', ') + ' )'
++
++infocon = sqlite.connect(infodb)
++infocur = infocon.cursor()
++try: infocur.execute(dropsta)
++except: pass
++infocur.execute(createsta)
++
++for file in glob.glob(os.path.join(packagedir, '*/*.rpm')):
++	rec = readfile(file)
++	infocur.execute('select distinct name from info where name = &quot;%(name)s&quot;' % rec)
++	if infocur.fetchall(): continue
++	try:
++		rec = readrpm(file)
++	except:
++		print file, 'FAILED'
++		continue
++	infocur.execute(insertsta % rec)
++
++infocon.commit()
++infocur.close()
++infocon.close()
+
+
+Property changes on: trunk/tools/dar/python/create-infodb.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002310.html">[svn] r3509 - trunk/tools/dar/python
+</A></li>
+	<LI>Next message: <A HREF="002312.html">[svn] r3511 - in trunk/rpms: . pari perl-Audio-CoolEdit	perl-Crypt-Random perl-File-Backup perl-Font-TTF perl-IO-Stty	perl-Lingua-EN-Inflect perl-Math-Gsl perl-Math-PRSG	perl-Math-Pari perl-Text-PDF perl-Tie-Restore perl-User-Utmp
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2311">[ date ]</a>
+              <a href="thread.html#2311">[ thread ]</a>
+              <a href="subject.html#2311">[ subject ]</a>
+              <a href="author.html#2311">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

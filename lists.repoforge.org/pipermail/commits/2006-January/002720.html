@@ -1,0 +1,187 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3920 - trunk/tools/sarah
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3920%20-%20trunk/tools/sarah&In-Reply-To=%3C20060110140811.AE7F9944AA3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002719.html">
+   <LINK REL="Next"  HREF="002721.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3920 - trunk/tools/sarah</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3920%20-%20trunk/tools/sarah&In-Reply-To=%3C20060110140811.AE7F9944AA3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3920 - trunk/tools/sarah">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jan 10 15:08:11 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002719.html">[svn] r3919 - trunk/tools/sarah
+</A></li>
+        <LI>Next message: <A HREF="002721.html">[svn] r3921 - trunk/rpms/xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2720">[ date ]</a>
+              <a href="thread.html#2720">[ thread ]</a>
+              <a href="subject.html#2720">[ subject ]</a>
+              <a href="author.html#2720">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-10 15:08:09 +0100 (Tue, 10 Jan 2006)
+New Revision: 3920
+
+Added:
+   trunk/tools/sarah/README
+   trunk/tools/sarah/TODO
+Modified:
+   trunk/tools/sarah/sarahdb.py
+   trunk/tools/sarah/sarahprint.py
+Log:
+Updates and few docs
+
+Added: trunk/tools/sarah/README
+===================================================================
+--- trunk/tools/sarah/README	2006-01-10 13:12:41 UTC (rev 3919)
++++ trunk/tools/sarah/README	2006-01-10 14:08:09 UTC (rev 3920)
+@@ -0,0 +1,12 @@
++Sarah currently requires a stuffed directory of advisories from RHN as XML files.
++
++You can download these files automatically by using the aerrate.py script from
++Tim Rupp. Available from:
++
++	:pserver:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">anonymous at cdcvs.fnal.gov</A>:/cvs/scientificlinux
++
++And issuing the following script:
++
++	for release in rh{21,el3,el4}as rh{21,el3,el4}es rh{21,el3,el4}ws rhel3{cluster,devsuite} rhel{3,4}-extras rh-desktop-{3,4} rh21aw rhshas; do
++		./aerrate.py --source=site --type=security --release=$release
++	done
+
+Added: trunk/tools/sarah/TODO
+===================================================================
+--- trunk/tools/sarah/TODO	2006-01-10 13:12:41 UTC (rev 3919)
++++ trunk/tools/sarah/TODO	2006-01-10 14:08:09 UTC (rev 3920)
+@@ -0,0 +1,27 @@
++aeratta.py
++^^^^^^^^^^
+++ Parallelize the download process (use HTTP Pipelining and use
++  eg. 4 connections)
+++ Allow to list a number of releases (eg. --release=rhel4as,rhel3as,rhel2.1as)
++  and remember what advisories have already been scraped (recently)
+++ Use timestamp and HTTP HEAD requests to check for updates)
+++ Allow to list all types of advisories (eg. --type=all or --type=critical,important)
+++ Fix proxy support
+++ Validate XML file after writing (some files are corrupted/unfinished)
+++ Make aerrate.py executable :)
+++ A lot of files do not include &lt;severity&gt;
++
++
++sarahdb.py
++^^^^^^^^^^
+++ Define interesting queries
+++ Command-line model for browsing the databases
+++ Export to CSV
++
++
++sarahprint
++^^^^^^^^^^
+++ Compare package-list against eratta (sqlite database)
+++ Create change-request reports (containing all required updates,
++  technical information, urgency, ...)
+++ Report alien packages (packages not coming from Red Hat)
+
+Modified: trunk/tools/sarah/sarahdb.py
+===================================================================
+--- trunk/tools/sarah/sarahdb.py	2006-01-10 13:12:41 UTC (rev 3919)
++++ trunk/tools/sarah/sarahdb.py	2006-01-10 14:08:09 UTC (rev 3920)
+@@ -3,6 +3,7 @@
+ import glob, sqlite, sys, re, os, string, shutil
+ from xml.dom.ext.reader import Sax2
+ from xml.dom.NodeFilter import NodeFilter
++import xml.sax
+ 
+ import sarahlib
+ 
+@@ -21,8 +22,13 @@
+ filelist.sort()
+ 
+ for file in filelist:
+-	doc = reader.fromStream(open(file))
+-	walker = doc.createTreeWalker(doc.documentElement, NodeFilter.SHOW_ELEMENT, None, 0)
++	try:
++		doc = reader.fromStream(open(file))
++		walker = doc.createTreeWalker(doc.documentElement, NodeFilter.SHOW_ELEMENT, None, 0)
++	except xml.sax._exceptions.SAXParseException:
++		print '**%s**' % os.path.basename(file),
++		continue
++	print os.path.basename(file),
+ 
+ 	next = True
+ 	advrec = {}; prorec ={}; typrec = {}
+@@ -99,7 +105,6 @@
+ 	if not advrec.has_key('severitylevel'):
+ 		advrec['severitylevel'] = 'unknown'
+ 
+-	print advrec['advid'],
+ #	print advrec
+ 
+ 	sarahlib.insertdb(advcur, 'adv', advrec)
+
+Modified: trunk/tools/sarah/sarahprint.py
+===================================================================
+--- trunk/tools/sarah/sarahprint.py	2006-01-10 13:12:41 UTC (rev 3919)
++++ trunk/tools/sarah/sarahprint.py	2006-01-10 14:08:09 UTC (rev 3920)
+@@ -18,8 +18,10 @@
+ advcur.execute('select distinct advid from adv order by advid')
+ print 'Number of advisories:', len(advcur.fetchall())
+ 
++advcur.execute('select distinct advid from adv where severitylevel = &quot;critical&quot;')
++print '\tcritical:', len(advcur.fetchall()),
+ advcur.execute('select distinct advid from adv where severitylevel = &quot;important&quot;')
+-print '\timportant:', len(advcur.fetchall()),
++print 'important:', len(advcur.fetchall()),
+ advcur.execute('select distinct advid from adv where severitylevel = &quot;moderate&quot;')
+ print 'moderate:', len(advcur.fetchall()),
+ advcur.execute('select distinct advid from adv where severitylevel = &quot;low&quot;')
+@@ -31,8 +33,7 @@
+ typcur.execute('select typeshort from typ order by typeshort')
+ print 'Number of types:', len(typcur.fetchall())
+ 
+-### Print all
+-advcur.execute('select * from adv order by advid')
+-for all in advcur.fetchall():
+-	print all
+-
++### Debug database
++#advcur.execute('select * from adv order by advid')
++#for all in advcur.fetchall():
++#	print all
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002719.html">[svn] r3919 - trunk/tools/sarah
+</A></li>
+	<LI>Next message: <A HREF="002721.html">[svn] r3921 - trunk/rpms/xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2720">[ date ]</a>
+              <a href="thread.html#2720">[ thread ]</a>
+              <a href="subject.html#2720">[ subject ]</a>
+              <a href="author.html#2720">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

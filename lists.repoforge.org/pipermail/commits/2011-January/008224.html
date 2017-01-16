@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9440 - /trunk/rpms/augeas/augeas.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9440%20-%20/trunk/rpms/augeas/augeas.spec&In-Reply-To=%3C201101311806.p0VI6AHV010819%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008223.html">
+   <LINK REL="Next"  HREF="008225.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9440 - /trunk/rpms/augeas/augeas.spec</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9440%20-%20/trunk/rpms/augeas/augeas.spec&In-Reply-To=%3C201101311806.p0VI6AHV010819%40surya.karan.org%3E"
+       TITLE="[svn] r9440 - /trunk/rpms/augeas/augeas.spec">shuff at vecna.org
+       </A><BR>
+    <I>Mon Jan 31 19:06:10 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008223.html">[svn] r9439 - /trunk/rpms/_ruby-template.spec
+</A></li>
+        <LI>Next message: <A HREF="008225.html">[svn] r9441 - in /trunk/rpms: _ruby-template.spec	_rubygem-template.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8224">[ date ]</a>
+              <a href="thread.html#8224">[ thread ]</a>
+              <a href="subject.html#8224">[ subject ]</a>
+              <a href="author.html#8224">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: Mon Jan 31 18:06:10 2011
+New Revision: 9440
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9440&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9440&amp;view=rev</A>
+Log:
+update to augeas-0.7.4 (RFX in el6)
+split off Vim configs into their own package
+
+Modified:
+    trunk/rpms/augeas/augeas.spec
+
+Modified: trunk/rpms/augeas/augeas.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/augeas/augeas.spec?rev=9440&amp;r1=9439&amp;r2=9440&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/augeas/augeas.spec?rev=9440&amp;r1=9439&amp;r2=9440&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/augeas/augeas.spec (original)
++++ trunk/rpms/augeas/augeas.spec Mon Jan 31 18:06:10 2011
+@@ -1,23 +1,26 @@
+ # $Id$
+-# Authority: dag
++# Authority: shuff
+ 
++# ExcludeDist: el4
+ ### EL6 ships with augeas-0.7.2-3.el6
+-# ExclusiveDist: el2 el3 el4 el5
++%{?el6:# Tag: rfx}
+ 
+ Summary: Configuration API and editing tool
+ Name: augeas
+-Version: 0.2.2
++Version: 0.7.4
+ Release: 1%{?dist}
+ License: LGPL
+ Group: System Environment/Base
+ URL: <A HREF="http://augeas.net/">http://augeas.net/</A>
+ 
+ Source: <A HREF="http://augeas.net/download/augeas-%{version">http://augeas.net/download/augeas-%{version</A>}.tar.gz
+-Patch0: augeas-0.2.2-const.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
++BuildRequires: bison
++BuildRequires: flex
++BuildRequires: gcc-c++
+ BuildRequires: readline-devel
+-Requires: augeas-libs = %{version}-%{release}
++Provides: augeas-libs = %{version}-%{release}
+ 
+ %description
+ Augeas is a configuration API and editing tool. It parses common configuration
+@@ -36,19 +39,31 @@
+ documentation for %{name}. If you like to develop programs using %{name},
+ you will need to install %{name}-devel.
+ 
++%package vim
++Summary: Vim syntax definitions for %{name}.
++Group: Applications/Editors
++Requires: vim-common &gt;= 7.0
++
++%description vim
++Syntax and filetype detection files to make editing Augeas configurations in
++Vim 7 easier.
++
+ %prep
+ %setup
+-%patch0 -p0
+ 
+ %build
+-%configure --disable-static
++%configure --disable-dependency-tracking --disable-static
+ %{__make} %{?_smp_mflags}
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+ %{__make} install DESTDIR=&quot;%{buildroot}&quot;
+ 
++# fix location of Vim files
++%{!?el6:%{__mv} %{buildroot}%{_datadir}/vim %{buildroot}%{_datadir}/vim70}
++
+ %post -p /sbin/ldconfig
++
+ %postun -p /sbin/ldconfig
+ 
+ %clean
+@@ -56,25 +71,32 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING NEWS README TODO
+-%doc %{_mandir}/man1/augtool.1*
+-%doc %{_mandir}/man1/augparse.1*
++%doc AUTHORS ChangeLog COPYING INSTALL NEWS README
++%doc %{_mandir}/man?/*
+ %{_bindir}/augtool
+ %{_bindir}/augparse
++%{_bindir}/fadot
+ %{_datadir}/augeas/
+-%{_libdir}/libaugeas.so.*
+-%{_libdir}/libfa.so.*
++%{_libdir}/*.so.*
+ 
+ %files devel
+ %defattr(-, root, root, 0755)
+-%{_includedir}/augeas.h
+-%{_includedir}/fa.h
+-%{_libdir}/libaugeas.so
+-%{_libdir}/libfa.so
++%doc HACKING
++%{_includedir}/*.h
++%{_libdir}/*.so
+ %{_libdir}/pkgconfig/augeas.pc
+ %exclude %{_libdir}/libaugeas.la
+ %exclude %{_libdir}/libfa.la
+ 
++%files vim
++%{_datadir}/vim*/vimfiles/*/augeas.vim
++
+ %changelog
++* Fri Jan 28 2011 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 0.7.4-1
++- Update to version 0.7.4.
++- RFX in el6.
++- Split off Vim config files.
++- Patch no longer necessary.
++
+ * Sun Jul 20 2008 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.2.2-1
+ - Initial package. (using DAR)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008223.html">[svn] r9439 - /trunk/rpms/_ruby-template.spec
+</A></li>
+	<LI>Next message: <A HREF="008225.html">[svn] r9441 - in /trunk/rpms: _ruby-template.spec	_rubygem-template.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8224">[ date ]</a>
+              <a href="thread.html#8224">[ thread ]</a>
+              <a href="subject.html#8224">[ subject ]</a>
+              <a href="author.html#8224">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

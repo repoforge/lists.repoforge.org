@@ -1,0 +1,157 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4579 - trunk/tools/dwscan
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4579%20-%20trunk/tools/dwscan&In-Reply-To=%3C20060718230220.8EC1B9451FE%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003378.html">
+   <LINK REL="Next"  HREF="003380.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4579 - trunk/tools/dwscan</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4579%20-%20trunk/tools/dwscan&In-Reply-To=%3C20060718230220.8EC1B9451FE%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4579 - trunk/tools/dwscan">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jul 19 01:02:20 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003378.html">[svn] r4578 - trunk/tools/dwscan
+</A></li>
+        <LI>Next message: <A HREF="003380.html">[svn] r4580 - trunk/rpms/bmpx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3379">[ date ]</a>
+              <a href="thread.html#3379">[ thread ]</a>
+              <a href="subject.html#3379">[ subject ]</a>
+              <a href="author.html#3379">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-07-19 01:02:19 +0200 (Wed, 19 Jul 2006)
+New Revision: 4579
+
+Modified:
+   trunk/tools/dwscan/ChangeLog
+   trunk/tools/dwscan/dwscan
+Log:
+Atheros support. Fixes for multiple wireless interfaces.
+
+Modified: trunk/tools/dwscan/ChangeLog
+===================================================================
+--- trunk/tools/dwscan/ChangeLog	2006-07-16 15:20:28 UTC (rev 4578)
++++ trunk/tools/dwscan/ChangeLog	2006-07-18 23:02:19 UTC (rev 4579)
+@@ -1,5 +1,6 @@
+ * 0.2svn - ... - release ../../2006
+--
++- Fixes to support multiple interfaces
++- Changes to support atheros chipset (no last beacon info)
+ 
+ * 0.2 - Gentse Fiesten - release 16/07/2006
+ - Added 15sec and 30sec signal-to-noise ratio averages
+
+Modified: trunk/tools/dwscan/dwscan
+===================================================================
+--- trunk/tools/dwscan/dwscan	2006-07-16 15:20:28 UTC (rev 4578)
++++ trunk/tools/dwscan/dwscan	2006-07-18 23:02:19 UTC (rev 4579)
+@@ -76,10 +76,10 @@
+ a = ''; b = ''
+ for i in range(0, 255):
+ 	a = a + chr(i)
+-	if i &lt; 32 or i &gt; 127:
++	if 32 &lt; i &lt; 127:
++		b = b + chr(i)
++	else:
+ 		b = b + '.'
+-	else:
+-		b = b + chr(i)
+ asciitrans = string.maketrans(a, b)
+ 
+ def asciify(str):
+@@ -165,7 +165,7 @@
+ 
+ 			### Create 10 sec average
+ 			if not assaps.has_key(iface) or snr == 0:
+-				ticks = 1.0
++				ticks = 0
+ 				avgsnr30 = snr
+ 				avgsnr15 = snr
+ 				avgsnr = snr
+@@ -217,7 +217,13 @@
+ 				try:
+ 					beacon = int(re.match('.*Last beacon: ([0-9]+)ms ago', result.custom[1]).group(1))
+ 				except:
+-					beacon = int(re.match('.*Last beacon: ([0-9]+)ms ago', result.custom[0]).group(1))
++					try:
++						beacon = int(re.match('.*Last beacon: ([0-9]+)ms ago', result.custom[0]).group(1))
++					except:
++						try:
++							beacon = int(re.match('.*bcn_int=([0-9]+)', result.custom[0]).group(1))
++						except:
++							beacon = 100
+ 
+ 				if aps.has_key(bssid):
+ 					ticks = aps[bssid]['ticks'] + 1.0
+@@ -231,7 +237,7 @@
+ #				print result.frequency.getChannel(result.frequency.getFrequency(), result.rate)
+ #				print result.frequency.getFrequency()
+ 
+-				aps[bssid] = {
++				aps[iface+bssid] = {
+ 					'active': True,
+ 					'avgquality': avgquality,
+ 					'bssid': result.bssid, 
+@@ -251,7 +257,9 @@
+ 		### Display Association information
+ 		print ansi['home'] + ansi['blue'] + ' %(iface)-5s  %(essid)-20s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4s  %(avgsnr15)4s  %(signalname)-10s' % { 'iface': 'Iface', 'essid': 'ESSID/Name', 'signal': 'Sgnl', 'noise': 'Nois', 'snr': 'SNR', 'avgsnr': 'Avg', 'avgsnr15': 'Av15', 'bitrate': 'Cur rate', 'missed_beacon': 'Mis', 'signalname': 'Strength' }
+ #		print ansi['blue'] + &quot;%-5s  %-20s  %4s  %4s  %3s  %8s  %3s  %-10s&quot; % ('Iface', 'ESSID/Name', 'Sgnl', 'Nois', 'SNR', 'Cur rate', 'Mis', 'Strength')
+-		for iface in assaps.keys():
++		ifaces = assaps.keys()
++		ifaces.sort()
++		for iface in ifaces:
+ 			obj = assaps[iface]
+ 			print ansi['default'] + (' %(iface)-5s  %(essid)-20s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4.1f  %(avgsnr15)4.1f  %(strength)-10s' % obj) + ansi['silver'] + ansi['cleareol']
+ 
+@@ -291,11 +299,11 @@
+ 
+ #			if obj['bssid'] == ifobj.getAPaddr():
+ #				print '%4s  %4s  %3s  %8s  %3s' % (qual.signallevel, qual.noiselevel, qual.signallevel - qual.noiselevel, ifobj.getBitrate(), missed_beacon),
+-##			else:
+-##				print ansi['gray'] + '%4s  %4s  %3s  %8s  %3s' % (obj['signal'], obj['noise'], int(obj['signal']) - int(obj['noise']), '-', '-'),
++#			else:
++#				print ansi['gray'] + '%4s  %4s  %3s  %8s  %3s' % (obj['signal'], obj['noise'], int(obj['signal']) - int(obj['noise']), '-', '-'),
+ 				
+ 
+-			aps[obj['bssid']]['active'] = False
++			aps[obj['iface']+obj['bssid']]['active'] = False
+ 
+ 		print ansi['blue'] + ' %s access points (%s active and %s inactive)' % (len(aps), len(scanresults), len(aps) - len(scanresults)) + ansi['cleareol']
+ 		print ansi['clearline'],
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003378.html">[svn] r4578 - trunk/tools/dwscan
+</A></li>
+	<LI>Next message: <A HREF="003380.html">[svn] r4580 - trunk/rpms/bmpx
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3379">[ date ]</a>
+              <a href="thread.html#3379">[ thread ]</a>
+              <a href="subject.html#3379">[ subject ]</a>
+              <a href="author.html#3379">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

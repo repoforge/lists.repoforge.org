@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5073 - in trunk/tools/mrepo: . config/dists
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5073%20-%20in%20trunk/tools/mrepo%3A%20.%20config/dists&In-Reply-To=%3C20070115055618.EDDEB944A8F%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003872.html">
+   <LINK REL="Next"  HREF="003874.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5073 - in trunk/tools/mrepo: . config/dists</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5073%20-%20in%20trunk/tools/mrepo%3A%20.%20config/dists&In-Reply-To=%3C20070115055618.EDDEB944A8F%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5073 - in trunk/tools/mrepo: . config/dists">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jan 15 06:56:18 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003872.html">[svn] r5072 - in trunk/rpms: awstats guichan
+</A></li>
+        <LI>Next message: <A HREF="003874.html">[svn] r5074 - in trunk/rpms: libmpeg3 libquicktime smilutils	transcode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3873">[ date ]</a>
+              <a href="thread.html#3873">[ thread ]</a>
+              <a href="subject.html#3873">[ subject ]</a>
+              <a href="author.html#3873">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-01-15 06:56:09 +0100 (Mon, 15 Jan 2007)
+New Revision: 5073
+
+Modified:
+   trunk/tools/mrepo/ChangeLog
+   trunk/tools/mrepo/config/dists/rh7.3.conf
+   trunk/tools/mrepo/config/dists/rhel2.1as.conf
+   trunk/tools/mrepo/mrepo
+Log:
+Added promoteepoch directive.
+
+Modified: trunk/tools/mrepo/ChangeLog
+===================================================================
+--- trunk/tools/mrepo/ChangeLog	2007-01-14 22:26:50 UTC (rev 5072)
++++ trunk/tools/mrepo/ChangeLog	2007-01-15 05:56:09 UTC (rev 5073)
+@@ -1,5 +1,6 @@
+ * 0.8.4svn - ... - released 30/12/2006
+ - Fixed a few typos (Ian Forde)
++- Added promoteepoch directive to disable it for older distributions (rhel2.1, rh7.3)
+ 
+ * 0.8.4 - Sint-Jacobsplein - released 13/12/2006
+ - Renamed Yam to mrepo (Matthew Hannigan)
+
+Modified: trunk/tools/mrepo/config/dists/rh7.3.conf
+===================================================================
+--- trunk/tools/mrepo/config/dists/rh7.3.conf	2007-01-14 22:26:50 UTC (rev 5072)
++++ trunk/tools/mrepo/config/dists/rh7.3.conf	2007-01-15 05:56:09 UTC (rev 5073)
+@@ -6,6 +6,8 @@
+ release = 7.3
+ arch = i386
+ 
++promoteepoch = no
++
+ ### ISO images
+ iso = valhalla-$arch-disc?.iso
+ #os = <A HREF="rsync://rsync.freshrpms.net/freshrpms/ayo/redhat/$release/$arch/RPMS.$repo/">rsync://rsync.freshrpms.net/freshrpms/ayo/redhat/$release/$arch/RPMS.$repo/</A>
+
+Modified: trunk/tools/mrepo/config/dists/rhel2.1as.conf
+===================================================================
+--- trunk/tools/mrepo/config/dists/rhel2.1as.conf	2007-01-14 22:26:50 UTC (rev 5072)
++++ trunk/tools/mrepo/config/dists/rhel2.1as.conf	2007-01-15 05:56:09 UTC (rev 5073)
+@@ -7,6 +7,8 @@
+ arch = i386
+ metadata = repomd yum repoview
+ 
++promoteepoch = no
++
+ ### ISO images
+ iso = RHEL${release}AS-U6-re1207.RC.0-i386-disc?.iso
+ 
+
+Modified: trunk/tools/mrepo/mrepo
+===================================================================
+--- trunk/tools/mrepo/mrepo	2007-01-14 22:26:50 UTC (rev 5072)
++++ trunk/tools/mrepo/mrepo	2007-01-15 05:56:09 UTC (rev 5073)
+@@ -275,15 +275,18 @@
+ 					dist = Dist(distname, arch, self)
+ 					dist.arch = arch
+ 					dist.metadata = self.metadata.split()
++					dist.promoteepoch = True
+ 					for option in self.cfg.options(section):
+ 						if option in ('iso', 'name', 'release', 'repo', 'rhnrelease'):
+ 							setattr(dist, option, self.cfg.get(section, option))
+ 						elif option in ('arch', 'dist'):
+ 							pass
+ 						elif option in ('disabled',):
+-							dist.enabled = setattr(dist, option, self.cfg.get(section, option)) not in disable
++							dist.enabled = self.cfg.get(section, option) not in disable
+ 						elif option in ('metadata',):
+ 							setattr(dist, option, self.cfg.get(section, option).split())
++						elif option in ('promoteepoch',):
++							dist.promoteepoch = self.cfg.get(section, option) not in disable
+ 						else:
+ 							dist.repos.append(Repo(option, self.cfg.get(section, option), dist, self))
+ 
+@@ -697,6 +700,8 @@
+ 			opts = ' --quiet' + opts
+ 		elif op.verbose &gt;= 4:
+ 			opts = ' -v' + opts
++		if not self.dist.promoteepoch:
++			opts = opts + ' -n'
+ 		if os.path.isdir(self.wwwdir):
+ 			repoopts = opts
+ 			if cf.cachedir:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003872.html">[svn] r5072 - in trunk/rpms: awstats guichan
+</A></li>
+	<LI>Next message: <A HREF="003874.html">[svn] r5074 - in trunk/rpms: libmpeg3 libquicktime smilutils	transcode
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3873">[ date ]</a>
+              <a href="thread.html#3873">[ thread ]</a>
+              <a href="subject.html#3873">[ subject ]</a>
+              <a href="author.html#3873">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

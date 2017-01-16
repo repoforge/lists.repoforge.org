@@ -1,0 +1,498 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3225 - in trunk/tools/dstat: . examples plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3225%20-%20in%20trunk/tools/dstat%3A%20.%20examples%20plugins&In-Reply-To=%3C20050522050205.B290D1D02A0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002026.html">
+   <LINK REL="Next"  HREF="002028.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3225 - in trunk/tools/dstat: . examples plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3225%20-%20in%20trunk/tools/dstat%3A%20.%20examples%20plugins&In-Reply-To=%3C20050522050205.B290D1D02A0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3225 - in trunk/tools/dstat: . examples plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May 22 07:02:05 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002026.html">[svn] r3224 - trunk/rpms/pydar2
+</A></li>
+        <LI>Next message: <A HREF="002028.html">[svn] r3226 - in trunk/tools/dstat: . examples
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2027">[ date ]</a>
+              <a href="thread.html#2027">[ thread ]</a>
+              <a href="subject.html#2027">[ subject ]</a>
+              <a href="author.html#2027">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-05-22 07:02:04 +0200 (Sun, 22 May 2005)
+New Revision: 3225
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/examples/mstat.py
+   trunk/tools/dstat/plugins/dstat_freespace.py
+   trunk/tools/dstat/plugins/dstat_sendmail.py
+Log:
+Updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-05-21 20:14:50 UTC (rev 3224)
++++ trunk/tools/dstat/ChangeLog	2005-05-22 05:02:04 UTC (rev 3225)
+@@ -27,8 +27,10 @@
+ - Smaller fixes and overall improvements
+ - Improved help output and manpage
+ - Added README.examples, README.performance and README.stats
+-- Added profiling code (--debug)
++- Added profiling/debuging code (--debug)
+ - Rewrote cprint/cprintlist logic
++- Get rid of python-curses requirement for SLES9 (although it helps)
++- Fixed dstat_disk24old for newer 2.4 kernels without CONFIG_BLK_STATS support (Susan G. Kleinmann)
+ 
+ * 0.5.10 - released 08/04/2005
+ - Small fix to restore terminal for all exit paths (Dbt 303526, Modesto Alexandre)
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2005-05-21 20:14:50 UTC (rev 3224)
++++ trunk/tools/dstat/Makefile	2005-05-22 05:02:04 UTC (rev 3225)
+@@ -12,6 +12,7 @@
+ 	install -Dp -m0755 dstat $(DESTDIR)$(bindir)/dstat
+ 	install -Dp -m0644 dstat.1 $(DESTDIR)$(mandir)/man1/dstat.1
+ 	install -d -m0755 $(DESTDIR)$(datadir)/dstat/
++	install -Dp -m0755 dstat $(DESTDIR)$(datadir)/dstat/dstat.py
+ 	install -Dp -m0755 plugins/dstat_*.py $(DESTDIR)$(datadir)/dstat/
+ #	install -d -m0755 $(DESTDIR)$(datadir)/dstat/examples/
+ #	install -Dp -m0755 examples/*.py $(DESTDIR)$(datadir)/dstat/examples/
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-05-21 20:14:50 UTC (rev 3224)
++++ trunk/tools/dstat/TODO	2005-05-22 05:02:04 UTC (rev 3225)
+@@ -35,9 +35,11 @@
+ 
+ ### Stat bugs
+ + Implement better (?) protection against counter rollovers
+-+ tcp stat is very slow and generates lots of softirqs (on some systems), to be confirmed
+-+ proc stats (run, blk and new) does not work on 2.4.30 (possibly 2.4.x), to be confirmed
+-+ proc stats seem to be off-by-one (some of the time)
+++ tcp stat is very slow and generates lots of softirqs (on busy systems), to be confirmed
+++ proc stats (run, blk and new) does not work on 2.4.30+ (possibly 2.4.x), to be confirmed
+++ disk stats cannot find a usable plugin on 2.4.24+, to be confirmed
+++ proc stats seem to be off-by-one compared to vmstat (some of the time, this is what I get from /proc/stat)
+++ /proc/partitions can have negative numbers, seen on systems with long uptime. dstat handles this except for calculating the very first stat, no work-around possible
+ 
+ ### Redesign (v2.0)
+ + Create modules that can contain samples of different units
+@@ -51,3 +53,4 @@
+ 	blk_read/sec, blk_wrtn/sec (kB/sec)
+ 
+ + Design proper object model and namespace for _all_ possible stats
+++ Create a seperate tool, much like nmon
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-05-21 20:14:50 UTC (rev 3224)
++++ trunk/tools/dstat/dstat	2005-05-22 05:02:04 UTC (rev 3225)
+@@ -18,7 +18,7 @@
+ 
+ try:
+ 	import sys, signal, os, re, time
+-	import types, curses, signal, resource
++	import types, signal, resource
+ 	pwd = os.path.dirname(sys.argv[0])
+ 	sys.path.insert(0, '/usr/share/dstat/')
+ 	sys.path.insert(0, pwd + '/plugins/')
+@@ -185,7 +185,7 @@
+ 			print 'dstat: incorrect argument, try dstat -h for the correct syntax'
+ 			exit(1)
+ 
+-		if self.delay == 0:
++		if self.delay &lt;= 0:
+ 			print 'dstat: delay must be an integer, greater than zero'
+ 			exit(1)
+ 
+@@ -203,7 +203,7 @@
+ 		print 'Clock ticks per secs: %d' % os.sysconf('SC_CLK_TCK')
+ 
+ 	def usage(self):
+-		print 'Usage: dstat [-afv] [-cdgilmnpsty] [-C..] [-D..] [-I..] [-N..] [delay [count]]'
++		print 'Usage: dstat [-afv] [options..] [delay [count]]'
+ 
+ 	def help(self):
+ 		print '''Versatile tool for generating system resource statistics
+@@ -263,20 +263,6 @@
+ 					for i in range(len):
+ 						self.val[name][i] = self.cn1[name][i] = self.cn2[name][i] = 0
+ 
+-	def __repr__(self):
+-		&quot;Display stat results&quot;
+-		line = ''
+-		for i, name in enumerate(self.vars):
+-			if isinstance(self.val[name], types.TupleType) or isinstance(self.val[name], types.ListType):
+-				line = line + cprintlist(self.val[name], self.format)
+-				sep = ansi['default'] + char['colon']
+-			else:
+-				line = line + cprint(self.val[name], self.format)
+-				sep = char['space']
+-			if i + 1 != len(self.vars):
+-				line = line + sep
+-		return line
+-
+ 	def open(self, file):
+ 		&quot;Open stat file descriptor&quot;
+ 		self.file = file
+@@ -373,6 +359,20 @@
+ 	def discover(self):
+ 		return True
+ 
++	def show(self):
++		&quot;Display stat results&quot;
++		line = ''
++		for i, name in enumerate(self.vars):
++			if isinstance(self.val[name], types.TupleType) or isinstance(self.val[name], types.ListType):
++				line = line + cprintlist(self.val[name], self.format)
++				sep = ansi['default'] + char['colon']
++			else:
++				line = line + cprint(self.val[name], self.format)
++				sep = char['space']
++			if i + 1 != len(self.vars):
++				line = line + sep
++		return line
++
+ 	def showend(self, totlist, vislist):
+ 		if self is not vislist[-1]:
+ 			return ansi['default'] + char['pipe']
+@@ -594,19 +594,21 @@
+ 		self.nick = ('read', 'write')
+ 		self.regexp = re.compile('^(ram\d+|loop\d+|name)$')
+ 		self.vars = self.vars()
++		if not self.discover():
++			raise Exception, 'kernel is lacking disk stat support, please compile CONFIG_BLK_STATS into your kernel'
++#			info(1, 'dstat_disk24: kernel is lacking disk stat support, please compile CONFIG_BLK_STATS into your kernel')
+ 		self.name = ['disk/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		if self.fd and not os.path.exists('/proc/diskstats'):
+-			self.fd.seek(0)
+-			for line in self.fd.readlines():
+-				l = line.split()
+-				if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+-				name = l[3]
+-				if not self.regexp.match(name):
+-					ret.append(name)	
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split()
++			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
++			name = l[3]
++			if not self.regexp.match(name):
++				ret.append(name)	
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
+@@ -657,20 +659,27 @@
+ 		self.format = ('f', 5, 1024)
+ 		self.open('/proc/stat')
+ 		self.nick = ('read', 'write')
++		self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
+ 		self.vars = self.vars()
+ 		self.name = ['disk/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+-		self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
+ 
+ 	def discover(self, *list):
+ 		ret = []
+-		if not os.path.exists('/proc/partitions') and not os.path.exists('/proc/diskstats'):
+-			self.fd.seek(0)
+-			for line in self.fd.readlines():
+-				l = line.split()
+-				if len(l) &lt; 15: continue
+-				ret.append(l[3])
+-			for item in list: ret.append(item)
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split(':')
++			if len(l) &lt; 3: continue
++			name = l[0]
++			if name == 'disk_io':
++				for pair in line.split()[1:]:
++					m = self.regexp.match(pair)
++					if m:
++						l = m.groups()
++						if len(l) &lt; 4: continue
++						name = dev(int(l[0]), int(l[1]))
++						ret.append(name)
++		for item in list: ret.append(item)
+ 		return ret
+ 
+ 	def vars(self):
+@@ -698,21 +707,22 @@
+ 			if name == 'disk_io':
+ 				for pair in line.split()[1:]:
+ 					m = self.regexp.match(pair)
+-					if m:
+-						l = m.groups()
+-						if len(l) &lt; 4: continue
+-						name = dev(int(l[0]), int(l[1]))
+-						self.cn2[name] = ( long(l[2]), long(l[3]) )
+-						self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
+-						for set in self.vars:
+-							if set in op.diskset.keys():
+-								for disk in op.diskset[set]:
+-									if re.match('^'+disk+'$', name):
+-										self.cn2[set] = ( self.cn2[set][0] + long(l[2]), self.cn2[set][1] + long(l[3]) )
++					if not m: continue
++					l = m.groups()
++					if len(l) &lt; 4: continue
++					name = dev(int(l[0]), int(l[1]))
++					self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[3]) )
++					if name in self.vars:
++						self.cn2[name] = ( self.cn2[name][0] + long(l[2]), self.cn2[name][1] + long(l[3]) )
++					for set in self.vars:
++						if set in op.diskset.keys():
++							for disk in op.diskset[set]:
++								if re.match('^'+disk+'$', name):
++									self.cn2[set] = ( self.cn2[set][0] + long(l[2]), self.cn2[set][1] + long(l[3]) )
+ 		for name in self.cn2.keys():
+ 			self.val[name] = (
+-				(self.cn2[name][0] - self.cn1[name][0]) * 512.0 / tick,
+-				(self.cn2[name][1] - self.cn1[name][1]) * 512.0 / tick,
++				(self.cn2[name][0] - self.cn1[name][0]) * 1024.0 / tick,
++				(self.cn2[name][1] - self.cn1[name][1]) * 1024.0 / tick,
+ 			)
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+@@ -1157,14 +1167,14 @@
+ 		self.format = ('t', 10, 0)
+ #		self.format = ('t', 15, 0)
+ 		self.nick = ('epoch',)
+-		self.vars = ('epoch',)
++		self.vars = self.nick
+ 		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+ 		self.val['epoch'] = time.time()
+ 
+-#	def __repr__(self):
+-#		return ansi['reset'] + self.format % self.val['epoch']
++#	def show(self):
++#		return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
+ 
+ class dstat_udp(dstat):
+ 	def __init__(self):
+@@ -1317,7 +1327,7 @@
+ 			i = max - len(ret)
+ 			while i &gt; 0:
+ 				ret = ('%.'+str(i)+'f') % var
+-				if len(ret) &lt;= max and ret != repr(round(var)):
++				if len(ret) &lt; max and ret != repr(round(var)):
+ 					break
+ 				i = i - 1
+ 			else:
+@@ -1353,7 +1363,7 @@
+ 
+ 	if var &lt; 0:
+ 		if unit:
+-			return ansi['default'] + '- '.rjust(max)
++			return ansi['default'] + '-'.rjust(max) + ' '
+ 		else:
+ 			return ansi['default'] + '-'.rjust(max)
+ 
+@@ -1369,8 +1379,10 @@
+ 		ret, c = dchg(var, max, base)
+ 	elif type in ('d', 'p'):
+ 		ret, c = dchg(var, max, base)
+-	elif type in ('f', 't'):
++	elif type in ('f'):
+ 		ret, c = fchg(var, max, base)
++	elif type in ('t'):
++		ret, c = fchg(var, max+1, base)
+ 	else:
+ 		ret = str(var)
+ 
+@@ -1514,7 +1526,7 @@
+ 
+ 	### Check terminal capabilities
+ 	if sys.stdout.isatty():
+-		if curses.tigetnum('colors') &lt; 0:
++		if 'curses' in sys.modules and curses.tigetnum('colors') &lt; 0:
+ 			op.color = False
+ 	else:
+ 		op.color = False
+@@ -1536,15 +1548,17 @@
+ 	linewidth = 0
+ 	oldvislist = []
+ 	totlist = []
+-	for mod in op.modlist:
+-		if mod == 'cpu':    objs = ( dstat_cpu(), dstat_cpu24() )
+-		elif mod == 'disk': objs = ( dstat_disk(), dstat_disk24(), dstat_disk24old() )
+-		elif mod == 'int':  objs = ( dstat_int(), dstat_int24() )
+-		elif mod == 'page': objs = ( dstat_page(), dstat_page24() )
++	for module in op.modlist:
++		if module == 'cpu':    mods = ( 'cpu', 'cpu24' )
++		elif module == 'disk': mods = ( 'disk', 'disk24', 'disk24old' )
++		elif module == 'int':  mods = ( 'int', 'int24' )
++		elif module == 'page': mods = ( 'page', 'page24' )
+ 		else:
++			mods = ( module, )
++
++		for mod in mods:
+ 			if 'dstat_'+mod not in globals():
+ 				try:
+-#					exec(compile('from dstat_%s import *' % mod, '&lt;string&gt;', 'exec'))
+ 					import imp
+ 					file, pathname, description = imp.find_module('dstat_'+mod)
+ 					exec(compile(readfile(pathname), '&lt;string&gt;', 'exec'))
+@@ -1552,13 +1566,12 @@
+ 					info(1, 'Module &quot;dstat_%s&quot; failed to load. (%s)' % (mod, e))
+ 					continue
+ 			try:
+-				exec(compile('objs = ( dstat_%s(), )' % mod, '&lt;string&gt;', 'exec'))
++				exec(compile('o = dstat_%s()' % mod, '&lt;string&gt;', 'exec'))
+ 			except Exception, e:
+-				info(1, 'Class &quot;dstat_%s&quot; has problems. (%s)' % (mod, e))
++				info(1, 'Module &quot;dstat_%s&quot; has problems. (%s)' % (mod, e))
+ 				continue
+ 
+-		### Remove defect stat objects and calculate line length
+-		for o in objs:
++			### Remove defect stat objects and calculate line length
+ 			if o.check():
+ 				linewidth = linewidth + o.statwidth() + 1
+ 				totlist.append(o)
+@@ -1567,6 +1580,10 @@
+ 	if not totlist:
+ 		die(8, 'None of the stats you selected are available.')
+ 
++	if op.debug:
++		for o in totlist:
++			print o
++
+ 	if op.output:
+ 		showcsvtitle(1, totlist)
+ 		showcsvtitle(2, totlist)
+@@ -1630,7 +1647,7 @@
+ 		for o in totlist:
+ 			o.extract()
+ 			if o in vislist:
+-				line = line + repr(o) + o.showend(totlist, vislist)
++				line = line + o.show() + o.showend(totlist, vislist)
+ 			if op.output and step == op.delay:
+ 				oline = oline + o.showcsv() + o.showcsvend(totlist, vislist)
+ 
+@@ -1670,7 +1687,11 @@
+ 		### Unbuffered sys.stdout
+ 		sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-		curses.setupterm()
++		try:
++			import curses
++			curses.setupterm()
++		except:
++			pass
+ 
+ 		### Prevent keyboard input
+ #		fd = sys.stdin.fileno()
+
+Modified: trunk/tools/dstat/examples/mstat.py
+===================================================================
+--- trunk/tools/dstat/examples/mstat.py	2005-05-21 20:14:50 UTC (rev 3224)
++++ trunk/tools/dstat/examples/mstat.py	2005-05-22 05:02:04 UTC (rev 3225)
+@@ -32,7 +32,7 @@
+ 	line = ''
+ 	for o in stats:
+ 		o.extract()
+-		line = line + '  ' + repr(o)
++		line = line + '  ' + o.show()
+ 	print line
+ 	if dstat.update != count-1: time.sleep(delay)
+ 	dstat.tick = 1
+
+Modified: trunk/tools/dstat/plugins/dstat_freespace.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_freespace.py	2005-05-21 20:14:50 UTC (rev 3224)
++++ trunk/tools/dstat/plugins/dstat_freespace.py	2005-05-22 05:02:04 UTC (rev 3225)
+@@ -1,4 +1,5 @@
+ ### FIXME: This module needs infrastructure to provide a list of mountpoints
++### FIXME: Would be nice to have a total by default (half implemented)
+ 
+ class dstat_freespace(dstat):
+ 	def __init__(self):
+@@ -7,7 +8,7 @@
+ 		self.vars = self.vars()
+ 		self.name = ['/' + os.path.basename(name) for name in self.vars]
+ 		self.nick = ('used', 'free')
+-		self.init(self.vars, 2)
++		self.init(self.vars + ['total',], 2)
+ 
+ 	def vars(self):
+ 		ret = []
+@@ -26,8 +27,10 @@
+ 		return ret
+ 
+ 	def extract(self):
++		self.val['total'] = (0, 0)
+ 		for name in self.vars:
+ 			res = os.statvfs(name)
+ 			self.val[name] = ( (float(res.f_blocks) - float(res.f_bavail)) * long(res.f_frsize), float(res.f_bavail) * float(res.f_frsize) )
++			self.val['total'] = (self.val['total'][0] + self.val[name][0], self.val['total'][1] + self.val[name][1])
+ 
+ # vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/plugins/dstat_sendmail.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_sendmail.py	2005-05-21 20:14:50 UTC (rev 3224)
++++ trunk/tools/dstat/plugins/dstat_sendmail.py	2005-05-22 05:02:04 UTC (rev 3225)
+@@ -9,7 +9,14 @@
+ 		self.vars = ('queue',)
+ 		self.nick = ('queu',)
+ 		self.init(self.vars, 1)
++		self.check()
+ 
++	def check(self):
++		if not os.access('/var/spool/mqueue', os.R_OK):
++			raise Exception, 'Module cannot access sendmail queue'
++			return False
++		return True
++
+ 	def extract(self):
+ 		self.val['queue'] = len(glob.glob('/var/spool/mqueue/qf*'))
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002026.html">[svn] r3224 - trunk/rpms/pydar2
+</A></li>
+	<LI>Next message: <A HREF="002028.html">[svn] r3226 - in trunk/tools/dstat: . examples
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2027">[ date ]</a>
+              <a href="thread.html#2027">[ thread ]</a>
+              <a href="subject.html#2027">[ subject ]</a>
+              <a href="author.html#2027">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

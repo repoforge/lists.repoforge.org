@@ -1,0 +1,2212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6538 - in trunk/tools/centos-rescue: . fset skelroot/etc	skelroot/etc/pam.d
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6538%20-%20in%20trunk/tools/centos-rescue%3A%20.%20fset%20skelroot/etc%0A%09skelroot/etc/pam.d&In-Reply-To=%3C200811060024.mA60O7vs006470%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005336.html">
+   <LINK REL="Next"  HREF="005338.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6538 - in trunk/tools/centos-rescue: . fset skelroot/etc	skelroot/etc/pam.d</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6538%20-%20in%20trunk/tools/centos-rescue%3A%20.%20fset%20skelroot/etc%0A%09skelroot/etc/pam.d&In-Reply-To=%3C200811060024.mA60O7vs006470%40surya.karan.org%3E"
+       TITLE="[svn] r6538 - in trunk/tools/centos-rescue: . fset skelroot/etc	skelroot/etc/pam.d">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Nov  6 01:24:07 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005336.html">[svn] r6537 - in trunk/rpms: . ext3undel luks-tools mdf2iso uif2iso
+</A></li>
+        <LI>Next message: <A HREF="005338.html">[svn] r6539 - in trunk/tools: . siplinux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5337">[ date ]</a>
+              <a href="thread.html#5337">[ thread ]</a>
+              <a href="subject.html#5337">[ subject ]</a>
+              <a href="author.html#5337">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-11-06 00:24:06 +0000 (Thu, 06 Nov 2008)
+New Revision: 6538
+
+Added:
+   trunk/tools/centos-rescue/fset/centos5-rescue.fset
+   trunk/tools/centos-rescue/fset/siplinux.fset
+   trunk/tools/centos-rescue/skelroot/etc/cron.d/
+   trunk/tools/centos-rescue/skelroot/etc/issue
+   trunk/tools/centos-rescue/skelroot/etc/pam.d/
+   trunk/tools/centos-rescue/skelroot/etc/pam.d/login
+   trunk/tools/centos-rescue/skelroot/etc/pam.d/other
+Removed:
+   trunk/tools/centos-rescue/skelroot/etc/gshadow
+   trunk/tools/centos-rescue/skelroot/etc/modprobe.conf
+   trunk/tools/centos-rescue/skelroot/etc/modules.conf
+   trunk/tools/centos-rescue/skelroot/etc/mtab
+   trunk/tools/centos-rescue/skelroot/etc/resolv.conf
+Modified:
+   trunk/tools/centos-rescue/ChangeLog
+   trunk/tools/centos-rescue/README
+   trunk/tools/centos-rescue/TODO
+   trunk/tools/centos-rescue/fset/centos5-minimal.fset
+   trunk/tools/centos-rescue/mkrootfs.sh
+   trunk/tools/centos-rescue/skelroot/etc/HOSTNAME
+   trunk/tools/centos-rescue/skelroot/etc/inittab
+Log:
+Lots of small changes.
+
+Modified: trunk/tools/centos-rescue/ChangeLog
+===================================================================
+--- trunk/tools/centos-rescue/ChangeLog	2008-11-05 00:36:24 UTC (rev 6537)
++++ trunk/tools/centos-rescue/ChangeLog	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -2,6 +2,7 @@
+ - Added README and TODO
+ - Cleaned up filesets
+ - Made upx optional
++- Strip binaries and libraries if possible
+ 
+ * 0.1 - release 02/11/2008
+ - Initial release
+
+Modified: trunk/tools/centos-rescue/README
+===================================================================
+--- trunk/tools/centos-rescue/README	2008-11-05 00:36:24 UTC (rev 6537)
++++ trunk/tools/centos-rescue/README	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -4,11 +4,11 @@
+ 
+ Create rootfs:
+ 
+-	./mkrootfs centos5.fset
++	./mkrootfs siplinux
+ 
+-Test using Qemu:
++Test using Qemu (with bot serial and VCs):
+ 
+-	qemu -kernel /boot/vmlinuz-$(uname -r) -initrd rootfs.cgz -hda rootfs.cgz -append &quot;rw&quot; -net user
++	qemu -kernel /boot/vmlinuz-$(uname -r) -initrd siplinux.cgz -hda siplinux.cgz -serial stdio -append &quot;console=ttyS0 console=tty0&quot;
+ 
+ Documentation at:
+ 
+
+Modified: trunk/tools/centos-rescue/TODO
+===================================================================
+--- trunk/tools/centos-rescue/TODO	2008-11-05 00:36:24 UTC (rev 6537)
++++ trunk/tools/centos-rescue/TODO	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -1,20 +1,46 @@
+ = Basic functionality
+-  - Keyboard support
+-  - Simplify initscripts
++  - Keyboard support from kernel cmdline
++  - Redesign and simplify initscripts
+   - Add RIPLinux documentation and credits
+   - Reduce size
+   - Add more useful tools
+   - Make shells owned by root (HOME ?)
++  - Serial console support
++  - Add siplinux command with documentation
+ 
+ = Advanced functionality
+   - Preload bash_history with useful recovery commands
+   - Preconfigure htop
+-  - Syslinux menu with dynamic options (kernel selection, architecture, language)
+-  - memtest86 memtest86+ integration
++  - Syslinux menu with dynamic options (kernel selection, architecture)
++    o CentOS 32bit kernel
++    o CentOS 64bit kernel
++    o Linus 32bit kernel
++    o Linus 64bit kernel
++  - Syslinux menu for keyboard selection
++  - memtest86 and/or memtest86+ integration
+   - Hardware/network troubleshooting
+ 
+ = What services do we want ?
++  - atd (unlikely)
++  - crond (unlikely)
++  - sshd (maybe)
+   - syslogd (most likely)
+-  - sshd (maybe)
+-  - crond (unlikely)
+-  - atd (unlikely)
++
++= Missing tools on CentOS5
++  - cfdisk, rescuept, scriptreplay (part of util-linux or util-linux-ng)
++  - cleandrive, g4l (part of g4l)
++  - e2undo, (part of e2fsprogs)
++  - find_ext2_fs, lde, lde-grep-inode - <A HREF="http://lde.sourceforge.net/">http://lde.sourceforge.net/</A>
++  - findntfs - <A HREF="http://mlf.linux.rulez.org/mlf/ezaz/findntfs-1.3.tgz">http://mlf.linux.rulez.org/mlf/ezaz/findntfs-1.3.tgz</A>
++  - fsstat - sleuthkit
++  - lphdisk - <A HREF="http://www.procyon.com/~pda/lphdisk/">http://www.procyon.com/~pda/lphdisk/</A>
++  - ntfsreloc (part of ntfsprogs)
++  - ntpasswd
++  - pipebench - <A HREF="http://www.habets.pp.se/synscan/programs.php?prog=pipebench">http://www.habets.pp.se/synscan/programs.php?prog=pipebench</A>
++  - popselect - <A HREF="http://rain.ifmo.ru/~ahmetov/popselect-0.3.1.tar.gz">http://rain.ifmo.ru/~ahmetov/popselect-0.3.1.tar.gz</A>
++  - tarfixer - <A HREF="http://www.plutospin.com/tarfixer.html">http://www.plutospin.com/tarfixer.html</A>
++  - uncloop ?
++  - vche - <A HREF="http://www.grigna.com/diego/linux/vche/">http://www.grigna.com/diego/linux/vche/</A>
++  - xdelta3 - <A HREF="http://xdelta.org/">http://xdelta.org/</A>
++  - zgv ?
++  - zpool (part of zfs?)
+
+Modified: trunk/tools/centos-rescue/fset/centos5-minimal.fset
+===================================================================
+--- trunk/tools/centos-rescue/fset/centos5-minimal.fset	2008-11-05 00:36:24 UTC (rev 6537)
++++ trunk/tools/centos-rescue/fset/centos5-minimal.fset	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -30,32 +30,25 @@
+ /etc/rc.d/init.d/functions
+ /etc/rc.d/init.d/killall
+ /etc/rc.d/init.d/single
+-/etc/rc.d/init.d/syslog
+ /etc/rc.d/rc
+ /etc/rc.d/rc.local
+ /etc/rc.d/rc.sysinit
+-/etc/rc.d/rc0.d/K88syslog
+ /etc/rc.d/rc0.d/S00killall
+ /etc/rc.d/rc0.d/S01halt
+-/etc/rc.d/rc3.d/S12syslog
+ /etc/rc.d/rc3.d/S99local
+ /etc/rc.d/rc6.d/S00killall
+ /etc/rc.d/rc6.d/S01reboot
+ /etc/redhat-release
+ /etc/services
+-/etc/sysconfig/syslog
+ /lib/libnss_files.so.2
+ /root/.bashrc
+ /root/.bash_profile
+ /sbin/consoletype
+ /sbin/depmod
+ /sbin/fsck
+-/sbin/fsck.ext3
+-/sbin/fstab-decode
+ /sbin/getkey
+ /sbin/init
+ /sbin/initlog
+-/sbin/klogd
+ /sbin/MAKEDEV
+ /sbin/modprobe
+ /sbin/pidof
+@@ -63,10 +56,9 @@
+ /sbin/shutdown
+ /sbin/sulogin
+ /sbin/swapon
+-/sbin/syslogd
+-/tmp/.ICE-unix/
+ /usr/bin/[
+ /usr/bin/id
++/usr/bin/openvt
+ /usr/bin/test
+ /usr/share/terminfo/l/linux
+ /usr/share/terminfo/v/vt100
+
+Added: trunk/tools/centos-rescue/fset/centos5-rescue.fset
+===================================================================
+--- trunk/tools/centos-rescue/fset/centos5-rescue.fset	                        (rev 0)
++++ trunk/tools/centos-rescue/fset/centos5-rescue.fset	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -0,0 +1,872 @@
++/bin/awk
++/bin/basename
++/bin/bash
++/bin/cat
++/bin/chgrp
++/bin/chmod
++/bin/chown
++/bin/cp
++/bin/cpio
++/bin/cut
++/bin/date
++/bin/dd
++/bin/df
++/bin/dmesg
++/bin/doexec
++/bin/dumpkeys
++/bin/echo
++/bin/egrep
++/bin/env
++/bin/false
++/bin/fgrep
++/bin/gawk
++/bin/grep
++/bin/gunzip
++/bin/gzip
++/bin/hostname
++/bin/kbd_mode
++/bin/kill
++/bin/link
++/bin/ln
++/bin/loadkeys
++/bin/login
++/bin/ls
++/bin/mkdir
++/bin/mknod
++/bin/mktemp
++/bin/more
++/bin/mount
++/bin/mountpoint
++/bin/mt
++/bin/mv
++/bin/netstat
++/bin/nice
++/bin/nvi
++/bin/ping
++/bin/ps
++/bin/pwd
++/bin/raw
++/bin/rm
++/bin/rmdir
++/bin/rpm
++/bin/sed
++/bin/setfont
++/bin/setserial
++/bin/sh
++/bin/sleep
++/bin/sort
++/bin/stty
++/bin/su
++/bin/sync
++/bin/tar
++/bin/tcptraceroute
++/bin/touch
++/bin/tracepath
++/bin/tracepath6
++/bin/traceroute
++/bin/traceroute6
++/bin/tracert
++/bin/true
++/bin/umount
++/bin/uname
++/bin/unlink
++/bin/usleep
++/bin/vi
++/bin/zcat
++/etc/DIR_COLORS
++/etc/DIR_COLORS.xterm
++/etc/acpi/
++/etc/adjtime
++/etc/at.deny
++/etc/bashrc
++/etc/dialogrc
++/etc/exports
++/etc/foremost.conf
++/etc/freshclam.conf
++/etc/fuse.conf
++/etc/gpm-root.conf
++/etc/host.conf
++/etc/hosts
++/etc/inittab
++/etc/inputrc
++/etc/iscsi/
++/etc/issue
++/etc/ld.so.conf
++/etc/lftp.conf
++/etc/localtime
++/etc/login.access
++/etc/login.defs
++/etc/lvm/lvm.conf
++/etc/lynx.cfg
++/etc/lynx-site.cfg
++/etc/mailcap
++/etc/makedev.d/
++/etc/mke2fs.conf
++/etc/modprobe.d/
++/etc/mtools.conf
++/etc/nanorc
++/etc/networks
++/etc/nsswitch.conf
++/etc/partimaged/
++/etc/profile
++/etc/profile.d/colorls.sh
++/etc/profile.d/lang.sh
++/etc/profile.d/less.sh
++/etc/profile.d/vim.sh
++/etc/profile.d/which-2.sh
++/etc/protocols
++/etc/rc.d/init.d/atd
++/etc/rc.d/init.d/crond
++/etc/rc.d/init.d/functions
++/etc/rc.d/init.d/fuse
++/etc/rc.d/init.d/killall
++/etc/rc.d/init.d/network
++/etc/rc.d/init.d/portmap
++/etc/rc.d/init.d/single
++/etc/rc.d/init.d/sshd
++/etc/rc.d/init.d/syslog
++/etc/rc.d/rc
++/etc/rc.d/rc.local
++/etc/rc.d/rc.sysinit
++/etc/rc.d/rc0.d/K05atd
++/etc/rc.d/rc0.d/K15gpm
++/etc/rc.d/rc0.d/K25sshd
++/etc/rc.d/rc0.d/K60crond
++/etc/rc.d/rc0.d/K87portmap
++/etc/rc.d/rc0.d/K88syslog
++/etc/rc.d/rc0.d/S00killall
++/etc/rc.d/rc0.d/S01halt
++/etc/rc.d/rc3.d/S12syslog
++/etc/rc.d/rc3.d/S13portmap
++/etc/rc.d/rc3.d/S55sshd
++/etc/rc.d/rc3.d/S85gpm
++/etc/rc.d/rc3.d/S90crond
++/etc/rc.d/rc3.d/S95atd
++/etc/rc.d/rc3.d/S99local
++/etc/rc.d/rc6.d/K05atd
++/etc/rc.d/rc6.d/K15gpm
++/etc/rc.d/rc6.d/K25sshd
++/etc/rc.d/rc6.d/K87portmap
++/etc/rc.d/rc6.d/K88syslog
++/etc/rc.d/rc6.d/S00killall
++/etc/rc.d/rc6.d/S01reboot
++/etc/redhat-release
++/etc/rpc
++/etc/samba/lmhosts
++/etc/samba/smb.conf
++/etc/samba/smbusers
++/etc/screenrc
++/etc/scsi_id.config
++/etc/securetty
++/etc/serial.conf
++/etc/services
++/etc/shadow
++/etc/smartd.conf
++/etc/ssh/
++/etc/ssl/
++/etc/stinit.def
++/etc/sudoers
++/etc/sysctl.conf
++/etc/sysconfig/crond
++/etc/sysconfig/syslog
++/etc/syslog.conf
++/etc/termcap
++#/etc/udev/
++/etc/vche.conf
++/etc/vga/
++/etc/vimrc
++/etc/wgetrc
++/etc/whois.conf
++/etc/wpa_supplicant/wpa_supplicant.conf
++#/lib/firmware/
++#/lib/modules/$kernel/
++#/lib/udev/
++/lib/kbd/keymaps/i386/
++/lib/libnss_files.so.2
++/root/.bashrc
++/root/.bash_profile
++/sbin/arp
++/sbin/arping
++/sbin/badblocks
++/sbin/blkid
++/sbin/blockdev
++/sbin/chkconfig
++/sbin/clock
++/sbin/consoletype
++/sbin/cryptsetup
++/sbin/debugfs
++/sbin/depmod
++/sbin/dhclient
++/sbin/dhclient-script
++/sbin/dmraid
++/sbin/dmsetup
++/sbin/dosfsck
++/sbin/dosfslabel
++/sbin/dump
++/sbin/dumpe2fs
++/sbin/e2fsck
++/sbin/e2image
++/sbin/e2label
++/sbin/e2undo
++/sbin/ethtool
++/sbin/extlinux
++/sbin/fdisk
++/sbin/findfs
++/sbin/fsck*
++/sbin/fstab-decode
++/sbin/fuser
++/sbin/genhostid
++/sbin/getkey
++/sbin/grub
++/sbin/grubby
++/sbin/grub-install
++/sbin/grub-md5-crypt
++/sbin/grub-terminfo
++/sbin/halt
++/sbin/hdparm
++/sbin/hwclock
++/sbin/ifconfig
++/sbin/ifrename
++/sbin/init
++/sbin/initlog
++/sbin/insmod
++/sbin/ip
++/sbin/iscsi-iname
++/sbin/iscsiadm
++/sbin/iscsid
++/sbin/iscsistart
++/sbin/iwconfig
++/sbin/iwevent
++/sbin/iwlist
++/sbin/iwpriv
++/sbin/iwspy
++/sbin/kdump
++/sbin/kexec
++/sbin/killall5
++/sbin/klogd
++/sbin/kpartx
++/sbin/ldconfig
++/sbin/loadndisdriver
++/sbin/logsave
++/sbin/losetup
++/sbin/lsmod
++/sbin/lspci
++/sbin/lsusb
++/sbin/lvm
++/sbin/MAKEDEV
++/sbin/mdadm
++/sbin/mgetty
++/sbin/mii-tool
++/sbin/mingetty
++/sbin/mkdosfs
++/sbin/mke2fs
++/sbin/mkfs*
++/sbin/mkinitrd
++/sbin/mksquashfs
++/sbin/mkswap
++/sbin/modinfo
++/sbin/modprobe
++/sbin/mount*
++/sbin/multipath
++/sbin/nameif
++/sbin/nash
++/sbin/nologin
++/sbin/pam_console_apply
++/sbin/parted
++/sbin/partprobe
++/sbin/partx
++/sbin/pidof
++/sbin/pivot_root
++/sbin/portmap
++/sbin/poweroff
++/sbin/pppoe
++/sbin/pvscan
++/sbin/rdisc
++/sbin/rdump
++/sbin/reboot
++/sbin/resize2fs
++/sbin/restore
++/sbin/rmmod
++/sbin/rmt
++/sbin/route
++/sbin/rpc.statd
++/sbin/runlevel
++/sbin/scsi_id
++/sbin/service
++/sbin/setpci
++/sbin/sfdisk
++/sbin/shutdown
++#/sbin/start_udev
++/sbin/stinit
++/sbin/sulogin
++/sbin/swapoff
++/sbin/swapon
++/sbin/sysctl
++/sbin/syslogd
++/sbin/telinit
++/sbin/tphdisk
++/sbin/tune2fs
++#/sbin/udevadm
++#/sbin/udevd
++#/sbin/udevsettle
++#/sbin/udevtrigger
++/sbin/umount*
++/sbin/update-pciids
++/sbin/vconfig
++/sbin/vgchange
++/sbin/vgscan
++/sbin/weak-modules
++/usr/bin/[
++/usr/bin/7za
++/usr/bin/acpi_listen
++/usr/bin/acpitool
++/usr/bin/advzip
++/usr/bin/aespipe
++/usr/bin/afio
++#/usr/bin/aria2c
++/usr/bin/arj
++/usr/bin/at
++/usr/bin/atftp
++/usr/bin/atq
++/usr/bin/atrm
++/usr/bin/attr
++/usr/bin/axel
++/usr/bin/backup-mbr
++/usr/bin/badblock-guess
++/usr/bin/bar
++/usr/bin/batch
++/usr/bin/bbe
++/usr/bin/bc
++/usr/bin/bdump
++/usr/bin/bdumpr
++/usr/bin/bfr
++/usr/bin/biew
++/usr/bin/bin2iso
++/usr/bin/binoffset
++/usr/bin/bsdiff
++/usr/bin/bspatch
++/usr/bin/buffer
++/usr/bin/bunzip2
++/usr/bin/bvi
++/usr/bin/bzcat
++/usr/bin/bz2aespipe
++/usr/bin/bzip2
++/usr/bin/bzip2recover
++/usr/bin/cabextract
++/usr/bin/cal
++/usr/bin/captoinfo
++/usr/bin/ccal
++/usr/bin/ccd2iso
++/usr/bin/cdck
++/usr/bin/cdmrw
++/usr/bin/cdrecord
++/usr/bin/cdrskin
++/usr/bin/cdwtool
++/usr/bin/chacl
++/usr/bin/chattr
++/usr/bin/chntpw
++/usr/bin/chvt
++/usr/bin/cksum
++/usr/bin/clamscan
++/usr/bin/cleandrive
++/usr/bin/clear
++/usr/bin/clonentfs
++/usr/bin/cmp
++/usr/bin/col
++/usr/bin/comm
++/usr/bin/conspy
++/usr/bin/cpnt
++/usr/bin/crontab
++/usr/bin/cryptcat
++/usr/bin/cryptofs
++/usr/bin/csplit
++/usr/bin/curl
++/usr/bin/curlftpfs
++/usr/bin/daa2iso
++/usr/bin/dar*
++/usr/bin/dc
++/usr/bin/dc3dd
++/usr/bin/dcfldd
++/usr/bin/ddrescue
++/usr/bin/dd_rescue
++/usr/bin/dd_rhelp
++/usr/bin/deallocvt
++/usr/bin/dhcpdump
++/usr/bin/dhcping
++/usr/bin/dialog
++/usr/bin/diff
++/usr/bin/diff3
++/usr/bin/diffstat
++/usr/bin/dig
++/usr/bin/dircolors
++/usr/bin/dirname
++/usr/bin/dirsync
++/usr/bin/disktype
++/usr/bin/dls
++/usr/bin/dog
++/usr/bin/dos2unix
++/usr/bin/dvd+rw-booktype
++/usr/bin/dvd+rw-format
++/usr/bin/dvd+rw-mediainfo
++/usr/bin/dvd-ram-control
++/usr/bin/dvdrecord
++/usr/bin/du
++/usr/bin/encfs
++/usr/bin/encfsctl
++/usr/bin/encfsssh
++/usr/bin/epic
++/usr/bin/exactly
++/usr/bin/expand
++/usr/bin/expr
++/usr/bin/ext3grep
++/usr/bin/ext3undel
++/usr/bin/fastdup
++/usr/bin/fdformat
++/usr/bin/fdupes
++/usr/bin/fetchmail
++/usr/bin/file
++/usr/bin/find
++/usr/bin/findntfs
++/usr/bin/finger
++/usr/bin/flock
++/usr/bin/fls
++/usr/bin/flyisofs
++/usr/bin/fmt
++/usr/bin/fold
++/usr/bin/formail
++/usr/bin/free
++/usr/bin/freshclam
++/usr/bin/fromdos
++/usr/bin/fsstat
++/usr/bin/ftp
++/usr/bin/funzip
++/usr/bin/fuse-zip
++/usr/bin/fusermount
++/usr/bin/g4l
++/usr/bin/gabi
++/usr/bin/getfacl
++/usr/bin/getfattr
++/usr/bin/getopt
++/usr/bin/ginstall
++/usr/bin/gpart
++/usr/bin/gpg
++/usr/bin/growisofs
++/usr/bin/gunzip
++/usr/bin/gzip
++/usr/bin/gzrecover
++/usr/bin/head
++/usr/bin/hexdump
++/usr/bin/hexedit
++/usr/bin/hman
++/usr/bin/host
++/usr/bin/hostid
++/usr/bin/htop
++/usr/bin/id
++/usr/bin/install
++/usr/bin/iostat
++/usr/bin/iperf
++/usr/bin/ipmitool
++/usr/bin/iscsi_discovery
++/usr/bin/isoextract
++/usr/bin/isoinfo
++/usr/bin/isosize
++/usr/bin/jetcat-mod
++/usr/bin/join
++/usr/bin/joinpipe
++/usr/bin/killall
++/usr/bin/last
++/usr/bin/lastb
++/usr/bin/ldd
++/usr/bin/less
++/usr/bin/lesspipe.sh
++/usr/bin/lftp
++/usr/bin/lftpget
++/usr/bin/links
++/usr/bin/lndir
++/usr/bin/locale
++/usr/bin/lockfile
++/usr/bin/logger
++/usr/bin/logname
++/usr/bin/lomount
++/usr/bin/lsattr
++/usr/bin/lsscsi
++/usr/bin/lynx
++/usr/bin/lzcat
++/usr/bin/lzip
++/usr/bin/lzma
++/usr/bin/lzop
++/usr/bin/mad
++/usr/bin/mailstat
++/usr/bin/mattrib
++/usr/bin/mbadblocks
++/usr/bin/mbchk
++/usr/bin/mbuffer
++/usr/bin/mc
++/usr/bin/mcat
++/usr/bin/mcd
++/usr/bin/mcedit
++/usr/bin/mclasserase
++/usr/bin/mcopy
++/usr/bin/mcp
++/usr/bin/mcview
++/usr/bin/md5deep
++/usr/bin/md5sum
++/usr/bin/mdel
++/usr/bin/mdeltree
++/usr/bin/mdf2iso
++/usr/bin/mdir
++/usr/bin/mdu
++/usr/bin/memtester
++/usr/bin/mergebad
++/usr/bin/mesg
++/usr/bin/metamail
++/usr/bin/mformat
++/usr/bin/mfstool
++/usr/bin/mhddfs
++/usr/bin/mimencode
++/usr/bin/minfo
++/usr/bin/mkfifo
++/usr/bin/mkisofs
++/usr/bin/mkpart
++/usr/bin/mlabel
++/usr/bin/mln
++/usr/bin/mmd
++/usr/bin/mmount
++/usr/bin/mmove
++/usr/bin/mmv
++/usr/bin/mpartition
++/usr/bin/mrd
++/usr/bin/mren
++/usr/bin/ms-sys
++/usr/bin/mshowfat
++/usr/bin/msmtp
++/usr/bin/mtftar
++/usr/bin/mtools
++/usr/bin/mtoolstest
++/usr/bin/mtpfs
++/usr/bin/mtype
++/usr/bin/mumount
++/usr/bin/myrescue
++/usr/bin/mzip
++/usr/bin/nc
++/usr/bin/nl
++/usr/bin/nmap
++/usr/bin/nohup
++/usr/bin/nrg2iso
++/usr/bin/ntfs-3g
++/usr/bin/ntfs-3g.probe
++/usr/bin/ntfscat
++/usr/bin/ntfscluster
++/usr/bin/ntfscmp
++/usr/bin/ntfsfix
++/usr/bin/ntfsinfo
++/usr/bin/ntfsls
++/usr/bin/ntfsmount
++/usr/bin/ntfsreloc
++/usr/bin/ntpasswd
++/usr/bin/od
++/usr/bin/openssl
++/usr/bin/openvt
++/usr/bin/par2
++/usr/bin/par2create
++/usr/bin/par2repair
++/usr/bin/par2verify
++/usr/bin/passwd
++/usr/bin/paste
++/usr/bin/patch
++/usr/bin/pax
++/usr/bin/pcopy
++/usr/bin/pdmenu
++#/usr/bin/perl
++/usr/bin/pgrep
++/usr/bin/pico
++/usr/bin/pinfo
++/usr/bin/pipebench
++/usr/bin/pkill
++/usr/bin/pmap
++/usr/bin/popselect
++/usr/bin/pr
++/usr/bin/printf
++/usr/bin/procmail
++/usr/bin/progress
++/usr/bin/pstree
++/usr/bin/pv
++/usr/bin/pwdx
++/usr/bin/ralf
++/usr/bin/rdist
++/usr/bin/rdfind
++/usr/bin/readcd
++/usr/bin/readlink
++/usr/bin/recover
++/usr/bin/recoverdm
++/usr/bin/reged
++/usr/bin/reglookup
++/usr/bin/reglookup-recover
++/usr/bin/reglookup-timeline
++/usr/bin/rename
++/usr/bin/renice
++/usr/bin/rescuept
++/usr/bin/reset
++/usr/bin/resetall
++/usr/bin/rev
++/usr/bin/renice
++/usr/bin/rnano
++/usr/bin/rpm2cpio
++/usr/bin/rpm2cpio-lzma
++/usr/bin/rsync
++/usr/bin/run-parts
++/usr/bin/safecopy
++/usr/bin/sbd
++/usr/bin/scalpel
++/usr/bin/scp
++/usr/bin/screen
++/usr/bin/script
++/usr/bin/scriptreplay
++/usr/bin/scrounge-ntfs
++/usr/bin/sdd
++/usr/bin/sdiff
++/usr/bin/sdparm
++/usr/bin/seeker
++/usr/bin/seq
++/usr/bin/setfacl
++/usr/bin/setfattr
++/usr/bin/setkeycodes
++/usr/bin/setkeymap
++/usr/bin/setleds
++/usr/bin/setmetamode
++/usr/bin/setsid
++/usr/bin/setterm
++/usr/bin/sfill
++/usr/bin/sfind
++/usr/bin/sftp
++/usr/bin/sg_dd
++/usr/bin/sg_format
++/usr/bin/sha1deep
++/usr/bin/sha1sum
++/usr/bin/sha256sum
++/usr/bin/sha512sum
++/usr/bin/showkey
++/usr/bin/shred
++/usr/bin/shrinkntfs
++/usr/bin/shunt
++/usr/bin/sigtool
++/usr/bin/skill
++/usr/bin/slogin
++/usr/bin/smbclient
++/usr/bin/smem
++/usr/bin/snice
++/usr/bin/socat
++/usr/bin/split
++/usr/bin/splitpipe
++/usr/bin/srm
++/usr/bin/ssh
++/usr/bin/ssh-add
++/usr/bin/ssh-agent
++/usr/bin/ssh-copy-id
++/usr/bin/ssh-keygen
++/usr/bin/ssh-keyscan
++/usr/bin/sshfs
++/usr/bin/sswap
++/usr/bin/star
++/usr/bin/stat
++/usr/bin/strace
++/usr/bin/stress
++/usr/bin/strings
++/usr/bin/sudo
++/usr/bin/sudoedit
++/usr/bin/sum
++/usr/bin/symlinks
++/usr/bin/syslinux
++/usr/bin/systool
++/usr/bin/tac
++/usr/bin/tail
++/usr/bin/tailf
++/usr/bin/tarfixer
++/usr/bin/tee
++/usr/bin/tee
++/usr/bin/telnet
++/usr/bin/test
++/usr/bin/tftp
++/usr/bin/tic
++/usr/bin/time
++#/usr/bin/tin
++/usr/bin/tload
++/usr/bin/tmsnc
++/usr/bin/todos
++/usr/bin/toe
++/usr/bin/top
++/usr/bin/tput
++/usr/bin/tr
++/usr/bin/tree
++#/usr/bin/truecrypt
++/usr/bin/tset
++/usr/bin/tsort
++/usr/bin/tty
++/usr/bin/udp-receiver
++/usr/bin/udp-sender
++/usr/bin/uif2iso
++/usr/bin/uncloop
++/usr/bin/unexpand
++/usr/bin/unionfs-fuse
++/usr/bin/uniq
++/usr/bin/unix2dos
++/usr/bin/unlzma
++/usr/bin/unrar
++/usr/bin/unrpm
++/usr/bin/unshield
++/usr/bin/unzip
++/usr/bin/unzsplit
++/usr/bin/uptime
++/usr/bin/upx
++/usr/bin/urlview
++/usr/bin/uudecode
++/usr/bin/uudeview
++/usr/bin/uuencode
++/usr/bin/uuenview
++/usr/bin/uuidgen
++/usr/bin/vche
++/usr/bin/vmstat
++/usr/bin/vscan
++/usr/bin/w
++/usr/bin/wall
++/usr/bin/watch
++/usr/bin/wc
++/usr/bin/wget
++/usr/bin/wget_lynx
++/usr/bin/whatis
++/usr/bin/whereis
++/usr/bin/which
++/usr/bin/who
++/usr/bin/whoami
++/usr/bin/whois
++/usr/bin/wificonfig
++/usr/bin/wipe
++/usr/bin/wlanconfig
++/usr/bin/wrudf
++/usr/bin/xargs
++/usr/bin/xdelta3
++/usr/bin/xorriso
++/usr/bin/xxd
++/usr/bin/ya-wipe
++/usr/bin/zcmp
++/usr/bin/zdiff
++/usr/bin/zgrep
++/usr/bin/zgv
++/usr/bin/zip
++/usr/bin/zipinfo
++/usr/bin/zipsplit
++/usr/bin/zless
++/usr/bin/zmore
++/usr/bin/zsplit
++/usr/lib/arj/
++/usr/lib/gconv/
++/usr/lib/locale/en_US/
++/usr/lib/samba/
++/usr/libexec/mc/
++/usr/libexec/openssh/sftp-server
++/usr/libexec/ssh-keysign
++/usr/libexec/sudo_noexec.so
++/usr/sbin/acpid
++/usr/sbin/adduser
++/usr/sbin/atd
++/usr/sbin/atrun
++/usr/sbin/biosdecode
++/usr/sbin/bonnie
++/usr/sbin/bonnie++
++/usr/sbin/brctl
++/usr/sbin/cfdisk
++/usr/sbin/chroot
++/usr/sbin/clone2fs
++/usr/sbin/cmospwd
++/usr/sbin/compactlog
++/usr/sbin/crond
++/usr/sbin/dmidecode
++/usr/sbin/dnstop
++/usr/sbin/e2undel
++/usr/sbin/eject
++/usr/sbin/ethtool
++/usr/sbin/exportfs
++/usr/sbin/fakeidentd
++/usr/sbin/filefrag
++/usr/sbin/find_ext2_fs
++/usr/sbin/foremost
++/usr/sbin/fping
++/usr/sbin/fping6
++/usr/sbin/gpm
++/usr/sbin/groupadd
++/usr/sbin/groupdel
++/usr/sbin/hashalot
++/usr/sbin/hping
++/usr/sbin/iftop
++/usr/sbin/install-mbr
++/usr/sbin/iptstate
++/usr/sbin/kbdrate
++/usr/sbin/lchage
++/usr/sbin/lde-grep-inode
++/usr/sbin/loaderinfo
++/usr/sbin/lphdisk
++/usr/sbin/luksformat
++/usr/sbin/lshw
++/usr/sbin/lsof
++/usr/sbin/lv*
++/usr/sbin/mklost+found
++/usr/sbin/mkntfs
++/usr/sbin/mtr
++/usr/sbin/mtx
++/usr/sbin/ndiswrapper
++/usr/sbin/nfsstat
++/usr/sbin/ntfs*
++/usr/sbin/ntpdate
++/usr/sbin/ownership
++/usr/sbin/partimage
++/usr/sbin/partimage-nologin
++/usr/sbin/partimaged
++/usr/sbin/photorec
++/usr/sbin/pmap_dump
++/usr/sbin/pmap_set
++/usr/sbin/pv*
++/usr/sbin/rdev
++/usr/sbin/rmd160
++/usr/sbin/rpc.mountd
++/usr/sbin/rpc.nfsd
++/usr/sbin/rpcdebug
++/usr/sbin/rpcinfo
++/usr/sbin/scsitape
++/usr/sbin/sendmail
++/usr/sbin/sha256
++/usr/sbin/sha348
++/usr/sbin/sha512
++/usr/sbin/showmount
++/usr/sbin/sm-notify
++/usr/sbin/smartctl
++/usr/sbin/smartd
++/usr/sbin/sshd
++/usr/sbin/start-statd
++/usr/sbin/stunnel*
++/usr/sbin/suexec
++/usr/sbin/tapeinfo
++/usr/sbin/tcpdump
++/usr/sbin/testdisk
++/usr/sbin/tftpd
++/usr/sbin/unsquashfs
++/usr/sbin/useradd
++/usr/sbin/userdel
++/usr/sbin/vg*
++/usr/sbin/visudo
++/usr/sbin/vpddecode
++/usr/sbin/wpa_cli
++/usr/sbin/wpa_passphrase
++/usr/sbin/wpa_supplicant
++/usr/sbin/zcav
++/usr/sbin/zpool
++/usr/share/biew/
++/usr/share/file/
++/usr/share/gnupg/
++/usr/share/hwdata/pci.ids
++/usr/share/hwdata/usb.ids
++/usr/share/mc/
++/usr/share/screen/
++/usr/share/terminfo/l/linux
++/usr/share/terminfo/v/vt100
++/usr/share/terminfo/v/vt102
++/usr/share/terminfo/x/xterm
+
+
+Property changes on: trunk/tools/centos-rescue/fset/centos5-rescue.fset
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/centos-rescue/fset/siplinux.fset
+===================================================================
+--- trunk/tools/centos-rescue/fset/siplinux.fset	                        (rev 0)
++++ trunk/tools/centos-rescue/fset/siplinux.fset	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -0,0 +1,874 @@
++/bin/awk
++/bin/basename
++/bin/bash
++/bin/cat
++/bin/chgrp
++/bin/chmod
++/bin/chown
++/bin/cp
++/bin/cpio
++/bin/cut
++/bin/date
++/bin/dd
++/bin/df
++/bin/dmesg
++/bin/doexec
++/bin/dumpkeys
++/bin/echo
++/bin/egrep
++/bin/env
++/bin/false
++/bin/fgrep
++/bin/gawk
++/bin/grep
++/bin/gunzip
++/bin/gzip
++/bin/hostname
++/bin/kbd_mode
++/bin/kill
++/bin/link
++/bin/ln
++/bin/loadkeys
++/bin/login
++/bin/ls
++/bin/mkdir
++/bin/mknod
++/bin/mktemp
++/bin/more
++/bin/mount
++/bin/mountpoint
++/bin/mt
++/bin/mv
++/bin/netstat
++/bin/nice
++/bin/nvi
++/bin/ping
++/bin/ps
++/bin/pwd
++/bin/raw
++/bin/rm
++/bin/rmdir
++/bin/rpm
++/bin/sed
++/bin/setfont
++/bin/setserial
++/bin/sh
++/bin/sleep
++/bin/sort
++/bin/stty
++/bin/su
++/bin/sync
++/bin/tar
++/bin/tcptraceroute
++/bin/touch
++/bin/tracepath
++/bin/tracepath6
++/bin/traceroute
++/bin/traceroute6
++/bin/tracert
++/bin/true
++/bin/umount
++/bin/uname
++/bin/unlink
++/bin/usleep
++/bin/vi
++/bin/zcat
++/etc/DIR_COLORS
++/etc/DIR_COLORS.xterm
++/etc/acpi/
++/etc/adjtime
++/etc/at.deny
++/etc/bashrc
++/etc/dialogrc
++/etc/exports
++/etc/foremost.conf
++/etc/freshclam.conf
++/etc/fuse.conf
++/etc/gpm-root.conf
++/etc/host.conf
++/etc/hosts
++/etc/inittab
++/etc/inputrc
++/etc/iscsi/
++/etc/issue
++/etc/ld.so.conf
++/etc/lftp.conf
++/etc/localtime
++/etc/login.access
++/etc/login.defs
++/etc/lvm/lvm.conf
++/etc/lynx.cfg
++/etc/lynx-site.cfg
++/etc/mailcap
++/etc/makedev.d/
++/etc/mke2fs.conf
++/etc/modprobe.d/
++/etc/mtools.conf
++/etc/nanorc
++/etc/networks
++/etc/nsswitch.conf
++/etc/partimaged/
++/etc/profile
++/etc/profile.d/colorls.sh
++/etc/profile.d/lang.sh
++/etc/profile.d/less.sh
++/etc/profile.d/vim.sh
++/etc/profile.d/which-2.sh
++/etc/protocols
++/etc/rc.d/init.d/atd
++/etc/rc.d/init.d/crond
++/etc/rc.d/init.d/functions
++/etc/rc.d/init.d/fuse
++/etc/rc.d/init.d/killall
++/etc/rc.d/init.d/network
++/etc/rc.d/init.d/portmap
++/etc/rc.d/init.d/single
++/etc/rc.d/init.d/sshd
++/etc/rc.d/init.d/syslog
++/etc/rc.d/rc
++/etc/rc.d/rc.local
++/etc/rc.d/rc.sysinit
++/etc/rc.d/rc0.d/K05atd
++/etc/rc.d/rc0.d/K15gpm
++/etc/rc.d/rc0.d/K25sshd
++/etc/rc.d/rc0.d/K60crond
++/etc/rc.d/rc0.d/K87portmap
++/etc/rc.d/rc0.d/K88syslog
++/etc/rc.d/rc0.d/S00killall
++/etc/rc.d/rc0.d/S01halt
++/etc/rc.d/rc3.d/S12syslog
++/etc/rc.d/rc3.d/S13portmap
++/etc/rc.d/rc3.d/S55sshd
++/etc/rc.d/rc3.d/S85gpm
++/etc/rc.d/rc3.d/S90crond
++/etc/rc.d/rc3.d/S95atd
++/etc/rc.d/rc3.d/S99local
++/etc/rc.d/rc6.d/K05atd
++/etc/rc.d/rc6.d/K15gpm
++/etc/rc.d/rc6.d/K25sshd
++/etc/rc.d/rc6.d/K87portmap
++/etc/rc.d/rc6.d/K88syslog
++/etc/rc.d/rc6.d/S00killall
++/etc/rc.d/rc6.d/S01reboot
++/etc/redhat-release
++/etc/rpc
++/etc/samba/lmhosts
++/etc/samba/smb.conf
++/etc/samba/smbusers
++/etc/screenrc
++/etc/scsi_id.config
++/etc/securetty
++/etc/serial.conf
++/etc/services
++/etc/shadow
++/etc/smartd.conf
++/etc/ssh/
++/etc/ssl/
++/etc/stinit.def
++/etc/sudoers
++/etc/sysctl.conf
++/etc/sysconfig/crond
++/etc/sysconfig/syslog
++/etc/syslog.conf
++/etc/termcap
++#/etc/udev/
++/etc/vche.conf
++/etc/vga/
++/etc/vimrc
++/etc/wgetrc
++/etc/whois.conf
++/etc/wpa_supplicant/wpa_supplicant.conf
++#/lib/firmware/
++#/lib/modules/$kernel/
++#/lib/udev/
++/lib/kbd/keymaps/i386/
++/lib/libnss_files.so.2
++/lib/security/pam_permit.so
++/root/.bashrc
++/root/.bash_profile
++/sbin/arp
++/sbin/arping
++/sbin/badblocks
++/sbin/blkid
++/sbin/blockdev
++/sbin/chkconfig
++/sbin/clock
++/sbin/clone2fs
++/sbin/consoletype
++/sbin/cryptsetup
++/sbin/debugfs
++/sbin/depmod
++/sbin/dhclient
++/sbin/dhclient-script
++/sbin/dmraid
++/sbin/dmsetup
++/sbin/dosfsck
++/sbin/dosfslabel
++/sbin/dump
++/sbin/dumpe2fs
++/sbin/e2fsck
++/sbin/e2image
++/sbin/e2label
++/sbin/e2undo
++/sbin/ether-wake
++/sbin/ethtool
++/sbin/extlinux
++/sbin/fdisk
++/sbin/findfs
++/sbin/fsck*
++/sbin/fstab-decode
++/sbin/fuser
++/sbin/genhostid
++/sbin/getkey
++/sbin/grub
++/sbin/grubby
++/sbin/grub-install
++/sbin/grub-md5-crypt
++/sbin/grub-terminfo
++/sbin/halt
++/sbin/hdparm
++/sbin/hwclock
++/sbin/ifconfig
++/sbin/ifrename
++/sbin/init
++/sbin/initlog
++/sbin/insmod
++/sbin/ip
++/sbin/iscsi-iname
++/sbin/iscsiadm
++/sbin/iscsid
++/sbin/iscsistart
++/sbin/iwconfig
++/sbin/iwevent
++/sbin/iwlist
++/sbin/iwpriv
++/sbin/iwspy
++/sbin/kdump
++/sbin/kexec
++/sbin/killall5
++/sbin/klogd
++/sbin/kpartx
++/sbin/ldconfig
++/sbin/loadndisdriver
++/sbin/logsave
++/sbin/losetup
++/sbin/lsmod
++/sbin/lspci
++/sbin/lsusb
++/sbin/lvm
++/sbin/MAKEDEV
++/sbin/mdadm
++/sbin/mgetty
++/sbin/mii-tool
++/sbin/mingetty
++/sbin/mkdosfs
++/sbin/mke2fs
++/sbin/mkfs*
++/sbin/mkinitrd
++/sbin/mksquashfs
++/sbin/mkswap
++/sbin/modinfo
++/sbin/modprobe
++/sbin/mount*
++/sbin/multipath
++/sbin/nameif
++/sbin/nash
++/sbin/nologin
++/sbin/pam_console_apply
++/sbin/parted
++/sbin/partprobe
++/sbin/partx
++/sbin/pidof
++/sbin/pivot_root
++/sbin/portmap
++/sbin/poweroff
++/sbin/pppoe
++/sbin/pvscan
++/sbin/rdisc
++/sbin/rdump
++/sbin/reboot
++/sbin/resize2fs
++/sbin/restore
++/sbin/rmmod
++/sbin/rmt
++/sbin/route
++/sbin/rpc.statd
++/sbin/runlevel
++/sbin/scsi_id
++/sbin/service
++/sbin/setpci
++/sbin/sfdisk
++/sbin/shutdown
++#/sbin/start_udev
++/sbin/stinit
++/sbin/sulogin
++/sbin/swapoff
++/sbin/swapon
++/sbin/sysctl
++/sbin/syslogd
++/sbin/telinit
++/sbin/tphdisk
++/sbin/tune2fs
++#/sbin/udevadm
++#/sbin/udevd
++#/sbin/udevsettle
++#/sbin/udevtrigger
++/sbin/umount*
++/sbin/update-pciids
++/sbin/vconfig
++/sbin/vgchange
++/sbin/vgscan
++/sbin/weak-modules
++/usr/bin/[
++/usr/bin/7za
++/usr/bin/acpi_listen
++/usr/bin/acpitool
++/usr/bin/advzip
++/usr/bin/aespipe
++/usr/bin/afio
++#/usr/bin/aria2c
++/usr/bin/arj
++/usr/bin/at
++/usr/bin/atftp
++/usr/bin/atq
++/usr/bin/atrm
++/usr/bin/attr
++/usr/bin/axel
++/usr/bin/backup-mbr
++/usr/bin/badblock-guess
++/usr/bin/bar
++/usr/bin/batch
++/usr/bin/bbe
++/usr/bin/bc
++/usr/bin/bdump
++/usr/bin/bdumpr
++/usr/bin/bfr
++/usr/bin/biew
++/usr/bin/bin2iso
++/usr/bin/binoffset
++/usr/bin/bsdiff
++/usr/bin/bspatch
++/usr/bin/buffer
++/usr/bin/bunzip2
++/usr/bin/bvi
++/usr/bin/bzcat
++/usr/bin/bz2aespipe
++/usr/bin/bzip2
++/usr/bin/bzip2recover
++/usr/bin/cabextract
++/usr/bin/cal
++/usr/bin/captoinfo
++/usr/bin/ccal
++/usr/bin/ccd2iso
++/usr/bin/cdck
++/usr/bin/cdmrw
++/usr/bin/cdrecord
++/usr/bin/cdrskin
++/usr/bin/cdwtool
++/usr/bin/chacl
++/usr/bin/chattr
++/usr/bin/chntpw
++/usr/bin/chvt
++/usr/bin/cksum
++/usr/bin/clamscan
++/usr/bin/cleandrive
++/usr/bin/clear
++/usr/bin/clonentfs
++/usr/bin/cmp
++/usr/bin/col
++/usr/bin/comm
++/usr/bin/compactlog
++/usr/bin/conspy
++/usr/bin/cpnt
++/usr/bin/crontab
++/usr/bin/cryptcat
++/usr/bin/cryptofs
++/usr/bin/csplit
++/usr/bin/curl
++/usr/bin/curlftpfs
++/usr/bin/daa2iso
++/usr/bin/dar*
++/usr/bin/dc
++/usr/bin/dc3dd
++/usr/bin/dcfldd
++/usr/bin/ddrescue
++/usr/bin/dd_rescue
++/usr/bin/dd_rhelp
++/usr/bin/deallocvt
++/usr/bin/dhcpdump
++/usr/bin/dhcping
++/usr/bin/dialog
++/usr/bin/diff
++/usr/bin/diff3
++/usr/bin/diffstat
++/usr/bin/dig
++/usr/bin/dircolors
++/usr/bin/dirname
++/usr/bin/dirsync
++/usr/bin/disktype
++/usr/bin/dls
++/usr/bin/dog
++/usr/bin/dos2unix
++/usr/bin/dvd+rw-booktype
++/usr/bin/dvd+rw-format
++/usr/bin/dvd+rw-mediainfo
++/usr/bin/dvd-ram-control
++/usr/bin/dvdrecord
++/usr/bin/du
++/usr/bin/e2undel
++/usr/bin/encfs
++/usr/bin/encfsctl
++/usr/bin/encfsssh
++/usr/bin/epic
++/usr/bin/exactly
++/usr/bin/expand
++/usr/bin/expr
++/usr/bin/ext3grep
++/usr/bin/ext3undel
++/usr/bin/fastdup
++/usr/bin/fdformat
++/usr/bin/fdupes
++/usr/bin/fetchmail
++/usr/bin/file
++/usr/bin/find
++/usr/bin/findntfs
++/usr/bin/finger
++/usr/bin/flock
++/usr/bin/fls
++/usr/bin/flyisofs
++/usr/bin/fmt
++/usr/bin/fold
++/usr/bin/formail
++/usr/bin/free
++/usr/bin/freshclam
++/usr/bin/fromdos
++/usr/bin/fsstat
++/usr/bin/ftp
++/usr/bin/funzip
++/usr/bin/fuse-zip
++/usr/bin/fusermount
++/usr/bin/g4l
++/usr/bin/gabi
++/usr/bin/getfacl
++/usr/bin/getfattr
++/usr/bin/getopt
++/usr/bin/ginstall
++/usr/bin/gpart
++/usr/bin/gpg
++/usr/bin/growisofs
++/usr/bin/gunzip
++/usr/bin/gzip
++/usr/bin/gzrecover
++/usr/bin/head
++/usr/bin/hexdump
++/usr/bin/hexedit
++/usr/bin/hman
++/usr/bin/host
++/usr/bin/hostid
++/usr/bin/htop
++/usr/bin/id
++/usr/bin/install
++/usr/bin/iostat
++/usr/bin/iperf
++/usr/bin/ipmitool
++/usr/bin/iscsi_discovery
++/usr/bin/isoextract
++/usr/bin/isoinfo
++/usr/bin/isosize
++/usr/bin/jetcat-mod
++/usr/bin/join
++/usr/bin/joinpipe
++/usr/bin/killall
++/usr/bin/last
++/usr/bin/lastb
++/usr/bin/ldd
++/usr/bin/less
++/usr/bin/lesspipe.sh
++/usr/bin/lftp
++/usr/bin/lftpget
++/usr/bin/links
++/usr/bin/lndir
++/usr/bin/locale
++/usr/bin/lockfile
++/usr/bin/logger
++/usr/bin/logname
++/usr/bin/lomount
++/usr/bin/lsattr
++/usr/bin/lsscsi
++/usr/bin/lynx
++/usr/bin/lzcat
++/usr/bin/lzip
++/usr/bin/lzma
++/usr/bin/lzop
++/usr/bin/mad
++/usr/bin/mailstat
++/usr/bin/mattrib
++/usr/bin/mbadblocks
++/usr/bin/mbchk
++/usr/bin/mbuffer
++/usr/bin/mc
++/usr/bin/mcat
++/usr/bin/mcd
++/usr/bin/mcedit
++/usr/bin/mclasserase
++/usr/bin/mcopy
++/usr/bin/mcp
++/usr/bin/mcview
++/usr/bin/md5deep
++/usr/bin/md5sum
++/usr/bin/mdel
++/usr/bin/mdeltree
++/usr/bin/mdf2iso
++/usr/bin/mdir
++/usr/bin/mdu
++/usr/bin/memtester
++/usr/bin/mergebad
++/usr/bin/mesg
++/usr/bin/metamail
++/usr/bin/mformat
++/usr/bin/mfstool
++/usr/bin/mhddfs
++/usr/bin/mimencode
++/usr/bin/minfo
++/usr/bin/mkfifo
++/usr/bin/mkisofs
++/usr/bin/mkpart
++/usr/bin/mlabel
++/usr/bin/mln
++/usr/bin/mmd
++/usr/bin/mmount
++/usr/bin/mmove
++/usr/bin/mmv
++/usr/bin/mpartition
++/usr/bin/mrd
++/usr/bin/mren
++/usr/bin/ms-sys
++/usr/bin/mshowfat
++/usr/bin/msmtp
++/usr/bin/mtftar
++/usr/bin/mtools
++/usr/bin/mtoolstest
++/usr/bin/mtpfs
++/usr/bin/mtype
++/usr/bin/mumount
++/usr/bin/myrescue
++/usr/bin/mzip
++/usr/bin/nc
++/usr/bin/nl
++/usr/bin/nmap
++/usr/bin/nohup
++/usr/bin/nrg2iso
++/usr/bin/ntfs-3g
++/usr/bin/ntfs-3g.probe
++/usr/bin/ntfscat
++/usr/bin/ntfscluster
++/usr/bin/ntfscmp
++/usr/bin/ntfsfix
++/usr/bin/ntfsinfo
++/usr/bin/ntfsls
++/usr/bin/ntfsmount
++/usr/bin/ntfsreloc
++/usr/bin/ntpasswd
++/usr/bin/od
++/usr/bin/openssl
++/usr/bin/openvt
++/usr/bin/par2
++/usr/bin/par2create
++/usr/bin/par2repair
++/usr/bin/par2verify
++/usr/bin/passwd
++/usr/bin/paste
++/usr/bin/patch
++/usr/bin/pax
++/usr/bin/pcopy
++/usr/bin/pdmenu
++#/usr/bin/perl
++/usr/bin/pgrep
++/usr/bin/pico
++/usr/bin/pinfo
++/usr/bin/pipebench
++/usr/bin/pkill
++/usr/bin/pmap
++/usr/bin/popselect
++/usr/bin/pr
++/usr/bin/printf
++/usr/bin/procmail
++/usr/bin/progress
++/usr/bin/pstree
++/usr/bin/pv
++/usr/bin/pwdx
++/usr/bin/ralf
++/usr/bin/rdist
++/usr/bin/rdfind
++/usr/bin/readcd
++/usr/bin/readlink
++/usr/bin/recover
++/usr/bin/recoverdm
++/usr/bin/reged
++/usr/bin/reglookup
++/usr/bin/reglookup-recover
++/usr/bin/reglookup-timeline
++/usr/bin/rename
++/usr/bin/renice
++/usr/bin/rescuept
++/usr/bin/reset
++/usr/bin/resetall
++/usr/bin/rev
++/usr/bin/renice
++/usr/bin/rnano
++/usr/bin/rpm2cpio
++/usr/bin/rpm2cpio-lzma
++/usr/bin/rsync
++/usr/bin/run-parts
++/usr/bin/safecopy
++/usr/bin/sbd
++/usr/bin/scalpel
++/usr/bin/scp
++/usr/bin/screen
++/usr/bin/script
++/usr/bin/scriptreplay
++/usr/bin/scrounge-ntfs
++/usr/bin/sdd
++/usr/bin/sdiff
++/usr/bin/sdparm
++/usr/bin/seeker
++/usr/bin/seq
++/usr/bin/setfacl
++/usr/bin/setfattr
++/usr/bin/setkeycodes
++/usr/bin/setkeymap
++/usr/bin/setleds
++/usr/bin/setmetamode
++/usr/bin/setsid
++/usr/bin/setterm
++/usr/bin/sfill
++/usr/bin/sfind
++/usr/bin/sftp
++/usr/bin/sg_dd
++/usr/bin/sg_format
++/usr/bin/sha1deep
++/usr/bin/sha1sum
++/usr/bin/sha256sum
++/usr/bin/sha512sum
++/usr/bin/showkey
++/usr/bin/shred
++/usr/bin/shrinkntfs
++/usr/bin/shunt
++/usr/bin/sigtool
++/usr/bin/skill
++/usr/bin/slogin
++/usr/bin/smbclient
++/usr/bin/smem
++/usr/bin/snice
++/usr/bin/socat
++/usr/bin/split
++/usr/bin/splitpipe
++/usr/bin/srm
++/usr/bin/ssh
++/usr/bin/ssh-add
++/usr/bin/ssh-agent
++/usr/bin/ssh-copy-id
++/usr/bin/ssh-keygen
++/usr/bin/ssh-keyscan
++/usr/bin/sshfs
++/usr/bin/sswap
++/usr/bin/star
++/usr/bin/stat
++/usr/bin/strace
++/usr/bin/stress
++/usr/bin/strings
++/usr/bin/sudo
++/usr/bin/sudoedit
++/usr/bin/sum
++/usr/bin/symlinks
++/usr/bin/syslinux
++/usr/bin/systool
++/usr/bin/tac
++/usr/bin/tail
++/usr/bin/tailf
++/usr/bin/tarfixer
++/usr/bin/tee
++/usr/bin/tee
++/usr/bin/telnet
++/usr/bin/test
++/usr/bin/tftp
++/usr/bin/tic
++/usr/bin/time
++#/usr/bin/tin
++/usr/bin/tload
++/usr/bin/tmsnc
++/usr/bin/todos
++/usr/bin/toe
++/usr/bin/top
++/usr/bin/tput
++/usr/bin/tr
++/usr/bin/tree
++#/usr/bin/truecrypt
++/usr/bin/tset
++/usr/bin/tsort
++/usr/bin/tty
++/usr/bin/uif2iso
++/usr/bin/uncloop
++/usr/bin/unexpand
++/usr/bin/unionfs
++/usr/bin/uniq
++/usr/bin/unix2dos
++/usr/bin/unlzma
++/usr/bin/unrar
++/usr/bin/unrpm
++/usr/bin/unshield
++/usr/bin/unzip
++/usr/bin/unzsplit
++/usr/bin/uptime
++/usr/bin/upx
++/usr/bin/urlview
++/usr/bin/uudecode
++/usr/bin/uudeview
++/usr/bin/uuencode
++/usr/bin/uuenview
++/usr/bin/uuidgen
++/usr/bin/vche
++/usr/bin/vmstat
++/usr/bin/vscan
++/usr/bin/w
++/usr/bin/wall
++/usr/bin/watch
++/usr/bin/wc
++/usr/bin/wget
++/usr/bin/wget_lynx
++/usr/bin/whatis
++/usr/bin/whereis
++/usr/bin/which
++/usr/bin/who
++/usr/bin/whoami
++/usr/bin/whois
++/usr/bin/wificonfig
++/usr/bin/wipe
++/usr/bin/wlanconfig
++/usr/bin/wrudf
++/usr/bin/xargs
++/usr/bin/xdelta3
++/usr/bin/xorriso
++/usr/bin/xxd
++/usr/bin/ya-wipe
++/usr/bin/zcmp
++/usr/bin/zdiff
++/usr/bin/zgrep
++/usr/bin/zgv
++/usr/bin/zip
++/usr/bin/zipinfo
++/usr/bin/zipsplit
++/usr/bin/zless
++/usr/bin/zmore
++/usr/bin/zsplit
++/usr/lib/arj/
++/usr/lib/gconv/
++/usr/lib/locale/en_US/
++/usr/lib/samba/
++/usr/libexec/mc/
++/usr/libexec/openssh/sftp-server
++/usr/libexec/ssh-keysign
++/usr/libexec/sudo_noexec.so
++/usr/sbin/acpid
++/usr/sbin/adduser
++/usr/sbin/atd
++/usr/sbin/atrun
++/usr/sbin/biosdecode
++/usr/sbin/bonnie
++/usr/sbin/bonnie++
++/usr/sbin/brctl
++/usr/sbin/cfdisk
++/usr/sbin/chroot
++/usr/sbin/cmospwd
++/usr/sbin/crond
++/usr/sbin/dmidecode
++/usr/sbin/dnstop
++/usr/sbin/eject
++/usr/sbin/ethtool
++/usr/sbin/exportfs
++/usr/sbin/fakeidentd
++/usr/sbin/filefrag
++/usr/sbin/find_ext2_fs
++/usr/sbin/foremost
++/usr/sbin/fping
++/usr/sbin/fping6
++/usr/sbin/gpm
++/usr/sbin/groupadd
++/usr/sbin/groupdel
++/usr/sbin/hashalot
++/usr/sbin/hping
++/usr/sbin/iftop
++/usr/sbin/install-mbr
++/usr/sbin/iptstate
++/usr/sbin/kbdrate
++/usr/sbin/lchage
++/usr/sbin/lde-grep-inode
++/usr/sbin/loaderinfo
++/usr/sbin/lphdisk
++/usr/sbin/luksformat
++/usr/sbin/lshw
++/usr/sbin/lsof
++/usr/sbin/lv*
++/usr/sbin/mklost+found
++/usr/sbin/mkntfs
++/usr/sbin/mtr
++/usr/sbin/mtx
++/usr/sbin/ndiswrapper
++/usr/sbin/nfsstat
++/usr/sbin/ntfs*
++/usr/sbin/ntpdate
++/usr/sbin/ownership
++/usr/sbin/partimage
++/usr/sbin/partimage-nologin
++/usr/sbin/partimaged
++/usr/sbin/photorec
++/usr/sbin/pmap_dump
++/usr/sbin/pmap_set
++/usr/sbin/pv*
++/usr/sbin/rdev
++/usr/sbin/rmd160
++/usr/sbin/rpc.mountd
++/usr/sbin/rpc.nfsd
++/usr/sbin/rpcdebug
++/usr/sbin/rpcinfo
++/usr/sbin/scsitape
++/usr/sbin/sendmail
++/usr/sbin/sha256
++/usr/sbin/sha348
++/usr/sbin/sha512
++/usr/sbin/showmount
++/usr/sbin/sm-notify
++/usr/sbin/smartctl
++/usr/sbin/smartd
++/usr/sbin/sshd
++/usr/sbin/start-statd
++/usr/sbin/stunnel*
++/usr/sbin/suexec
++/usr/sbin/tapeinfo
++/usr/sbin/tcpdump
++/usr/sbin/testdisk
++/usr/sbin/tftpd
++/usr/sbin/udp-receiver
++/usr/sbin/udp-sender
++/usr/sbin/unsquashfs
++/usr/sbin/useradd
++/usr/sbin/userdel
++/usr/sbin/vg*
++/usr/sbin/visudo
++/usr/sbin/vpddecode
++/usr/sbin/wpa_cli
++/usr/sbin/wpa_passphrase
++/usr/sbin/wpa_supplicant
++/usr/sbin/zcav
++/usr/sbin/zpool
++/usr/share/biew/
++/usr/share/file/
++/usr/share/gnupg/
++/usr/share/hwdata/pci.ids
++/usr/share/hwdata/usb.ids
++/usr/share/mc/
++/usr/share/screen/
++/usr/share/terminfo/l/linux
++/usr/share/terminfo/v/vt100
++/usr/share/terminfo/v/vt102
++/usr/share/terminfo/x/xterm
+
+
+Property changes on: trunk/tools/centos-rescue/fset/siplinux.fset
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/centos-rescue/mkrootfs.sh
+===================================================================
+--- trunk/tools/centos-rescue/mkrootfs.sh	2008-11-05 00:36:24 UTC (rev 6537)
++++ trunk/tools/centos-rescue/mkrootfs.sh	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -2,14 +2,14 @@
+ 
+ kernel=2.6.18-92.1.13.el5
+ 
+-root=$(mktemp -d /dev/shm/rootfs.XXXXX)
+-
+-if [ &quot;$1&quot; -a -f &quot;fset/$1&quot; ]; then
+-   fset=$1
++if [ &quot;$1&quot; -a -f &quot;fset/$1.fset&quot; ]; then
++   template=$1
+ else
+-   fset=centos5.fset
++   template=siplinux
+ fi
+ 
++root=$(mktemp -d /dev/shm/$template.XXXXX)
++
+ function copy() {
+     local file=$1
+ 
+@@ -29,21 +29,23 @@
+         cp -Pp $file $root/$file
+ 	copy $(readlink -f $file)
+     elif [ -d &quot;$file&quot; ]; then
++        ### FIXME: handle directories recursively too
+         cp -ap $file $root/$file
+     elif [ -x &quot;$file&quot; ]; then
+         cp -p $file $root/$file
+-	chmod 0755 $root/$file
++        strip -s $root/$file &amp;&gt;/dev/null
++        chmod 0755 $root/$file
+ 
+         ### Copy dependencies
+         ldd $file | while read -a list; do
+             if [ &quot;${list[2]}&quot; -a -r &quot;${list[2]}&quot; ]; then
+                 copy ${list[2]}
+-            elif [ &quot;${list[0]}&quot; -a -r ${list[0]} ]; then
++            elif [ &quot;${list[0]}&quot; -a -r &quot;${list[0]}&quot; ]; then
+                 copy ${list[0]}
+ #            elif [ &quot;${list[0]:0:13}&quot; == &quot;linux-gate.so&quot; ]; then
+ #                :
+ #            else
+-#                echo ldd: something wrong with ${list[@]} &gt;&amp;2
++#                echo &quot;ldd: something wrong with ${list[@]}&quot; &gt;&amp;2
+             fi
+         done
+     elif [ -r &quot;$file&quot; ]; then
+@@ -52,23 +54,23 @@
+     else
+ 	location=&quot;$(which $(basename $file) 2&gt;/dev/null)&quot;
+ 	if [ $? -eq 0 ]; then
+-            echo copy: relocation $file to $location &gt;&amp;2
++            echo &quot;copy: relocation $file to $location&quot; &gt;&amp;2
+             copy $location
+         else
+-            echo copy: Cannot file $(basename $file) &gt;&amp;2
++            echo &quot;copy: Cannot find file $file&quot; &gt;&amp;2
+         fi
+     fi
+ }
+ 
+ ### Clean up existing directories first
+-rm -rf /dev/shm/rootfs.*
++rm -rf /dev/shm/$template.*
+ 
+ echo &quot;Creating tree in $root&quot;
+ cp -a $(pwd)/skelroot/ $root/
+ 
+ ### Start of with a list of files to include
+-echo &quot;Processing fileset $fset&quot;
+-cat $(pwd)/fset/$fset | while read file; do
++echo &quot;Processing fileset $template&quot;
++cat $(pwd)/fset/$template.fset | while read file; do
+     for f in $file; do
+         copy $f
+     done
+@@ -114,16 +116,16 @@
+ ln -sf /proc/self/fd $root/dev/fd
+ 
+ if [ &quot;$(which upx 2&gt;/dev/null)&quot; ]; then
+-    echo &quot;Compress binaries.&quot;
+-    upx -q -f --no-progress --best $root/bin/* $root/sbin/* $root/usr/bin/* $root/usr/sbin/* &amp;&gt;/dev/null
++    echo &quot;Compress binaries. (this may take a few minutes)&quot;
++    upx -q --no-progress --best --ultra-brute $root/bin/* $root/sbin/* $root/usr/bin/* $root/usr/sbin/* &amp;&gt;$(pwd)/upx.log
+ else
+     echo &quot;Warning: upx binary not found, not compressing binaries.&quot; &gt;&amp;2
+ fi
+ 
+ echo &quot;Creating the initrd.&quot;
+-pwd=$(pwd)
+-cd $root &amp;&amp; find . | cpio --quiet -o -H newc | gzip -9 &gt;$pwd/rootfs.cgz
+-#cd $root &amp;&amp; find . | afio -o -Z $pwd/rootfs.cgz
++pwd=&quot;$(pwd)&quot;
++cd $root &amp;&amp; find . | cpio --quiet -o -H newc | gzip -9 &gt;$pwd/$template.cgz
++#cd $root &amp;&amp; find . | afio -o -Z $pwd/$template.cgz
+ 
+ echo &quot;See $root if you like it.&quot;
+ 
+
+Modified: trunk/tools/centos-rescue/skelroot/etc/HOSTNAME
+===================================================================
+--- trunk/tools/centos-rescue/skelroot/etc/HOSTNAME	2008-11-05 00:36:24 UTC (rev 6537)
++++ trunk/tools/centos-rescue/skelroot/etc/HOSTNAME	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -1 +1 @@
+-localhost
++siplinux
+
+Deleted: trunk/tools/centos-rescue/skelroot/etc/gshadow
+===================================================================
+
+Modified: trunk/tools/centos-rescue/skelroot/etc/inittab
+===================================================================
+--- trunk/tools/centos-rescue/skelroot/etc/inittab	2008-11-05 00:36:24 UTC (rev 6537)
++++ trunk/tools/centos-rescue/skelroot/etc/inittab	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -1,40 +1,9 @@
+-#
+-# inittab       This file describes how the INIT process should set up
+-#               the system in a certain run-level.
+-#
+-# Author:       Miquel van Smoorenburg, &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">miquels at drinkel.nl.mugnet.org</A>&gt;
+-#               Modified for RHS Linux by Marc Ewing and Donnie Barnes
+-#
+-
+-# Default runlevel. The runlevels used by RHS are:
+-#   0 - halt (Do NOT set initdefault to this)
+-#   1 - Single user mode
+-#   2 - Multiuser, without NFS (The same as 3, if you do not have networking)
+-#   3 - Full multiuser mode
+-#   4 - unused
+-#   5 - X11
+-#   6 - reboot (Do NOT set initdefault to this)
+-#
+ id:3:initdefault:
+-
+-# System initialization.
+ si::sysinit:/etc/rc.d/rc.sysinit
+-
+ l0:0:wait:/etc/rc.d/rc 0
+ l1:1:wait:/etc/rc.d/rc 1
+-l2:2:wait:/etc/rc.d/rc 2
+ l3:3:wait:/etc/rc.d/rc 3
+-l4:4:wait:/etc/rc.d/rc 4
+-l5:5:wait:/etc/rc.d/rc 5
+ l6:6:wait:/etc/rc.d/rc 6
+-
+-# Trap CTRL-ALT-DELETE
+ ca::ctrlaltdel:/sbin/shutdown -t3 -r now
+-
+-# Run gettys in standard runlevels
+-1:3:respawn:/usr/bin/openvt -c 1 -f -e -- /bin/bash --login
+-2:3:respawn:/usr/bin/openvt -c 2 -f -e -- /bin/bash --login
+-#3:3:respawn:/sbin/mingetty tty3
+-#4:3:respawn:/sbin/mingetty tty4
+-#5:3:respawn:/sbin/mingetty tty5
+-#6:3:respawn:/sbin/mingetty tty6
++1:13:respawn:/sbin/mingetty tty1 --noclear --autologin root
++S0:13:respawn:/sbin/mingetty ttyS0 --noclear --autologin root
+
+Added: trunk/tools/centos-rescue/skelroot/etc/issue
+===================================================================
+--- trunk/tools/centos-rescue/skelroot/etc/issue	                        (rev 0)
++++ trunk/tools/centos-rescue/skelroot/etc/issue	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -0,0 +1,13 @@
++================================================================================
++SIPLinux 1.2  --  Salvation Is Possible  --  the swiss army knife for lost souls
++
++SIPLinux is a Linux-based recovery image for USB, CD or PXE booting. It consists
++of a huge collection of utilities to recover partitions, filesystems and deleted
++files, disk-imaging and backup, network troubleshooting, forensic investigations
++and even recovering Windows.
++
++For an overview of useful commands, please run [1msiplinux[0m.
++================================================================================
++This is a *BETA* release, please do not distribute !
++================================================================================
++
+
+Deleted: trunk/tools/centos-rescue/skelroot/etc/modprobe.conf
+===================================================================
+
+Deleted: trunk/tools/centos-rescue/skelroot/etc/modules.conf
+===================================================================
+
+Deleted: trunk/tools/centos-rescue/skelroot/etc/mtab
+===================================================================
+
+Added: trunk/tools/centos-rescue/skelroot/etc/pam.d/login
+===================================================================
+--- trunk/tools/centos-rescue/skelroot/etc/pam.d/login	                        (rev 0)
++++ trunk/tools/centos-rescue/skelroot/etc/pam.d/login	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -0,0 +1,5 @@
++#%PAM-1.0
++auth       required     pam_permit.so
++account    required     pam_permit.so
++password   required     pam_permit.so
++session    required     pam_permit.so
+
+Added: trunk/tools/centos-rescue/skelroot/etc/pam.d/other
+===================================================================
+--- trunk/tools/centos-rescue/skelroot/etc/pam.d/other	                        (rev 0)
++++ trunk/tools/centos-rescue/skelroot/etc/pam.d/other	2008-11-06 00:24:06 UTC (rev 6538)
+@@ -0,0 +1,5 @@
++#%PAM-1.0
++auth       required     pam_permit.so
++account    required     pam_permit.so
++password   required     pam_permit.so
++session    required     pam_permit.so
+
+Deleted: trunk/tools/centos-rescue/skelroot/etc/resolv.conf
+===================================================================
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005336.html">[svn] r6537 - in trunk/rpms: . ext3undel luks-tools mdf2iso uif2iso
+</A></li>
+	<LI>Next message: <A HREF="005338.html">[svn] r6539 - in trunk/tools: . siplinux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5337">[ date ]</a>
+              <a href="thread.html#5337">[ thread ]</a>
+              <a href="subject.html#5337">[ subject ]</a>
+              <a href="author.html#5337">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

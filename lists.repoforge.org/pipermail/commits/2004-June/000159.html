@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1350 - trunk/rpms/afick
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1350%20-%20trunk/rpms/afick&In-Reply-To=%3C20040615013913.E21521FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000158.html">
+   <LINK REL="Next"  HREF="000160.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1350 - trunk/rpms/afick</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1350%20-%20trunk/rpms/afick&In-Reply-To=%3C20040615013913.E21521FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1350 - trunk/rpms/afick">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Jun 15 03:39:13 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000158.html">[SVN] r1349 - trunk/rpms/rsync
+</A></li>
+        <LI>Next message: <A HREF="000160.html">[SVN] r1351 - trunk/rpms/anjuta
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#159">[ date ]</a>
+              <a href="thread.html#159">[ thread ]</a>
+              <a href="subject.html#159">[ subject ]</a>
+              <a href="author.html#159">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-06-15 03:39:11 +0200 (Tue, 15 Jun 2004)
+New Revision: 1350
+
+Modified:
+   trunk/rpms/afick/afick.spec
+Log:
+Important fixes
+
+Modified: trunk/rpms/afick/afick.spec
+===================================================================
+--- trunk/rpms/afick/afick.spec	2004-06-15 01:38:42 UTC (rev 1349)
++++ trunk/rpms/afick/afick.spec	2004-06-15 01:39:11 UTC (rev 1350)
+@@ -2,14 +2,17 @@
+ # Authority: dag
+ # Upstream: Eric Gerbier &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">gerbier at users.sf.net</A>&gt;
+ 
+-%define dfi %(which desktop-file-install &amp;&gt;/dev/null; echo $?)
++%{?dist: %{expand: %%define %dist 1}}
+ 
++%{?rh7:%define _without_freedesktop 1}
++%{?el2:%define _without_freedesktop 1}
++
+ %define real_version %{version}-0
+ 
+ Summary: File integrity checker
+ Name: afick
+ Version: 2.2
+-Release: 1
++Release: 2
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://afick.sf.net/">http://afick.sf.net/</A>
+@@ -45,15 +48,26 @@
+ %prep
+ %setup -n %{name}-%{real_version}
+ 
++%{__cat} &lt;&lt;EOF &gt;afick.desktop
++[Desktop Entry]
++Name=File Integrity Checker
++Comment=Check the integrity of your files
++Exec=afick-tk
++Terminal=false
++Type=Application
++Icon=afick.png
++Categories=GNOME;Application;System;
++EOF
++
+ %build
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__install} -D -m0755 afick.pl %{buildroot}%{_bindir}/afick
+-%{__install} -D -m0755 afick-tk.pl %{buildroot}%{_bindir}/afick-tk
++%{__install} -D -m0755 afick.pl %{buildroot}%{_bindir}/afick.pl
++%{__install} -D -m0755 afick-tk.pl %{buildroot}%{_bindir}/afick-tk.pl
++%{__install} -D -m0755 afick.cron %{buildroot}%{_sysconfdir}/cron.daily/afick
+ 
+ %{__install} -D -m0644 afick.conf %{buildroot}%{_sysconfdir}/afick.conf
+-%{__install} -D -m0644 afick.cron %{buildroot}%{_sysconfdir}/cron.daily/afick
+ %{__install} -D -m0644 afick.logrotate %{buildroot}%{_sysconfdir}/logrotate.d/afick
+ 
+ %{__install} -D -m0644 afick.1 %{buildroot}%{_mandir}/man1/afick.1
+@@ -65,15 +79,17 @@
+ %{__install} -d -m0755 %{buildroot}%{_localstatedir}/lib/afick/archive/
+ %{__install} -d -m0755 %{buildroot}%{_localstatedir}/log/afick/
+ 
+-%{__install} -D -m0644 afick.gnome %{buildroot}%{_datadir}/gnome/apps/System/afick.desktop
++%{__ln_s} -f afick.pl %{buildroot}%{_bindir}/afick
++%{__ln_s} -f afick-tk.pl %{buildroot}%{_bindir}/afick-tk
+ 
+-%if %{dfi}
++%if %{?_without_freedesktop:1}0
++	%{__install} -D -m0644 afick.desktop %{buildroot}%{_datadir}/gnome/apps/System/afick.desktop
+ %else
+         %{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
+         desktop-file-install --vendor gnome --delete-original \
+                 --add-category X-Red-Hat-Base                 \
+                 --dir %{buildroot}%{_datadir}/applications    \
+-                %{buildroot}%{_datadir}/gnome/apps/System/afick.desktop
++		afick.desktop
+ %endif
+ 
+ %post
+@@ -92,6 +108,7 @@
+ %config(noreplace) %{_sysconfdir}/cron.daily/afick
+ %config(noreplace) %{_sysconfdir}/logrotate.d/afick
+ %{_bindir}/afick
++%{_bindir}/afick.pl
+ %{_localstatedir}/lib/afick/
+ %{_localstatedir}/log/afick/
+ 
+@@ -100,14 +117,16 @@
+ %doc Changelog-gui
+ %doc %{_mandir}/man?/afick-tk.*
+ %{_bindir}/afick-tk
+-%{_datadir}/pixmaps/*.png
+-%if %{dfi}
+-        %{_datadir}/gnome/apps/System/*.desktop
+-%else
+-        %{_datadir}/applications/*.desktop
+-%endif
++%{_bindir}/afick-tk.pl
++%{_datadir}/pixmaps/afick.png
++%{?_without_freedesktop:%{_datadir}/gnome/apps/System/afick.desktop}
++%{!?_without_freedesktop:%{_datadir}/applications/gnome-afick.desktop}
+ 
+ %changelog
++* Tue Jun 15 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.2-2
++- Fixed afick cron script. (Charles)
++- Added improved desktop file.
++
+ * Wed May 12 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.2-1
+ - Updated to release 2.2.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000158.html">[SVN] r1349 - trunk/rpms/rsync
+</A></li>
+	<LI>Next message: <A HREF="000160.html">[SVN] r1351 - trunk/rpms/anjuta
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#159">[ date ]</a>
+              <a href="thread.html#159">[ thread ]</a>
+              <a href="subject.html#159">[ subject ]</a>
+              <a href="author.html#159">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

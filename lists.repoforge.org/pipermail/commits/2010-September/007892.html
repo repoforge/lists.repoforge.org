@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9101 - in /trunk/tools/dstat: ChangeLog dstat	plugins/dstat_freespace.py
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9101%20-%20in%20/trunk/tools/dstat%3A%20ChangeLog%20dstat%0A%09plugins/dstat_freespace.py&In-Reply-To=%3C201009031731.o83HV3JG000836%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007891.html">
+   <LINK REL="Next"  HREF="007893.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9101 - in /trunk/tools/dstat: ChangeLog dstat	plugins/dstat_freespace.py</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9101%20-%20in%20/trunk/tools/dstat%3A%20ChangeLog%20dstat%0A%09plugins/dstat_freespace.py&In-Reply-To=%3C201009031731.o83HV3JG000836%40surya.karan.org%3E"
+       TITLE="[svn] r9101 - in /trunk/tools/dstat: ChangeLog dstat	plugins/dstat_freespace.py">dag at wieers.com
+       </A><BR>
+    <I>Fri Sep  3 19:31:03 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007891.html">[svn] r9100 - /trunk/rpms/dropbox/dropbox.spec
+</A></li>
+        <LI>Next message: <A HREF="007893.html">[svn] r9102 - in /trunk/rpms: lftp/lftp.spec pam_shield/pam_shield-0.9.4-makefile.patch pam_shield/pam_shield.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7892">[ date ]</a>
+              <a href="thread.html#7892">[ thread ]</a>
+              <a href="subject.html#7892">[ subject ]</a>
+              <a href="author.html#7892">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Fri Sep  3 18:31:03 2010
+New Revision: 9101
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9101&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9101&amp;view=rev</A>
+Log:
+- Added new --bits option to force bit-values on screen (Scott Baker)
+
+Modified:
+    trunk/tools/dstat/ChangeLog
+    trunk/tools/dstat/dstat
+    trunk/tools/dstat/plugins/dstat_freespace.py
+
+Modified: trunk/tools/dstat/ChangeLog
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/ChangeLog?rev=9101&amp;r1=9100&amp;r2=9101&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/ChangeLog?rev=9101&amp;r1=9100&amp;r2=9101&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/ChangeLog (original)
++++ trunk/tools/dstat/ChangeLog Fri Sep  3 18:31:03 2010
+@@ -1,7 +1,8 @@
+-* 0.7.2svn - ... - release 17/06/2010
++* 0.7.2svn - ... - release 03/09/2010
+ - Provide kernel configuration options to error mesages where possible
+ - Added external dstat_md_dstat plugin to show the resync progress of SWRAID (Bert de Bruijn)
+ - Changed color of 100% to white to make it stand out (Bert de Bruijn)
++- Added new --bits option to force bit-values on screen (Scott Baker)
+ 
+ * 0.7.2 - Real soon now - release 15/06/2010
+ - Added external dstat_disk_tps plugin to show transactions per second
+
+Modified: trunk/tools/dstat/dstat
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/dstat?rev=9101&amp;r1=9100&amp;r2=9101&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/dstat?rev=9101&amp;r1=9100&amp;r2=9101&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/dstat (original)
++++ trunk/tools/dstat/dstat Fri Sep  3 18:31:03 2010
+@@ -72,6 +72,7 @@
+ class Options:
+     def __init__(self, args):
+         self.args = args
++        self.bits = False
+         self.blackonwhite = False
+         self.count = -1
+         self.cpulist = None
+@@ -112,7 +113,7 @@
+ 
+         try:
+             opts, args = getopt.getopt(args, 'acdfghilmno:prstTvyC:D:I:M:N:S:V',
+-                ['all', 'all-plugins', 'bw', 'blackonwhite', 'debug',
++                ['all', 'all-plugins', 'bits', 'bw', 'blackonwhite', 'debug',
+                  'filesystem', 'float', 'full', 'help', 'integer',
+                  'list', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate',
+                  'output=', 'pidfile=', 'profile', 'version', 'vmstat'] + allplugins)
+@@ -175,6 +176,8 @@
+                 plugins = {}.fromkeys(allplugins).keys()
+                 plugins.sort()
+                 self.plugins += plugins
++            elif opt in ['--bits']:
++                self.bits = True
+             elif opt in ['--bw', '--black-on-white']:
+                 self.blackonwhite = True
+             elif opt in ['--debug']:
+@@ -301,6 +304,7 @@
+   -f, --full             automatically expand -C, -D, -I, -N and -S lists
+   -v, --vmstat           equals -pmgdsc -D total
+ 
++  --bits                 force bits for values expressed in bytes
+   --float                force float values on screen
+   --integer              force integer values on screen
+ 
+@@ -428,10 +432,10 @@
+         ret = theme['title']
+         if isinstance(self.name, types.StringType):
+             width = self.statwidth()
+-            return ret + self.name[0:width].center(width).replace(' ', '-') + theme['default']
++            return ret + self.name[0:width].center(width, char['space']).replace(' ', '-') + theme['default']
+         for i, name in enumerate(self.name):
+             width = self.colwidth()
+-            ret = ret + name[0:width].center(width).replace(' ', '-')
++            ret = ret + name[0:width].center(width, char['space']).replace(' ', '-')
+             if i + 1 != len(self.name):
+                 if op.color:
+                     ret = ret + theme['frame'] + char['dash'] + theme['title']
+@@ -443,13 +447,13 @@
+         ret = ''
+         if isinstance(self.name, types.StringType):
+             for i, nick in enumerate(self.nick):
+-                ret = ret + theme['subtitle'] + nick[0:self.width].center(self.width) + theme['default']
++                ret = ret + theme['subtitle'] + nick[0:self.width].center(self.width, char['space']) + theme['default']
+                 if i + 1 != len(self.nick): ret = ret + char['space']
+             return ret
+         else:
+             for i, name in enumerate(self.name):
+                 for j, nick in enumerate(self.nick):
+-                    ret = ret + theme['subtitle'] + nick[0:self.width].center(self.width) + theme['default']
++                    ret = ret + theme['subtitle'] + nick[0:self.width].center(self.width, char['space']) + theme['default']
+                     if j + 1 != len(self.nick): ret = ret + char['space']
+                 if i + 1 != len(self.name): ret = ret + theme['frame'] + char['colon']
+             return ret
+@@ -679,7 +683,7 @@
+ class dstat_disk(dstat):
+     def __init__(self):
+         self.nick = ('read', 'writ')
+-        self.type = 'd'
++        self.type = 'b'
+         self.diskfilter = re.compile('^(dm-\d+|md\d+|[hsv]d[a-z]+\d+)$')
+         self.open('/proc/diskstats')
+         self.cols = 2
+@@ -745,7 +749,7 @@
+ class dstat_disk24(dstat):
+     def __init__(self):
+         self.nick = ('read', 'writ')
+-        self.type = 'd'
++        self.type = 'b'
+         self.diskfilter = re.compile('(dm-\d+|md\d+|[hsv]d[a-z]+\d+)')
+         self.open('/proc/partitions')
+         if self.fd and not self.discover:
+@@ -810,7 +814,7 @@
+ class dstat_disk24old(dstat):
+     def __init__(self):
+         self.nick = ('read', 'writ')
+-        self.type = 'd'
++        self.type = 'b'
+         self.diskfilter = re.compile('(dm-\d+|md\d+|[hsv]d[a-z]+\d+)')
+         self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
+         self.open('/proc/stat')
+@@ -1188,7 +1192,7 @@
+ class dstat_net(dstat):
+     def __init__(self):
+         self.nick = ('recv', 'send')
+-        self.type = 'd'
++        self.type = 'b'
+         self.totalfilter = re.compile('^(lo|bond\d+|face|.+\.\d+)$')
+         self.open('/proc/net/dev')
+         self.cols = 2
+@@ -1599,6 +1603,7 @@
+     'space': ' ',
+     'dash': '-',
+     'plus': '+',
++    'underscore': '_',
+ }
+ 
+ def set_theme():
+@@ -1867,7 +1872,7 @@
+     ret = sep = ''
+     for var in varlist:
+         ret = ret + sep + cprint(var, type, width, scale)
+-        sep = ' '
++        sep = char['space']
+     return ret
+ 
+ def cprint(var, type = 'f', width = 4, scale = 1000):
+@@ -1886,14 +1891,18 @@
+     ### If this is a negative value, return a dash
+     if var &lt; 0:
+         if unit:
+-            return theme['error'] + '-'.rjust(width) + ' ' + theme['default']
+-        else:
+-            return theme['error'] + '-'.rjust(width) + theme['default']
+-
+-    if base == 1024:
++            return theme['error'] + '-'.rjust(width, char['space']) + char['space'] + theme['default']
++        else:
++            return theme['error'] + '-'.rjust(width, char['space']) + theme['default']
++
++    if base != 1024:
++        units = (char['space'], 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
++    elif op.bits and type in ('b', ):
++        units = ('b', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
++        base = scale = 1000
++        var = var * 8.0
++    else:
+         units = ('B', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+-    else:
+-        units = (' ', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+ 
+     if step == op.delay:
+         colors = theme['colors_lo']
+@@ -1907,11 +1916,11 @@
+         cdone = theme['done_hi']
+ 
+     ### Convert value to string given base and field-length
+-    if op.integer and type in ('d', 'p', 'f'):
++    if op.integer and type in ('b', 'd', 'p', 'f'):
+         ret, c = dchg(var, width, base)
+-    elif op.float and type in ('d', 'p', 'f'):
++    elif op.float and type in ('b', 'd', 'p', 'f'):
+         ret, c = fchg(var, width, base)
+-    elif type in ('d', 'p'):
++    elif type in ('b', 'd', 'p'):
+         ret, c = dchg(var, width, base)
+     elif type in ('f'):
+         ret, c = fchg(var, width, base)
+@@ -1933,23 +1942,23 @@
+ #        color = colors[int(round(var)/scale)%len(colors)]
+     elif scale not in (1000, 1024):
+         color = colors[int(var/scale)%len(colors)]
+-    elif type in ('d', 'f'):
++    elif type in ('b', 'd', 'f'):
+         color = colors[c%len(colors)]
+     else:
+         color = ctext
+ 
+     ### Justify value to left if string
+     if type in ('s',):
+-        ret = color + ret.ljust(width)
++        ret = color + ret.ljust(width, char['space'])
+     else:
+-        ret = color + ret.rjust(width)
++        ret = color + ret.rjust(width, char['space'])
+ 
+     ### Add unit to output
+     if unit:
+         if c != -1 and round(var) != 0:
+             ret += cunit + units[c]
+         else:
+-            ret += ' '
++            ret += char['space']
+ 
+     return ret
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_freespace.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_freespace.py?rev=9101&amp;r1=9100&amp;r2=9101&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_freespace.py?rev=9101&amp;r1=9100&amp;r2=9101&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_freespace.py (original)
++++ trunk/tools/dstat/plugins/dstat_freespace.py Fri Sep  3 18:31:03 2010
+@@ -20,7 +20,7 @@
+             if l[2] in ('binfmt_misc', 'devpts', 'iso9660', 'none', 'proc', 'sysfs', 'usbfs'): continue
+             ### FIXME: Excluding 'none' here may not be what people want (/dev/shm)
+             if l[0] in ('devpts', 'none', 'proc', 'sunrpc', 'usbfs'): continue
+-            name = l[1] 
++            name = l[1]
+             res = os.statvfs(name)
+             if res[0] == 0: continue ### Skip zero block filesystems
+             ret.append(name)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007891.html">[svn] r9100 - /trunk/rpms/dropbox/dropbox.spec
+</A></li>
+	<LI>Next message: <A HREF="007893.html">[svn] r9102 - in /trunk/rpms: lftp/lftp.spec pam_shield/pam_shield-0.9.4-makefile.patch pam_shield/pam_shield.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7892">[ date ]</a>
+              <a href="thread.html#7892">[ thread ]</a>
+              <a href="subject.html#7892">[ subject ]</a>
+              <a href="author.html#7892">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,278 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3234 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3234%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20050524172501.A64401D02B1%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002035.html">
+   <LINK REL="Next"  HREF="002037.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3234 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3234%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20050524172501.A64401D02B1%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3234 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue May 24 19:25:01 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002035.html">[svn] r3233 - trunk/tools/dstat/plugins
+</A></li>
+        <LI>Next message: <A HREF="002037.html">[svn] r3235 - in trunk/tools/pydar2: . doc dries dries/pydar2 pydar	scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2036">[ date ]</a>
+              <a href="thread.html#2036">[ thread ]</a>
+              <a href="subject.html#2036">[ subject ]</a>
+              <a href="author.html#2036">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-05-24 19:25:01 +0200 (Tue, 24 May 2005)
+New Revision: 3234
+
+Modified:
+   trunk/tools/dstat/README.plugins
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_gpfs.py
+   trunk/tools/dstat/plugins/dstat_gpfsop.py
+Log:
+More necessary GPFS improvements
+
+Modified: trunk/tools/dstat/README.plugins
+===================================================================
+--- trunk/tools/dstat/README.plugins	2005-05-24 07:40:16 UTC (rev 3233)
++++ trunk/tools/dstat/README.plugins	2005-05-24 17:25:01 UTC (rev 3234)
+@@ -4,18 +4,18 @@
+ but it is possible to add your own dstat plugins. Currently only the
+ following external plugins exist:
+ 
+-	dstat_battery		- ACPI battery  in percentage
+-	dstat_cpufreq		- ACPI CPU frequency in percentage
+-	dstat_dbus		- dbus connections
+-	dstat_freespace		- free space on mounted filesystems
+-	dstat_gpfs		- GPFS I/O
+-	dstat_gpfsop		- GPFS operations
+-	dstat_postfix		- postfix queue size
+-	dstat_sendmail		- sendmail queue size
+-	dstat_thermal		- system temperature
+-	dstat_utmp		- utmp connections
++	dstat_battery		- battery in percentage (needs ACPI)
++	dstat_cpufreq		- CPU frequency in percentage (needs ACPI)
++	dstat_dbus		- dbus connections (needs python-dbus)
++	dstat_freespace		- disk usage on per filesystems
++	dstat_gpfs		- GPFS read/write I/O (needs mmpmon)
++	dstat_gpfsop		- GPFS filesystem operations (needs mmpmon)
++	dstat_postfix		- postfix queue size (needs postfix)
++	dstat_sendmail		- sendmail queue size (needs sendmail)
++	dstat_thermal		- system temperature sesnors
++	dstat_utmp		- utmp connections (needs python-utmp)
+ 
+-You can enable one of these stats by using the -M options:
++You can enable any of these stats by using the -M options:
+ 
+ 	dstat -a -M dbus,utmp
+ 
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-05-24 07:40:16 UTC (rev 3233)
++++ trunk/tools/dstat/dstat	2005-05-24 17:25:01 UTC (rev 3234)
+@@ -1285,7 +1285,7 @@
+ 				return time.time() - long(l[1])
+ 
+ def dopen(file):
+-	&quot;Open a file ones, if already opened, return file descriptor&quot;
++	&quot;Open a file for reuse, if already opened, return file descriptor&quot;
+ 	global fds
+ 	if not os.path.exists(file): return None
+ 	if 'fds' not in globals().keys(): fds = {}
+@@ -1303,6 +1303,24 @@
+ 		fds[file].close()
+ 		del(fds[file])
+ 
++def dpopen(cmd):
++	&quot;Open a pipe for reuse, if already opened, return pipes&quot;
++	global pipes
++	if 'pipes' not in globals().keys(): pipes = {}
++	if cmd not in pipes.keys():
++		pipes[cmd] = os.popen3('/usr/lpp/mmfs/bin/mmpmon -p', 't', 0)
++	return pipes[cmd]
++
++def readpipe(file, tmout = 0.001):
++	&quot;Read available data from pipe in a non-blocking fasion&quot;
++	ret = ''
++	while not select.select([file.fileno()], [], [], tmout)[0]:
++		pass
++	while select.select([file.fileno()], [], [], tmout)[0]:
++		ret = ret + file.read(1)
++	return ret.split('\n')
++#	return ret
++
+ def dchg(var, max, base):
+ 	&quot;Convert decimal to string given base and length&quot;
+ 	c = 0
+
+Modified: trunk/tools/dstat/plugins/dstat_gpfs.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_gpfs.py	2005-05-24 07:40:16 UTC (rev 3233)
++++ trunk/tools/dstat/plugins/dstat_gpfs.py	2005-05-24 17:25:01 UTC (rev 3234)
+@@ -1,18 +1,20 @@
+-global string, popen2
+-import string, popen2
++global string, select
++import string, select
+ 
+ class dstat_gpfs(dstat):
+ 	def __init__(self):
+ 		self.name = 'gpfs i/o'
+ 		self.format = ('f', 5, 1024)
+-		self.vars = ('read', 'write')
+-		self.nick = self.vars
++		self.vars = ('_br_', '_bw_')
++		self.nick = ('read', 'write')
+ 		self.init(self.vars, 1)
+ 
+ 	def check(self): 
+ 		if os.access('/usr/lpp/mmfs/bin/mmpmon', os.X_OK):
+ 			try:
+-				self.stdout, self.stdin, self.stderr = popen2.popen3('/usr/lpp/mmfs/bin/mmpmon', 0)
++				self.stdin, self.stdout, self.stderr = dpopen('/usr/lpp/mmfs/bin/mmpmon -p')
++				self.stdin.write('reset\n')
++				readpipe(self.stdout)
+ 			except IOError:
+ 				raise Exception, 'Module can not interface with gpfs mmpmon binary'
+ 			return True
+@@ -21,22 +23,23 @@
+ 
+ 	def extract(self):
+ 		try:
+-			self.stdout.flush()
+-			self.stdin.write('io_s\n'); size = 290
+-#			self.stdin.write('fs_io_s\n'); size = 370
+-			for line in self.stdout.read(size).split('\n'):
++			self.stdin.write('io_s\n')
++#			readpipe(self.stderr)
++			for line in readpipe(self.stdout):
++				if not line: continue
+ 				l = line.split()
+-				if len(l) != 3: continue
+-#				print l
+-				name = l[0:2]
+-				if name == ['bytes','read:']:
+-					self.cn2['read'] = long(l[2])
+-				elif name == ['bytes','written:']:
+-					self.cn2['write'] = long(l[2])
++				for name in self.vars:
++					self.cn2[name] = long(l[l.index(name)+1])
+ 		except IOError, e:
+-			print e
++			for name in self.vars: self.val[name] = -1
++			print 'dstat_gpfs: lost pipe to mmpmon,', e
++		except Exception, e:
++			for name in self.vars: self.val[name] = -1
++			print 'dstat_gpfs: exception', e
++
+ 		for name in self.vars:
+ 			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_gpfsop.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_gpfsop.py	2005-05-24 07:40:16 UTC (rev 3233)
++++ trunk/tools/dstat/plugins/dstat_gpfsop.py	2005-05-24 17:25:01 UTC (rev 3234)
+@@ -1,18 +1,20 @@
+-global string, popen2
+-import string, popen2
++global string, select
++import string, select
+ 
+ class dstat_gpfsop(dstat):
+ 	def __init__(self):
+ 		self.name = 'gpfs operations'
+ 		self.format = ('d', 4, 1000)
+-		self.vars = ('opens', 'closes', 'reads', 'writes', 'readdir', 'inodup')
++		self.vars = ('_oc_', '_cc_', '_rdc_', '_wc_', '_dir_', '_iu_')
+ 		self.nick = ('open', 'clos', 'read', 'writ', 'rdir', 'inod')
+ 		self.init(self.vars, 1)
+ 
+ 	def check(self): 
+ 		if os.access('/usr/lpp/mmfs/bin/mmpmon', os.X_OK):
+ 			try:
+-				self.stdout, self.stdin, self.stderr = popen2.popen3('/usr/lpp/mmfs/bin/mmpmon', 0)
++				self.stdin, self.stdout, self.stderr = dpopen('/usr/lpp/mmfs/bin/mmpmon -p')
++				self.stdin.write('reset\n')
++				readpipe(self.stdout)
+ 			except IOError:
+ 				raise Exception, 'Module can not interface with gpfs mmpmon binary'
+ 			return True
+@@ -21,25 +23,23 @@
+ 
+ 	def extract(self):
+ 		try:
+-			self.stdout.flush()
+-			self.stdin.write('io_s\n'); size = 290
+-#			self.stdin.write('fs_io_s\n'); size = 370
+-			for line in self.stdout.read(size).split('\n'):
++			self.stdin.write('io_s\n')
++#			readpipe(self.stderr)
++			for line in readpipe(self.stdout):
++				if not line: continue
+ 				l = line.split()
+-				if len(l) &lt; 2: continue
+-				if len(l) &gt; 3: continue
+-				name = l[0].split(':')[0]
+-				if len(l) &gt; 3:  continue
+-				if name in self.vars:
+-#					print line
+-					self.cn2[name] = long(l[1])
+-				elif len(l) &gt;= 3 and name == 'inode':
+-#					print line
+-					self.cn2['inodup'] = long(l[2])
++				for name in self.vars:
++					self.cn2[name] = long(l[l.index(name)+1])
+ 		except IOError, e:
+-			print e
++			for name in self.vars: self.val[name] = -1
++			print 'dstat_gpfs: lost pipe to mmpmon,', e
++		except Exception, e:
++			for name in self.vars: self.val[name] = -1
++			print 'dstat_gpfs: exception', e
++
+ 		for name in self.vars:
+ 			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002035.html">[svn] r3233 - trunk/tools/dstat/plugins
+</A></li>
+	<LI>Next message: <A HREF="002037.html">[svn] r3235 - in trunk/tools/pydar2: . doc dries dries/pydar2 pydar	scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2036">[ date ]</a>
+              <a href="thread.html#2036">[ thread ]</a>
+              <a href="subject.html#2036">[ subject ]</a>
+              <a href="author.html#2036">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,353 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3270 - in trunk/tools/pydar2: pydar scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3270%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050602161814.435571D02C2%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002071.html">
+   <LINK REL="Next"  HREF="002073.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3270 - in trunk/tools/pydar2: pydar scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3270%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050602161814.435571D02C2%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3270 - in trunk/tools/pydar2: pydar scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jun  2 18:18:14 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002071.html">[svn] r3269 - trunk/rpms/anjuta
+</A></li>
+        <LI>Next message: <A HREF="002073.html">[svn] r3271 - in trunk/tools/pydar2: . pydar scripts sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2072">[ date ]</a>
+              <a href="thread.html#2072">[ thread ]</a>
+              <a href="subject.html#2072">[ subject ]</a>
+              <a href="author.html#2072">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-02 18:18:13 +0200 (Thu, 02 Jun 2005)
+New Revision: 3270
+
+Added:
+   trunk/tools/pydar2/pydar/movecommandresultsscript.py
+Modified:
+   trunk/tools/pydar2/pydar/command.py
+   trunk/tools/pydar2/pydar/commandvalueobject.py
+   trunk/tools/pydar2/pydar/mastercommand.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/slavecommand.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+   trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py
+   trunk/tools/pydar2/scripts/rpmforgegetsources.py
+   trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/command.py
+===================================================================
+--- trunk/tools/pydar2/pydar/command.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/pydar/command.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -59,6 +59,9 @@
+     def getSpecFileFileName(self):
+         raise Exception(&quot;Command::getSpecFileFileName&quot;)
+         
++    def getAuthority(self):
++        raise Exception(&quot;Command::getAuthority&quot;)
++        
+     # get the version of the spec file
+     # a version is unique within one specrepository but might not be unique within all specrepositories
+     # this is not the database id of this specfile version
+
+Modified: trunk/tools/pydar2/pydar/commandvalueobject.py
+===================================================================
+--- trunk/tools/pydar2/pydar/commandvalueobject.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/pydar/commandvalueobject.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -31,4 +31,5 @@
+         self.specRepoName = None
+         self.specFileFileName = None
+         self.version = None
++        self.authority = None
+         
+
+Modified: trunk/tools/pydar2/pydar/mastercommand.py
+===================================================================
+--- trunk/tools/pydar2/pydar/mastercommand.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/pydar/mastercommand.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -40,6 +40,7 @@
+         self.__specRepositorySpecFile = None
+         self.__target = None
+         self.__version = None
++        self.__authority = None
+         self.__cat.debug(&quot;end&quot;)
+     
+     def getDefines(self):
+@@ -83,6 +84,10 @@
+     def getSpecFileFileName(self):
+         return self.getSpecRepositorySpecFile().getFileName()
+     
++    def getAuthority(self):
++        self.__authority = storagefactory.StorageFactory.getStorage().getAuthorityOfMostRecentVersion(self.getSpecFileId())
++        return self.__authority
++    
+     # from Command.py end
+     
+     def setVersion(self,version):
+@@ -107,6 +112,7 @@
+         retval.specRepoName = self.getSpecRepository().getName()
+         retval.specFileFileName = self.getSpecRepositorySpecFile().getFileName()
+         retval.version = self.__version
++        retval.authority = self.getAuthority()
+         
+         self.__cat.debug(&quot;retval v0=&quot; + retval.defines)
+         self.__cat.debug(&quot;retval v1=&quot; + retval.commandName)
+@@ -120,6 +126,8 @@
+         self.__cat.debug(&quot;retval v9=&quot; + str(retval.commandId))
+         self.__cat.debug(&quot;retval v10=&quot; + str(retval.specRepoName))
+         self.__cat.debug(&quot;retval v11=&quot; + str(retval.specFileFileName))
++        self.__cat.debug(&quot;retval v12=&quot; + str(retval.authority))
++        self.__cat.debug(&quot;retval v13=&quot; + str(retval.version))
+         return retval
+     
+     # should only be used within the master!
+
+Added: trunk/tools/pydar2/pydar/movecommandresultsscript.py
+===================================================================
+--- trunk/tools/pydar2/pydar/movecommandresultsscript.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/pydar/movecommandresultsscript.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -0,0 +1,31 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; A wrapper around a user defined function/script in a seperate .py file which moves the rpms and/or buildlog &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import sys
++from log4py import Logger
++from callablescript import CallableScript
++
++# The function should return True if the rpms and/or buildlog are moved, False otherwise
++# this should make it possible to move the rpms to some directory structure which can be used 
++# for other tools to create a nice website about the rpms
++# todo: check if repoview can be plugged in this way
++
++class MoveCommandResultsScript(CallableScript):
++    def runScript(self,aCommand, commanddir):
++        return self._getMethod().__call__(aCommand, commanddir)
+
+
+Property changes on: trunk/tools/pydar2/pydar/movecommandresultsscript.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -34,6 +34,19 @@
+         self.__cat = Logger().get_instance(self)
+         self.__cat.debug(&quot;initialized&quot;)
+ 
++    def getAuthorityOfMostRecentVersion(self, specFileId):
++        retval = None
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        sql = &quot;select t.value from pydar2_specfile_version sv, pydar2_specfile_tags t where t.versionid=sv.id and upper(t.name)='# AUTHORITY' and sv.specfileid=&quot; + str(specFileId)  + &quot; order by sv.id desc limit 1&quot;
++        self.__cat.debug(&quot;sql:&quot; + sql)
++        cursor.execute(sql)
++        for row in cursor.fetchall():
++            retval = row[0]
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++        
+     def getSpecFileIdsToVersions(self, specRepository):
+         retval = {}
+         conn = self.__getConnection()
+
+Modified: trunk/tools/pydar2/pydar/slavecommand.py
+===================================================================
+--- trunk/tools/pydar2/pydar/slavecommand.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/pydar/slavecommand.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -68,6 +68,9 @@
+     
+     def getVersion(self):
+         return self.__tempObj[&quot;version&quot;]
++        
++    def getAuthority(self):
++        return self.__tempObj[&quot;authority&quot;]
+     
+     # from Command.py end
+     
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/pydar/target.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -179,9 +179,8 @@
+             return True
+         
+     # move the results of a command (an srpm, rpm(s), buildlog.txt.gz, .. ) to their final place
+-    def moveCommandResults(self, filePath):
++    def moveCommandResults(self, command, commanddir):
+         if self.__moveCommandResultsScript != None:
+-            return self.__acceptCommandScript.runScript(filePath)
++            return self.__acceptCommandScript.runScript(command, commanddir)
+         else:
+             return True
+-    
+
+Modified: trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -31,6 +31,8 @@
+         return False
+     if string.find(aCommand.getSpecFileShortFileName(),&quot;perl-&quot;) &lt; 0:
+         return False
++    if string.find(aCommand.getAuthority(), &quot;dries&quot;) &lt; 0:
++        return False
+     # todo check authority
+     return True
+     
+
+Modified: trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -26,7 +26,7 @@
+ def getRpmData(rpmPath):
+     name = None
+     # this is NOT the version of the rpm, but the version known in the database of the spec file
+-    version = None
++    version = &quot;0&quot;
+     distroarchtag = None
+     
+     if string.find(rpmPath,'1.fc3.rf.i386') &gt; 0 or (string.find(rpmPath,'1.fc3') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
+
+Modified: trunk/tools/pydar2/scripts/rpmforgegetsources.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgegetsources.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/scripts/rpmforgegetsources.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -19,7 +19,7 @@
+ 
+ # the rpmforge subversion contains the patches and sometimes some sources
+ 
+-import os, commands, string, shutil, tempfile
++import os, commands, string, shutil, tempfile, posixpath
+ 
+ def RpmforgeGetSources(command, commanddir):
+     print &quot;RpmforgeGetSources start&quot;
+@@ -38,15 +38,34 @@
+         else:
+             print &quot;wont copy: &quot; + entry
+     # now download the other files with spectool or get them from a cache
+-    defines = command.getDefines()
+-    spectoolcommand = &quot;spectool &quot; + defines + &quot; -gf &quot; + fname
+-    print &quot;spectoolcommand: &quot; + spectoolcommand
+-    (tempfd, tempfilepath)   = tempfile.mkstemp('pydar2')
+-    print 'tempfilepath: ' + tempfilepath
+-    os.write(tempfd, &quot;cd &quot; + commanddir + &quot;\n&quot;)
+-    os.write(tempfd, spectoolcommand + &quot;\n&quot;)
+-    os.close(tempfd)
+-    print &quot;tempfd ok&quot;
+-    (status,output) = commands.getstatusoutput(&quot;/bin/bash &quot; + tempfilepath)
+-    print &quot;status: &quot; + str(status)
+-    print &quot;output: &quot; + (output)
++    # first check if there is already a cache directory
++    cacheDir = &quot;/var/lib/pydar2/cachedsources/&quot; + str(command.getSpecRepoId()) + &quot;/&quot; + str(command.getSpecFileId())  + &quot;/&quot; + str(command.getVersion()) + &quot;/&quot;
++    print &quot;cacheDir set to: &quot; + cacheDir
++    if posixpath.isdir(cacheDir):
++        # the cacheDir exists, lets use it
++        print &quot;cachedir ok&quot;
++    else:
++        # the cacheDir does not exist, create it and fill it
++        os.makedirs(cacheDir)
++        print &quot;cacheDir created&quot;
++        defines = command.getDefines()
++        spectoolcommand = &quot;spectool &quot; + defines + &quot; -gf &quot; + os.path.join(commanddir, fname)
++        print &quot;spectoolcommand: &quot; + spectoolcommand
++        (tempfd, tempfilepath)   = tempfile.mkstemp('pydar2')
++        print 'tempfilepath: ' + tempfilepath
++        os.write(tempfd, &quot;cd &quot; + cacheDir + &quot;\n&quot;)
++        os.write(tempfd, spectoolcommand + &quot;\n&quot;)
++        os.close(tempfd)
++        print &quot;tempfd ok&quot;
++        (status,output) = commands.getstatusoutput(&quot;/bin/bash &quot; + tempfilepath)
++        print &quot;status: &quot; + str(status)
++        print &quot;output: &quot; + (output)
++    # now copy everything from the cache to the commanddir
++    dirlist = os.listdir(cacheDir)
++    for entry in dirlist:
++        rindex = string.rfind(entry,'.spec')
++    if os.path.isfile(os.path.join(cacheDir,entry)) and not (rindex &gt; 0 and rindex == len(entry) - len('.spec')):
++        print &quot;lets copy: &quot; + entry
++        shutil.copy(os.path.join(cacheDir,entry), commanddir)
++    else:
++        print &quot;wont copy: &quot; + entry
+
+Modified: trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-06-02 09:36:52 UTC (rev 3269)
++++ trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-06-02 16:18:13 UTC (rev 3270)
+@@ -17,10 +17,11 @@
+ # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ # Copyright 2004 Dries Verachtert
+ 
+-# this script gets the versionid, name and distroarchtag from an srpm
+-# this only works if the versionid is added to the first line of the changelog
++# this script must move the results of one command. it gets the command and the directory where it can find the rpms and the buildlog
++# if the commanddir is accepted and if the rpms are moved, then it should return True, otherwise False
+ 
+-def moveCommandResults():
+-    todo
++def moveCommandResults(command, commanddir):
++    print &quot;moveCommandResults start, commanddir:&quot; + commanddir
++    return False
+     
+     
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002071.html">[svn] r3269 - trunk/rpms/anjuta
+</A></li>
+	<LI>Next message: <A HREF="002073.html">[svn] r3271 - in trunk/tools/pydar2: . pydar scripts sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2072">[ date ]</a>
+              <a href="thread.html#2072">[ thread ]</a>
+              <a href="subject.html#2072">[ subject ]</a>
+              <a href="author.html#2072">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2356 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2356%20-%20trunk/tools/dstat&In-Reply-To=%3C20041031173819.9F3DD17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001161.html">
+   <LINK REL="Next"  HREF="001163.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2356 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2356%20-%20trunk/tools/dstat&In-Reply-To=%3C20041031173819.9F3DD17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2356 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Oct 31 18:38:19 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001161.html">[SVN] r2355 - trunk/tools/dload
+</A></li>
+        <LI>Next message: <A HREF="001163.html">[SVN] r2357 - in trunk/rpms: . pisg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1162">[ date ]</a>
+              <a href="thread.html#1162">[ thread ]</a>
+              <a href="subject.html#1162">[ subject ]</a>
+              <a href="author.html#1162">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-10-31 18:38:17 +0100 (Sun, 31 Oct 2004)
+New Revision: 2356
+
+Modified:
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+Log:
+Release 0.4 going public.
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-10-31 17:27:13 UTC (rev 2355)
++++ trunk/tools/dstat/TODO	2004-10-31 17:38:17 UTC (rev 2356)
+@@ -19,3 +19,4 @@
+ 
+ ### Bugs
+ + Implement protection against counter rollovers
+++ If you have 2 devices with the same name, -I will only work on the first one
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-10-31 17:27:13 UTC (rev 2355)
++++ trunk/tools/dstat/dstat	2004-10-31 17:38:17 UTC (rev 2356)
+@@ -175,8 +175,7 @@
+ 		ret = ''
+ 		for str in self.nick:
+ 			ret = ret + str[0:self.len].center(self.len).replace(' ', '_')
+-			if str != self.nick[-1]:
+-				ret = ret + ' '
++			if str != self.nick[-1]: ret = ret + ' '
+ 		return ret
+ 
+ 	def check(self):
+@@ -223,7 +222,7 @@
+ 				self.cn2['wait'] = int(l[5])
+ 				self.cn2['sum'] = self.cn2['user'] + self.cn2['sys'] + self.cn2['idle'] + self.cn2['wait']
+ 		for name in self.vars:
+-			self.val[name] = (self.cn2[name]-self.cn1[name])*100.0/(self.cn2['sum']-self.cn1['sum'])
++			self.val[name] = (100.0 * (self.cn2[name]-self.cn1[name]) + (self.cn2['sum']-self.cn1['sum'])/2) /(self.cn2['sum']-self.cn1['sum'])
+ 		self.cn1.update(self.cn2)
+ 
+ class dstat_disk(dstat):
+@@ -623,10 +622,10 @@
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split(); name = l[0]
+ 			if l[0] in self.vars:
+-				self.cn2[l[0]] = int(l[1]) /op.sleep
++				self.cn2[l[0]] = int(l[1])
+ 		if count != 0:
+ 			for name in self.vars:
+-				self.val[name] = self.cn2[name]-self.cn1[name]
++				self.val[name] = (self.cn2[name]-self.cn1[name]) / op.sleep
+ 		self.cn1.update(self.cn2)
+ 
+ 	def show(self):
+@@ -650,7 +649,10 @@
+ 	while len(str(var)) &gt; max-1:
+ 		var = int(var / base * 1.0)
+ 		c = c + 1
+-	return str(int(round(var))).rjust(max-1) + units[c]
++	if var != 0:
++		return str(int(round(var))).rjust(max-1) + units[c]
++	else:
++		return ' ' * (max-2) + '0 '
+ 
+ def getwinsize():
+ 	s = struct.pack(&quot;HHHH&quot;, 0, 0, 0, 0)
+@@ -726,6 +728,8 @@
+ 		if not o.check():
+ 			olist.remove(o)
+ 
++	if os.geteuid() == 0:
++		os.nice(-10)
+ #	sys.setcheckinterval(op.sleep * 1.5 * 100)
+ 	signal.signal(signal.SIGALRM, handler)
+ 	while count != op.count:
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2004-10-31 17:27:13 UTC (rev 2355)
++++ trunk/tools/dstat/dstat.spec	2004-10-31 17:38:17 UTC (rev 2356)
+@@ -59,8 +59,7 @@
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS ChangeLog COPYING README TODO 
+ #%doc *.conf
+-#%config(noreplace) %{_sysconfdir}/dconf.conf
+-#%config(noreplace) %{_sysconfdir}/dconf-custom.conf
++#%config(noreplace) %{_sysconfdir}/dstat.conf
+ %{_bindir}/dstat
+ 
+ %changelog
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001161.html">[SVN] r2355 - trunk/tools/dload
+</A></li>
+	<LI>Next message: <A HREF="001163.html">[SVN] r2357 - in trunk/rpms: . pisg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1162">[ date ]</a>
+              <a href="thread.html#1162">[ thread ]</a>
+              <a href="subject.html#1162">[ subject ]</a>
+              <a href="author.html#1162">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

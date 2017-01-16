@@ -1,0 +1,130 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] Bug in libpqxx (related to visibility)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Bug%20in%20libpqxx%20%28related%20to%20visibility%29&In-Reply-To=%3Ce814db780904061858y65f2c30eo279ef465c6c41ace%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="027013.html">
+   <LINK REL="Next"  HREF="027007.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] Bug in libpqxx (related to visibility)</H1>
+    <B>Filipe Brandenburger</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Bug%20in%20libpqxx%20%28related%20to%20visibility%29&In-Reply-To=%3Ce814db780904061858y65f2c30eo279ef465c6c41ace%40mail.gmail.com%3E"
+       TITLE="[users] Bug in libpqxx (related to visibility)">filbranden at gmail.com
+       </A><BR>
+    <I>Tue Apr  7 03:58:47 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="027013.html">[users] Re: clamav-milter
+</A></li>
+        <LI>Next message: <A HREF="027007.html">[users] Bug in libpqxx (related to visibility)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27004">[ date ]</a>
+              <a href="thread.html#27004">[ thread ]</a>
+              <a href="subject.html#27004">[ subject ]</a>
+              <a href="author.html#27004">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello,
+
+I am migrating some programs that use libpqxx from CentOS 4 to CentOS
+5, and I found an issue with libpqxx-2.6.9 from RPMforge.
+
+I built a Python module that uses the library. However, in Python 5,
+when I try to load it, I get this error:
+
+ImportError: libxxx.so: undefined symbol:
+_ZN4pqxx8internal19freemem_result_dataEPNS0_11result_dataE
+
+I rebuilt the RPM, and I traced the issue to the warnings I get when
+building the library:
+
+../include/pqxx/result.hxx:63: warning: lowering visibility of 'void
+pqxx::internal::freemem_result_data(pqxx::internal::result_data*)' to
+match its type
+
+And more, I saw that the RPM removes the -Werror that the library uses
+to build by default (which prevents the library from building cleanly
+under CentOS 5).
+
+Googling for the error message, I found that it was a &quot;feature&quot;
+introduced in GCC 4.1 that ships with CentOS 5, and that it was
+actually retracted in later versions, however the issue is still
+present in CentOS 5 (even in 5.3):
+<A HREF="http://gcc.gnu.org/ml/gcc-patches/2006-07/msg00919.html">http://gcc.gnu.org/ml/gcc-patches/2006-07/msg00919.html</A>
+
+I compared the code with the includes in libpqxx-3.0, and I saw that
+there they explicitely set the visibility.
+
+So I came up with a patch that actually fixes the issue. I'm pasting it here:
+
+
+====================&gt; cut patch &lt;====================
+diff -Naur libpqxx-2.6.9.orig/include/pqxx/prepared_statement.hxx
+libpqxx-2.6.9/include/pqxx/prepared_statement.hxx
+--- libpqxx-2.6.9.orig/include/pqxx/prepared_statement.hxx
+2007-01-29 14:18:52.000000000 -0500
++++ libpqxx-2.6.9/include/pqxx/prepared_statement.hxx   2009-04-06
+21:27:43.000000000 -0400
+@@ -141,7 +141,7 @@
+ namespace internal
+ {
+ /// Internal representation of a prepared statement definition
+-struct PQXX_PRIVATE prepared_def
++struct PQXX_LIBEXPORT prepared_def
+ {
+   /// Parameter definition
+   struct param
+diff -Naur libpqxx-2.6.9.orig/include/pqxx/result.hxx
+libpqxx-2.6.9/include/pqxx/result.hxx
+--- libpqxx-2.6.9.orig/include/pqxx/result.hxx  2007-01-29
+14:18:52.000000000 -0500
++++ libpqxx-2.6.9/include/pqxx/result.hxx       2009-04-06
+21:27:14.000000000 -0400
+@@ -60,7 +60,7 @@
+   ~result_data();
+ };
+
+-void freemem_result_data(result_data *) throw ();
++void PQXX_LIBEXPORT freemem_result_data(result_data *) throw ();
+ template&lt;&gt; inline
+ void PQAlloc&lt;result_data&gt;::freemem() throw () { freemem_result_data(m_Obj); }
+ } // namespace internal
+====================&gt; cut patch &lt;====================
+
+
+Another issue with that RPM is that it is not easy to upgrade it,
+since if you create a 3.0 RPM of libpqxx with the libpqxx-3.0.so file,
+all the programs already linked to libpqxx-2.6.9.so will become
+broken. I guess the right thing to do in this case would be creating
+an RPM with the version on the name, like libpqxx_2_6_9.rpm or
+something like that.
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="027013.html">[users] Re: clamav-milter
+</A></li>
+	<LI>Next message: <A HREF="027007.html">[users] Bug in libpqxx (related to visibility)
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27004">[ date ]</a>
+              <a href="thread.html#27004">[ thread ]</a>
+              <a href="subject.html#27004">[ subject ]</a>
+              <a href="author.html#27004">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

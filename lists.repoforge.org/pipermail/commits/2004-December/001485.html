@@ -1,0 +1,156 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2680 - trunk/rpms/xine-lib
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2680%20-%20trunk/rpms/xine-lib&In-Reply-To=%3C20041216090346.308B518900%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001484.html">
+   <LINK REL="Next"  HREF="001486.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2680 - trunk/rpms/xine-lib</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2680%20-%20trunk/rpms/xine-lib&In-Reply-To=%3C20041216090346.308B518900%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2680 - trunk/rpms/xine-lib">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Dec 16 10:03:46 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001484.html">[SVN] r2679 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="001486.html">[SVN] r2681 - trunk/rpms/xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1485">[ date ]</a>
+              <a href="thread.html#1485">[ thread ]</a>
+              <a href="subject.html#1485">[ subject ]</a>
+              <a href="author.html#1485">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-12-16 10:03:42 +0100 (Thu, 16 Dec 2004)
+New Revision: 2680
+
+Removed:
+   trunk/rpms/xine-lib/xine-lib-1-rc7-memleak.patch
+Modified:
+   trunk/rpms/xine-lib/xine-lib.spec
+Log:
+Update.
+
+
+Deleted: trunk/rpms/xine-lib/xine-lib-1-rc7-memleak.patch
+===================================================================
+--- trunk/rpms/xine-lib/xine-lib-1-rc7-memleak.patch	2004-12-15 11:39:34 UTC (rev 2679)
++++ trunk/rpms/xine-lib/xine-lib-1-rc7-memleak.patch	2004-12-16 09:03:42 UTC (rev 2680)
+@@ -1,29 +0,0 @@
+-Update of /cvsroot/xine/xine-lib/src/libxinevdec
+-In directory sc8-pr-cvs1.sourceforge.net:/tmp/cvs-serv12895
+-
+-Modified Files:
+-	image.c 
+-Log Message:
+-fix a huge memleak (thanks to Jerome for reporting)
+-
+-
+-Index: image.c
+-===================================================================
+-RCS file: /cvsroot/xine/xine-lib/src/libxinevdec/image.c,v
+-retrieving revision 1.15
+-retrieving revision 1.16
+-diff -u -r1.15 -r1.16
+---- src/libxinevdec/image.c	11 Jul 2004 21:38:05 -0000	1.15
+-+++ src/libxinevdec/image.c	3 Dec 2004 15:46:42 -0000	1.16
+-@@ -263,7 +263,10 @@
+- 
+- 	*out = le2me_16(*out);
+-       }
+-+      
+-+      free(this-&gt;rows[row]);
+-     }
+-+    free(this-&gt;rows);
+-     _x_stream_info_set(this-&gt;stream, XINE_STREAM_INFO_FRAME_DURATION, img-&gt;duration);
+-     img-&gt;draw(img, this-&gt;stream);
+-     img-&gt;free(img);
+-
+
+Modified: trunk/rpms/xine-lib/xine-lib.spec
+===================================================================
+--- trunk/rpms/xine-lib/xine-lib.spec	2004-12-15 11:39:34 UTC (rev 2679)
++++ trunk/rpms/xine-lib/xine-lib.spec	2004-12-16 09:03:42 UTC (rev 2680)
+@@ -29,18 +29,17 @@
+ %{?yd3:%define _without_theora 1}
+ 
+ %define libname libxine1
+-%define libver  1-rc7
++%define libver  1-rc8
+ %define apiver  1.0.0
+ 
+ Summary: Core library of the xine multimedia player
+ Name: xine-lib
+ Version: %{apiver}
+-Release: 0.17.rc7
++Release: 0.17.rc8
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://xinehq.de/">http://xinehq.de/</A>
+ Source: <A HREF="http://dl.sf.net/xine/xine-lib-%{libver">http://dl.sf.net/xine/xine-lib-%{libver</A>}.tar.gz
+-Patch: xine-lib-1-rc7-memleak.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires: libdvdcss
+ BuildRequires: gcc-c++, pkgconfig, XFree86-devel, zlib-devel
+@@ -102,13 +101,14 @@
+ 
+ %prep
+ %setup -n %{name}-%{libver}
+-%patch -p0 -b .memleak
+ 
+ 
+ %build
++CFLAGS=&quot;%{optflags} -fPIC&quot; \
+ %configure \
+     --program-prefix=&quot;%{?_program_prefix}&quot; \
+     --x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot; \
++    --enable-shared-xv \
+     --with-pic \
+     %{?_without_alsa:--disable-alsa} \
+     %{!?_with_ext-dvdnav:--with-included-dvdnav}
+@@ -154,6 +154,10 @@
+ 
+ 
+ %changelog
++* Thu Dec 16 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.0-0.17.rc8
++- Update to 1.0rc8 and remove obsolete memleak patch.
++- Add --enable-shared-xv as compilation against static Xv fails on x86_64.
++
+ * Fri Dec  3 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.0-0.17.rc7
+ - Added xine-lib-1-rc7-memleak.patch, thanks to Bastien Nocera.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001484.html">[SVN] r2679 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="001486.html">[SVN] r2681 - trunk/rpms/xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1485">[ date ]</a>
+              <a href="thread.html#1485">[ thread ]</a>
+              <a href="subject.html#1485">[ subject ]</a>
+              <a href="author.html#1485">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

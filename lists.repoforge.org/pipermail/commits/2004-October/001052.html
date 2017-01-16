@@ -1,0 +1,149 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2246 - trunk/rpms/firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2246%20-%20trunk/rpms/firefox&In-Reply-To=%3C20041003163252.3737517F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001051.html">
+   <LINK REL="Next"  HREF="001053.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2246 - trunk/rpms/firefox</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2246%20-%20trunk/rpms/firefox&In-Reply-To=%3C20041003163252.3737517F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2246 - trunk/rpms/firefox">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Oct  3 18:32:52 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001051.html">[SVN] r2245 - in trunk/rpms: mathomatic orsa smbc tellico	vncselector
+</A></li>
+        <LI>Next message: <A HREF="001053.html">[SVN] r2247 - trunk/rpms/orsa
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1052">[ date ]</a>
+              <a href="thread.html#1052">[ thread ]</a>
+              <a href="subject.html#1052">[ subject ]</a>
+              <a href="author.html#1052">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-10-03 18:32:50 +0200 (Sun, 03 Oct 2004)
+New Revision: 2246
+
+Modified:
+   trunk/rpms/firefox/firefox.spec
+Log:
+Some changes to the script, -safemode now working (yet)
+
+Modified: trunk/rpms/firefox/firefox.spec
+===================================================================
+--- trunk/rpms/firefox/firefox.spec	2004-10-03 15:47:00 UTC (rev 2245)
++++ trunk/rpms/firefox/firefox.spec	2004-10-03 16:32:50 UTC (rev 2246)
+@@ -1,6 +1,8 @@
+ # $Id$
+ # Authority: dag
+ 
++### FIXME: It's obvious that the mozilla developers are not able to release something that is working on Linux without patches, don't expect it to work without problems.
++
+ %{?dist: %{expand: %%define %dist 1}}
+ 
+ %{?rh7:%define _without_freedesktop 1}
+@@ -10,8 +12,8 @@
+ 
+ Summary: Mozilla Firefox web browser
+ Name: firefox
+-Version: 0.10
+-Release: 0.2
++Version: 0.10.1
++Release: 0.1
+ License: MPL/LGPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.mozilla.org/projects/firefox/">http://www.mozilla.org/projects/firefox/</A>
+@@ -122,6 +124,8 @@
+ [ $? -eq 2 ] &amp;&amp; RUNNING=0
+ 
+ REMOTE=0
++METHOD=&quot;new-window&quot;
++
+ while [ &quot;$1&quot; ]; do
+ 	case &quot;$1&quot; in
+ #	  -mail|-email)
+@@ -134,6 +138,18 @@
+ #			MOZARGS=&quot;-remote xfeDoCommand(composeMessage) $MOZARGS&quot;
+ #			REMOTE=1
+ #		fi;;
++#	  -safemode)
++#		FONTCONFIG_PATH=&quot;&quot;
++#		MOZLOCALE=&quot;en_US&quot;
++#		LD_LIBRARY_PATH=&quot;$MOZILLA_FIVE_HOME${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}&quot;
++#		MOZ_PLUGIN_PATH=&quot;&quot;
++#		RUNNING=1
++#		MOZARGS=&quot;-P safemode&quot;
++#		MOZ_PROGRAM=&quot;ltrace -o firefox-ltrace -S -f $MOZ_PROGRAM-bin&quot;
++#		HOME=&quot;/tmp/dag&quot;
++#		rm -rf $HOME; mkdir -p $HOME
++#		export FONTCONFIG_PATH LD_LIBRARY_PATH MOZ_PLUGIN_PATH HOME
++#		;;
+ 	  -remote)
+ 		if [ $REMOTE -ne 1 ]; then
+ 			MOZARGS=&quot;-remote $2 $MOZARGS&quot;
+@@ -144,6 +160,9 @@
+ 		MOZARGS=&quot;$MOZARGS -profilemanager&quot;
+ 		REMOTE=1
+ 		;;
++	  -t|-tab)
++		METHOD=&quot;new-tab&quot;
++		;;
+ 	  -*)
+ 		MOZARGS=&quot;$MOZARGS $1&quot;
+ 		;;
+@@ -156,7 +175,7 @@
+ 			URL=&quot;$1&quot;
+ 		fi
+ 		if [ $RUNNING -eq 0 -a $REMOTE -ne 1 ]; then
+-			MOZARGS=&quot;$MOZARGS -remote openURL(\'$URL\',new-window)&quot;
++			MOZARGS=&quot;$MOZARGS -remote openURL($URL,$METHOD)&quot;
+ 			REMOTE=1
+ 		else
+ 			MOZARGS=&quot;$MOZARGS $URL&quot;
+@@ -165,8 +184,10 @@
+ 	shift
+ done
+ 
+-if [ $RUNNING -eq 0 -a $REMOTE -ne 1 ]; then
++if [ $RUNNING -ne 0 -a $REMOTE -ne 1 ]; then
+ 	exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS -remote &quot;xfeDoCommand(openBrowser)&quot;
++elif [ $REMOTE -ne 1 ]; then
++	exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS -remote &quot;openURL(about:blank,$METHOD)&quot;
+ else
+ 	exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS &amp;
+ fi;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001051.html">[SVN] r2245 - in trunk/rpms: mathomatic orsa smbc tellico	vncselector
+</A></li>
+	<LI>Next message: <A HREF="001053.html">[SVN] r2247 - trunk/rpms/orsa
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1052">[ date ]</a>
+              <a href="thread.html#1052">[ thread ]</a>
+              <a href="subject.html#1052">[ subject ]</a>
+              <a href="author.html#1052">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7992 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7992%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911051639.nA5Gdgn4024170%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006786.html">
+   <LINK REL="Next"  HREF="006788.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7992 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7992%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911051639.nA5Gdgn4024170%40surya.karan.org%3E"
+       TITLE="[svn] r7992 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Nov  5 17:39:42 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006786.html">[svn] r7991 - in trunk/tools/dstat: . docs plugins
+</A></li>
+        <LI>Next message: <A HREF="006788.html">[svn] r7993 - in trunk/rpms: . synergy-plus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6787">[ date ]</a>
+              <a href="thread.html#6787">[ thread ]</a>
+              <a href="subject.html#6787">[ subject ]</a>
+              <a href="author.html#6787">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-11-05 16:39:42 +0000 (Thu, 05 Nov 2009)
+New Revision: 7992
+
+Added:
+   trunk/tools/dstat/plugins/dstat_battery_remain.py
+   trunk/tools/dstat/plugins/dstat_proccount.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/plugins/dstat_vzio.py
+Log:
+- Added external dstat_proccount plugin to show total number of process (Dean Wilson)
+- Added external dstat_vzio plugin to show I/O account number per OpenVZ container
+- Added external dstat_battery_remain plugin to show how much battery time is remaining
+
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-11-05 15:04:01 UTC (rev 7991)
++++ trunk/tools/dstat/ChangeLog	2009-11-05 16:39:42 UTC (rev 7992)
+@@ -18,6 +18,9 @@
+ - Allow any plugin to be added by using long options (ie. --topbio)
+ - Added external dstat_memcache_hits plugin to show memcache hits and misses (Dean Wilson)
+ - Various changes to simplify plugin interface and performance improvements
++- Added external dstat_proccount plugin to show total number of process (Dean Wilson)
++- Added external dstat_vzio plugin to show I/O account number per OpenVZ container
++- Added external dstat_battery_remain plugin to show how much battery time is remaining
+ - This release was 'sponsored' by the Linux Foundation during the Japan Linux Symposium
+ 
+ * 0.6.9 - Locarno - release 02/12/2008
+
+Added: trunk/tools/dstat/plugins/dstat_battery_remain.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_battery_remain.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_battery_remain.py	2009-11-05 16:39:42 UTC (rev 7992)
+@@ -0,0 +1,44 @@
++### Dstat battery plugin
++### Displays battery information from ACPI
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++class dstat_battery_remain(dstat):
++    def __init__(self):
++        self.name = 'remain'
++        self.type = 't'
++        self.width = 5
++        self.scale = 0
++
++    def vars(self):
++        ret = []
++        for battery in os.listdir('/proc/acpi/battery/'):
++            for line in dopen('/proc/acpi/battery/'+battery+'/state').readlines():
++                l = line.split()
++                if len(l) &lt; 2: continue
++                if l[0] == 'present:' and l[1] == 'yes':
++                    ret.append(battery)
++        ret.sort()
++        return ret
++
++    def nick(self):
++        return [name.lower() for name in self.vars]
++
++    def extract(self):
++        for battery in self.vars:
++            for line in dopen('/proc/acpi/battery/'+battery+'/state').readlines():
++                l = line.split()
++                if len(l) &lt; 3: continue
++                if l[0:2] == ['remaining', 'capacity:']:
++                    remaining = int(l[2])
++                    continue
++                elif l[0:2] == ['present', 'rate:']:
++                    rate = int(l[2])
++                    continue
++
++            if rate and remaining:
++                self.val[battery] = remaining * 60 / rate
++            else:
++                self.val[battery] = -1
++
++# vim:ts=4:sw=4:et
+
+Added: trunk/tools/dstat/plugins/dstat_proccount.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_proccount.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_proccount.py	2009-11-05 16:39:42 UTC (rev 7992)
+@@ -0,0 +1,13 @@
++### Dstat Display Process Count plugin
++### Displays the number of processes on a machine
++
++class dstat_proccount(dstat):
++    def __init__(self):
++        self.name   = 'procs'
++        self.type = 'd'
++        self.width = 4
++        self.scale = 10
++        self.vars   = ('total',)
++
++    def extract(self):
++        self.val['total'] = len(glob.glob('/proc/[0-9]*'))
+
+
+Property changes on: trunk/tools/dstat/plugins/dstat_proccount.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/dstat/plugins/dstat_vzio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vzio.py	2009-11-05 15:04:01 UTC (rev 7991)
++++ trunk/tools/dstat/plugins/dstat_vzio.py	2009-11-05 16:39:42 UTC (rev 7992)
+@@ -20,8 +20,8 @@
+ 
+ class dstat_vzio(dstat):
+     def __init__(self):
+-        self.nick = ['read', 'write']
+-        self.cols = 2
++        self.nick = ['read', 'write', 'dirty', 'cancel', 'missed']
++        self.cols = len(self.nick)
+         info(1, 'Module dstat_vzio is still experimental.')
+ 
+     def name(self):
+@@ -36,6 +36,14 @@
+         ret = varlist
+         return ret
+ 
++    def check(self):
++        if not os.path.exists('/proc/vz'):
++            raise Exception, 'System does not have OpenVZ support'
++        elif not os.path.exists('/proc/bc'):
++            raise Exception, 'System does not have (new) OpenVZ beancounter support'
++        elif not glob.glob('/proc/bc/*/ioacct'):
++            raise Exception, 'System does not have any OpenVZ containers'
++
+     def extract(self):
+         global update
+         for veid in self.vars:
+@@ -50,10 +58,8 @@
+                 self.set2['total'][index] = self.set2['total'][index] + long(l[1])
+ #            print veid, self.val[veid], self.set2[veid][0], self.set2[veid][1]
+ #            print veid, self.val[veid], self.set1[veid][0], self.set1[veid][1]
+-            self.val[veid] = (
+-                (self.set2[veid][0] - self.set1[veid][0]) / tick,
+-                (self.set2[veid][1] - self.set1[veid][1]) / tick,
+-            )
++            for i in range(len(self.nick)):
++                self.val[veid][i] = (self.set2[veid][i] - self.set1[veid][i]) / tick
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006786.html">[svn] r7991 - in trunk/tools/dstat: . docs plugins
+</A></li>
+	<LI>Next message: <A HREF="006788.html">[svn] r7993 - in trunk/rpms: . synergy-plus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6787">[ date ]</a>
+              <a href="thread.html#6787">[ thread ]</a>
+              <a href="subject.html#6787">[ subject ]</a>
+              <a href="author.html#6787">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

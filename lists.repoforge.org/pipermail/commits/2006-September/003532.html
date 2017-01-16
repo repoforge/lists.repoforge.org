@@ -1,0 +1,860 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4732 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4732%20-%20trunk/tools/yam&In-Reply-To=%3C20060918161403.B20DC318107%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003531.html">
+   <LINK REL="Next"  HREF="003533.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4732 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4732%20-%20trunk/tools/yam&In-Reply-To=%3C20060918161403.B20DC318107%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4732 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Sep 18 18:14:03 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003531.html">[svn] r4731 - in trunk/rpms: . dvdrip perl-Video-DVDRip
+</A></li>
+        <LI>Next message: <A HREF="003533.html">[svn] r4733 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3532">[ date ]</a>
+              <a href="thread.html#3532">[ thread ]</a>
+              <a href="subject.html#3532">[ subject ]</a>
+              <a href="author.html#3532">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-09-18 18:14:02 +0200 (Mon, 18 Sep 2006)
+New Revision: 4732
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/setup.py
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Added Repo class and fixed a bug in repomd() wrt. groupfile usage
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-09-18 15:16:56 UTC (rev 4731)
++++ trunk/tools/yam/ChangeLog	2006-09-18 16:14:02 UTC (rev 4732)
+@@ -6,6 +6,8 @@
+ - Added rhn-download-all directive to install all available updates from RHN
+ - Removed repo 'local' as a special case, if you need it define it as 'local ='
+ - Don't create the repo srcdir since it might be a symlink (Gareth Armstrong)
++- Create Repo class and moved repository-related functionality to this class
++- Fixed groupfile option of createrepo (Bowie Bailey)
+ 
+ * 0.8.1 - Long overdue - released 22/08/2006
+ - Added gensystemid to installation (Ian Forde)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-09-18 15:16:56 UTC (rev 4731)
++++ trunk/tools/yam/TODO	2006-09-18 16:14:02 UTC (rev 4732)
+@@ -41,7 +41,6 @@
+   (Would like to display only file-transfers, sadly rsync/lftp do not allow that)
+ 
+ ### Configuration
+-+ Provide and use a /etc/yam.conf.d/ directory
+ + Allow to specify rsync/lftp options on a per distribution basis (see ~/.lftp/rc)
+ + Get rid of iso= and allow each repo to include ISOs (eg. <A HREF="file:///mnt/iso/*.iso">file:///mnt/iso/*.iso</A>)
+   This would be very useful to have a separate gfs, lacd, rhaps, rhds2 CD repo
+@@ -70,7 +69,6 @@
+ ### Internal python
+ + Improve the copy/symlink/rename functions, using exceptions
+ + Mirroring code should be in a separate class
+-+ Repositories should go in seperate classes
+ + File-operations may need to go to a separate class, use shutil ? (needs python 2.3)
+ + Improve the remove and symlink stage (combine the check of existing links with creating and removing)
+ 
+
+Modified: trunk/tools/yam/setup.py
+===================================================================
+--- trunk/tools/yam/setup.py	2006-09-18 15:16:56 UTC (rev 4731)
++++ trunk/tools/yam/setup.py	2006-09-18 16:14:02 UTC (rev 4732)
+@@ -31,7 +31,7 @@
+ 
+ setup(
+ 	name = 'yam',
+-	version = '0.8.1',
++	version = '0.8.1svn',
+ 	description = 'RPM repository mirroring tool',
+ 	author = 'Dag Wieers',
+ 	author_email ='<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>',
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-09-18 15:16:56 UTC (rev 4731)
++++ trunk/tools/yam/yam	2006-09-18 16:14:02 UTC (rev 4732)
+@@ -20,7 +20,7 @@
+ __version__ = &quot;$Revision$&quot;
+ # $Source$
+ 
+-VERSION = '0.8.1'
++VERSION = '0.8.1svn'
+ 
+ archs = {
+ 	'i386': ('i386', 'i486', 'i586', 'i686', 'athlon'),
+@@ -250,31 +250,32 @@
+ 				for arch in archs.keys():
+ 					if section.endswith('-%s' % arch):
+ 						archlist = ( arch, )
+-						dist = section.split('-%s' % arch)[0]
++						distname = section.split('-%s' % arch)[0]
+ 						break
+ 				else:
+ 					archlist = self.getoption(section, 'arch', self.arch).split()
+-					dist = section
++					distname = section
+ 
+ 				### Add a distribution for each arch
+ 				for arch in archlist:
+-					self.dists.append(Dist(self.srcdir, self.wwwdir, dist, arch))
+-					self.dists[-1].arch = arch
+-					self.dists[-1].metadata = self.metadata.split()
++					dist = Dist(self.srcdir, self.wwwdir, distname, arch)
++					self.dists.append(dist)
++					dist.arch = arch
++					dist.metadata = self.metadata.split()
+ 					for option in self.cfg.options(section):
+ 						if option in ('iso', 'name', 'release', 'repo', 'rhnrelease'):
+-							setattr(self.dists[-1], option, self.cfg.get(section, option))
++							setattr(dist, option, self.cfg.get(section, option))
+ 						elif option in ('arch', 'dist', 'nick'):
+ 							pass
+ 						elif option in ('metadata',):
+-							setattr(self.dists[-1], option, self.cfg.get(section, option).split())
++							setattr(dist, option, self.cfg.get(section, option).split())
+ 						else:
+-							self.dists[-1].repos[option] = self.cfg.get(section, option)
+-					self.dists[-1].rewrite()
++							dist.repos.append(Repo(option, self.cfg.get(section, option), dist))
+ 
+-		def distsort(a, b):
+-			return cmp(a.nick, b.nick)
+-			
++					dist.repos.sort(reposort)
++
++					dist.rewrite()
++
+ 		self.dists.sort(distsort)
+ 
+ 	def getoption(self, section, option, var):
+@@ -302,8 +303,7 @@
+ 		self.dir = os.path.join(wwwdir, self.nick)
+ 		self.iso = None
+ 		self.release = None
+-		self.repos = {}
+-		self.newrepos = []
++		self.repos = []
+ 		self.rhnrelease = None
+ 		self.srcdir = srcdir
+ 		self.discs = ()
+@@ -322,9 +322,9 @@
+ 		for key, value in vars(self).iteritems():
+ 			if isinstance(value, types.StringType):
+ 				setattr(self, key, substitute(value, list))
+-		for key, value in self.repos.iteritems():
+-			list['repo'] = key
+-			self.repos[key] = substitute(value, list)
++		for repo in self.repos:
++			list['repo'] = repo.name
++			repo.url = substitute(repo.url, list)
+ 
+ 	def findisos(self):
+ 		&quot;Return a list of existing ISO files&quot;
+@@ -355,9 +355,28 @@
+ 						self.isos.append(iso)
+ 		if self.isos:
+ 			info(5, '%s: Found %d ISO files at %s' % (self.nick, len(self.isos), absfile))
++			self.repos.append(Repo('os', '', self))
++			self.repos.sort(reposort)
++
+ 		else:
+ 			info(4, '%s: No ISO files found !' % self.nick)
+ 
++	def listrepos(self, names=None):
++		ret = []
++		for repo in self.repos:
++			if names and repo.name in names:
++				ret.append(repo)
++			else:
++				ret.append(repo)
++		return ret
++
++	def listchangedrepos(self):
++		ret = []
++		for repo in self.repos:
++			if repo.changed:
++				ret.append(repo)
++		return ret
++
+ 	def lock(self, action, repo=''):
+ 		lockfile = os.path.join(cf.lockdir, self.nick, action + '-' + repo + '.lock')
+ 		mkdir(os.path.dirname(lockfile))
+@@ -449,103 +468,187 @@
+ 				info(2, '%s: Unmount ISO %s from %s' % (self.nick, os.path.basename(iso), mount))
+ 				run('%s %s' % (cf.cmd['umount'], mount))
+ 
+-	def checkrepos(self):
++	def html(self):
++		&quot;Put html information in repository&quot;
++		mkdir(self.dir)
++		if not op.dryrun:
++			open(os.path.join(self.dir, '.title'), 'w').write(self.name)
++		symlink(os.path.join(cf.htmldir, 'HEADER.repo.shtml'), os.path.join(self.dir, 'HEADER.shtml'))
++		symlink(os.path.join(cf.htmldir, 'README.repo.shtml'), os.path.join(self.dir, 'README.shtml'))
++
++class Repo:
++	def __init__(self, name, url, dist):
++		self.name = name
++		self.url = url
++		self.dist = dist
++		self.srcdir = os.path.join(cf.srcdir, dist.nick, self.name)
++		self.wwwdir = os.path.join(cf.wwwdir, dist.nick, 'RPMS.' + self.name)
++
++		self.changed = False
++		self.skip = False
++
++	def mirror(self):
++		&quot;Check URL and pass on to mirror-functions.&quot;
++		global exitcode
++		if self.name == 'all':
++			return
++		for url in self.url.split():
++			try:
++				info(2, '%s: Mirror packages from %s to %s' % (self.dist.nick, url, self.srcdir))
++				s, l, p, q, f, o = urlparse.urlparse(url)
++				if s in ('rsync', ):
++					mirrorrsync(url, self.srcdir)
++				elif s in ('ftp', ):
++					if cf.cmd['mirrordir']:
++						mirrormirrordir(url, self.srcdir)
++					else:
++						mirrorlftp(url, self.srcdir)
++				elif s in ('fish', 'http', 'https', 'sftp'):
++					mirrorlftp(url, self.srcdir)
++				elif s in ('file', ''):
++					mirrorfile(url, self.srcdir)
++				elif s in ('yam', ):
++					mirroryam(url, self.srcdir)
++				elif s in ('mc', ):
++					mirrormirrordir(url, self.srcdir)
++				elif s in ('rhn', 'rhns'):
++					mirrorrhn(url, self.srcdir, self.dist)
++				else:
++					error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
++			except YamMirrorException, e:
++				error(2, 'Mirroring failed for %s with message:\n  %s' % (url, e.value))
++				exitcode = 2
++		else:
++			### Create directory in case no URL is given
++			mkdir(self.srcdir)
++
++	def clean(self):
++		info(5, '%s: Removing %s symlinks' % (self.dist.nick, self.name))
++		repodir = os.path.join(self.wwwdir, 'RPMS.' + self.name)
++		remove(glob.glob(os.path.join(self.wwwdir, '*.rpm')))
++
++	def linkall(self):
++		&quot;Symlink all RPM packages that match a given arch&quot;
++
++		mkdir(self.wwwdir)
++		mkdir(os.path.join(cf.wwwdir, self.dist.nick, 'RPMS.all'))
++
++		srcdir = os.path.join(cf.srcdir, 'all', self.name)
++		info(5, '%s: Symlink %s packages from %s' % (self.dist.nick, self.name, srcdir))
++		os.path.walk(os.path.join(cf.srcdir, 'all', self.name), rpmlink, (self.dist, self.name))
++
++	def link(self, srcdir=None):
++		&quot;Symlink all RPM packages that match a given arch&quot;
++
++		mkdir(self.wwwdir)
++		mkdir(os.path.join(cf.wwwdir, self.dist.nick, 'RPMS.all'))
++
++		if not srcdir:
++			srcdir = self.srcdir
++
++		info(5, '%s: Symlink %s packages from %s' % (self.dist.nick, self.name, srcdir))
++		os.path.walk(srcdir, rpmlink, (self.dist, self.name))
++
++	def check(self):
+ 		&quot;Return what repositories require an update and write .newsha1sum&quot;
+-		self.newrepos = []
+-		self.oldrepos = self.repos.keys()
+-		self.oldrepos.sort()
+-		for repo in self.oldrepos:
+-			### Skip metadata generation if required (usually repo all)
+-			if repo in cf.skipmetadata.split():
+-				info(4, '%s: Skip metadata generation for repository %s' % (self.nick, repo))
+-				continue
+-			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+-			if not os.path.isdir(repodir):
+-				continue
+-			sha1file = os.path.join(repodir, '.sha1sum')
+-			remove(sha1file + '.tmp')
+-			cursha1 = sha1dir(repodir)
+-			if op.force:
+-				pass
+-			elif os.path.isfile(sha1file):
+-				oldsha1 = open(sha1file).read()
+-				if cursha1 != oldsha1:
+-					info(2, '%s: Repository %s has new packages.' % (self.nick, repo))
+-				else:
+-					info(5, '%s: Repository %s has not changed. Skipping.' % (self.nick, repo))
+-					continue
++#		for repo in self.listrepos():
++#			### Skip metadata generation if required (usually repo all)
++#			if repo.name in cf.skipmetadata.split():
++#				info(4, '%s: Skip metadata generation for repository %s' % (self.nick, repo.name))
++#				continue
++		if not os.path.isdir(self.wwwdir):
++			return
++		sha1file = os.path.join(self.wwwdir, '.sha1sum')
++		remove(sha1file + '.tmp')
++		cursha1 = sha1dir(self.wwwdir)
++		if op.force:
++			pass
++		elif os.path.isfile(sha1file):
++			oldsha1 = open(sha1file).read()
++			if cursha1 != oldsha1:
++				info(2, '%s: Repository %s has new packages.' % (self.dist.nick, self.name))
+ 			else:
+-				info(5, '%s: New repository %s detected.' % (self.nick, repo))
+-			writesha1(sha1file + '.tmp', cursha1)
+-			self.newrepos.append(repo)
+-		if self.newrepos:
+-			if 'all' in cf.skipmetadata.split():
+-				info(4, '%s: Skip metadata generation for repository %s' % (self.nick, 'all'))
+-			else:
+-				self.newrepos.append('all')
+-			self.newrepos.sort()
++				info(5, '%s: Repository %s has not changed. Skipping.' % (self.dist.nick, self.name))
++				return
++		else:
++			info(5, '%s: New repository %s detected.' % (self.dist.nick, self.name))
++		writesha1(sha1file + '.tmp', cursha1)
++		self.changed = True
++		if 'all' not in cf.skipmetadata.split():
++			self.repos['all'].new = True
+ 
+-	def writereposha1(self):
++	def writesha1(self):
+ 		&quot;Verify .newsha1sum and write a .sha1sum file per repository&quot;
+-		for repo in self.repos.keys() + ['all', ]:
+-			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+-			sha1file = os.path.join(repodir, '.sha1sum')
+-			if os.path.isfile(sha1file + '.tmp'):
+-				cursha1 = sha1dir(repodir)
+-				tmpsha1 = open(sha1file + '.tmp').read()
+-				remove(sha1file + '.tmp')
+-				if cursha1 == tmpsha1:
+-					writesha1(sha1file, cursha1)
+-				else:
+-					info(5, '%s: Checksum is different. expect: %s, got: %s' % (self.nick, cursha1, tmpsha1))
+-					info(1, '%s: Directory changed during generating %s repo, please generate again.' % (self.nick, repo))
++		### FIXME: Repository 'all' got lost when introducing Repo class
++		sha1file = os.path.join(self.wwwdir, '.sha1sum')
++		if os.path.isfile(sha1file + '.tmp'):
++			cursha1 = sha1dir(self.wwwdir)
++			tmpsha1 = open(sha1file + '.tmp').read()
++			remove(sha1file + '.tmp')
++			if cursha1 == tmpsha1:
++				writesha1(sha1file, cursha1)
++			else:
++				info(5, '%s: Checksum is different. expect: %s, got: %s' % (self.dist.nick, cursha1, tmpsha1))
++				info(1, '%s: Directory changed during generating %s repo, please generate again.' % (self.dist.nick, repo.name))
+ 
+-	def apt(self):
+-		&quot;Create an (old-style) apt repository&quot;
+-		if not cf.cmd['genbasedir']:
++	def createmd(self):
++		### Generate repository metadata
++		metadata = ('apt', 'createrepo', 'repomd', 'repoview', 'yum')
++		index = ('repoview',)
++
++		if not self.changed and not op.force:
+ 			return
+-		opts = ''
+-		if op.verbose &gt;= 3:
+-			opts = ' --progress' + opts
+-		if self.newrepos:
+-			self.oldrepos = self.repos.keys() + ['all',]
+-			self.oldrepos.sort()
+-			mkdir(os.path.join(self.dir, 'base'))
+ 
+-			### Write out /srcdir/nick/base/release
+-			releasefile = os.path.join(self.dir, 'base', 'release')
+-			if not os.path.exists(releasefile):
+-				open(releasefile, 'w').write(
+-					'Origin: %s\n'\
+-					'Label: %s\n'\
+-					'Suite: Unknown\n'\
+-					'Codename: %s\n'\
+-					'Date: unknown\n'\
+-					'Architectures: %s\n'\
+-					'Components: \n'\
+-					'Description: %s\n'\
+-					'MD5Sum:\n'\
+-					% (os.uname()[1], self.name, self.nick, self.arch, self.name))
++		try:
++			for md in self.dist.metadata:
++				if md in ('createrepo', 'repomd'):
++					self.repomd()
++				elif md in ('yum',):
++					self.yum()
++				elif md in ('apt',):
++					self.apt()
++				elif md not in index:
++					info(1, 'The %s metadata is unknown.' % md)
+ 
+-			### Write out /srcdir/nick/base/release.repo
+-			for repo in self.oldrepos:
+-				releasefile = os.path.join(self.dir, 'base', 'release.'+ repo)
+-				if not os.path.exists(releasefile):
+-					open(releasefile, 'w').write(
+-						'Archive: %s\n'\
+-						'Component: %s\n'\
+-						'Version: %s\n'\
+-						'Origin: %s\n'\
+-						'Label: Repository %s for %s\n'\
+-						'Architecture: %s\n'\
+-						'NotAutomatic: false\n'\
+-						% (repo, repo, self.release, os.uname()[1], repo, self.name, self.arch))
++			### Generate repository index
++			for md in self.dist.metadata:
++				if md in ('repoview',):
++					self.repoview()
++				elif md not in metadata: 
++					info(1, 'The %s index is unknown.' % md)
++		except YamGenerateException, e:
++			error(2, 'Generating repo failed for %s with message:\n  %s' % (url, e.value))
++			exitcode = 2
++		
+ 
+-			info(2, '%s: Create (old-style) apt repository' % self.nick)
+-			if self.newrepos == self.oldrepos:
+-				run('%s %s --flat --bloat --bz2only %s' % (cf.cmd['genbasedir'], opts, self.dir))
+-			else:
+-				run('%s %s --flat --bloat --bz2only --partial %s %s' % (cf.cmd['genbasedir'], opts, self.dir, ' '.join(self.newrepos)))
++	def repomd(self):
++		&quot;Create a repomd repository&quot;
++		if not cf.cmd['createrepo']:
++			raise YamGenerateException('Command createrepo is not found. Skipping.')
++		opts = ' ' + cf.createrepooptions
++		if op.force:
++			opts = ' --pretty'
++		if op.verbose &lt;= 2:
++			opts = ' --quiet' + opts
++		elif op.verbose &gt;= 4:
++			opts = ' -v' + opts
++#		for repo in self.listchangedrepos():
++		if os.path.isdir(self.wwwdir):
++			repoopts = opts
++			if cf.cachedir:
++				cachedir = os.path.join(cf.cachedir, self.dist.nick, self.name)
++				mkdir(cachedir)
++				repoopts = repoopts + ' --cachedir &quot;%s&quot;' % cachedir
++			if os.path.isdir(os.path.join(self.wwwdir, '.olddata')):
++				remove(os.path.join(self.wwwdir, '.olddata'))
++			groupfile = os.path.join(cf.srcdir, self.dist.nick, self.name + '-comps.xml')
++			if os.path.isfile(groupfile):
++				symlink(groupfile, os.path.join(self.wwwdir, 'comps.xml'))
++				repoopts = repoopts + ' --groupfile &quot;RPMS.%s/comps.xml&quot;' % self.name
++			info(2, '%s: Create repomd repository for %s' % (self.dist.nick, self.name))
++			ret = run('%s %s %s' % (cf.cmd['createrepo'], repoopts, self.wwwdir))
++			if ret:
++				raise(YamMirrorException('%s failed with return code: %s' % (cf.cmd['createrepo'], ret)))
+ 
+ 	def yum(self):
+ 		&quot;Create a (old-style) yum repository&quot;
+@@ -560,82 +663,89 @@
+ 			opts = ' -vv' + opts
+ 		if op.dryrun:
+ 			opts = opts + ' -n'
+-		for repo in self.newrepos:
+-			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+-			if os.path.exists(repodir):
+-				if os.path.isdir(os.path.join(repodir, '.oldheaders')):
+-					remove(os.path.join(repodir, '.oldheaders'))
+-				info(2, '%s: Create (old-style) yum repository for %s' % (self.nick, repo))
+-				run('%s %s -l %s' % (cf.cmd['yumarch'], opts, repodir))
++		if os.path.exists(self.wwwdir):
++			if os.path.isdir(os.path.join(self.wwwdir, '.oldheaders')):
++				remove(os.path.join(repodir, '.oldheaders'))
++			info(2, '%s: Create (old-style) yum repository for %s' % (self.dist.nick, self.name))
++			ret = run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.wwwdir))
++			if ret:
++				raise(YamMirrorException('%s failed with return code: %s' % (cf.cmd['yumarch'], ret)))
+ 
+-	def repomd(self):
+-		&quot;Create a repomd repository&quot;
+-		if not cf.cmd['createrepo']:
++	def apt(self):
++		&quot;Create an (old-style) apt repository&quot;
++		if not cf.cmd['genbasedir']:
+ 			return
+-		opts = ' ' + cf.createrepooptions
+-		if op.force:
+-			opts = ' --pretty'
+-		if op.verbose &lt;= 2:
+-			opts = ' --quiet' + opts
+-		elif op.verbose &gt;= 4:
+-			opts = ' -v' + opts
+-		for repo in self.newrepos:
+-			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+-			if os.path.isdir(repodir):
+-				repoopts = opts
+-				if cf.cachedir:
+-					cachedir = os.path.join(cf.cachedir, self.nick, repo)
+-					mkdir(cachedir)
+-					repoopts = repoopts + ' --cachedir &quot;%s&quot;' % cachedir
+-				if os.path.isdir(os.path.join(repodir, '.olddata')):
+-					remove(os.path.join(repodir, '.olddata'))
+-				srcdir = os.path.join(cf.srcdir, self.nick, repo)
+-				if os.path.isfile(os.path.join(cf.srcdir, self.nick, repo + '-comps.xml')):
+-						repoopts = repoopts + ' --groupfile &quot;%s&quot;' % os.path.join(cf.srcdir, self.nick, repo + '-comps.xml')
+-				info(2, '%s: Create repomd repository for %s' % (self.nick, repo))
+-				run('%s %s %s' % (cf.cmd['createrepo'], repoopts, repodir))
++		opts = ''
++		if op.verbose &gt;= 3:
++			opts = ' --progress' + opts
+ 
++		mkdir(os.path.join(self.dist.dir, 'base'))
++
++		### Write out /srcdir/nick/base/release
++		releasefile = os.path.join(self.dist.dir, 'base', 'release')
++		if not os.path.exists(releasefile):
++			open(releasefile, 'w').write(
++				'Origin: %s\n'\
++				'Label: %s\n'\
++				'Suite: Unknown\n'\
++				'Codename: %s\n'\
++				'Date: unknown\n'\
++				'Architectures: %s\n'\
++				'Components: \n'\
++				'Description: %s\n'\
++				'MD5Sum:\n'\
++				% (os.uname()[1], self.dist.name, self.dist.nick, self.dist.arch, self.dist.name))
++
++		### Write out /srcdir/nick/base/release.repo
++		releasefile = os.path.join(self.dir, 'base', 'release.'+ repo)
++		if not os.path.exists(releasefile):
++			open(releasefile, 'w').write(
++				'Archive: %s\n'\
++				'Component: %s\n'\
++				'Version: %s\n'\
++				'Origin: %s\n'\
++				'Label: Repository %s for %s\n'\
++				'Architecture: %s\n'\
++				'NotAutomatic: false\n'\
++				% (self.name, self.name, self.dist.release, os.uname()[1], self.name, self.dist.name, self.dist.arch))
++
++		info(2, '%s: Create (old-style) apt repository for %s' % (self.dist.nick, self.name))
++#		if self.newrepos == self.oldrepos:
++#			run('%s %s --flat --bloat --bz2only %s' % (cf.cmd['genbasedir'], opts, self.dist.dir))
++#		else:
++		ret = run('%s %s --flat --bloat --bz2only --partial %s %s' % (cf.cmd['genbasedir'], opts, self.dist.dir, self.name))
++		if ret:
++			raise(YamMirrorException('%s failed with return code: %s' % (cf.cmd['genbasedir'], ret)))
++
+ 	def repoview(self):
+ 		&quot;Create a repoview index&quot;
++		if not self.changed and not op.force:
++			return
+ 		if not cf.cmd['repoview']:
+ 			return
+ 		opts = ''
+ 		if op.verbose &lt;= 2:
+ 			opts = ' -q' + opts
+-		for repo in self.newrepos:
+-			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+-			if os.path.exists(repodir):
+-				title = '%s repository for %s' % (repo, self.nick)
+-				url = '<A HREF="http://yam/%s/RPMS.%s/">http://yam/%s/RPMS.%s/</A>' % (self.nick, repo)
+-				info(2, '%s: Create Repoview index for %s' % (self.nick, repo))
+-				run('%s %s -t &quot;%s&quot; -u &quot;%s&quot; -q %s' % (cf.cmd['repoview'], opts, title, url, repodir))
++		if os.path.exists(self.wwwdir):
++			title = '%s repository for %s' % (self.name, self.dist.nick)
++			url = '<A HREF="http://yam/%s/RPMS.%s/">http://yam/%s/RPMS.%s/</A>' % (self.dist.nick, self.name)
++			info(2, '%s: Create Repoview index for %s' % (self.dist.nick, self.name))
++			ret = run('%s %s -t &quot;%s&quot; -u &quot;%s&quot; -q %s' % (cf.cmd['repoview'], opts, title, url, self.wwwdir))
++			if ret:
++				raise(YamMirrorException('%s failed with return code: %s' % (cf.cmd['repoview'], ret)))
+ 		
+-	def html(self):
+-		&quot;Put html information in repository&quot;
+-		mkdir(self.dir)
+-		if not op.dryrun:
+-			open(os.path.join(self.dir, '.title'), 'w').write(self.name)
+-		symlink(os.path.join(cf.htmldir, 'HEADER.repo.shtml'), os.path.join(self.dir, 'HEADER.shtml'))
+-		symlink(os.path.join(cf.htmldir, 'README.repo.shtml'), os.path.join(self.dir, 'README.shtml'))
+-
+-	def link(self, srcdir, repo):
+-		&quot;Symlink all RPM packages that match a given arch&quot;
+-		info(5, '%s: Symlink %s packages from %s' % (self.nick, repo, srcdir))
+-		mkdir(os.path.join(self.dir, 'RPMS.' + repo))
+-		mkdir(os.path.join(self.dir, 'RPMS.all'))
+-		os.path.walk(srcdir, rpmlink, (self, repo))
+-
+-	def clean(self, repo):
+-		info(5, '%s: Removing %s' % (self.nick, repo))
+-		repodir = os.path.join(self.dir, 'RPMS.' + repo)
+-		remove(glob.glob(os.path.join(repodir, '*.rpm')))
+-
+ class YamMirrorException(Exception):
+ 	def __init__(self, value):
+ 		self.value = value
+ 	def __str__(self):
+ 		return repr(self.value)
+ 
++class YamGenerateException(Exception):
++	def __init__(self, value):
++		self.value = value
++	def __str__(self):
++		return repr(self.value)
++
+ def sha1dir(dir):
+ 	&quot;Return sha1sum of a directory&quot;
+ 	### FIXME: Add file sizes and mtime to sha1sum
+@@ -720,6 +830,12 @@
+ 			if dev == list[0]:
+ 				return list[1]
+ 
++def distsort(a, b):
++	return cmp(a.nick, b.nick)
++			
++def reposort(a, b):
++	return cmp(a.name, b.name)
++
+ def symlinkglob(str, *targets):
+ 	&quot;Symlink files to multiple targets&quot;
+ 	for file in glob.glob(str):
+@@ -767,6 +883,7 @@
+ 
+ 	src = relpath(src, dst)
+ 
++	### FIXME: This check should not be required
+ 	if not os.path.exists(dst):
+ 		mkdir(os.path.dirname(dst))
+ 		os.symlink(src, dst)
+@@ -818,39 +935,6 @@
+ 	if not os.path.exists(path):
+ 		os.makedirs(path)
+ 
+-def mirror(urls, path, dist):
+-	&quot;Check URL and pass on to mirror-functions.&quot;
+-	global exitcode
+-	for url in urls.split():
+-		try:
+-			info(2, '%s: Fetch packages from %s to %s' % (dist.nick, url, path))
+-			s, l, p, q, f, o = urlparse.urlparse(url)
+-			if s in ('rsync', ):
+-				mirrorrsync(url, path)
+-			elif s in ('ftp', ):
+-				if cf.cmd['mirrordir']:
+-					mirrormirrordir(url, path)
+-				else:
+-					mirrorlftp(url, path)
+-			elif s in ('fish', 'http', 'https', 'sftp'):
+-				mirrorlftp(url, path)
+-			elif s in ('file', ''):
+-				mirrorfile(url, path)
+-			elif s in ('yam', ):
+-				mirroryam(url, path)
+-			elif s in ('mc', ):
+-				mirrormirrordir(url, path)
+-			elif s in ('rhn', 'rhns'):
+-				mirrorrhn(url, path, dist)
+-			else:
+-				error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
+-		except YamMirrorException, e:
+-			error(2, 'Mirroring failed for %s with message:\n  %s' % (url, e.value))
+-			exitcode = 2
+-	else:
+-		### Create directory in case no URL is given
+-		mkdir(path)
+-
+ def mirrorrsync(url, path):
+ 	&quot;Mirror everything from an <A HREF="rsync://">rsync://</A> URL&quot;
+ 	if not cf.cmd['rsync']:
+@@ -1274,26 +1358,18 @@
+ 		if op.update:
+ 			info(1, '%s: Updating %s' % (dist.nick, dist.name))
+ 
+-			if op.repos:
+-				repos = op.repos
+-			else:
+-				repos = dist.repos.keys()
+-
+-			repos.sort()
+-
+ 			### Downloading things
+-			for repo in repos:
+-				srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+-				if not dist.lock('update', repo):
++			for repo in dist.listrepos(op.repos):
++				if not dist.lock('update', repo.name):
+ 					continue
+ 				if repo in ('os', 'core'):
+ 					if not dist.isos:
+-						mirror(dist.repos[repo], srcdir, dist)
+-				elif repo in dist.repos.keys():
+-					mirror(dist.repos[repo], srcdir, dist)
++						repo.mirror()
++				elif repo in dist.listrepos():
++					repo.mirror()
+ 				else:
+-					info(2, '%s: Repository %s does not exist' % (dist.nick, repo))
+-				dist.unlock('update', repo)
++					info(2, '%s: Repository %s does not exist' % (dist.nick, repo.name))
++				dist.unlock('update', repo.name)
+ 
+ 	if not op.generate:
+ 		sys.exit(0)
+@@ -1302,66 +1378,42 @@
+ 
+ 	### Generating metadata for available distributions/repositories
+ 	for dist in dists:
+-		repos = dist.repos.keys()
+-		if dist.isos:
+-			repos = repos + ['os']
+-		repos.sort()
++		repos = dist.listrepos()
+ 
++		### FIXME: This got lost when introducing the Repo class
++#		if dist.isos:
++#			repos = repos + ['os']
++
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+ 		if not dist.lock('generate'):
+ 			continue
+ 
+ 		dist.html()
+ 
+-		info(2, '%s: Relinking repositories' % dist.nick)
+-		dist.clean('all')
++		### FIXME: This got lost when introducing the Repo class
++#		dist.clean('all')
+ 
+ 		for repo in repos:
+-			dist.clean(repo)
+-			if repo in ('os', 'core') and dist.isos:
+-				dist.repos[repo] = None
++#			repo.lock()
++			repo.clean()
++			if repo.name in ('os', 'core') and dist.isos:
++				repo.url = None
+ 				for disc in dist.discs:
+-					dist.link(os.path.join(dist.dir, disc), 'os')
++					repo.link(os.path.join(dist.dir, disc))
+ 				for file in glob.glob(os.path.join(dist.dir + '/disc1/*/base/comps.xml')):
+ 					copy(file, os.path.join(cf.srcdir, dist.nick, 'os-comps.xml'))
+-			dist.link(os.path.join(cf.srcdir, 'all', repo), repo)
+-			dist.link(os.path.join(cf.srcdir, dist.nick, repo), repo)
++			repo.linkall()
++			repo.link()
+ 
+-		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
+-		### Maybe add a hardlink utility for cleaning up afterwards
+-#		os.remove(cf.srcdir + '/updates/' + dist + '/' + os.path.basename(file))
++			### Check if repository is updated
++			repo.check()
++			repo.createmd()
+ 
+-		info(2, '%s: Creating metadata' % dist.nick)
+-		### Check for updated repositories
+-		dist.checkrepos()
++			### After generation, write a sha1sum
++			repo.writesha1()
+ 
+-		metadata = ('apt', 'createrepo', 'repomd', 'repoview', 'yum')
+-		index = ('repoview',)
++#			repo.unlock()
+ 
+-		### Generate repository metadata
+-		for md in dist.metadata:
+-			if md in ('apt',):
+-				dist.apt()
+-			elif md in ('createrepo', 'repomd'):
+-				dist.repomd()
+-			elif md in ('yum',):
+-				dist.yum()
+-			elif md not in index:
+-				info(1, 'The %s metadata is unknown.' % md)
+-
+-		### Generate repository index
+-		for md in dist.metadata:
+-			if md in ('repoview',):
+-				dist.repoview()
+-			elif md not in metadata: 
+-				info(1, 'The %s index is unknown.' % md)
+-
+-		### Generate repository index
+-#		dist.repoindex()
+-
+-		### After generation, write a sha1sum
+-		dist.writereposha1()
+-
+ 		dist.unlock('generate')
+ 
+ 		### Create pxe boot
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-09-18 15:16:56 UTC (rev 4731)
++++ trunk/tools/yam/yam.spec	2006-09-18 16:14:02 UTC (rev 4732)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, RHN, rsync, http, ftp, ...)
+ Name: yam
+-Version: 0.8.1
++Version: 0.8.1svn
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -101,6 +101,9 @@
+ %{_localstatedir}/yam/
+ 
+ %changelog
++* Mon Sep 18 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.8.1svn-1
++- Updated to release 0.8.1svn.
++
+ * Tue Aug 22 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.8.1-1
+ - Updated to release 0.8.1.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003531.html">[svn] r4731 - in trunk/rpms: . dvdrip perl-Video-DVDRip
+</A></li>
+	<LI>Next message: <A HREF="003533.html">[svn] r4733 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3532">[ date ]</a>
+              <a href="thread.html#3532">[ thread ]</a>
+              <a href="subject.html#3532">[ subject ]</a>
+              <a href="author.html#3532">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

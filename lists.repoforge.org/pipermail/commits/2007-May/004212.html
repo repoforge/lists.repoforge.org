@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5413 - trunk/rpms/subversion
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5413%20-%20trunk/rpms/subversion&In-Reply-To=%3C20070518004152.D2EC731811A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004211.html">
+   <LINK REL="Next"  HREF="004213.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5413 - trunk/rpms/subversion</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5413%20-%20trunk/rpms/subversion&In-Reply-To=%3C20070518004152.D2EC731811A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5413 - trunk/rpms/subversion">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri May 18 02:41:52 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004211.html">[svn] r5412 - in trunk/rpms: eid-belgium lft powertop xrestop
+</A></li>
+        <LI>Next message: <A HREF="004213.html">[svn] r5414 - in trunk/rpms: . docbook2odf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4212">[ date ]</a>
+              <a href="thread.html#4212">[ thread ]</a>
+              <a href="subject.html#4212">[ subject ]</a>
+              <a href="author.html#4212">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-18 02:41:51 +0200 (Fri, 18 May 2007)
+New Revision: 5413
+
+Added:
+   trunk/rpms/subversion/subversion-1.4.2-pie.patch
+Log:
+Missing patch for subversion. (Who Knows)
+
+Added: trunk/rpms/subversion/subversion-1.4.2-pie.patch
+===================================================================
+--- trunk/rpms/subversion/subversion-1.4.2-pie.patch	                        (rev 0)
++++ trunk/rpms/subversion/subversion-1.4.2-pie.patch	2007-05-18 00:41:51 UTC (rev 5413)
+@@ -0,0 +1,72 @@
++
++Build subversion executables as PIEs. Requires a slight jig to 
++ensure that executables in the test suite are *not* built using
++-pie, since that doesn't work when main() is not itself an
++object built with -pie. 
++
++--- subversion-1.3.0/build/generator/gen_base.py.pie
+++++ subversion-1.3.0/build/generator/gen_base.py
++@@ -399,6 +399,9 @@
++     self.manpages = options.get('manpages', '')
++     self.testing = options.get('testing')
++ 
+++    if self.install == 'test' or self.install == 'bdb-test':
+++      self.link_cmd = '$(LINK_TEST)'
+++
++   def add_dependencies(self):
++     TargetLinked.add_dependencies(self)
++ 
++@@ -441,8 +444,11 @@
++     self.msvc_fake = options.get('msvc-fake') == 'yes' # has fake target
++     self.msvc_export = string.split(options.get('msvc-export', ''))
++ 
++-    ### hmm. this is Makefile-specific
++-    self.link_cmd = '$(LINK_LIB)'
+++    ### more Makefile-specific stuff:
+++    if self.install == 'test':
+++      self.link_cmd = '$(LINK_TEST_LIB)'
+++    elif self.link_cmd == '$(LINK)':
+++      self.link_cmd = '$(LINK_LIB)'
++ 
++ class TargetApacheMod(TargetLib):
++ 
++--- subversion-1.3.0/Makefile.in.pie
+++++ subversion-1.3.0/Makefile.in
++@@ -143,9 +143,10 @@
++ CPPFLAGS = @CPPFLAGS@ $(EXTRA_CPPFLAGS)
++ LDFLAGS = @LDFLAGS@ $(EXTRA_LDFLAGS)
++ 
++-COMPILE = $(CC) $(CPPFLAGS) $(CFLAGS) $(INCLUDES)
+++BASE_COMPILE = $(CC) $(CPPFLAGS) $(CFLAGS) $(INCLUDES)
+++COMPILE = $(BASE_COMPILE) -fpie
++ COMPILE_CXX = $(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) $(INCLUDES)
++-LT_COMPILE = $(LIBTOOL) $(LTFLAGS) --mode=compile $(COMPILE)
+++LT_COMPILE = $(LIBTOOL) $(LTFLAGS) --mode=compile $(BASE_COMPILE)
++ 
++ # special compilation for files destined for mod_dav_svn
++ COMPILE_APACHE_MOD = $(LIBTOOL) $(LTFLAGS) --mode=compile $(CC) $(CPPFLAGS) $(CFLAGS) $(APACHE_INCLUDES) $(INCLUDES) -o $@ -c
++@@ -160,8 +161,11 @@
++ COMPILE_JAVAHL_JAVAC = $(JAVAC) $(JAVAC_FLAGS)
++ COMPILE_JAVAHL_JAVAH = $(JAVAH)
++ 
++-LINK = $(LIBTOOL) $(LTFLAGS) --mode=link $(CC) $(LT_LDFLAGS) $(CFLAGS) $(LDFLAGS)
++-LINK_LIB = $(LINK) -rpath $(libdir)
+++BASE_LINK = $(LIBTOOL) $(LTFLAGS) --mode=link $(CC) $(LT_LDFLAGS) $(CFLAGS) $(LDFLAGS)
+++LINK = $(BASE_LINK) -pie
+++LINK_TEST = $(BASE_LINK) -no-install
+++LINK_LIB = $(BASE_LINK) -rpath $(libdir)
+++LINK_TEST_LIB = $(BASE_LINK)
++ 
++ # special link rule for mod_dav_svn
++ LINK_APACHE_MOD = $(LIBTOOL) $(LTFLAGS) --mode=link $(CC) $(LT_LDFLAGS) $(CFLAGS) $(LDFLAGS) -rpath $(APACHE_LIBEXECDIR) -avoid-version -module
++--- subversion-1.4.2/build.conf.pie  2006-09-10 20:57:49.000000000 +0200
+++++ subversion-1.4.2/build.conf    2006-11-08 13:43:34.193892128 +0100
++@@ -416,7 +416,7 @@
++ lang = python
++ path = subversion/bindings/swig/python/libsvn_swig_py
++ libs = libsvn_client libsvn_subr libsvn_delta libsvn_wc aprutil apriconv apr
++-link-cmd = $(LINK) $(SWIG_PY_LIBS)
+++link-cmd = $(LINK_LIB) $(SWIG_PY_LIBS)
++ install = swig-py-lib
++ # need special build rule to include -DSWIGPYTHON
++ compile-cmd = $(COMPILE_SWIG_PY)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004211.html">[svn] r5412 - in trunk/rpms: eid-belgium lft powertop xrestop
+</A></li>
+	<LI>Next message: <A HREF="004213.html">[svn] r5414 - in trunk/rpms: . docbook2odf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4212">[ date ]</a>
+              <a href="thread.html#4212">[ thread ]</a>
+              <a href="subject.html#4212">[ subject ]</a>
+              <a href="author.html#4212">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

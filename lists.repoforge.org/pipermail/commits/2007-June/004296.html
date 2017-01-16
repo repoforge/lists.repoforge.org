@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5497 - trunk/tools/mrepo
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5497%20-%20trunk/tools/mrepo&In-Reply-To=%3C20070611222417.C08A2944B5B%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004295.html">
+   <LINK REL="Next"  HREF="004297.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5497 - trunk/tools/mrepo</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5497%20-%20trunk/tools/mrepo&In-Reply-To=%3C20070611222417.C08A2944B5B%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5497 - trunk/tools/mrepo">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jun 12 00:24:17 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004295.html">[svn] r5496 - trunk/rpms/SheepShaver
+</A></li>
+        <LI>Next message: <A HREF="004297.html">[svn] r5498 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4296">[ date ]</a>
+              <a href="thread.html#4296">[ thread ]</a>
+              <a href="subject.html#4296">[ subject ]</a>
+              <a href="author.html#4296">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-06-12 00:24:16 +0200 (Tue, 12 Jun 2007)
+New Revision: 5497
+
+Modified:
+   trunk/tools/mrepo/ChangeLog
+   trunk/tools/mrepo/mrepo
+   trunk/tools/mrepo/rhnget
+Log:
+Allow the RHN/up2date code to live in /usr/share/mrepo/rhn/ (Frederic Pica)
+
+Modified: trunk/tools/mrepo/ChangeLog
+===================================================================
+--- trunk/tools/mrepo/ChangeLog	2007-06-11 17:55:23 UTC (rev 5496)
++++ trunk/tools/mrepo/ChangeLog	2007-06-11 22:24:16 UTC (rev 5497)
+@@ -10,6 +10,8 @@
+ - Added amd64 as alias for x86_64 to accomodate Sun's Java packages (Tom G. Christensen)
+ - Check whether version of createrepo is older than 0.4.6 (Francois Aucamp)
+ - Check for directory when creating before symlinking into it (Bruno Cornec)
++- Allow the RHN/up2date code to live in /usr/share/mrepo/rhn/ (Frederic Pica)
++- Added arch ia32e as alias for x86_64
+ 
+ * 0.8.4 - Sint-Jacobsplein - released 13/12/2006
+ - Renamed Yam to mrepo (Matthew Hannigan)
+
+Modified: trunk/tools/mrepo/mrepo
+===================================================================
+--- trunk/tools/mrepo/mrepo	2007-06-11 17:55:23 UTC (rev 5496)
++++ trunk/tools/mrepo/mrepo	2007-06-11 22:24:16 UTC (rev 5497)
+@@ -12,7 +12,7 @@
+ ### You should have received a copy of the GNU Library General Public License
+ ### along with this program; if not, write to the Free Software
+ ### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-### Copyright 2004-2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++### Copyright 2004-2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse, sha, types, traceback
+@@ -28,7 +28,7 @@
+     'i386': ('i386', 'i486', 'i586', 'i686', 'athlon'),
+     'ia64': ('i386', 'i686', 'ia64'),
+     'ppc': ('ppc', 'ppc64', 'ppc64pseries', 'ppc64iseries'),
+-    'x86_64': ('i386', 'i486', 'i586', 'i686', 'athlon', 'x86_64', 'amd64'),
++    'x86_64': ('i386', 'i486', 'i586', 'i686', 'athlon', 'x86_64', 'amd64', 'ia32e'),
+     's390': ('s390', ),
+     's390x': ('s390x', ),
+ }
+@@ -121,6 +121,7 @@
+     def version(self):
+         print 'mrepo %s' % VERSION
+         print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
++        print 'Homepage at <A HREF="http://dag.wieers.com/home-made/mrepo/">http://dag.wieers.com/home-made/mrepo/</A>'
+         print
+         print 'platform %s/%s' % (os.name, sys.platform)
+         print 'python %s' % sys.version
+
+Modified: trunk/tools/mrepo/rhnget
+===================================================================
+--- trunk/tools/mrepo/rhnget	2007-06-11 17:55:23 UTC (rev 5496)
++++ trunk/tools/mrepo/rhnget	2007-06-11 22:24:16 UTC (rev 5497)
+@@ -17,11 +17,14 @@
+ import os, sys, shutil, getopt, ConfigParser, urlparse, types
+ import signal, xmlrpclib, getpass, glob, fnmatch
+ 
+-if os.path.exists('/usr/share/rhn/') and os.path.exists('/usr/share/rhn/up2date_client/'):
++if os.path.exists('/usr/share/mrepo/rhn/') and os.path.exists('/usr/share/mrepo/rhn/up2date_client/'):
++    sys.path.insert(0, '/usr/share/mrepo/rhn/')
++    sys.path.insert(1, '/usr/share/mrepo/rhn/up2date_client/')
++elif os.path.exists('/usr/share/rhn/') and os.path.exists('/usr/share/rhn/up2date_client/'):
+     sys.path.insert(0, '/usr/share/rhn/')
+     sys.path.insert(1, '/usr/share/rhn/up2date_client/')
+ else:
+-    die(1,'up2date is not installed. Aborting execution')
++    die(1,'up2date libraries are not installed. Aborting execution')
+ 
+ from up2date_client import config, rpcServer, wrapperUtils, up2dateErrors, repoDirector
+ from rhn import rpclib
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004295.html">[svn] r5496 - trunk/rpms/SheepShaver
+</A></li>
+	<LI>Next message: <A HREF="004297.html">[svn] r5498 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4296">[ date ]</a>
+              <a href="thread.html#4296">[ thread ]</a>
+              <a href="subject.html#4296">[ subject ]</a>
+              <a href="author.html#4296">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

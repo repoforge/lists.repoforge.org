@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] fail2ban spec update
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20fail2ban%20spec%20update&In-Reply-To=%3Calpine.LRH.1.00.0712311435030.3743%40horsea.3ti.be%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002482.html">
+   <LINK REL="Next"  HREF="002486.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] fail2ban spec update</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20fail2ban%20spec%20update&In-Reply-To=%3Calpine.LRH.1.00.0712311435030.3743%40horsea.3ti.be%3E"
+       TITLE="[packagers] fail2ban spec update">dag at wieers.com
+       </A><BR>
+    <I>Mon Dec 31 14:35:45 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002482.html">[packagers] fail2ban spec update
+</A></li>
+        <LI>Next message: <A HREF="002486.html">[packagers] fail2ban spec update
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2485">[ date ]</a>
+              <a href="thread.html#2485">[ thread ]</a>
+              <a href="subject.html#2485">[ subject ]</a>
+              <a href="author.html#2485">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Sun, 30 Dec 2007, Quien Sabe wrote:
+
+I would personally advice to use pam_shield if you require this kind of
+functionality. I updated the package.
+
+&gt;<i> --- /home/build/svn-rpmforge/rpms/fail2ban/fail2ban.spec	2007-03-22
+</I>&gt;<i> 01:09:26.000000000 -0700
+</I>&gt;<i> +++ /dar/testing/fail2ban/fail2ban.spec	2007-12-30 14:18:00.000000000 -0700
+</I>&gt;<i> @@ -6,18 +6,21 @@
+</I>&gt;<i>
+</I>&gt;<i>  Summary: Scan logfiles and ban ip addresses with too many password failures
+</I>&gt;<i>  Name: fail2ban
+</I>&gt;<i> -Version: 0.6.2
+</I>&gt;<i> +Version: 0.8.1
+</I>&gt;<i>  Release: 1
+</I>&gt;<i>  License: GPL
+</I>&gt;<i> -Group: Applications/System
+</I>&gt;<i> +Group: System Environment/Daemons
+</I>&gt;<i>  URL: <A HREF="http://fail2ban.sourceforge.net/">http://fail2ban.sourceforge.net/</A>
+</I>&gt;<i>
+</I>&gt;<i>  Source: <A HREF="http://dl.sf.net/fail2ban/fail2ban-%{version">http://dl.sf.net/fail2ban/fail2ban-%{version</A>}.tar.bz2
+</I>&gt;<i>  BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+</I>&gt;<i>
+</I>&gt;<i>  BuildArch: noarch
+</I>&gt;<i> -BuildRequires: python, dos2unix
+</I>&gt;<i> -Requires: python
+</I>&gt;<i> +BuildRequires: python-devel &gt;= 2.4
+</I>&gt;<i> +Requires: iptables, tcp_wrappers, gamin-python
+</I>&gt;<i> +Requires(post): /sbin/chkconfig
+</I>&gt;<i> +Requires(preun): /sbin/chkconfig
+</I>&gt;<i> +Requires(preun): /sbin/service
+</I>&gt;<i>
+</I>&gt;<i>  %description
+</I>&gt;<i>  Fail2Ban monitors log files like /var/log/pwdfail or
+</I>&gt;<i> /var/log/apache/error_log
+</I>&gt;<i> @@ -26,8 +29,20 @@
+</I>&gt;<i>
+</I>&gt;<i>  %prep
+</I>&gt;<i>  %setup
+</I>&gt;<i> -%{__perl} -pi -e &quot;s|# chkconfig: 345 |# chkconfig: - |g;&quot; config/redhat-initd
+</I>&gt;<i> -dos2unix config/redhat-initd
+</I>&gt;<i> +
+</I>&gt;<i> +%{__sed} -i -e '/^# chkconfig:/s/^.*$/# chkconfig: 345 92 08/'
+</I>&gt;<i> files/redhat-initd
+</I>&gt;<i> +
+</I>&gt;<i> +%{__cat} &lt;&lt;EOF &gt;fail2ban-logrotate
+</I>&gt;<i> +/var/log/fail2ban.log {
+</I>&gt;<i> +    missingok
+</I>&gt;<i> +    notifempty
+</I>&gt;<i> +    size 30k
+</I>&gt;<i> +    create 0600 root root
+</I>&gt;<i> +    postrotate
+</I>&gt;<i> +        /usr/bin/fail2ban-client reload 2&gt; /dev/null || true
+</I>&gt;<i> +    endscript
+</I>&gt;<i> +}
+</I>&gt;<i> +EOF
+</I>&gt;<i>
+</I>&gt;<i>  %build
+</I>&gt;<i>  %{__python} setup.py build
+</I>&gt;<i> @@ -35,10 +50,10 @@
+</I>&gt;<i>  %install
+</I>&gt;<i>  %{__rm} -rf %{buildroot}
+</I>&gt;<i>  %{__python} setup.py install -O1 --skip-build --root=&quot;%{buildroot}&quot;
+</I>&gt;<i> --prefix=&quot;%{_prefix}&quot;
+</I>&gt;<i> -%{__install} -D -m0600 config/fail2ban.conf.iptables
+</I>&gt;<i> %{buildroot}%{_sysconfdir}/fail2ban.conf
+</I>&gt;<i> -%{__install} -D -m0755 config/redhat-initd %{buildroot}%{_initrddir}/fail2ban
+</I>&gt;<i> -%{__install} -D -m0644 man/fail2ban.conf.5
+</I>&gt;<i> %{buildroot}%{_mandir}/man5/fail2ban.conf.5
+</I>&gt;<i> -%{__install} -D -m0644 man/fail2ban.8 %{buildroot}%{_mandir}/man8/fail2ban.8
+</I>&gt;<i> +%{__install} -D -m0755 files/redhat-initd %{buildroot}%{_initrddir}/fail2ban
+</I>&gt;<i> +%{__mkdir_p} %{buildroot}%{_mandir}/man1
+</I>&gt;<i> +%{__install} -m0644 man/fail2ban*.1 %{buildroot}%{_mandir}/man1
+</I>&gt;<i> +%{__install} -D -m0644 fail2ban-logrotate
+</I>&gt;<i> %{buildroot}%{_sysconfdir}/logrotate.d/fail2ban
+</I>&gt;<i>
+</I>&gt;<i>  %clean
+</I>&gt;<i>  %{__rm} -rf %{buildroot}
+</I>&gt;<i> @@ -61,15 +76,25 @@
+</I>&gt;<i>
+</I>&gt;<i>  %files
+</I>&gt;<i>  %defattr(-, root, root, 0755)
+</I>&gt;<i> -%doc CHANGELOG README TODO
+</I>&gt;<i> -%doc %{_mandir}/man5/fail2ban.conf.5*
+</I>&gt;<i> -%doc %{_mandir}/man8/fail2ban.8*
+</I>&gt;<i> -%config(noreplace) %{_sysconfdir}/fail2ban.conf
+</I>&gt;<i> -%config %{_initrddir}/fail2ban
+</I>&gt;<i> -%{_bindir}/fail2ban
+</I>&gt;<i> -%{_libdir}/fail2ban/
+</I>&gt;<i> +%doc README TODO CHANGELOG COPYING
+</I>&gt;<i> +%doc %{_mandir}/man1/fail2ban*1*
+</I>&gt;<i> +%dir %{_sysconfdir}/fail2ban
+</I>&gt;<i> +%dir %{_sysconfdir}/fail2ban/action.d
+</I>&gt;<i> +%dir %{_sysconfdir}/fail2ban/filter.d
+</I>&gt;<i> +%config(noreplace) %{_sysconfdir}/fail2ban/fail2ban.conf
+</I>&gt;<i> +%config(noreplace) %{_sysconfdir}/fail2ban/jail.conf
+</I>&gt;<i> +%config(noreplace) %{_sysconfdir}/fail2ban/action.d/*.conf
+</I>&gt;<i> +%config(noreplace) %{_sysconfdir}/fail2ban/filter.d/*.conf
+</I>&gt;<i> +%config(noreplace) %{_sysconfdir}/logrotate.d/fail2ban
+</I>&gt;<i> +%{_initrddir}/fail2ban
+</I>&gt;<i> +%{_bindir}/fail2ban*
+</I>&gt;<i> +%{_datadir}/fail2ban
+</I>&gt;<i>
+</I>&gt;<i>  %changelog
+</I>&gt;<i> +* Sun Dec 30 2007 Jim &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">quien-sabe at metaorg.com</A>&gt; - 0.8.1-1
+</I>&gt;<i> +- Updated to release 0.8.1.
+</I>&gt;<i> +- Incorporated appropriate changes from fedora spec
+</I>&gt;<i> +
+</I>&gt;<i>  * Wed Mar 21 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt; - 0.6.2-1
+</I>&gt;<i>  - Updated to release 0.6.2.
+</I>&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> packagers mailing list
+</I>&gt;<i> <A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">packagers at lists.rpmforge.net</A>
+</I>&gt;<i> <A HREF="http://lists.rpmforge.net/mailman/listinfo/packagers">http://lists.rpmforge.net/mailman/listinfo/packagers</A>
+</I>&gt;<i>
+</I>
+-- 
+--   dag wieers,  <A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>,  <A HREF="http://dag.wieers.com/">http://dag.wieers.com/</A>   --
+[Any errors in spelling, tact or fact are transmission errors]
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002482.html">[packagers] fail2ban spec update
+</A></li>
+	<LI>Next message: <A HREF="002486.html">[packagers] fail2ban spec update
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2485">[ date ]</a>
+              <a href="thread.html#2485">[ thread ]</a>
+              <a href="subject.html#2485">[ subject ]</a>
+              <a href="author.html#2485">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,221 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5421 - trunk/tools/unoconv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5421%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070519190647.2A90B944AD0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004219.html">
+   <LINK REL="Next"  HREF="004221.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5421 - trunk/tools/unoconv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5421%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070519190647.2A90B944AD0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5421 - trunk/tools/unoconv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat May 19 21:06:47 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004219.html">[svn] r5420 - in trunk/tools/unoconv: . docs
+</A></li>
+        <LI>Next message: <A HREF="004221.html">[svn] r5422 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4220">[ date ]</a>
+              <a href="thread.html#4220">[ thread ]</a>
+              <a href="subject.html#4220">[ subject ]</a>
+              <a href="author.html#4220">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-19 21:06:46 +0200 (Sat, 19 May 2007)
+New Revision: 5421
+
+Modified:
+   trunk/tools/unoconv/ChangeLog
+   trunk/tools/unoconv/Makefile
+   trunk/tools/unoconv/README
+   trunk/tools/unoconv/TODO
+   trunk/tools/unoconv/unoconv
+   trunk/tools/unoconv/unoconv.spec
+Log:
+Small improvements.
+
+Modified: trunk/tools/unoconv/ChangeLog
+===================================================================
+--- trunk/tools/unoconv/ChangeLog	2007-05-19 18:13:51 UTC (rev 5420)
++++ trunk/tools/unoconv/ChangeLog	2007-05-19 19:06:46 UTC (rev 5421)
+@@ -1,2 +1,2 @@
+-* 0.1svn - ... - released 19/05/2007
++* 0.1 - released 19/05/2007
+ - Initial release
+
+Modified: trunk/tools/unoconv/Makefile
+===================================================================
+--- trunk/tools/unoconv/Makefile	2007-05-19 18:13:51 UTC (rev 5420)
++++ trunk/tools/unoconv/Makefile	2007-05-19 19:06:46 UTC (rev 5421)
+@@ -19,7 +19,7 @@
+ docs:
+ 	make -C docs
+ 
+-dist:
++dist: clean
+ 	find . ! -path '*/.svn*' | pax -d -w -x ustar -s ',^.,$(name)-$(version),' | bzip2 &gt;../$(name)-$(version).tar.bz2
+ 
+ rpm: dist
+@@ -30,3 +30,4 @@
+ 
+ clean:
+ 	rm -f README*.html
++	make -C tests clean
+
+Modified: trunk/tools/unoconv/README
+===================================================================
+--- trunk/tools/unoconv/README	2007-05-19 18:13:51 UTC (rev 5420)
++++ trunk/tools/unoconv/README	2007-05-19 19:06:46 UTC (rev 5421)
+@@ -1,3 +1,13 @@
++unoconv converts any document format that OpenOffice can import, to any
++document format that OpenOffice can export.
+ 
++unoconv uses the OpenOffice's UNO bindings for non-interactive conversion
++of documents.
++
++Before using unoconv you need to start an OpenOffice instance that listens
++on a specific port by doing:
++
++    ooffice -headless &quot;-accept=socket,host=localhost,port=2002;urp;&quot;
++
+ ---
+ Please send me improvements to this document.
+
+Modified: trunk/tools/unoconv/TODO
+===================================================================
+--- trunk/tools/unoconv/TODO	2007-05-19 18:13:51 UTC (rev 5420)
++++ trunk/tools/unoconv/TODO	2007-05-19 19:06:46 UTC (rev 5421)
+@@ -14,5 +14,4 @@
+ - Added support for spreadsheet, presentation and graphic formats
+ 
+ ### Usability
+-- Find a way to connect to OpenOffice without needing to start it
+-- Start OpenOffice to assist conversion
++- Start OpenOffice automatically to assist conversion and then stop
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2007-05-19 18:13:51 UTC (rev 5420)
++++ trunk/tools/unoconv/unoconv	2007-05-19 19:06:46 UTC (rev 5421)
+@@ -38,7 +38,7 @@
+ __version__ = &quot;$Revision$&quot;
+ # $Source$
+ 
+-VERSION = '0.1svn'
++VERSION = '0.1'
+ 
+ class Fmt:
+     def __init__(self, name, extension, filter, summary):
+@@ -170,6 +170,7 @@
+     sys.exit(1)
+ 
+ rc = 0
++doc = None
+ 
+ try:
+     context = uno.getComponentContext()
+@@ -182,7 +183,7 @@
+     desktop = unosvcmgr.createInstanceWithContext(&quot;com.sun.star.frame.Desktop&quot;, unocontext)
+     cwd = unohelper.systemPathToFileUrl( os.getcwd() )
+ 
+-    inProps = PropertyValue( &quot;Hidden&quot; , 0 , True, 0 ),
++    inProps = PropertyValue( &quot;Hidden&quot; , 0 , True, 0 )
+     outProps = (
+                 PropertyValue( &quot;FilterName&quot; , 0, outputfmt.filter , 0 ),
+                 PropertyValue( &quot;Overwrite&quot; , 0, True , 0 ),
+@@ -191,7 +192,7 @@
+     
+     for path in args:
+         try:
+-            doc = None
++
+             filename = unohelper.absolutize(cwd, unohelper.systemPathToFileUrl(path))
+             doc = desktop.loadComponentFromURL( filename , &quot;_blank&quot;, 0, inProps )
+     
+@@ -200,9 +201,9 @@
+     
+             if not stdout:
+                 (dest, ext) = os.path.splitext(path)
+-                dest = dest + &quot;.&quot; + outputfmt.extension
++                dest = dest + '.' + outputfmt.extension
+                 destUrl = unohelper.absolutize( cwd, unohelper.systemPathToFileUrl(dest) )
+-                sys.stderr.write(destUrl + &quot;\n&quot;)
++                print &gt;&gt;sys.stderr, destUrl
+                 doc.storeToURL(destUrl, outProps)
+             else:
+                 doc.storeToURL(&quot;private:stream&quot;, outProps)
+@@ -218,7 +219,7 @@
+  
+ except NoConnectException, e:
+     print &gt;&gt;sys.stderr, &quot;Error: Could not find an existing connection to Open Office at %s:%s.&quot; % (server, port)
+-    print &gt;&gt;sys.stderr, &quot;Please start an oowriter instance by doing:\n    oowriter \&quot;-accept=socket,host=%s,port=%s;urp;\&quot;&quot; % (server, port)
++    print &gt;&gt;sys.stderr, &quot;Please start an ooffice instance by doing:\n    ooffice -headless -accept=\&quot;socket,host=%s,port=%s;urp;\&quot;&quot; % (server, port)
+     sys.exit(1)
+ 
+ except UnoException, e:
+
+Modified: trunk/tools/unoconv/unoconv.spec
+===================================================================
+--- trunk/tools/unoconv/unoconv.spec	2007-05-19 18:13:51 UTC (rev 5420)
++++ trunk/tools/unoconv/unoconv.spec	2007-05-19 19:06:46 UTC (rev 5421)
+@@ -18,14 +18,14 @@
+ 
+ BuildArch: noarch
+ BuildRequires: python &gt;= 2.0
+-Requires: python &gt;= 2.0, openoffice-core, openoffic-pyuno
++Requires: python &gt;= 2.0, openoffice.org-core, openoffice.org-pyuno
+ 
+ %description
+ unoconv converts any document format that OpenOffice can import, to any
+ document format that OpenOffice can export.
+ 
+ unoconv uses the OpenOffice's UNO bindings for non-interactive conversion
+-of documents
++of documents.
+ 
+ %prep
+ %setup
+@@ -41,7 +41,7 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README TODO WISHLIST
++%doc AUTHORS ChangeLog COPYING README TODO WISHLIST docs/ tests/
+ %{_bindir}/unoconv
+ 
+ %changelog
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004219.html">[svn] r5420 - in trunk/tools/unoconv: . docs
+</A></li>
+	<LI>Next message: <A HREF="004221.html">[svn] r5422 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4220">[ date ]</a>
+              <a href="thread.html#4220">[ thread ]</a>
+              <a href="subject.html#4220">[ subject ]</a>
+              <a href="author.html#4220">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

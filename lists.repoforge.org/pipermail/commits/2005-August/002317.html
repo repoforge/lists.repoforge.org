@@ -1,0 +1,526 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3516 - trunk/tools/dar/python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3516%20-%20trunk/tools/dar/python&In-Reply-To=%3C20050819081103.911E8318033%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002316.html">
+   <LINK REL="Next"  HREF="002318.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3516 - trunk/tools/dar/python</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3516%20-%20trunk/tools/dar/python&In-Reply-To=%3C20050819081103.911E8318033%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3516 - trunk/tools/dar/python">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug 19 10:11:03 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002316.html">[svn] r3515 - trunk/rpms/libcaca
+</A></li>
+        <LI>Next message: <A HREF="002318.html">[svn] r3517 - in trunk/rpms: . rpmforge-release
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2317">[ date ]</a>
+              <a href="thread.html#2317">[ thread ]</a>
+              <a href="subject.html#2317">[ subject ]</a>
+              <a href="author.html#2317">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-08-19 10:11:03 +0200 (Fri, 19 Aug 2005)
+New Revision: 3516
+
+Added:
+   trunk/tools/dar/python/README
+Modified:
+   trunk/tools/dar/python/create-htmldir.py
+   trunk/tools/dar/python/create-infodb.py
+   trunk/tools/dar/python/create-pkgdb.py
+   trunk/tools/dar/python/create-rpmdb.py
+   trunk/tools/dar/python/create-specdb.py
+   trunk/tools/dar/python/print-info.py
+   trunk/tools/dar/python/print-obsolete.py
+Log:
+Updates
+
+Added: trunk/tools/dar/python/README
+===================================================================
+--- trunk/tools/dar/python/README	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/README	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -0,0 +1,20 @@
++Information about the different databases
++
++        infodb  -&gt;      85 sec
++                Based on selected RPM headers (2773 files)
++                has: name, summary, description, url, license, group, parent
++                lacks: authority, upstream
++
++        specdb  -&gt;      &lt;10 sec
++                Based on SPEC files (2172 files)
++                has: name, summary, description, url, license, group, parent, authority, upstream
++                lacks: subpackages
++
++        rpmdb   -&gt;      13 min
++                Based on all RPM headers (38k files)
++                has: name, epoch, version, release, arch, dist, repo
++
++        pkgdb   -&gt;      &lt;10 sec
++                Based on filelist
++                has: name, version, release, arch, dist, repo
++		lacks: epoch
+
+Modified: trunk/tools/dar/python/create-htmldir.py
+===================================================================
+--- trunk/tools/dar/python/create-htmldir.py	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/create-htmldir.py	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -3,8 +3,8 @@
+ import glob, sqlite, sys, re, os, string
+ 
+ htmldir = '/dar/tmp/html'
+-specdb = '/dar/tmp/state/specdb.sqlite'
+-infodb = '/dar/tmp/state/infodb.sqlite'
++#infodb = '/dar/tmp/state/infodb.sqlite'
++infodb = '/dar/tmp/state/specdb.sqlite'
+ 
+ index_template = '''
+ &lt;?_head('RPM packages for Red Hat / Fedora / Aurora')?&gt;
+@@ -62,12 +62,12 @@
+ alphabeticlist = 'TBD'
+ for cat in infocur.fetchall():
+ 	# FIXME: Add license when rpmdb has been improved
+-	infocur.execute('select name, summary, description, category, url, license, parent from info where category = &quot;%s&quot; order by name' % cat[0])
++	infocur.execute('select name, summary, description, category, url, license, parent, upstream from info where category = &quot;%s&quot; order by name' % cat[0])
+ 
+ 	rec = {}
+ 	packagelist = ''
+ 	categorysize = 0
+-	for rec['name'], rec['summary'], rec['description'], rec['category'], rec['url'], rec['url'], rec['parent'] in infocur.fetchall():
++	for rec['name'], rec['summary'], rec['description'], rec['category'], rec['url'], rec['url'], rec['parent'], rec['upstream'] in infocur.fetchall():
+ 		packagelist += '&lt;a href=&quot;%(name)s/&quot;&gt;%(name)s&lt;/a&gt;: %(summary)s&lt;br&gt;\n' % rec
+ 		
+ 		try: os.mkdir(os.path.join(htmldir, rec['name']))
+@@ -90,6 +90,3 @@
+ 
+ rec = { 'categorylist': categorylist, 'alphabeticlist': 'alphabeticlist' }
+ open(os.path.join(htmldir, 'index.php'), 'w').write(index_template % rec)
+-
+-infocur.close()
+-infocon.close()
+
+Modified: trunk/tools/dar/python/create-infodb.py
+===================================================================
+--- trunk/tools/dar/python/create-infodb.py	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/create-infodb.py	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -34,10 +34,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-dropsta = 'drop table info'
+-
+-createsta = 'create table info ( '
+-for key in infohdr: createsta += '%s varchar(10), ' % key
++createsta = 'create table info ( name varchar(10) unique primary key, '
++for key in infohdr[1:]: createsta += '%s varchar(10), ' % key
+ createsta = createsta.rstrip(', ') + ' )'
+ 
+ insertsta = 'insert into info ( '
+@@ -46,10 +44,8 @@
+ for key in infohdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
+ insertsta = insertsta.rstrip(', ') + ' )'
+ 
+-infocon = sqlite.connect(infodb)
++infocon = sqlite.connect(infodb + '.tmp')
+ infocur = infocon.cursor()
+-try: infocur.execute(dropsta)
+-except: pass
+ infocur.execute(createsta)
+ 
+ for file in glob.glob(os.path.join(packagedir, '*/*.rpm')):
+@@ -62,7 +58,5 @@
+ 		print file, 'FAILED'
+ 		continue
+ 	infocur.execute(insertsta % rec)
+-
+ infocon.commit()
+-infocur.close()
+-infocon.close()
++os.rename(infodb + '.tmp', infodb)
+
+Modified: trunk/tools/dar/python/create-pkgdb.py
+===================================================================
+--- trunk/tools/dar/python/create-pkgdb.py	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/create-pkgdb.py	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -1,22 +1,12 @@
+ #!/usr/bin/python
+ 
+-import glob, sqlite, sys, re, os, string
++import glob, sqlite, sys, re, os, string, shutil
+ 
+ packagedir = '/dar/packages/'
+ pkgdb = '/dar/tmp/state/pkgdb.sqlite'
+ 
+-pkghdr = ('filename', 'name', 'version', 'release', 'arch', 'repo', 'dist')
++pkghdr = ('name', 'version', 'release', 'arch', 'repo', 'dist', 'parent')
+ 
+-#pkghdr = {
+-##	'filename':100,
+-#	'name':40,
+-#	'version':15,
+-#	'release':15,
+-#	'arch':8,
+-#	'repo':5,
+-#	'dist':5,
+-#}
+-
+ def repo(filename):
+         try:
+                 return re.search('.(dag|rf|test).\w+.rpm$', filename).groups()[0]
+@@ -65,21 +55,18 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-dropsta = 'drop table pkg'
+-createsta = 'create table pkg ( '
++createsta = 'create table rpm ( '
+ for key in pkghdr: createsta += '%s varchar(10), ' % key
+ createsta = createsta.rstrip(', ') + ' )'
+ 
+-insertsta = 'insert into pkg ( '
++insertsta = 'insert into rpm ( '
+ for key in pkghdr: insertsta += '%s, ' % key
+ insertsta = insertsta.rstrip(', ') + ' ) values ( '
+ for key in pkghdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
+ insertsta = insertsta.rstrip(', ') + ' )'
+ 
+-pkgcon = sqlite.connect(pkgdb)
++pkgcon = sqlite.connect(pkgdb + '.tmp')
+ pkgcur = pkgcon.cursor()
+-try: pkgcur.execute(dropsta)
+-except: pass
+ pkgcur.execute(createsta)
+ 
+ for file in glob.glob(os.path.join(packagedir, '*/*.rpm')):
+@@ -89,7 +76,5 @@
+ 		print file, 'FAILED'
+ 		continue
+ 	pkgcur.execute(insertsta % rec)
+-
+ pkgcon.commit()
+-pkgcur.close()
+-pkgcon.close()
++os.rename(pkgdb + '.tmp', pkgdb)
+
+Modified: trunk/tools/dar/python/create-rpmdb.py
+===================================================================
+--- trunk/tools/dar/python/create-rpmdb.py	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/create-rpmdb.py	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -83,7 +83,6 @@
+ 
+ ts = rpm.TransactionSet(&quot;&quot;, (rpm._RPMVSF_NOSIGNATURES or rpm.RPMVSF_NOHDRCHK or rpm._RPMVSF_NODIGESTS or rpm.RPMVSF_NEEDPAYLOAD))
+ 
+-dropsta = 'drop table rpm'
+ createsta = 'create table rpm ( '
+ for key in rpmhdr: createsta += '%s varchar(10), ' % key
+ createsta = createsta.rstrip(', ') + ' )'
+@@ -94,10 +93,8 @@
+ for key in rpmhdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
+ insertsta = insertsta.rstrip(', ') + ' )'
+ 
+-rpmcon = sqlite.connect(rpmdb)
++rpmcon = sqlite.connect(rpmdb + '.tmp')
+ rpmcur = rpmcon.cursor()
+-try: rpmcur.execute(dropsta)
+-except: pass
+ rpmcur.execute(createsta)
+ 
+ for file in glob.glob(os.path.join(packagedir, '*/*.rpm')):
+@@ -109,5 +106,4 @@
+ 	rpmcur.execute(insertsta % rec)
+ 
+ rpmcon.commit()
+-rpmcur.close()
+-rpmcon.close()
++os.rename(rpmdb + '.tmp', rpmdb)
+
+Modified: trunk/tools/dar/python/create-specdb.py
+===================================================================
+--- trunk/tools/dar/python/create-specdb.py	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/create-specdb.py	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -1,63 +1,70 @@
+ #!/usr/bin/python
+ 
+-import glob, sqlite, sys, re, os, string
++import glob, sqlite, sys, re, os, string, shutil
+ 
++#specdir = '/dar/packages/'
+ specdir = '/dar/rpms/'
+ specdb = '/dar/tmp/state/specdb.sqlite'
+ 
+-spechdr = ('authority', 'summary', 'name', 'version', 'release', 'license', 'category', 'url', 'description')
++spechdr = ('name', 'authority', 'summary', 'version', 'release', 'license', 'category', 'url', 'description', 'upstream', 'parent')
+ 
+ specre = {
+-	'authority':	r'^# Authority: (\w+)$',
+-	'summary':	r'^Summary: (.+)$',
+-	'name':		r'^Name: ([\w\-\+_]+)$',
+-	'version':	r'^Version: ([^\s]+)$',
+-	'release':	r'^Release: ([^\s]+)$',
+-	'license':	r'^License: (.+)$',
+-	'category':	r'^Group: (.+)$',
+-	'url':		r'^URL: ([^\s]+)$',
+-	'description':	r'^%description\n(.+)',
++	'authority':	'^# Authority: (\w+)$',
++	'upstream':	'^# Upstream: (.+?)$',
++	'summary':	'^Summary: (.+?)$',
++	'name':		'^Name: ([\w\-\+_]+)$',
++	'parent':	'^Name: ([\w\-\+_]+)$',
++	'version':	'^Version: ([^\s]+)$',
++	'release':	'^Release: ([^\s]+)$',
++	'license':	'^License: (.+?)$',
++	'category':	'^Group: (.+?)$',
++	'url':		'^URL: ([^\s]+)$',
++	'description':	'^%description\n(.+?)\n\n%',
+ }
+ 
+-def readspec(data):
++def readspec(file):
++	data = open(file, 'r').read(50000)
+ 	rec = {}
+ 	try:
+-		for key in specre.keys:
+-			rec[key] = re.search(specre[key], data, re.M).group(1).replace('&quot;', '\'')
++		for key in specre.keys():
++			rec[key] = ''
++		for key in specre.keys():
++			rec[key] += re.search(specre[key], data, re.M | re.DOTALL).group(1).replace('&quot;', '\'')
+ 	except:
+-		print 'Error with key %s' % key
+-		raise
++		if key in ('upstream', ):
++			pass
++		elif key in ('url', ):
++			print 'Error with key &quot;%s&quot; in &quot;%s&quot;' % (key, file)
++		else:
++			print 'Error with key &quot;%s&quot; in &quot;%s&quot;' % (key, file)
++			raise
++	if not rec['upstream']: rec['upstream'] = '<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">packagers at list.rpmforge.net</A>'
+ 	return rec
+ 
+-dropsta = 'drop table spec'
++sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-### Create statement
+-createsta = 'create table spec ( '
+-for key in spechdr: createsta += '%s varchar(10), ' % key
++createsta = 'create table info ( name varchar(10) unique primary key, '
++for key in spechdr[1:]: createsta += '%s varchar(10), ' % key
+ createsta = createsta.rstrip(', ') + ' )'
+ 
+-### Insert statement
+-insertsta = 'insert into spec ( '
++insertsta = 'insert into info ( '
+ for key in spechdr: insertsta += '%s, ' % key
+ insertsta = insertsta.rstrip(', ') + ' ) values ( '
+ for key in spechdr: insertsta += '&quot;%%(%s)s&quot;, ' % key
+ insertsta = insertsta.rstrip(', ') + ' )'
+ 
+-speccon = sqlite.connect(specdb)
++speccon = sqlite.connect(specdb + '.tmp')
+ speccur = speccon.cursor()
+-try: speccur.execute(dropsta)
+-except: pass
+ speccur.execute(createsta)
+ 
+ for file in glob.glob(os.path.join(specdir, '*/*.spec')):
+-	data = open(file, 'r').read(50000)
+ 	try:
+-		rec = readspec(data)
++		rec = readspec(file)
+ 	except:
+ 		print file, 'FAILED'
+ 		continue
+-	speccur.execute(insertsta % rec)
+-
++	try: speccur.execute(insertsta % rec)
++	except: pass
++		
+ speccon.commit()
+-speccur.close()
+-speccon.close()
++os.rename(specdb + '.tmp', specdb)
+
+Modified: trunk/tools/dar/python/print-info.py
+===================================================================
+--- trunk/tools/dar/python/print-info.py	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/print-info.py	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -13,53 +13,51 @@
+ pkgcur = pkgcon.cursor()
+ 
+ print 'General info'
+-speccur.execute('select * from spec order by name')
+-print '  Number of SPEC files:', len(speccur.fetchall())
++speccur.execute('select distinct name from info order by name')
++tot = len(speccur.fetchall())
++print '  Number of SPEC files:', tot
+ 
+-speccur.execute('select distinct category from spec order by name')
++speccur.execute('select distinct category from info order by name')
+ print '  Number of categories:', len(speccur.fetchall())
+ 
+-pkgcur.execute('select filename from pkg')
++pkgcur.execute('select name from rpm')
+ print '  Number of packages:', len(pkgcur.fetchall())
+ 
+-pkgcur.execute('select distinct name from pkg')
++pkgcur.execute('select distinct name from rpm')
+ print '  Number of unique packages:', len(pkgcur.fetchall())
+ 
+-pkgcur.execute('select distinct name from pkg where arch = &quot;src&quot;')
++pkgcur.execute('select distinct name from rpm where arch = &quot;src&quot;')
+ print '  Number of unique source packages:', len(pkgcur.fetchall())
+ 
+ print
+ print 'Arch stats:'
+-pkgcur.execute('select distinct arch from pkg order by arch')
+-for arch in pkgcur.fetchall():
+-	pkgcur.execute('select * from pkg where arch = &quot;%s&quot;' % arch[0])
+-	print '  %s has %d packages' % (arch[0], len(pkgcur.fetchall()))
++pkgcur.execute('select distinct arch from rpm order by arch')
++for arch, in pkgcur.fetchall():
++	pkgcur.execute('select * from rpm where arch = &quot;%s&quot;' % arch)
++	print '  %s has %d packages' % (arch, len(pkgcur.fetchall()))
+ 
+ print
+ print 'Dist stats:'
+-pkgcur.execute('select distinct dist from pkg order by dist')
+-for dist in pkgcur.fetchall():
+-	if dist[0] in ('0', 'nosrc', 'src', 'fc4'): continue
+-	pkgcur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;i386&quot; or arch = &quot;i586&quot; or arch = &quot;i686&quot; or arch = &quot;athlon&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
+-	print '  %s-i386 has %d packages' % (dist[0], len(pkgcur.fetchall()))
+-	if dist[0] in ('rh6', 'rh8', 'rh7', 'rh9', 'el2', 'fc1', 'fc4'): continue
+-	pkgcur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;x86_64&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist[0])
+-	print '  %s-x86_64 has %d packages' % (dist[0], len(pkgcur.fetchall()))
++pkgcur.execute('select distinct dist from rpm order by dist')
++for dist, in pkgcur.fetchall():
++	if dist in ('0', 'nosrc', 'src', 'fc4'): continue
++	pkgcur.execute('select distinct name from rpm where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;i386&quot; or arch = &quot;i586&quot; or arch = &quot;i686&quot; or arch = &quot;athlon&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
++	print '  %s-i386 has %d packages' % (dist, len(pkgcur.fetchall()))
++	if dist in ('rh6', 'rh8', 'rh7', 'rh9', 'el2', 'fc1', 'fc4'): continue
++	pkgcur.execute('select distinct name from rpm where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; ) and ( arch = &quot;x86_64&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
++	print '  %s-x86_64 has %d packages' % (dist, len(pkgcur.fetchall()))
+ 
+ print
+ print 'Packager activity:'
+-speccur.execute('select distinct authority from spec order by authority')
+-for name in speccur.fetchall():
+-	speccur.execute('select * from spec where authority = &quot;%s&quot;' % name[0])
+-	print '  %s maintains %d packages' % (name[0], len(speccur.fetchall()))
++speccur.execute('select distinct authority from info order by authority')
++for authority, in speccur.fetchall():
++	if authority:
++		speccur.execute('select distinct parent from info where authority = &quot;%s&quot;' % authority)
++		nr = len(speccur.fetchall())
++		print '  %s maintains %d packages (%.1f%%)' % (authority, nr, nr * 100.0 / tot)
+ 
+ #print
+ #print 'Print summaries:'
+ #speccur.execute('select distinct name, summary from spec order by name')
+ #for pkg in speccur.fetchall():
+ #	print '  %s: %s' % (pkg[0], pkg[1])
+-
+-speccur.close()
+-speccon.close()
+-pkgcur.close()
+-pkgcon.close()
+
+Modified: trunk/tools/dar/python/print-obsolete.py
+===================================================================
+--- trunk/tools/dar/python/print-obsolete.py	2005-08-19 08:09:11 UTC (rev 3515)
++++ trunk/tools/dar/python/print-obsolete.py	2005-08-19 08:11:03 UTC (rev 3516)
+@@ -3,42 +3,41 @@
+ import glob, sqlite, sys, re, os, string, rpm
+ 
+ pkgdb = '/dar/tmp/state/pkgdb.sqlite'
++packagedir = '/dar/packages'
+ 
+ def vercmp((e1, v1, r1), (e2, v2, r2)):
+ 	rc = rpm.labelCompare((e1, v1, r1), (e2, v2, r2))
+ 	return rc
+ 
++def filename(rec):
++	return '%(parent)s/%(name)s-%(version)s-%(release)s.%(arch)s.rpm' % rec
++
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+ pkgcon = sqlite.connect(pkgdb)
+ pkgcur = pkgcon.cursor()
+ 
+-pkgcur.execute('select distinct name from pkg order by name')
+-for name, in pkgcur.fetchall():
+-#	print 'Processing', name
+-	pkgcur.execute('select filename, arch, version, release, dist, repo from pkg where name = &quot;%s&quot; and arch != &quot;src&quot; order by dist, version, release, arch' % name)
++pkgcur.execute('select distinct name, parent from rpm order by parent, name')
++for name, parent in pkgcur.fetchall():
++	if parent.find('kernel') == 0: continue
++	pkgcur.execute('select name, arch, version, release, dist, repo, parent from rpm where name = &quot;%s&quot; and arch != &quot;src&quot; order by dist, version, release, arch' % name)
+ 	pkgs = pkgcur.fetchall()
+ 	A = {}
+ 	obsoletelist = []
+-	for A['filename'], A['arch'], A['version'], A['release'], A['dist'], A['repo'] in pkgs:
++	for A['name'], A['arch'], A['version'], A['release'], A['dist'], A['repo'], A['parent'] in pkgs:
+ 		if A['arch'] == 'nosrc': continue
+ 		if A['repo'] == 'test': continue
+-		if A['filename'].find('kernel') == 0: continue
+ 		B = {}
+-		for B['filename'], B['arch'], B['version'], B['release'], B['dist'], B['repo'] in pkgs:
++		for B['name'], B['arch'], B['version'], B['release'], B['dist'], B['repo'], B['parent'] in pkgs:
+ 			if B['arch'] == 'nosrc': continue
+ 			if B['repo'] == 'test': continue
+-			if A['filename'] == B['filename']: continue
++			if A == B: continue
+ 			if A['dist'] != B['dist']: continue
+ 			if A['arch'] != B['arch']: continue
+ 			if vercmp(('0', A['version'], A['release']), ('0', B['version'], B['release'])) &gt; 0:
+-				if B['filename'] not in obsoletelist:
+-					obsoletelist.append(B['filename'])
+-#				print '%s deprecated by %s' % (B['filename'], A['filename'])
++				if filename(B) not in obsoletelist:
++					obsoletelist.append(filename(B))
+ 	if obsoletelist:
+-#		print '%d %s' % (len(obsoletelist), name)
+ 		obsoletelist.sort()
+-		for file in obsoletelist: print file
+-
+-pkgcur.close()
+-pkgcon.close()
++		for file in obsoletelist:
++			print os.path.join(packagedir, file)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002316.html">[svn] r3515 - trunk/rpms/libcaca
+</A></li>
+	<LI>Next message: <A HREF="002318.html">[svn] r3517 - in trunk/rpms: . rpmforge-release
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2317">[ date ]</a>
+              <a href="thread.html#2317">[ thread ]</a>
+              <a href="subject.html#2317">[ subject ]</a>
+              <a href="author.html#2317">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,418 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5544 - in trunk/rpms: . gparted ibsh mon svnmailer
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5544%20-%20in%20trunk/rpms%3A%20.%20gparted%20ibsh%20mon%20svnmailer&In-Reply-To=%3C20070628150031.2DB22944AA5%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004342.html">
+   <LINK REL="Next"  HREF="004344.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5544 - in trunk/rpms: . gparted ibsh mon svnmailer</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5544%20-%20in%20trunk/rpms%3A%20.%20gparted%20ibsh%20mon%20svnmailer&In-Reply-To=%3C20070628150031.2DB22944AA5%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5544 - in trunk/rpms: . gparted ibsh mon svnmailer">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jun 28 17:00:31 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004342.html">[svn] r5543 - in trunk/rpms: aircrack-ng dia fuse-svnfs rdup	testdisk xnee
+</A></li>
+        <LI>Next message: <A HREF="004344.html">[svn] r5545 - in trunk/rpms: libarxx mercurial tintin white_dune	youtube-dl
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4343">[ date ]</a>
+              <a href="thread.html#4343">[ thread ]</a>
+              <a href="subject.html#4343">[ subject ]</a>
+              <a href="author.html#4343">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-06-28 17:00:29 +0200 (Thu, 28 Jun 2007)
+New Revision: 5544
+
+Added:
+   trunk/rpms/gparted/
+   trunk/rpms/gparted/gparted-console.apps
+   trunk/rpms/gparted/gparted-devices.patch
+   trunk/rpms/gparted/gparted-dont-lock-hal.patch
+   trunk/rpms/gparted/gparted-pam.d
+   trunk/rpms/gparted/gparted.spec
+   trunk/rpms/gparted/run-gparted
+   trunk/rpms/ibsh/
+   trunk/rpms/ibsh/ibsh.spec
+Modified:
+   trunk/rpms/mon/mon.spec
+   trunk/rpms/svnmailer/svnmailer.spec
+Log:
+Updates
+
+Added: trunk/rpms/gparted/gparted-console.apps
+===================================================================
+--- trunk/rpms/gparted/gparted-console.apps	                        (rev 0)
++++ trunk/rpms/gparted/gparted-console.apps	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -0,0 +1,3 @@
++USER=root
++PROGRAM=/usr/bin/run-gparted
++SESSION=true
+
+Added: trunk/rpms/gparted/gparted-devices.patch
+===================================================================
+--- trunk/rpms/gparted/gparted-devices.patch	                        (rev 0)
++++ trunk/rpms/gparted/gparted-devices.patch	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -0,0 +1,36 @@
++--- src/GParted_Core.cc	2006/12/08 13:14:05	759
+++++ src/GParted_Core.cc	2007/01/07 20:29:03	764
++@@ -155,7 +155,20 @@
++ 		lp_device = ped_device_get_next( NULL );
++ 		while ( lp_device ) 
++ 		{
++-			device_paths .push_back( lp_device -&gt;path ) ;
+++			//only add this device if we can read the first sector (which means it's a real device)
+++			char * buf = static_cast&lt;char *&gt;( malloc( lp_device -&gt;sector_size ) ) ;
+++			if ( buf )
+++			{
+++				if ( ped_device_open( lp_device ) )
+++				{
+++					if ( ped_device_read( lp_device, buf, 0, 1 ) )
+++						device_paths .push_back( lp_device -&gt;path ) ;
+++
+++					ped_device_close( lp_device ) ;
+++				}
+++
+++				free( buf ) ;
+++			}
++ 			
++ 			lp_device = ped_device_get_next( lp_device ) ;
++ 		}
++@@ -163,10 +176,10 @@
++ 
++ 		std::sort( device_paths .begin(), device_paths .end() ) ;
++ 	}
++-	
+++
++ 	for ( unsigned int t = 0 ; t &lt; device_paths .size() ; t++ ) 
++ 	{ 
++-		if ( device_paths[ t ] .length() &gt; 6 &amp;&amp; device_paths[ t ] .is_ascii() &amp;&amp; open_device_and_disk( device_paths[ t ], false ) )
+++		if ( open_device_and_disk( device_paths[ t ], false ) )
++ 		{
++ 			temp_device .Reset() ;
+
+Added: trunk/rpms/gparted/gparted-dont-lock-hal.patch
+===================================================================
+--- trunk/rpms/gparted/gparted-dont-lock-hal.patch	                        (rev 0)
++++ trunk/rpms/gparted/gparted-dont-lock-hal.patch	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -0,0 +1,33 @@
++--- src/GParted_Core.cc	2006-12-05 14:39:31.000000000 -0500
+++++ src/GParted_Core.cc.new	2007-04-02 21:59:01.000000000 -0400
++@@ -54,21 +54,6 @@
++ 
++ 	ped_exception_set_handler( ped_exception_handler ) ; 
++ 	
++-	//disable automount //FIXME: temporary hack, till i find a better solution...
++-	std::ofstream fdi_file( &quot;/usr/share/hal/fdi/policy/gparted-disable-automount.fdi&quot; ) ;
++-	if ( fdi_file )
++-	{
++-		fdi_file &lt;&lt; &quot;&lt;deviceinfo version='0.2'&gt;&quot; ;
++-		fdi_file &lt;&lt; &quot;&lt;device&gt;&quot; ;
++-		fdi_file &lt;&lt; &quot;&lt;match key='@block.storage_device:storage.hotpluggable' bool='true'&gt;&quot; ;
++-		fdi_file &lt;&lt; &quot;&lt;merge key='volume.ignore' type='bool'&gt;true&lt;/merge&gt;&quot; ;
++-		fdi_file &lt;&lt; &quot;&lt;/match&gt;&quot; ;
++-		fdi_file &lt;&lt; &quot;&lt;/device&gt;&quot; ;
++-		fdi_file &lt;&lt; &quot;&lt;/deviceinfo&gt;&quot; ;
++-
++-		fdi_file .close() ;
++-	}	
++-
++ 	//get valid flags ...
++ 	for ( PedPartitionFlag flag = ped_partition_flag_next( static_cast&lt;PedPartitionFlag&gt;( NULL ) ) ;
++ 	      flag ;
++@@ -2287,8 +2272,6 @@
++ 	if ( p_filesystem )
++ 		delete p_filesystem ;
++ 
++-	//remove .fdi file..
++-	remove( &quot;/usr/share/hal/fdi/policy/gparted-disable-automount.fdi&quot; ) ;
++ }
++ 	
++ } //GParted
+
+Added: trunk/rpms/gparted/gparted-pam.d
+===================================================================
+--- trunk/rpms/gparted/gparted-pam.d	                        (rev 0)
++++ trunk/rpms/gparted/gparted-pam.d	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -0,0 +1,8 @@
++#%PAM-1.0
++auth	sufficient	pam_rootok.so
++auth	sufficient	pam_timestamp.so
++auth	include		system-auth
++session	required	pam_permit.so
++session	optional	pam_xauth.so
++session	optional	pam_timestamp.so
++account	required	pam_permit.so
+
+Added: trunk/rpms/gparted/gparted.spec
+===================================================================
+--- trunk/rpms/gparted/gparted.spec	                        (rev 0)
++++ trunk/rpms/gparted/gparted.spec	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -0,0 +1,102 @@
++# $Id$
++# Authority: dag
++
++Summary: Gnome Partition Editor
++Name: gparted
++Version: 0.3.3
++Release: 1
++License: GPL
++Group: Applications/System
++URL: <A HREF="http://gparted.sourceforge.net/">http://gparted.sourceforge.net/</A>
++
++Source0: <A HREF="http://dl.sf.net/sourceforge/gparted/gparted-%{version">http://dl.sf.net/sourceforge/gparted/gparted-%{version</A>}.tar.bz2
++Source1: run-gparted
++Source2: gparted-console.apps
++Source3: gparted-pam.d
++Patch0:	gparted-dont-lock-hal.patch
++Patch1: gparted-devices.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: gtkmm24-devel, parted-devel 
++BuildRequires: e2fsprogs-devel, gettext perl(XML::Parser) 
++BuildRequires: desktop-file-utils
++Requires: hal &gt;= 0.5.9
++
++%description
++GParted stands for Gnome Partition Editor and is a graphical frontend to
++libparted. Among other features it supports creating, resizing, moving
++and copying of partitions. Also several (optional) filesystem tools provide
++support for filesystems not included in libparted. These optional packages
++will be detected at runtime and don't require a rebuild of GParted
++
++%prep
++%setup
++%patch0 -p0 -b .hal
++%patch1 -p0 -b .devs
++
++%{__cat} &lt;&lt;EOF &gt;run-gparted
++#!/bin/bash
++%{_bindir}/hal-lock --interface org.freedesktop.Hal.Device.Storage  --exclusive --run %{_sbindir}/usr/sbin/gparted
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;gparted.pam
++#%PAM-1.0
++auth       sufficient   pam_rootok.so
++auth       sufficient   pam_timestamp.so
++auth       include      system-auth
++session	   required     pam_permit.so
++session	   optional     pam_xauth.so
++session	   optional     pam_timestamp.so
++account	   required     pam_permit.so
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;gparted.console-apps
++USER=root
++PROGRAM=%{_bindir}/run-gparted
++SESSION=true
++EOF
++
++%build
++%configure
++%{__make} %{?_smp_mflags} 
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++%find_lang %{name}
++
++### Create a helper script to launch gparted using hal-lock
++%{__install} -Dp -m0755 run-gparted %{buildroot}%{_bindir}/run-gparted
++
++#### consolehelper stuff
++%{__install} -Dp -m0755 %{buildroot}%{_bindir}/gparted %{buildroot}%{_sbindir}/gparted
++%{__ln_s} -f consolehelper %{buildroot}%{_bindir}/gparted
++
++%{__install} -Dp -m0644 gparted.console-apps %{buildroot}%{_sysconfdir}/security/console.apps/gparted
++%{__install} -Dp -m0644 gparted.pam %{buildroot}%{_sysconfdir}/pam.d/gparted
++
++%preun
++if [ $1 -ge 0 ]; then
++    if [ -a %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi ]; then
++       %{__rm} -rf %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi
++    fi
++fi
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files -f %{name}.lang
++%defattr(-, root, root, 0755)
++%doc AUTHORS ChangeLog COPYING README
++%config(noreplace) %{_sysconfdir}/pam.d/gparted
++%config(noreplace) %{_sysconfdir}/security/console.apps/gparted
++%{_bindir}/gparted
++%{_bindir}/run-gparted
++%{_datadir}/applications/gparted.desktop
++%{_datadir}/pixmaps/gparted.png
++%{_sbindir}/gparted
++
++%changelog
++* Thu Jun 28 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.3.3-1
++- Added Fedora patches.
++- Initial package. (using DAR)
+
+
+Property changes on: trunk/rpms/gparted/gparted.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+Added: trunk/rpms/gparted/run-gparted
+===================================================================
+--- trunk/rpms/gparted/run-gparted	                        (rev 0)
++++ trunk/rpms/gparted/run-gparted	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -0,0 +1,2 @@
++#!/bin/bash
++/usr/bin/hal-lock --interface org.freedesktop.Hal.Device.Storage  --exclusive --run /usr/sbin/gparted
+
+Added: trunk/rpms/ibsh/ibsh.spec
+===================================================================
+--- trunk/rpms/ibsh/ibsh.spec	                        (rev 0)
++++ trunk/rpms/ibsh/ibsh.spec	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -0,0 +1,49 @@
++# $Id$
++# Authority: dag
++
++%define _bindir /bin
++
++Summary: Restricted Unix shell
++Name: ibsh
++Version: 0.3e
++Release: 1
++License: GPL
++Group: System Environment/Shells
++URL: <A HREF="http://ibsh.sourceforge.net/">http://ibsh.sourceforge.net/</A>
++
++Source: <A HREF="http://dl.sf.net/ibsh/ibsh-%{version">http://dl.sf.net/ibsh/ibsh-%{version</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++#BuildRequires: 
++#Requires:
++
++%description
++Iron Bars SHell, or short ibsh is a restricted working environment for Unix.
++
++%prep
++%setup
++
++%build
++%{__make} %{?_smp_mflags}
++
++%install
++%{__rm} -rf %{buildroot}
++#%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++%{__install} -Dp -m0755 ibsh %{buildroot}%{_bindir}/ibsh
++
++%{__install} -Dp -m0644 globals.cmds %{buildroot}%{_sysconfdir}/ibsh/globals.cmds
++%{__install} -Dp -m0644 globals.xtns %{buildroot}%{_sysconfdir}/ibsh/globals.xtns
++%{__install} -dp -m0755 %{buildroot}%{_sysconfdir}/ibsh/{cmds,xtns}/
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS BUGS ChangeLog CONTRIBUTORS COPYING COPYRIGHT INSTALL README TODO *.xtns
++%config(noreplace) %{_sysconfdir}/ibsh/
++%{_bindir}/ibsh
++
++%changelog
++* Thu Jun 28 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 
++- Initial package. (using DAR)
+
+Modified: trunk/rpms/mon/mon.spec
+===================================================================
+--- trunk/rpms/mon/mon.spec	2007-06-26 23:21:41 UTC (rev 5543)
++++ trunk/rpms/mon/mon.spec	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -6,8 +6,8 @@
+ 
+ Summary: General-purpose resource monitoring system
+ Name: mon
+-Version: 0.99.2
+-Release: 1.2
++Version: 1.2.0
++Release: 1
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.kernel.org/software/mon/">http://www.kernel.org/software/mon/</A>
+@@ -234,7 +234,7 @@
+ %files
+ %defattr(-, root, root, 0755)
+ %doc CHANGES COPYING COPYRIGHT CREDITS README TODO doc/README.*
+-%doc KNOWN-PROBLEMS mon.lsm utils/ VERSION
++%doc KNOWN-PROBLEMS utils/ VERSION
+ %doc alerts/*/*.README mon.cgi-1.52/
+ %doc clients/{skymon,batch-example} etc/*.cf etc/example.m4 etc/example.monshowrc
+ %config(noreplace) %{_sysconfdir}/mon/
+@@ -249,8 +249,8 @@
+ %{_libdir}/mon/mon.d/dialin.monitor.wrap
+ 
+ %changelog
+-* Sat Apr 08 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.99.2-1.2
+-- Rebuild for Fedora Core 5.
++* Wed Jun 27 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.2.0-1
++- Updated to release 1.2.0.
+ 
+ * Tue Mar 06 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.99.2-1
+ - Fixed problems with perl-modules.
+
+Modified: trunk/rpms/svnmailer/svnmailer.spec
+===================================================================
+--- trunk/rpms/svnmailer/svnmailer.spec	2007-06-26 23:21:41 UTC (rev 5543)
++++ trunk/rpms/svnmailer/svnmailer.spec	2007-06-28 15:00:29 UTC (rev 5544)
+@@ -15,6 +15,7 @@
+ Source: <A HREF="http://storage.perlig.de/svnmailer/svnmailer-%{version">http://storage.perlig.de/svnmailer/svnmailer-%{version</A>}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
++BuildArch: noarch
+ BuildRequires: python &gt;= 2.3
+ Requires: python &gt;= 2.3
+ 
+@@ -55,6 +56,9 @@
+ %{python_sitelib}/svnmailer
+ 
+ %changelog
++* Thu Jun 28 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.0.8-2
++- Changed BuildArch to noarch. (Leo Eraly)
++
+ * Fri Apr 21 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 1.0.8-1
+ - Updated to release 1.0.8.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004342.html">[svn] r5543 - in trunk/rpms: aircrack-ng dia fuse-svnfs rdup	testdisk xnee
+</A></li>
+	<LI>Next message: <A HREF="004344.html">[svn] r5545 - in trunk/rpms: libarxx mercurial tintin white_dune	youtube-dl
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4343">[ date ]</a>
+              <a href="thread.html#4343">[ thread ]</a>
+              <a href="subject.html#4343">[ subject ]</a>
+              <a href="author.html#4343">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

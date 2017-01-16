@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6155 - in trunk/rpms: . cstream
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6155%20-%20in%20trunk/rpms%3A%20.%20cstream&In-Reply-To=%3C20080212155841.495D631811D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004953.html">
+   <LINK REL="Next"  HREF="004955.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6155 - in trunk/rpms: . cstream</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6155%20-%20in%20trunk/rpms%3A%20.%20cstream&In-Reply-To=%3C20080212155841.495D631811D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r6155 - in trunk/rpms: . cstream">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Feb 12 16:58:41 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004953.html">[svn] r6154 - in trunk/rpms: . cacti dkms-r8168 nagios-nsca openal
+</A></li>
+        <LI>Next message: <A HREF="004955.html">[svn] r6156 - in trunk/rpms: glchess gresistor ipython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4954">[ date ]</a>
+              <a href="thread.html#4954">[ thread ]</a>
+              <a href="subject.html#4954">[ subject ]</a>
+              <a href="author.html#4954">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-02-12 16:58:39 +0100 (Tue, 12 Feb 2008)
+New Revision: 6155
+
+Added:
+   trunk/rpms/cstream/
+   trunk/rpms/cstream/cstream-2.7.4-Wextra.patch
+   trunk/rpms/cstream/cstream.spec
+Log:
+Updates
+
+Added: trunk/rpms/cstream/cstream-2.7.4-Wextra.patch
+===================================================================
+--- trunk/rpms/cstream/cstream-2.7.4-Wextra.patch	                        (rev 0)
++++ trunk/rpms/cstream/cstream-2.7.4-Wextra.patch	2008-02-12 15:58:39 UTC (rev 6155)
+@@ -0,0 +1,40 @@
++--- cstream-2.7.4-orig/cstream.c	2007-09-18 21:47:49.000000000 +0200
+++++ cstream-2.7.4-Wextra/cstream.c	2008-02-08 19:10:07.000000000 +0100
++@@ -97,6 +97,7 @@
++ #else
++ #ifdef HAVE_SYS_SOUNDCARD_H
++ #include &lt;sys/soundcard.h&gt;
+++#include &lt;sys/ioctl.h&gt;
++ #define WANT_SOUND 1
++ #else
++ #ifdef HAVE_LINUX_SOUNDCARD_H
++@@ -266,7 +267,10 @@ static void sigreport(int signal)
++ 
++ static void sighup(int signal)
++ {
++-  write(2, &quot;SIGHUP\n&quot;, sizeof(&quot;SIGHUP\n&quot;)-1);
+++  ssize_t s = write(STDERR_FILENO, &quot;SIGHUP\n&quot;, sizeof(&quot;SIGHUP\n&quot;)-1);
+++  if (s != sizeof(&quot;SIGHUP\n&quot;)) {
+++    /* ignore write error */
+++  }
++   n_sighups++;
++ }
++ 
++@@ -390,7 +394,7 @@ static int open_tcp(const struct options
++   const char *spec;
++   int newfd;
++   struct sockaddr_in serv_addr;
++-  int *size;
+++  socklen_t *size;
++ 
++   if (mode == O_WRONLY) {
++     spec = o-&gt;o;
++@@ -520,7 +524,7 @@ static int open_tcp(const struct options
++     } *it, funcs[3] = {
++       {getsockname, &quot;getsockname&quot;, &quot;Local binding&quot;},
++       {getpeername, &quot;getpeername&quot;, &quot;Remote binding&quot;},
++-      {NULL}
+++      {NULL, NULL, NULL}
++     };
++     union {
++       struct sockaddr sa;
+
+Added: trunk/rpms/cstream/cstream.spec
+===================================================================
+--- trunk/rpms/cstream/cstream.spec	                        (rev 0)
++++ trunk/rpms/cstream/cstream.spec	2008-02-12 15:58:39 UTC (rev 6155)
+@@ -0,0 +1,55 @@
++# $Id$
++# Authority: dag
++
++Summary: General-purpose stream-handling tool
++Name: cstream
++Version: 2.7.4
++Release: 3
++License: MIT
++Group: Applications/System
++URL: <A HREF="http://www.cons.org/cracauer/cstream.html">http://www.cons.org/cracauer/cstream.html</A>
++
++Source: <A HREF="http://www.cons.org/cracauer/download/cstream-%{version">http://www.cons.org/cracauer/download/cstream-%{version</A>}.tar.gz
++Patch2: cstream-2.7.4-Wextra.patch
++
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++%description
++cstream filters data streams, much like the UNIX tool dd(1).
++
++cstream has a more traditional commandline syntax, support for precise
++bandwidth limiting and reporting and support for FIFOs.
++
++Data limits and throughput rate calculation will work for files &gt; 4 GB.
++
++%prep
++%setup
++%patch2 -p1 -b .Wextra
++
++%build
++%configure INSTALL=&quot;%{__install} -p&quot;
++%{__make} %{?_smp_mflags} CFLAGS=&quot;%{optflags} -Wall -Wno-unused-parameter -Werror&quot;
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc CHANGES COPYRIGHT README TODO
++%doc %{_mandir}/man1/cstream.1*
++%{_bindir}/cstream
++
++%changelog
++* Fri Feb 08 2008 Hans Ulrich Niedermann &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">hun at n-dimensional.de</A>&gt; - 2.7.4-3
++- More compile warnings (-Wall -Wextra -Werror).
++- Redacted description down to the most important points.
++
++* Fri Feb 08 2008 Hans Ulrich Niedermann &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">hun at n-dimensional.de</A>&gt; - 2.7.4-2
++- Spec file cleanups (use install target, get rpmlint to shut up).
++
++* Fri Feb 08 2008 Mike Weisenborn &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">mike at weisenborn.com</A>&gt; - 2.7.4-1
++- Initial package
+
+
+Property changes on: trunk/rpms/cstream/cstream.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004953.html">[svn] r6154 - in trunk/rpms: . cacti dkms-r8168 nagios-nsca openal
+</A></li>
+	<LI>Next message: <A HREF="004955.html">[svn] r6156 - in trunk/rpms: glchess gresistor ipython
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4954">[ date ]</a>
+              <a href="thread.html#4954">[ thread ]</a>
+              <a href="subject.html#4954">[ subject ]</a>
+              <a href="author.html#4954">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

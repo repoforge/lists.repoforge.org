@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1683 - trunk/tools/checkspec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1683%20-%20trunk/tools/checkspec&In-Reply-To=%3C20040721110727.2AC041FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000491.html">
+   <LINK REL="Next"  HREF="000493.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1683 - trunk/tools/checkspec</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1683%20-%20trunk/tools/checkspec&In-Reply-To=%3C20040721110727.2AC041FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1683 - trunk/tools/checkspec">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Jul 21 13:07:27 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000491.html">[SVN] r1682 - in trunk/rpms: povray stlport
+</A></li>
+        <LI>Next message: <A HREF="000493.html">[SVN] r1684 - in trunk/rpms: desproxy echoart fampp gnuvd libevent	libmba libshout orbitcpp paketto papaya pike povray stlport	videolan-server vpe
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#492">[ date ]</a>
+              <a href="thread.html#492">[ thread ]</a>
+              <a href="subject.html#492">[ subject ]</a>
+              <a href="author.html#492">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-07-21 13:07:24 +0200 (Wed, 21 Jul 2004)
+New Revision: 1683
+
+Modified:
+   trunk/tools/checkspec/checkspec
+Log:
+more small tests
+
+Modified: trunk/tools/checkspec/checkspec
+===================================================================
+--- trunk/tools/checkspec/checkspec	2004-07-21 11:06:17 UTC (rev 1682)
++++ trunk/tools/checkspec/checkspec	2004-07-21 11:07:24 UTC (rev 1683)
+@@ -34,7 +34,7 @@
+ 	if ($filecontents =~ /\%clean\n\%\{__rm\} \-rf \%\{buildroot\}/) {
+ 		debug($METHOD_NAME . &quot;clean section ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot;: %clean section not ok\n&quot;;
++		print stderr $filename . &quot; : %clean section not ok\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ }
+@@ -44,22 +44,37 @@
+ 	my ($filename, $filecontents) = @_;
+ 	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
+ 	# get the %files part of the spec file
+-	$filecontents =~ s/.*\%files//g;
++	$filecontents =~ s/.*\%files//gs;
+ 	debug($METHOD_NAME . &quot;files sections: \n##### START #####\n&quot; . $filecontents . &quot;##### END #####&quot;);
+ 	if (!($filecontents =~ /LC_MESSAGES/)) {
+ 		debug($METHOD_NAME . &quot;LC_MESSAGES in %files not found, ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot;: contains LC_MESSAGES in %files section\n&quot;;
++		print stderr $filename . &quot; : contains LC_MESSAGES in %files section\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ }
+ 
++sub checkOnlyMacrosInFiles {
++	my $METHOD_NAME = &quot;checkOnlyMacrosInFiles - &quot;;
++	my ($filename, $filecontents) = @_;
++	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	# get the %files part of the spec file
++	$filecontents =~ s/.*\%files//gs;
++	debug($METHOD_NAME . &quot;files sections: \n##### START #####\n&quot; . $filecontents . &quot;##### END #####&quot;);
++	if (!($filecontents =~ /\n\//)) {
++		debug($METHOD_NAME . &quot;no line after %files which starts with a slash, ok&quot;);
++	} else {
++		print stderr $filename . &quot; : contains lines which start with a slash in %files section\n&quot;;
++		$specproblems{$filename} = 1;
++	}
++}
++
+ sub checkMacros {
+ 	my $METHOD_NAME = &quot;checkMacros - &quot;;
+ 	my ($filename, $filecontents) = @_;
+         debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
+ 	if ($filecontents =~ /^[ \t]*install/gm) {
+-		print stderr $filename . &quot;: contains install, should be \%\{__install\}\n&quot;;
++		print stderr $filename . &quot; : contains install, should be \%\{__install\}\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	} else {
+ 		debug($METHOD_NAME . &quot;checkMacros ok&quot;);
+@@ -73,12 +88,64 @@
+ 	if ($filecontents =~ /^BuildRoot: \%\{\_tmppath\}\/\%\{name\}\-\%\{version\}\-\%\{release\}\-root$/gm) {
+ 		debug($METHOD_NAME . &quot;buildroot ok&quot;);
+ 	} else {
+-		print stderr $filename . &quot;: buildroot not ok\n&quot;;
++		print stderr $filename . &quot; : buildroot not ok\n&quot;;
+ 		$specproblems{$filename} = 1;
+ 	}
+ 	# BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ }
+ 
++sub checkLineLength {
++	my $METHOD_NAME = &quot;checkLineLength - &quot;;
++	my ($filename, $filecontents) = @_;
++	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	my @lines = split(&quot;\n&quot;, $filecontents);
++	my $line;
++	foreach $line (@lines) {
++		if (length($line) &gt; 80) {
++			if (!($line =~ /^Source[0-9]*:/) 
++			&amp;&amp; !($line =~/^# Screenshot/)
++			&amp;&amp; !($line =~/^\%define/)) {
++				print stderr $filename . &quot; : line too long, line: &quot; . $line . &quot;\n&quot;;
++				$specproblems{$filename} = 1;
++			}
++		}
++	}
++}
++
++sub checkDefattrLines {
++# %defattr(-,root,root,0755)
++	my $METHOD_NAME = &quot;checkDefattrLines - &quot;;
++	my ($filename, $filecontents) = @_;
++	debug($METHOD_NAME . &quot;start, filename=&quot; . $filename);
++	my @lines = split(&quot;\n&quot;, $filecontents);
++	my $line;
++	my $lastlineWasFilesLine = 0;
++	foreach $line (@lines) {
++		debug($METHOD_NAME . &quot;lastlineWasFilesLine=&quot; . $lastlineWasFilesLine . &quot;,line=&quot; . $line);
++		if ($line =~ /^\%files/) {
++			$lastlineWasFilesLine = 1;
++			next;
++		}
++		debug($METHOD_NAME . &quot;lastlineWasFilesLine is now &quot; . $lastlineWasFilesLine);
++		if ($lastlineWasFilesLine) {
++			if ($line =~ /^%defattr\(([0-9a-zA-Z -]*),([0-9a-zA-Z -]*),([0-9a-zA-Z -]*),([0-9a-zA-Z -]*)\)/) {
++				if (!($line =~ /^%defattr\(([0-9a-zA-Z-]*), ([0-9a-zA-Z-]*), ([0-9a-zA-Z-]*), ([0-9a-zA-Z-]*)\)/)) {
++					print stderr $filename . &quot; : spaces not ok in defattr, line= &quot; . $line . &quot;\n&quot;;
++				}
++				$lastlineWasFilesLine = 0;				
++				next;
++			}
++			if ($line =~ /^%defattr\(([0-9a-zA-Z -]*),([0-9a-zA-Z -]*),([0-9a-zA-Z -]*)\)/) {
++				print stderr $filename . &quot; : no chmod mode at end of defattr, line= &quot; . $line . &quot;\n&quot;;
++				$lastlineWasFilesLine = 0;
++				next;
++			}
++			print stderr $filename . &quot; : no defattr line after files section\n&quot;;
++			$lastlineWasFilesLine = 0;
++		}
++	}
++}
++
+ sub checkSpec {
+ 	my $METHOD_NAME = &quot;checkSpec - &quot;;
+ 	my $filename = pop;
+@@ -93,6 +160,9 @@
+ 	checkCleanSection($filename, $filecontents);
+ 	checkNoLcMessagesInFilesSection($filename, $filecontents);
+ 	checkBuildRoot($filename, $filecontents);
++	checkLineLength($filename, $filecontents);
++	checkOnlyMacrosInFiles($filename, $filecontents);
++	checkDefattrLines($filename, $filecontents);
+ 	checkMacros($filename, $filecontents);
+ }
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000491.html">[SVN] r1682 - in trunk/rpms: povray stlport
+</A></li>
+	<LI>Next message: <A HREF="000493.html">[SVN] r1684 - in trunk/rpms: desproxy echoart fampp gnuvd libevent	libmba libshout orbitcpp paketto papaya pike povray stlport	videolan-server vpe
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#492">[ date ]</a>
+              <a href="thread.html#492">[ thread ]</a>
+              <a href="subject.html#492">[ subject ]</a>
+              <a href="author.html#492">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

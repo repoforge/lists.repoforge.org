@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3323 - in trunk/tools/dconf: . config
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3323%20-%20in%20trunk/tools/dconf%3A%20.%20config&In-Reply-To=%3C20050625035129.7B57831808D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002124.html">
+   <LINK REL="Next"  HREF="002126.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3323 - in trunk/tools/dconf: . config</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3323%20-%20in%20trunk/tools/dconf%3A%20.%20config&In-Reply-To=%3C20050625035129.7B57831808D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3323 - in trunk/tools/dconf: . config">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Jun 25 05:51:29 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002124.html">[svn] r3322 - in trunk/rpms: aldo gcombust gnomeradio	perl-ExtUtils-MakeMaker python-game scapy scilab sendip	shellsql skystreets sopwith stellarium unzsplit vpnc zoo
+</A></li>
+        <LI>Next message: <A HREF="002126.html">[svn] r3324 - trunk/tools/dconf/config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2125">[ date ]</a>
+              <a href="thread.html#2125">[ thread ]</a>
+              <a href="subject.html#2125">[ subject ]</a>
+              <a href="author.html#2125">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-06-25 05:51:25 +0200 (Sat, 25 Jun 2005)
+New Revision: 3323
+
+Modified:
+   trunk/tools/dconf/ChangeLog
+   trunk/tools/dconf/config/dconf-redhat.conf
+   trunk/tools/dconf/dconf
+   trunk/tools/dconf/dconf.spec
+Log:
+Updates
+
+Modified: trunk/tools/dconf/ChangeLog
+===================================================================
+--- trunk/tools/dconf/ChangeLog	2005-06-24 21:58:22 UTC (rev 3322)
++++ trunk/tools/dconf/ChangeLog	2005-06-25 03:51:25 UTC (rev 3323)
+@@ -1,4 +1,7 @@
+-* 0.4.2 - Mid-Hudson Valley LUG - released 06/06/2005
++* 0.4.3 - Untitled - released 23/06/2005
++- Disable digests in rpmdb too. (Bert de Bruijn)
++
++* 0.4.2 - Mid-Hudson Valley LUG - released 22/06/2005
+ - Use 160bit SHA1 instead of 128bit MD5
+ - Make relative links instead of absolute
+ - Added --root option
+@@ -10,6 +13,7 @@
+ - Fixed sort differences when running using cron or manual (LC_ALL='C')
+ - Added internal exclude list for common unwanted files
+ - Fixed a bug regarding RPM md5sum checking
++- Added a dconf manpage
+ 
+ * 0.4.1 - released 24/11/2004
+ - Fixed a bug with md5sum checking
+
+Modified: trunk/tools/dconf/config/dconf-redhat.conf
+===================================================================
+--- trunk/tools/dconf/config/dconf-redhat.conf	2005-06-24 21:58:22 UTC (rev 3322)
++++ trunk/tools/dconf/config/dconf-redhat.conf	2005-06-25 03:51:25 UTC (rev 3323)
+@@ -148,6 +148,12 @@
+ 	/etc/printcap
+ 	/etc/xinetd.d/cups-lpd
+ 
++[raid]
++files =
++	/etc/mdadm.conf
++	/etc/raidtab
++	/proc/mdstat
++
+ [root user]
+ files =
+ 	/root/.Xresources
+@@ -250,7 +256,6 @@
+ 	/proc/ide/piix
+ 	/proc/ide/via
+ 	/proc/iomem
+-	/proc/mdstat
+ 	/proc/misc
+ 	/proc/modules
+ 	/proc/mtrr
+
+Modified: trunk/tools/dconf/dconf
+===================================================================
+--- trunk/tools/dconf/dconf	2005-06-24 21:58:22 UTC (rev 3322)
++++ trunk/tools/dconf/dconf	2005-06-25 03:51:25 UTC (rev 3323)
+@@ -4,7 +4,7 @@
+ import ConfigParser, urlparse, pwd, grp, stat, syslog
+ import difflib, smtplib, gzip, md5, sha
+ 
+-VERSION = '0.4.2'
++VERSION = '0.4.3'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -169,6 +169,7 @@
+ 	sha1o = sha.new(); f = dzopen(filename); sha1o.update(f.read()); f.close()
+ 	return sha1o
+ 
++### BOGUS function, rpmdb only has md5 ?
+ def sha1check(h, filename):
+ 	&quot;Check if sha1sum is the same as in rpmdb&quot;
+ 	if os.path.exists(filename):
+@@ -305,8 +306,9 @@
+ #	if cf.rpm or which('rpm'):
+ 	try:
+ 		import rpm
+-		ts = rpm.ts()
+-		ts.setVSFlags(rpm.RPMVSF_NORSA | rpm.RPMVSF_NODSA)
++		ts = rpm.TransactionSet()
++#		ts.setVSFlags(rpm.RPMVSF_NORSA | rpm.RPMVSF_NODSA)
++		ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES | rpm._RPMVSF_NODIGESTS)
+ 	except:
+ #	else:
+ 		info(2, 'Disabling RPM capability since the rpm-python bindings could not be loaded.')
+
+Modified: trunk/tools/dconf/dconf.spec
+===================================================================
+--- trunk/tools/dconf/dconf.spec	2005-06-24 21:58:22 UTC (rev 3322)
++++ trunk/tools/dconf/dconf.spec	2005-06-25 03:51:25 UTC (rev 3323)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Create a system's hardware and software configuration snapshot
+ Name: dconf
+-Version: 0.4.2
++Version: 0.4.3
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -50,7 +50,7 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README THANKS TODO config/
++%doc AUTHORS ChangeLog COPYING README THANKS TODO config/ scripts/
+ %doc %{_mandir}/man1/dconf.1*
+ %config %{_sysconfdir}/dconf.conf
+ %config(noreplace) %{_sysconfdir}/dconf-custom.conf
+@@ -58,7 +58,10 @@
+ %{_localstatedir}/log/dconf/
+ 
+ %changelog
+-* Mon Jun 06 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.2-1
++* Wed Jun 21 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.3-1
++- Updated to release 0.4.3.
++
++* Wed Jun 22 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.2-1
+ - Updated to release 0.4.2.
+ 
+ * Wed Nov 24 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.1-1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002124.html">[svn] r3322 - in trunk/rpms: aldo gcombust gnomeradio	perl-ExtUtils-MakeMaker python-game scapy scilab sendip	shellsql skystreets sopwith stellarium unzsplit vpnc zoo
+</A></li>
+	<LI>Next message: <A HREF="002126.html">[svn] r3324 - trunk/tools/dconf/config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2125">[ date ]</a>
+              <a href="thread.html#2125">[ thread ]</a>
+              <a href="subject.html#2125">[ subject ]</a>
+              <a href="author.html#2125">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

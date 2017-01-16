@@ -1,0 +1,1162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5941 - trunk/rpms/eid-belgium
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5941%20-%20trunk/rpms/eid-belgium&In-Reply-To=%3C20071025135403.82902944B6B%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004739.html">
+   <LINK REL="Next"  HREF="004741.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5941 - trunk/rpms/eid-belgium</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5941%20-%20trunk/rpms/eid-belgium&In-Reply-To=%3C20071025135403.82902944B6B%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5941 - trunk/rpms/eid-belgium">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Oct 25 15:54:03 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004739.html">[svn] r5940 - in trunk/tools/mrepo: . config/dists docs
+</A></li>
+        <LI>Next message: <A HREF="004741.html">[svn] r5942 - trunk/rpms/eid-belgium
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4740">[ date ]</a>
+              <a href="thread.html#4740">[ thread ]</a>
+              <a href="subject.html#4740">[ subject ]</a>
+              <a href="author.html#4740">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: arrfab
+Date: 2007-10-25 15:54:01 +0200 (Thu, 25 Oct 2007)
+New Revision: 5941
+
+Added:
+   trunk/rpms/eid-belgium/eid-belgium-2.5.9.spec
+   trunk/rpms/eid-belgium/eid-belgium.spec
+Removed:
+   trunk/rpms/eid-belgium/eid-belgium.spec
+Log:
+Updated the eid-belgium spec file for newer 2.6.0 eid-belgium package.
+
+
+
+Copied: trunk/rpms/eid-belgium/eid-belgium-2.5.9.spec (from rev 5940, trunk/rpms/eid-belgium/eid-belgium.spec)
+===================================================================
+--- trunk/rpms/eid-belgium/eid-belgium-2.5.9.spec	                        (rev 0)
++++ trunk/rpms/eid-belgium/eid-belgium-2.5.9.spec	2007-10-25 13:54:01 UTC (rev 5941)
+@@ -0,0 +1,358 @@
++# $Id$
++# Authority: dag
++
++%define desktop_vendor rpmforge
++
++Summary: Application to read out information from the Belgian electronic ID card
++%define real_name Belgian_Identity_Card_Run-time
++Name: eid-belgium
++Version: 2.5.9
++Release: 2
++License: GPL
++Group: Applications/Internet
++URL: <A HREF="http://eid.belgium.be/">http://eid.belgium.be/</A>
++
++### Since it needs a specific referer, download it from <A HREF="http://www.belgium.be/zip/eid_datacapture_nl.html">http://www.belgium.be/zip/eid_datacapture_nl.html</A>
++Source: <A HREF="http://www.belgium.be/zip/Belgian_Identity_Card_Run-time%{version">http://www.belgium.be/zip/Belgian_Identity_Card_Run-time%{version</A>}.tar.bz2
++Patch0: eid-belgium-2.5.9-openscreader.patch
++Patch1: eid-belgium-2.5.9-reader-pcsc.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++### SCons doesn't build when eid-belgium is already installed
++BuildConflicts: eid-belgium
++BuildRequires: scons, wxGTK-devel &gt;= 2.4, openssl-devel &gt;= 0.9.7, pcsc-lite-devel &gt;= 1.2.9
++BuildRequires: qt-devel &gt;= 3.3.3, java-sdk
++#BuildRequires: java-sdk-1.4.2
++Provides: belpic = %{version}-%{release}
++Obsoletes: belpic &lt;= %{version}-%{release}
++Provides: beid = %{version}-%{release}
++Obsoletes: beid &lt;= %{version}-%{release}
++
++%description
++This application allows the user to read out any information from a
++Belgian electronic ID card, by using libbeid and libbeidlibopensc to
++read the data from the card and parse it. Both identity information and
++information about the stored cryptographic keys can be read in a
++user-friendly manner, and can easily be printed out or stored for later
++reviewal.
++
++The application verifies the signature of the identity information,
++checks whether it was signed by a government-issued key, and optionally
++checks the certificate against the government's Certificate Revocation List
++(CRL) and/or by using the Online Certificate Status Protocol (OCSP) against
++the government's servers.
++
++%prep
++%setup -n beid-%{version}
++
++%patch0 -p0
++%patch1 -p0
++
++%{__cat} &lt;&lt;EOF &gt;beidcrld.sysconfig
++OPTIONS=&quot;&quot;
++EOF
++
++%{__cat} &lt;&lt;'EOF' &gt;beidcrld.sysv
++#!/bin/bash
++#
++# Init file for the Belgian electronic ID card CRL daemon
++#
++# Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++#
++# chkconfig: - 90 10
++# description: Belgian electronic ID card CRL daemon
++#
++# processname: beidcrld
++# config: %{_sysconfdir}/sysconfig/beidcrld
++
++source %{_initrddir}/functions
++
++[ -x %{_bindir}/beidcrld ] || exit 1
++
++### Default variables
++SYSCONFIG=&quot;/etc/sysconfig/beidcrld&quot;
++OPTIONS=&quot;&quot;
++
++### Read configuration
++[ -r &quot;$SYSCONFIG&quot; ] &amp;&amp; source &quot;$SYSCONFIG&quot;
++
++RETVAL=0
++prog=&quot;beidcrld&quot;
++desc=&quot;Belgian eID CRL daemon&quot;
++
++start() {
++	echo -n $&quot;Starting $desc ($prog): &quot;
++	daemon $prog $OPTIONS
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++stop() {
++	echo -n $&quot;Shutting down $desc ($prog): &quot;
++	killproc $prog
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++restart() {
++	stop
++	start
++}
++
++reload() {
++	echo -n $&quot;Reloading $desc ($prog): &quot;
++	killproc $prog -HUP
++	RETVAL=$?
++	echo
++	return $RETVAL
++}
++
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	stop
++	;;
++  restart)
++	restart
++	;;
++  reload)
++	reload
++	;;
++  condrestart)
++	[ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++	RETVAL=$?
++	;;
++  status)
++	status $prog
++	RETVAL=$?
++	;;
++  *)
++	echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
++	RETVAL=1
++esac
++
++exit $RETVAL
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;beidpcscd.sysconfig
++OPTIONS=&quot;&quot;
++EOF
++
++%{__cat} &lt;&lt;'EOF' &gt;beidpcscd.sysv
++#!/bin/bash
++#
++# Init file for the Belgian electronic ID card PCSC daemon
++#
++# Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++#
++# chkconfig: - 90 10
++# description: Belgian electronic ID card PCSC daemon
++#
++# processname: beidpcscd
++# config: %{_sysconfdir}/sysconfig/beidpcscd
++
++source %{_initrddir}/functions
++
++[ -x %{_bindir}/beidpcscd ] || exit 1
++
++### Default variables
++SYSCONFIG=&quot;/etc/sysconfig/beidpcscd&quot;
++OPTIONS=&quot;&quot;
++
++### Read configuration
++[ -r &quot;$SYSCONFIG&quot; ] &amp;&amp; source &quot;$SYSCONFIG&quot;
++
++RETVAL=0
++prog=&quot;beidpcscd&quot;
++desc=&quot;Belgian eID PCSC daemon&quot;
++
++start() {
++	echo -n $&quot;Starting $desc ($prog): &quot;
++	daemon $prog $OPTIONS
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++stop() {
++	echo -n $&quot;Shutting down $desc ($prog): &quot;
++	killproc $prog
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++restart() {
++	stop
++	start
++}
++
++reload() {
++	echo -n $&quot;Reloading $desc ($prog): &quot;
++	killproc $prog -HUP
++	RETVAL=$?
++	echo
++	return $RETVAL
++}
++
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	stop
++	;;
++  restart)
++	restart
++	;;
++  reload)
++	reload
++	;;
++  condrestart)
++	[ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++	RETVAL=$?
++	;;
++  status)
++	status $prog
++	RETVAL=$?
++	;;
++  *)
++	echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
++	RETVAL=1
++esac
++
++exit $RETVAL
++EOF
++
++### Fixing the references to /usr/local in some files
++%{__perl} -pi.orig -e 's|/usr/local/etc\b|%{buildroot}%{_sysconfdir}|g' \
++	SConstruct
++%{__perl} -pi.orig -e 's|/usr/local/lib\b|%{buildroot}%{_libdir}|g' \
++	src/newpkcs11/SConscript
++%{__perl} -pi.orig -e 's|/etc/init.d\b|%{buildroot}%{_initrddir}|g' \
++	src/beidservicecrl/SConscript \
++	&quot;src/Belpic PCSC Service/SConscript&quot;
++
++%{__perl} -pi.orig -e 's|/usr/local/etc\b|%{_sysconfdir}|g' \
++	src/beidcommon/config.cpp \
++	src/newpkcs11/config.h
++%{__perl} -pi.orig -e 's|/usr/local/lib\b|%{_libdir}|g' \
++	src/newpkcs11/etc/Belgian_eID_PKCS11_java.cfg \
++	src/newpkcs11/etc/beid-pkcs11-register.html
++%{__perl} -pi.orig -e 's|/usr/local/bin/beidgui.png\b|%{_datadir}/icons/beidgui.png|g' \
++	src/eidviewer/beidgui.desktop
++%{__perl} -pi.orig -e 's|/usr/local/bin\b|%{_bindir}|g' \
++	src/beidservicecrl/belgium.be-beidcrld \
++	&quot;src/Belpic PCSC Service/belgium.be-beidpcscd&quot; \
++	src/eidviewer/beidgui.desktop
++%{__perl} -pi.orig -e 's|/usr/local/share\b|%{_datadir}|g' \
++	src/eidviewer/beidgui.conf
++
++%build
++export CFLAGS=&quot;%{optflags}&quot;
++export JAVA_HOME=&quot;$(readlink /etc/alternatives/java_sdk)&quot;
++source &quot;/etc/profile.d/qt.sh&quot;
++scons configure prefix=&quot;%{_prefix}&quot;
++scons prefix=&quot;%{_prefix}&quot;
++
++%install
++%{__rm} -rf %{buildroot}
++%{__install} -d -m0755 %{buildroot}%{_bindir}
++%{__install} -d -m0755 %{buildroot}%{_libdir}
++source &quot;/etc/profile.d/qt.sh&quot;
++scons install --cache-disable prefix=&quot;%{buildroot}%{_prefix}&quot; libdir=&quot;%{buildroot}%{_libdir}&quot;
++
++%{__install} -Dp -m0755 beidcrld.sysv %{buildroot}%{_initrddir}/beidcrld
++%{__install} -Dp -m0755 beidpcscd.sysv %{buildroot}%{_initrddir}/beidpcscd
++%{__install} -Dp -m0644 beidcrld.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/beidcrld
++%{__install} -Dp -m0644 beidpcscd.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/beidpcscd
++
++%{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
++desktop-file-install --delete-original             \
++	--vendor %{desktop_vendor}                 \
++	--add-category X-Red-Hat-Base              \
++	--add-category Utility                     \
++	--dir %{buildroot}%{_datadir}/applications \
++	%{buildroot}%{_bindir}/beidgui.desktop
++
++%{__install} -d -m0755 %{buildroot}%{_datadir}/icons/
++%{__mv} -vf %{buildroot}%{_bindir}/beidgui.png %{buildroot}%{_datadir}/icons/beidgui.png
++
++### Fix library symlinks
++for lib in $(ls %{buildroot}%{_libdir}/libbeid*.so.?.?.?); do
++	%{__ln_s} -f $(basename $lib) ${lib//%\.?\.?}
++done
++
++### Fix locale files
++for file in $(ls %{buildroot}%{_datadir}/locale/beidgui_*.mo); do
++	lang=&quot;${file%.mo}&quot;
++	lang=&quot;${lang#%{buildroot}%{_datadir}/locale/beidgui_}&quot;
++	%{__mkdir} -p %{buildroot}%{_datadir}/locale/$lang/LC_MESSAGES/
++	%{__mv} -f $file %{buildroot}%{_datadir}/locale/$lang/LC_MESSAGES/beidgui.mo
++done
++%find_lang beidgui
++
++%post
++/sbin/ldconfig
++/sbin/chkconfig --add beidcrld
++/sbin/chkconfig --add beidpcscd
++update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
++
++%preun
++if [ $1 -eq 0 ]; then
++        /sbin/service beidcrld stop &amp;&gt;/dev/null || :
++        /sbin/chkconfig --del beidcrld
++        /sbin/service beidpcscd stop &amp;&gt;/dev/null || :
++        /sbin/chkconfig --del beidpcscd
++fi
++
++%postun
++/sbin/ldconfig
++/sbin/service beidcrld condrestart &amp;&gt;/dev/null || :
++/sbin/service beidpcscd condrestart &amp;&gt;/dev/null || :
++update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files -f beidgui.lang
++%defattr(-, root, root, 0755)
++%doc CHANGES INSTALL README VERSION doc/*.rtf doc/*.doc
++%doc %{_mandir}/man1/beid-pkcs11-tool.1*
++%doc %{_mandir}/man1/beid-tool.1*
++%config(noreplace) %{_sysconfdir}/beidbase.conf
++%config(noreplace) %{_sysconfdir}/beidgui.conf
++%config(noreplace) %{_sysconfdir}/sysconfig/beidcrld
++%config(noreplace) %{_sysconfdir}/sysconfig/beidpcscd
++%config %{_initrddir}/beidcrld
++%config %{_initrddir}/beidpcscd
++%exclude %{_initrddir}/belgium.be-beidcrld
++%exclude %{_initrddir}/belgium.be-beidpcscd
++%{_bindir}/beid-pkcs11-tool
++%{_bindir}/beid-tool
++%{_bindir}/beidcrld
++%{_bindir}/beidpcscd
++%{_bindir}/beidgui
++%{_datadir}/applications/%{desktop_vendor}-beidgui.desktop
++%{_datadir}/beid/
++%exclude %{_datadir}/beid/eID-toolkit_licensingtermsconditions*.rtf
++%exclude %{_datadir}/beid/DeveloperGuide.doc
++%{_datadir}/icons/beidgui.png
++%{_includedir}/beid/
++%{_libdir}/libbeid*.so*
++%{_libdir}/pkcs11/
++
++%changelog
++* Wed May 16 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.5.9-2
++- Added patch to build against pcsc-lite 1.4. (Daniel De Baerdemaeker)
++
++* Fri Feb 09 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.5.9-1
++- Initial package. (using DAR)
+
+Deleted: trunk/rpms/eid-belgium/eid-belgium.spec
+===================================================================
+--- trunk/rpms/eid-belgium/eid-belgium.spec	2007-10-24 17:23:54 UTC (rev 5940)
++++ trunk/rpms/eid-belgium/eid-belgium.spec	2007-10-25 13:54:01 UTC (rev 5941)
+@@ -1,358 +0,0 @@
+-# $Id$
+-# Authority: dag
+-
+-%define desktop_vendor rpmforge
+-
+-Summary: Application to read out information from the Belgian electronic ID card
+-%define real_name Belgian_Identity_Card_Run-time
+-Name: eid-belgium
+-Version: 2.5.9
+-Release: 2
+-License: GPL
+-Group: Applications/Internet
+-URL: <A HREF="http://eid.belgium.be/">http://eid.belgium.be/</A>
+-
+-### Since it needs a specific referer, download it from <A HREF="http://www.belgium.be/zip/eid_datacapture_nl.html">http://www.belgium.be/zip/eid_datacapture_nl.html</A>
+-Source: <A HREF="http://www.belgium.be/zip/Belgian_Identity_Card_Run-time%{version">http://www.belgium.be/zip/Belgian_Identity_Card_Run-time%{version</A>}.tar.bz2
+-Patch0: eid-belgium-2.5.9-openscreader.patch
+-Patch1: eid-belgium-2.5.9-reader-pcsc.patch
+-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-
+-### SCons doesn't build when eid-belgium is already installed
+-BuildConflicts: eid-belgium
+-BuildRequires: scons, wxGTK-devel &gt;= 2.4, openssl-devel &gt;= 0.9.7, pcsc-lite-devel &gt;= 1.2.9
+-BuildRequires: qt-devel &gt;= 3.3.3, java-sdk
+-#BuildRequires: java-sdk-1.4.2
+-Provides: belpic = %{version}-%{release}
+-Obsoletes: belpic &lt;= %{version}-%{release}
+-Provides: beid = %{version}-%{release}
+-Obsoletes: beid &lt;= %{version}-%{release}
+-
+-%description
+-This application allows the user to read out any information from a
+-Belgian electronic ID card, by using libbeid and libbeidlibopensc to
+-read the data from the card and parse it. Both identity information and
+-information about the stored cryptographic keys can be read in a
+-user-friendly manner, and can easily be printed out or stored for later
+-reviewal.
+-
+-The application verifies the signature of the identity information,
+-checks whether it was signed by a government-issued key, and optionally
+-checks the certificate against the government's Certificate Revocation List
+-(CRL) and/or by using the Online Certificate Status Protocol (OCSP) against
+-the government's servers.
+-
+-%prep
+-%setup -n beid-%{version}
+-
+-%patch0 -p0
+-%patch1 -p0
+-
+-%{__cat} &lt;&lt;EOF &gt;beidcrld.sysconfig
+-OPTIONS=&quot;&quot;
+-EOF
+-
+-%{__cat} &lt;&lt;'EOF' &gt;beidcrld.sysv
+-#!/bin/bash
+-#
+-# Init file for the Belgian electronic ID card CRL daemon
+-#
+-# Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-#
+-# chkconfig: - 90 10
+-# description: Belgian electronic ID card CRL daemon
+-#
+-# processname: beidcrld
+-# config: %{_sysconfdir}/sysconfig/beidcrld
+-
+-source %{_initrddir}/functions
+-
+-[ -x %{_bindir}/beidcrld ] || exit 1
+-
+-### Default variables
+-SYSCONFIG=&quot;/etc/sysconfig/beidcrld&quot;
+-OPTIONS=&quot;&quot;
+-
+-### Read configuration
+-[ -r &quot;$SYSCONFIG&quot; ] &amp;&amp; source &quot;$SYSCONFIG&quot;
+-
+-RETVAL=0
+-prog=&quot;beidcrld&quot;
+-desc=&quot;Belgian eID CRL daemon&quot;
+-
+-start() {
+-	echo -n $&quot;Starting $desc ($prog): &quot;
+-	daemon $prog $OPTIONS
+-	RETVAL=$?
+-	echo
+-	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
+-	return $RETVAL
+-}
+-
+-stop() {
+-	echo -n $&quot;Shutting down $desc ($prog): &quot;
+-	killproc $prog
+-	RETVAL=$?
+-	echo
+-	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
+-	return $RETVAL
+-}
+-
+-restart() {
+-	stop
+-	start
+-}
+-
+-reload() {
+-	echo -n $&quot;Reloading $desc ($prog): &quot;
+-	killproc $prog -HUP
+-	RETVAL=$?
+-	echo
+-	return $RETVAL
+-}
+-
+-case &quot;$1&quot; in
+-  start)
+-	start
+-	;;
+-  stop)
+-	stop
+-	;;
+-  restart)
+-	restart
+-	;;
+-  reload)
+-	reload
+-	;;
+-  condrestart)
+-	[ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
+-	RETVAL=$?
+-	;;
+-  status)
+-	status $prog
+-	RETVAL=$?
+-	;;
+-  *)
+-	echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
+-	RETVAL=1
+-esac
+-
+-exit $RETVAL
+-EOF
+-
+-%{__cat} &lt;&lt;EOF &gt;beidpcscd.sysconfig
+-OPTIONS=&quot;&quot;
+-EOF
+-
+-%{__cat} &lt;&lt;'EOF' &gt;beidpcscd.sysv
+-#!/bin/bash
+-#
+-# Init file for the Belgian electronic ID card PCSC daemon
+-#
+-# Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-#
+-# chkconfig: - 90 10
+-# description: Belgian electronic ID card PCSC daemon
+-#
+-# processname: beidpcscd
+-# config: %{_sysconfdir}/sysconfig/beidpcscd
+-
+-source %{_initrddir}/functions
+-
+-[ -x %{_bindir}/beidpcscd ] || exit 1
+-
+-### Default variables
+-SYSCONFIG=&quot;/etc/sysconfig/beidpcscd&quot;
+-OPTIONS=&quot;&quot;
+-
+-### Read configuration
+-[ -r &quot;$SYSCONFIG&quot; ] &amp;&amp; source &quot;$SYSCONFIG&quot;
+-
+-RETVAL=0
+-prog=&quot;beidpcscd&quot;
+-desc=&quot;Belgian eID PCSC daemon&quot;
+-
+-start() {
+-	echo -n $&quot;Starting $desc ($prog): &quot;
+-	daemon $prog $OPTIONS
+-	RETVAL=$?
+-	echo
+-	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
+-	return $RETVAL
+-}
+-
+-stop() {
+-	echo -n $&quot;Shutting down $desc ($prog): &quot;
+-	killproc $prog
+-	RETVAL=$?
+-	echo
+-	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
+-	return $RETVAL
+-}
+-
+-restart() {
+-	stop
+-	start
+-}
+-
+-reload() {
+-	echo -n $&quot;Reloading $desc ($prog): &quot;
+-	killproc $prog -HUP
+-	RETVAL=$?
+-	echo
+-	return $RETVAL
+-}
+-
+-case &quot;$1&quot; in
+-  start)
+-	start
+-	;;
+-  stop)
+-	stop
+-	;;
+-  restart)
+-	restart
+-	;;
+-  reload)
+-	reload
+-	;;
+-  condrestart)
+-	[ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
+-	RETVAL=$?
+-	;;
+-  status)
+-	status $prog
+-	RETVAL=$?
+-	;;
+-  *)
+-	echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
+-	RETVAL=1
+-esac
+-
+-exit $RETVAL
+-EOF
+-
+-### Fixing the references to /usr/local in some files
+-%{__perl} -pi.orig -e 's|/usr/local/etc\b|%{buildroot}%{_sysconfdir}|g' \
+-	SConstruct
+-%{__perl} -pi.orig -e 's|/usr/local/lib\b|%{buildroot}%{_libdir}|g' \
+-	src/newpkcs11/SConscript
+-%{__perl} -pi.orig -e 's|/etc/init.d\b|%{buildroot}%{_initrddir}|g' \
+-	src/beidservicecrl/SConscript \
+-	&quot;src/Belpic PCSC Service/SConscript&quot;
+-
+-%{__perl} -pi.orig -e 's|/usr/local/etc\b|%{_sysconfdir}|g' \
+-	src/beidcommon/config.cpp \
+-	src/newpkcs11/config.h
+-%{__perl} -pi.orig -e 's|/usr/local/lib\b|%{_libdir}|g' \
+-	src/newpkcs11/etc/Belgian_eID_PKCS11_java.cfg \
+-	src/newpkcs11/etc/beid-pkcs11-register.html
+-%{__perl} -pi.orig -e 's|/usr/local/bin/beidgui.png\b|%{_datadir}/icons/beidgui.png|g' \
+-	src/eidviewer/beidgui.desktop
+-%{__perl} -pi.orig -e 's|/usr/local/bin\b|%{_bindir}|g' \
+-	src/beidservicecrl/belgium.be-beidcrld \
+-	&quot;src/Belpic PCSC Service/belgium.be-beidpcscd&quot; \
+-	src/eidviewer/beidgui.desktop
+-%{__perl} -pi.orig -e 's|/usr/local/share\b|%{_datadir}|g' \
+-	src/eidviewer/beidgui.conf
+-
+-%build
+-export CFLAGS=&quot;%{optflags}&quot;
+-export JAVA_HOME=&quot;$(readlink /etc/alternatives/java_sdk)&quot;
+-source &quot;/etc/profile.d/qt.sh&quot;
+-scons configure prefix=&quot;%{_prefix}&quot;
+-scons prefix=&quot;%{_prefix}&quot;
+-
+-%install
+-%{__rm} -rf %{buildroot}
+-%{__install} -d -m0755 %{buildroot}%{_bindir}
+-%{__install} -d -m0755 %{buildroot}%{_libdir}
+-source &quot;/etc/profile.d/qt.sh&quot;
+-scons install --cache-disable prefix=&quot;%{buildroot}%{_prefix}&quot; libdir=&quot;%{buildroot}%{_libdir}&quot;
+-
+-%{__install} -Dp -m0755 beidcrld.sysv %{buildroot}%{_initrddir}/beidcrld
+-%{__install} -Dp -m0755 beidpcscd.sysv %{buildroot}%{_initrddir}/beidpcscd
+-%{__install} -Dp -m0644 beidcrld.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/beidcrld
+-%{__install} -Dp -m0644 beidpcscd.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/beidpcscd
+-
+-%{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
+-desktop-file-install --delete-original             \
+-	--vendor %{desktop_vendor}                 \
+-	--add-category X-Red-Hat-Base              \
+-	--add-category Utility                     \
+-	--dir %{buildroot}%{_datadir}/applications \
+-	%{buildroot}%{_bindir}/beidgui.desktop
+-
+-%{__install} -d -m0755 %{buildroot}%{_datadir}/icons/
+-%{__mv} -vf %{buildroot}%{_bindir}/beidgui.png %{buildroot}%{_datadir}/icons/beidgui.png
+-
+-### Fix library symlinks
+-for lib in $(ls %{buildroot}%{_libdir}/libbeid*.so.?.?.?); do
+-	%{__ln_s} -f $(basename $lib) ${lib//%\.?\.?}
+-done
+-
+-### Fix locale files
+-for file in $(ls %{buildroot}%{_datadir}/locale/beidgui_*.mo); do
+-	lang=&quot;${file%.mo}&quot;
+-	lang=&quot;${lang#%{buildroot}%{_datadir}/locale/beidgui_}&quot;
+-	%{__mkdir} -p %{buildroot}%{_datadir}/locale/$lang/LC_MESSAGES/
+-	%{__mv} -f $file %{buildroot}%{_datadir}/locale/$lang/LC_MESSAGES/beidgui.mo
+-done
+-%find_lang beidgui
+-
+-%post
+-/sbin/ldconfig
+-/sbin/chkconfig --add beidcrld
+-/sbin/chkconfig --add beidpcscd
+-update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
+-
+-%preun
+-if [ $1 -eq 0 ]; then
+-        /sbin/service beidcrld stop &amp;&gt;/dev/null || :
+-        /sbin/chkconfig --del beidcrld
+-        /sbin/service beidpcscd stop &amp;&gt;/dev/null || :
+-        /sbin/chkconfig --del beidpcscd
+-fi
+-
+-%postun
+-/sbin/ldconfig
+-/sbin/service beidcrld condrestart &amp;&gt;/dev/null || :
+-/sbin/service beidpcscd condrestart &amp;&gt;/dev/null || :
+-update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
+-
+-%clean
+-%{__rm} -rf %{buildroot}
+-
+-%files -f beidgui.lang
+-%defattr(-, root, root, 0755)
+-%doc CHANGES INSTALL README VERSION doc/*.rtf doc/*.doc
+-%doc %{_mandir}/man1/beid-pkcs11-tool.1*
+-%doc %{_mandir}/man1/beid-tool.1*
+-%config(noreplace) %{_sysconfdir}/beidbase.conf
+-%config(noreplace) %{_sysconfdir}/beidgui.conf
+-%config(noreplace) %{_sysconfdir}/sysconfig/beidcrld
+-%config(noreplace) %{_sysconfdir}/sysconfig/beidpcscd
+-%config %{_initrddir}/beidcrld
+-%config %{_initrddir}/beidpcscd
+-%exclude %{_initrddir}/belgium.be-beidcrld
+-%exclude %{_initrddir}/belgium.be-beidpcscd
+-%{_bindir}/beid-pkcs11-tool
+-%{_bindir}/beid-tool
+-%{_bindir}/beidcrld
+-%{_bindir}/beidpcscd
+-%{_bindir}/beidgui
+-%{_datadir}/applications/%{desktop_vendor}-beidgui.desktop
+-%{_datadir}/beid/
+-%exclude %{_datadir}/beid/eID-toolkit_licensingtermsconditions*.rtf
+-%exclude %{_datadir}/beid/DeveloperGuide.doc
+-%{_datadir}/icons/beidgui.png
+-%{_includedir}/beid/
+-%{_libdir}/libbeid*.so*
+-%{_libdir}/pkcs11/
+-
+-%changelog
+-* Wed May 16 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.5.9-2
+-- Added patch to build against pcsc-lite 1.4. (Daniel De Baerdemaeker)
+-
+-* Fri Feb 09 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.5.9-1
+-- Initial package. (using DAR)
+
+Added: trunk/rpms/eid-belgium/eid-belgium.spec
+===================================================================
+--- trunk/rpms/eid-belgium/eid-belgium.spec	                        (rev 0)
++++ trunk/rpms/eid-belgium/eid-belgium.spec	2007-10-25 13:54:01 UTC (rev 5941)
+@@ -0,0 +1,358 @@
++# $Id$
++# Authority: dag
++
++%define desktop_vendor rpmforge
++
++Summary: Application to read out information from the Belgian electronic ID card
++%define real_name Belgian_Identity_Card_Run-time
++Name: eid-belgium
++Version: 2.6.0
++Release: 1%{dist}
++License: GPL
++Group: Applications/Internet
++URL: <A HREF="http://eid.belgium.be/">http://eid.belgium.be/</A>
++
++### Since it needs a specific referer, download it from <A HREF="http://www.belgium.be/zip/eid_datacapture_nl.html">http://www.belgium.be/zip/eid_datacapture_nl.html</A>
++Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; 
++Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
++
++Source: <A HREF="http://www.belgium.be/zip/beid-2.6.0-20070222.tgz">http://www.belgium.be/zip/beid-2.6.0-20070222.tgz</A>
++#Patch0: eid-belgium-2.5.9-openscreader.patch
++#Patch1: eid-belgium-2.5.9-reader-pcsc.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++### SCons doesn't build when eid-belgium is already installed
++BuildConflicts: eid-belgium
++BuildRequires: wxGTK-devel &gt;= 2.4, openssl-devel &gt;= 0.9.7, pcsc-lite-devel &gt;= 1.2.9
++BuildRequires: qt-devel &gt;= 3.3.3, java-sdk
++#BuildRequires: java-sdk-1.4.2
++Provides: belpic = %{version}-%{release}
++Obsoletes: belpic &lt;= %{version}-%{release}
++Provides: beid = %{version}-%{release}
++Obsoletes: beid &lt;= %{version}-%{release}
++Requires: pcsc-lite &gt;= 1.2.9,  openssl &gt;= 0.9.7, wxGTK &gt;= 2.4
++
++%description
++This application allows the user to read out any information from a
++Belgian electronic ID card, by using libbeid and libbeidlibopensc to
++read the data from the card and parse it. Both identity information and
++information about the stored cryptographic keys can be read in a
++user-friendly manner, and can easily be printed out or stored for later
++reviewal.
++
++The application verifies the signature of the identity information,
++checks whether it was signed by a government-issued key, and optionally
++checks the certificate against the government's Certificate Revocation List
++(CRL) and/or by using the Online Certificate Status Protocol (OCSP) against
++the government's servers.
++
++%prep
++%setup -n beid-%{version}
++
++#%patch0 -p0
++#%patch1 -p0
++
++%{__cat} &lt;&lt;EOF &gt;beidcrld.sysconfig
++OPTIONS=&quot;&quot;
++EOF
++
++%{__cat} &lt;&lt;'EOF' &gt;beidcrld.sysv
++#!/bin/bash
++#
++# Init file for the Belgian electronic ID card CRL daemon
++#
++# Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++#
++# chkconfig: - 90 10
++# description: Belgian electronic ID card CRL daemon
++#
++# processname: beidcrld
++# config: %{_sysconfdir}/sysconfig/beidcrld
++
++source %{_initrddir}/functions
++
++[ -x %{_bindir}/beidcrld ] || exit 1
++
++### Default variables
++SYSCONFIG=&quot;/etc/sysconfig/beidcrld&quot;
++OPTIONS=&quot;&quot;
++
++### Read configuration
++[ -r &quot;$SYSCONFIG&quot; ] &amp;&amp; source &quot;$SYSCONFIG&quot;
++
++RETVAL=0
++prog=&quot;beidcrld&quot;
++desc=&quot;Belgian eID CRL daemon&quot;
++
++start() {
++	echo -n $&quot;Starting $desc ($prog): &quot;
++	daemon $prog $OPTIONS
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++stop() {
++	echo -n $&quot;Shutting down $desc ($prog): &quot;
++	killproc $prog
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++restart() {
++	stop
++	start
++}
++
++reload() {
++	echo -n $&quot;Reloading $desc ($prog): &quot;
++	killproc $prog -HUP
++	RETVAL=$?
++	echo
++	return $RETVAL
++}
++
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	stop
++	;;
++  restart)
++	restart
++	;;
++  reload)
++	reload
++	;;
++  condrestart)
++	[ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++	RETVAL=$?
++	;;
++  status)
++	status $prog
++	RETVAL=$?
++	;;
++  *)
++	echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
++	RETVAL=1
++esac
++
++exit $RETVAL
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;beidpcscd.sysconfig
++OPTIONS=&quot;&quot;
++EOF
++
++%{__cat} &lt;&lt;'EOF' &gt;beidpcscd.sysv
++#!/bin/bash
++#
++# Init file for the Belgian electronic ID card PCSC daemon
++#
++# Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++#
++# chkconfig: - 90 10
++# description: Belgian electronic ID card PCSC daemon
++#
++# processname: beidpcscd
++# config: %{_sysconfdir}/sysconfig/beidpcscd
++
++source %{_initrddir}/functions
++
++[ -x %{_bindir}/beidpcscd ] || exit 1
++
++### Default variables
++SYSCONFIG=&quot;/etc/sysconfig/beidpcscd&quot;
++OPTIONS=&quot;&quot;
++
++### Read configuration
++[ -r &quot;$SYSCONFIG&quot; ] &amp;&amp; source &quot;$SYSCONFIG&quot;
++
++RETVAL=0
++prog=&quot;beidpcscd&quot;
++desc=&quot;Belgian eID PCSC daemon&quot;
++
++start() {
++	echo -n $&quot;Starting $desc ($prog): &quot;
++	daemon $prog $OPTIONS
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++stop() {
++	echo -n $&quot;Shutting down $desc ($prog): &quot;
++	killproc $prog
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++	return $RETVAL
++}
++
++restart() {
++	stop
++	start
++}
++
++reload() {
++	echo -n $&quot;Reloading $desc ($prog): &quot;
++	killproc $prog -HUP
++	RETVAL=$?
++	echo
++	return $RETVAL
++}
++
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	stop
++	;;
++  restart)
++	restart
++	;;
++  reload)
++	reload
++	;;
++  condrestart)
++	[ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++	RETVAL=$?
++	;;
++  status)
++	status $prog
++	RETVAL=$?
++	;;
++  *)
++	echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
++	RETVAL=1
++esac
++
++exit $RETVAL
++EOF
++
++### Fixing the references to /usr/local in some files
++%{__perl} -pi.orig -e 's|/usr/local/etc\b|%{buildroot}%{_sysconfdir}|g' SConstruct
++%{__perl} -pi.orig -e 's|/usr/local/lib\b|%{buildroot}%{_libdir}|g' src/newpkcs11/SConscript SConstruct
++%{__perl} -pi.orig -e 's|/etc/init.d\b|%{buildroot}%{_initrddir}|g' src/beidservicecrl/SConscript &quot;src/Belpic PCSC Service/SConscript&quot; SConstruct &quot;src/Belpic PCSC Service/belgium.be-beidpcscd&quot; &quot;src/beidservicecrl/belgium.be-beidcrld&quot; 
++%{__perl} -pi.orig -e 's|/usr/local/etc\b|%{_sysconfdir}|g' src/beidcommon/config.cpp src/newpkcs11/config.h
++%{__perl} -pi.orig -e 's|/usr/local/lib\b|%{_libdir}|g' src/newpkcs11/etc/Belgian_eID_PKCS11_java.cfg src/newpkcs11/etc/beid-pkcs11-register.html
++%{__perl} -pi.orig -e 's|/usr/local/bin/beidgui.png\b|%{_datadir}/icons/beidgui.png|g' src/eidviewer/beidgui.desktop
++%{__perl} -pi.orig -e 's|/usr/local/bin\b|%{_bindir}|g' src/beidservicecrl/belgium.be-beidcrld &quot;src/Belpic PCSC Service/belgium.be-beidpcscd&quot; &quot;src/eidviewer/beidgui.desktop&quot; &quot;src/Belpic PCSC Service/belgium.be-beidpcscd&quot;
++%{__perl} -pi.orig -e 's|/usr/local/share\b|%{_datadir}|g' src/eidviewer/beidgui.conf
++%{__perl} -pi.orig -e 's|/usr/local/include/beid\b|/usr/include/beid|g' src/eidlib/test/Makefile
++%{__perl} -pi.orig -e 's|/usr/local/lib/\b|/usr/lib/|g' src/newpkcs11/src/libopensc/card-belpic.c src/newpkcs11/src/tools/opensc-tool.c src/newpkcs11/src/tools/pkcs11-tool.c src/eidviewer/eidviewerApp.cpp
++sed -i s#'QLibrary(PCSCNAME)'#'QLibrary(QString(PCSCNAME) + QString(&quot;.so.1&quot;))'# src/winscarp/winscarp.cpp
++
++
++%build
++export CFLAGS=&quot;%{optflags}&quot;
++export JAVA_HOME=&quot;$(readlink /etc/alternatives/java_sdk)&quot;
++#export JAVA_HOME=/usr/java/jdk1.5.0_09
++source &quot;/etc/profile.d/qt.sh&quot;
++./configure prefix=&quot;%{_prefix}&quot;
++./scons prefix=&quot;%{_prefix}&quot;
++
++%install
++%{__rm} -rf %{buildroot}
++%{__install} -d -m0755 %{buildroot}%{_bindir}
++%{__install} -d -m0755 %{buildroot}%{_libdir}
++source &quot;/etc/profile.d/qt.sh&quot;
++./scons install --cache-disable prefix=&quot;%{buildroot}%{_prefix}&quot; libdir=&quot;%{buildroot}%{_libdir}&quot;
++
++%{__install} -Dp -m0755 beidcrld.sysv %{buildroot}%{_initrddir}/beidcrld
++%{__install} -Dp -m0755 beidpcscd.sysv %{buildroot}%{_initrddir}/beidpcscd
++%{__install} -Dp -m0644 beidcrld.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/beidcrld
++%{__install} -Dp -m0644 beidpcscd.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/beidpcscd
++
++%{__install} -d -m0755 %{buildroot}%{_datadir}/applications/
++desktop-file-install --delete-original             \
++	--vendor %{desktop_vendor}                 \
++	--add-category X-Red-Hat-Base              \
++	--add-category Utility                     \
++	--dir %{buildroot}%{_datadir}/applications \
++	%{buildroot}%{_bindir}/beidgui.desktop
++
++%{__install} -d -m0755 %{buildroot}%{_datadir}/icons/
++%{__mv} -vf %{buildroot}%{_bindir}/beidgui.png %{buildroot}%{_datadir}/icons/beidgui.png
++
++### Fix library symlinks
++for lib in $(ls %{buildroot}%{_libdir}/libbeid*.so.?.?.?); do
++	%{__ln_s} -f $(basename $lib) ${lib//%\.?\.?}
++done
++
++### Fix locale files
++for file in $(ls %{buildroot}%{_datadir}/locale/beidgui_*.mo); do
++	lang=&quot;${file%.mo}&quot;
++	lang=&quot;${lang#%{buildroot}%{_datadir}/locale/beidgui_}&quot;
++	%{__mkdir} -p %{buildroot}%{_datadir}/locale/$lang/LC_MESSAGES/
++	%{__mv} -f $file %{buildroot}%{_datadir}/locale/$lang/LC_MESSAGES/beidgui.mo
++done
++%find_lang beidgui
++
++%post
++/sbin/ldconfig
++/sbin/chkconfig --add beidcrld
++/sbin/chkconfig --add beidpcscd
++update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
++
++%preun
++if [ $1 -eq 0 ]; then
++        /sbin/service beidcrld stop &amp;&gt;/dev/null || :
++        /sbin/chkconfig --del beidcrld
++        /sbin/service beidpcscd stop &amp;&gt;/dev/null || :
++        /sbin/chkconfig --del beidpcscd
++fi
++
++%postun
++/sbin/ldconfig
++/sbin/service beidcrld condrestart &amp;&gt;/dev/null || :
++/sbin/service beidpcscd condrestart &amp;&gt;/dev/null || :
++update-desktop-database %{_datadir}/applications &amp;&gt;/dev/null || :
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files -f beidgui.lang
++%defattr(-, root, root, 0755)
++%doc CHANGES INSTALL README VERSION doc/*.rtf doc/*.doc
++%doc %{_mandir}/man1/beid-pkcs11-tool.1*
++%doc %{_mandir}/man1/beid-tool.1*
++%config(noreplace) %{_sysconfdir}/beidbase.conf
++%config(noreplace) %{_sysconfdir}/beidgui.conf
++%config(noreplace) %{_sysconfdir}/sysconfig/beidcrld
++%config(noreplace) %{_sysconfdir}/sysconfig/beidpcscd
++%config %{_initrddir}/beidcrld
++%config %{_initrddir}/beidpcscd
++%exclude %{_initrddir}/belgium.be-beidcrld
++%exclude %{_initrddir}/belgium.be-beidpcscd
++%{_bindir}/beid-pkcs11-tool
++%{_bindir}/beid-tool
++%{_bindir}/beidcrld
++%{_bindir}/beidpcscd
++%{_bindir}/beidgui
++%{_datadir}/applications/%{desktop_vendor}-beidgui.desktop
++%{_datadir}/beid/
++%exclude %{_datadir}/beid/eID-toolkit_licensingtermsconditions*.rtf
++%exclude %{_datadir}/beid/DeveloperGuide.doc
++%{_datadir}/icons/beidgui.png
++%{_includedir}/beid/
++%{_libdir}/libbeid*.so*
++%{_libdir}/pkcs11/
++
++%changelog
++* Wed Oct 17 2007 Fabian Arrotin &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">fabian.arrotin at arrfab.net</A>&gt; - 2.6.0-1
++- Updated to 2.6.0 / tested on EL5
++- Removed Scons as buildrequires (use the provided mini scons)
++- Added some patches to not rely on pcsc-lite-devel anymore
++
++* Wed May 16 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.5.9-2 - 5408+/dag
++- Added patch to build against pcsc-lite 1.4. (Daniel De Baerdemaeker)
++
++* Fri Feb 09 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.5.9-1
++- Initial package. (using DAR)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004739.html">[svn] r5940 - in trunk/tools/mrepo: . config/dists docs
+</A></li>
+	<LI>Next message: <A HREF="004741.html">[svn] r5942 - trunk/rpms/eid-belgium
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4740">[ date ]</a>
+              <a href="thread.html#4740">[ thread ]</a>
+              <a href="subject.html#4740">[ subject ]</a>
+              <a href="author.html#4740">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

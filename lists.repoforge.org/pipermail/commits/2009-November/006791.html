@@ -1,0 +1,368 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7996 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7996%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911061731.nA6HVAFr003692%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006790.html">
+   <LINK REL="Next"  HREF="006792.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7996 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7996%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911061731.nA6HVAFr003692%40surya.karan.org%3E"
+       TITLE="[svn] r7996 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Nov  6 18:31:10 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006790.html">[svn] r7995 - in trunk/rpms: . perl-Captcha-reCAPTCHA perl-HTML-Tiny
+</A></li>
+        <LI>Next message: <A HREF="006792.html">[svn] r7997 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6791">[ date ]</a>
+              <a href="thread.html#6791">[ thread ]</a>
+              <a href="subject.html#6791">[ subject ]</a>
+              <a href="author.html#6791">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-11-06 17:31:09 +0000 (Fri, 06 Nov 2009)
+New Revision: 7996
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topcpu.py
+   trunk/tools/dstat/plugins/dstat_topio.py
+   trunk/tools/dstat/plugins/dstat_topmem.py
+   trunk/tools/dstat/plugins/dstat_topoom.py
+Log:
+Added getnamebypid() function to simplify finding bast process name by process id
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-11-05 21:54:54 UTC (rev 7995)
++++ trunk/tools/dstat/ChangeLog	2009-11-06 17:31:09 UTC (rev 7996)
+@@ -21,6 +21,7 @@
+ - Added external dstat_proccount plugin to show total number of process (Dean Wilson)
+ - Added external dstat_vzio plugin to show I/O account number per OpenVZ container
+ - Added external dstat_battery_remain plugin to show how much battery time is remaining
++- Added getnamebypid() function to simplify finding bast process name by process id
+ - This release was 'sponsored' by the Linux Foundation during the Japan Linux Symposium
+ 
+ * 0.6.9 - Locarno - release 02/12/2008
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-11-05 21:54:54 UTC (rev 7995)
++++ trunk/tools/dstat/dstat	2009-11-06 17:31:09 UTC (rev 7996)
+@@ -1899,6 +1899,19 @@
+             return False
+     return color
+ 
++def getnamebypid(pid, name):
++    ret = None
++    try:
++        cmdline = open('/proc/%s/cmdline' % pid).read().split('\0')
++        ret = os.path.basename(cmdline[0])
++        if ret in ('bash', 'csh', 'ksh', 'perl', 'python', 'ruby', 'sh')
++            ret = os.path.basename(cmdline[-2])
++            if ret.startswith('-'):
++                raise
++    except:
++        ret = os.path.basename(name)
++    return ret
++
+ def getcpunr():
+     &quot;Return the number of CPUs in the system&quot;
+     cpunr = -1
+
+Modified: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	2009-11-05 21:54:54 UTC (rev 7995)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2009-11-06 17:31:09 UTC (rev 7996)
+@@ -20,6 +20,7 @@
+ 
+     def extract(self):
+         self.val['usage'] = 0.0
++        self.val['name'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -58,17 +59,9 @@
+                 self.val['read_usage'] = read_usage
+                 self.val['write_usage'] = write_usage
+                 self.val['pid'] = pid
+-                self.val['name'] = name
++                self.val['name'] = getnamebypid(pid, name)
+ #                st = os.stat(&quot;/proc/%s&quot; % pid)
+ 
+-        if self.val['usage'] == 0.0:
+-            self.val['process'] = ''
+-        else:
+-            self.val['process'] = os.path.basename(self.val['name'])
+-
+-        ### Debug (show PID)
+-#       self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
+-
+         if step == op.delay:
+             for pid in self.pidset2.keys():
+                 self.pidset1[pid].update(self.pidset2[pid])
+@@ -76,8 +69,11 @@
+         if self.val['usage'] == 0.0:
+             self.val['block i/o process'] = ''
+         else:
+-            self.val['block i/o process'] = '%-*s%s:%s' % (self.width-11, self.val['process'][0:self.width-11], cprint(self.val['read_usage'], 'f', 5, 1024), cprint(self.val['write_usage'], 'f', 5, 1024))
++            self.val['block i/o process'] = '%-*s%s:%s' % (self.width-11, self.val['name'][0:self.width-11], cprint(self.val['read_usage'], 'f', 5, 1024), cprint(self.val['write_usage'], 'f', 5, 1024))
+ 
++        ### Debug (show PID)
++#        self.val['block i/o process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++
+     def showcsv(self):
+         return '%s / %d:%d' % (self.val['name'], self.val['read_usage'], self.val['write_usage'])
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topcpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topcpu.py	2009-11-05 21:54:54 UTC (rev 7995)
++++ trunk/tools/dstat/plugins/dstat_topcpu.py	2009-11-06 17:31:09 UTC (rev 7996)
+@@ -17,6 +17,7 @@
+ 
+     def extract(self):
+         self.val['max'] = 0.0
++        self.val['name'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -37,7 +38,7 @@
+                 usage = (self.pidset2[pid] - self.pidset1[pid]) * 1.0 / tick / cpunr
+ 
+                 ### Is it a new topper ?
+-                if usage &lt; self.val['max']: continue
++                if usage &lt;= self.val['max']: continue
+ 
+                 ### Extract name
+                 name = l[1][1:-1]
+@@ -48,41 +49,20 @@
+                 continue
+ 
+             self.val['max'] = usage
+-            self.val['name'] = name
+             self.val['pid'] = pid
+-#            st = os.stat(&quot;/proc/%s&quot; % pid)
+-#            if st:
+-#                pw = pwd.getpwuid(st.st_uid)
+-#                if pw:
+-#                    self.val['user'] = pw[0]
+-#                else:
+-#                    self.val['user'] = stat.st_uid
+-#            else:
+-#                self.val['user'] = 'none'
++            self.val['name'] = getnamebypid(pid, name)
+ 
+         if self.val['max'] == 0.0:
+-            self.val['process'] = ''
++            self.val['cpu process'] = ''
+         else:
+-            self.val['process'] = self.val['name']
++            self.val['cpu process'] = '%-*s%s' % (self.width-3, self.val['name'][0:self.width-3], cprint(self.val['max'], 'p', 3, 34))
+ 
+-#               l = l.reverse()
+-#               for x in l:
+-#                   print x
+-#                   if x[0] != '-':
+-#                       self.val['name'] = os.path.basename(x)
+-#                       break
+-
+         ### Debug (show PID)
+-#       self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++#        self.val['cpu process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
+ 
+         if step == op.delay:
+             self.pidset1.update(self.pidset2)
+ 
+-        if self.val['max'] == 0.0:
+-            self.val['cpu process'] = ''
+-        else:
+-            self.val['cpu process'] = '%-*s%s' % (self.width-3, self.val['process'][0:self.width-3], cprint(self.val['max'], 'p', 3, 34))
+-
+     def showcsv(self):
+         return '%s / %d%%' % (self.val['name'], self.val['max'])
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topio.py	2009-11-05 21:54:54 UTC (rev 7995)
++++ trunk/tools/dstat/plugins/dstat_topio.py	2009-11-06 17:31:09 UTC (rev 7996)
+@@ -19,6 +19,7 @@
+ 
+     def extract(self):
+         self.val['usage'] = 0.0
++        self.val['name'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -59,17 +60,8 @@
+                 self.val['read_usage'] = read_usage
+                 self.val['write_usage'] = write_usage
+                 self.val['pid'] = pid
+-                self.val['name'] = name
+-#                st = os.stat(&quot;/proc/%s&quot; % pid)
++                self.val['name'] = getnamebypid(pid, name)
+ 
+-        if self.val['usage'] == 0.0:
+-            self.val['process'] = ''
+-        else:
+-            self.val['process'] = os.path.basename(self.val['name'])
+-
+-        ### Debug (show PID)
+-#       self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
+-
+         if step == op.delay:
+             for pid in self.pidset2.keys():
+                 self.pidset1[pid].update(self.pidset2[pid])
+@@ -77,8 +69,11 @@
+         if self.val['usage'] == 0.0:
+             self.val['i/o process'] = ''
+         else:
+-            self.val['i/o process'] = '%-*s%s:%s' % (self.width-11, self.val['process'][0:self.width-11], cprint(self.val['read_usage'], 'f', 5, 1024), cprint(self.val['write_usage'], 'f', 5, 1024))
++            self.val['i/o process'] = '%-*s%s:%s' % (self.width-11, self.val['name'][0:self.width-11], cprint(self.val['read_usage'], 'f', 5, 1024), cprint(self.val['write_usage'], 'f', 5, 1024))
+ 
++        ### Debug (show PID)
++#       self.val['i/o process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++
+     def showcsv(self):
+         return '%s / %d:%d' % (self.val['name'], self.val['read_usage'], self.val['write_usage'])
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topmem.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topmem.py	2009-11-05 21:54:54 UTC (rev 7995)
++++ trunk/tools/dstat/plugins/dstat_topmem.py	2009-11-06 17:31:09 UTC (rev 7996)
+@@ -14,6 +14,7 @@
+ 
+     def extract(self):
+         self.val['max'] = 0.0
++        self.val['process'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -28,7 +29,7 @@
+                 usage = int(l[23]) * pagesize
+ 
+                 ### Is it a new topper ?
+-                if usage &lt; self.val['max']: continue
++                if usage &lt;= self.val['max']: continue
+ 
+                 ### Extract name
+                 name = l[1][1:-1]
+@@ -39,26 +40,14 @@
+                 continue
+ 
+             self.val['max'] = usage
+-            self.val['name'] = name
++            self.val['name'] = getnamebypid(pid, name)
+             self.val['pid'] = pid
+ 
+-        if self.val['max'] == 0.0:
+-            self.val['process'] = ''
+-        else:
+-            self.val['process'] = self.val['name']
++        self.val['memory process'] = '%-*s%s' % (self.width-5, self.val['name'][0:self.width-5], cprint(self.val['max'], 'f', 5, 1024))
+ 
+-#               l = l.reverse()
+-#               for x in l:
+-#                   print x
+-#                   if x[0] != '-':
+-#                       self.val['name'] = os.path.basename(x)
+-#                       break
+-
+         ### Debug (show PID)
+-#       self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++#       self.val['memory process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
+ 
+-        self.val['memory process'] = '%-*s%s' % (self.width-5, self.val['process'][0:self.width-5], cprint(self.val['max'], 'f', 5, 1024))
+-
+     def showcsv(self):
+         return '%s / %d%%' % (self.val['name'], self.val['max'])
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topoom.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topoom.py	2009-11-05 21:54:54 UTC (rev 7995)
++++ trunk/tools/dstat/plugins/dstat_topoom.py	2009-11-06 17:31:09 UTC (rev 7996)
+@@ -18,6 +18,7 @@
+ 
+     def extract(self):
+         self.val['max'] = 0.0
++        self.val['name'] = ''
+         for pid in os.listdir('/proc/'):
+             try:
+                 ### Is it a pid ?
+@@ -32,7 +33,7 @@
+                 oom_score = int(l[0])
+ 
+                 ### Is it a new topper ?
+-                if oom_score &lt; self.val['max']: continue
++                if oom_score &lt;= self.val['max']: continue
+ 
+                 ### Extract name
+                 l = open('/proc/%s/stat' % pid).read().split()
+@@ -44,22 +45,17 @@
+                 continue
+ 
+             self.val['max'] = oom_score
+-            self.val['name'] = name
++            self.val['name'] = getnamebypid(pid, name)
+             self.val['pid'] = pid
+ 
+         if self.val['max'] == 0.0:
+-            self.val['process'] = ''
++            self.val['kill score'] = ''
+         else:
+-            self.val['process'] = self.val['name']
++            self.val['kill score'] = '%-*s%s' % (self.width-4, self.val['name'][0:self.width-4], cprint(self.val['max'], 'f', 4, 1000))
+ 
+         ### Debug (show PID)
+-#       self.val['process'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
++#       self.val['kill score'] = '%*s %-*s' % (5, self.val['pid'], self.width-6, self.val['name'])
+ 
+-        if self.val['max'] == 0.0:
+-            self.val['kill score'] = ''
+-        else:
+-            self.val['kill score'] = '%-*s%s' % (self.width-4, self.val['process'][0:self.width-4], cprint(self.val['max'], 'f', 4, 1000))
+-
+     def showcsv(self):
+         return '%s / %d%%' % (self.val['name'], self.val['max'])
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006790.html">[svn] r7995 - in trunk/rpms: . perl-Captcha-reCAPTCHA perl-HTML-Tiny
+</A></li>
+	<LI>Next message: <A HREF="006792.html">[svn] r7997 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6791">[ date ]</a>
+              <a href="thread.html#6791">[ thread ]</a>
+              <a href="subject.html#6791">[ subject ]</a>
+              <a href="author.html#6791">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

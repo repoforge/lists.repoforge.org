@@ -1,0 +1,285 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8026 - trunk/rpms/js
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8026%20-%20trunk/rpms/js&In-Reply-To=%3C200911182136.nAILaPil002787%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006820.html">
+   <LINK REL="Next"  HREF="006822.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8026 - trunk/rpms/js</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8026%20-%20trunk/rpms/js&In-Reply-To=%3C200911182136.nAILaPil002787%40surya.karan.org%3E"
+       TITLE="[svn] r8026 - trunk/rpms/js">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Nov 18 22:36:25 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006820.html">[svn] r8025 - trunk/rpms/js
+</A></li>
+        <LI>Next message: <A HREF="006822.html">[svn] r8027 - trunk/rpms/js
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6821">[ date ]</a>
+              <a href="thread.html#6821">[ thread ]</a>
+              <a href="subject.html#6821">[ subject ]</a>
+              <a href="author.html#6821">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: 2009-11-18 21:36:25 +0000 (Wed, 18 Nov 2009)
+New Revision: 8026
+
+Added:
+   trunk/rpms/js/js-1.7-make.patch
+   trunk/rpms/js/js-1.7-threadsafe.patch
+   trunk/rpms/js/js-1.7.spec
+Log:
+forked js-1.7 into its own quasi-branch because it builds but segfaults
+
+
+Added: trunk/rpms/js/js-1.7-make.patch
+===================================================================
+--- trunk/rpms/js/js-1.7-make.patch	                        (rev 0)
++++ trunk/rpms/js/js-1.7-make.patch	2009-11-18 21:36:25 UTC (rev 8026)
+@@ -0,0 +1,11 @@
++--- src/Makefile.ref.orig	2009-11-18 14:09:02.000000000 -0500
+++++ src/Makefile.ref	2009-11-18 14:09:39.000000000 -0500
++@@ -336,7 +336,7 @@
++ 	link.exe -out:&quot;$@&quot; $(EXE_LINK_FLAGS) $^
++ else
++ $(PROGRAM): $(PROG_OBJS) $(LIBRARY)
++-	$(CC) -o $@ $(CFLAGS) $(PROG_OBJS) $(LIBRARY) $(LDFLAGS) $(OTHER_LIBS) \
+++	$(CC) -o $@ $(CFLAGS) $(PROG_OBJS) $(LIBRARY) -ljs $(LDFLAGS) $(OTHER_LIBS) \
++ 	    $(PROG_LIBS)
++ endif
++ 
+
+Added: trunk/rpms/js/js-1.7-threadsafe.patch
+===================================================================
+--- trunk/rpms/js/js-1.7-threadsafe.patch	                        (rev 0)
++++ trunk/rpms/js/js-1.7-threadsafe.patch	2009-11-18 21:36:25 UTC (rev 8026)
+@@ -0,0 +1,16 @@
++--- src/Makefile.ref.orig	2009-11-18 14:09:02.000000000 -0500
+++++ src/Makefile.ref	2009-11-18 14:12:49.000000000 -0500
++@@ -63,11 +63,11 @@
++ 
++ ifdef JS_THREADSAFE
++ DEFINES += -DJS_THREADSAFE
++-INCLUDES += -I$(DIST)/include/nspr
+++INCLUDES += $(shell nspr-config --cflags)
++ ifdef USE_MSVC
++ OTHER_LIBS += $(DIST)/lib/libnspr$(NSPR_LIBSUFFIX).lib
++ else
++-OTHER_LIBS += -L$(DIST)/lib -lnspr$(NSPR_LIBSUFFIX)
+++OTHER_LIBS += $(shell nspr-config --libs)
++ endif
++ endif
++ 
+
+Added: trunk/rpms/js/js-1.7.spec
+===================================================================
+--- trunk/rpms/js/js-1.7.spec	                        (rev 0)
++++ trunk/rpms/js/js-1.7.spec	2009-11-18 21:36:25 UTC (rev 8026)
+@@ -0,0 +1,164 @@
++# $Id$
++# Authority: dag
++
++# Test
++
++%define perl_vendorarch %(eval &quot;`perl -V:installvendorarch`&quot;; echo $installvendorarch)
++
++%{?el5:%define _with_nspr 1}
++%{?el4:%define _with_seamonkey_nspr 1}
++%{?el3:%define _with_seamonkey_nspr 1}
++%{?rh9:%define _with_mozilla_nspr 1}
++%{?rh7:%define _with_mozilla_nspr 1}
++%{?el2:%define _with_seamonkey_nspr 1}
++
++Summary: JavaScript interpreter
++Name: js
++Version: 1.7.0
++# boooo, this is a later version than 1.60
++Epoch: 1
++Release: 1%{?dist}
++License: GPL
++Group: Development/Languages
++URL: <A HREF="http://www.mozilla.org/js/">http://www.mozilla.org/js/</A>
++Source: <A HREF="http://ftp.mozilla.org/pub/mozilla.org/js/js-%{version">http://ftp.mozilla.org/pub/mozilla.org/js/js-%{version</A>}.tar.gz
++#Patch0: js-1.7-make.patch
++Patch1: js-shlib.patch
++Patch2: js-1.5-va_copy.patch
++Patch3: js-ldflags.patch
++Patch4: js-1.7-threadsafe.patch
++Patch5: js-1.60-ncurses.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: perl &gt;= 1:5.6.1, readline-devel, ncurses-devel
++Buildrequires: pkgconfig
++%{?_with_nspr:BuildRequires: nspr-devel}
++%{?_with_seamonkey_nspr:BuildRequires: seamonkey-nspr}
++%{?_with_mozilla_nspr:BuildRequires: mozilla-nspr}
++Provides: %{name} = %{version}
++Provides: libjs = %{version}
++Provides: spidermonkey = %{version}
++
++%description
++JavaScript is the Netscape-developed object scripting languages.
++This package has been created for purposes of Sablotron and is suitable
++for embedding in applications.
++
++%package devel
++Summary: Header files, libraries and development documentation for %{name}
++Group: Development/Libraries
++Requires: %{name} = %{version}
++Provides: libjs-devel = %{version}
++
++%description devel
++This package contains the header files, static libraries and development
++documentation for %{name}. If you like to develop programs using %{name},
++you will need to install %{name}-devel.
++
++%prep
++%setup -n %{name}
++#%patch0 -p0 -b .make
++%patch1 -p0 -b .shlib
++%patch2 -p1 -b .vacopy
++%patch3 -p0 -b .ldflags
++%patch4 -p0 -b .threadsafe
++%patch5 -p1 -b .ncurses
++
++%{__cat} &lt;&lt;'EOF' &gt;libjs.pc
++prefix=%{_prefix}
++exec_prefix=%{_prefix}
++libdir=%{_libdir}
++includedir=%{_includedir}
++
++Name: libjs
++Description: JS library
++Requires:
++Version: %{version}
++Libs: -L${libdir} -ljs
++Cflags: -I${includedir}
++EOF
++
++%build
++export BUILD_OPT=&quot;1&quot;
++%{__make} -C src -f Makefile.ref \
++	JS_THREADSAFE=&quot;1&quot; \
++	XCFLAGS=&quot;%{optflags} -fPIC&quot; \
++	BUILD_OPT=&quot;1&quot;
++	JS_READLINE=&quot;1&quot; \
++	JS_PERLCONNECT=&quot;1&quot;
++
++#cd src/perlconnect
++#MAKEFLAGS=&quot;-s&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot;
++#cd -
++#%{__make} %{?_smp_mflags} -C src/perlconnect OPTIMIZE=&quot;%{optflags}&quot;
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__install} -Dp -m0755 src/Linux_All_OPT.OBJ/js %{buildroot}%{_bindir}/js
++%{__install} -Dp -m0755 src/Linux_All_OPT.OBJ/jscpucfg %{buildroot}%{_bindir}/jscpucfg
++%{__install} -Dp -m0755 src/Linux_All_OPT.OBJ/libjs.a %{buildroot}%{_libdir}/libjs.a
++%{__install} -Dp -m0755 src/Linux_All_OPT.OBJ/libjs.so %{buildroot}%{_libdir}/libjs.so.1
++%{__ln_s} -nf libjs.so.1 %{buildroot}%{_libdir}/libjs.so
++
++%{__install} -d -m0755 %{buildroot}%{_includedir}/js/
++%{__install} -p -m0644 src/js*.h %{buildroot}%{_includedir}/
++%{__install} -p -m0644 src/Linux_All_OPT.OBJ/jsautocfg.h %{buildroot}%{_includedir}/
++
++# apparently we need these .tbl files as well
++%{__install} -p -m0644 src/*.tbl %{buildroot}%{_includedir}/
++
++%{__install} -Dp -m0644 libjs.pc %{buildroot}%{_libdir}/pkgconfig/libjs.pc
++
++#%{__make} -C src/perlconnect pure_install PERL_INSTALL_ROOT=&quot;%{buildroot}&quot;
++
++### Remove unwanted perl related files
++find %{buildroot} -type f -name .packlist -o -name jsperlbuild.pl | xargs -r rm
++find %{buildroot} -type f -name '*.bs' -a -size 0 | xargs -r rm
++### For some reason, the pure_install above doesn't set u+w :-(
++#find %{buildroot}%{perl_vendorarch} -type f -exec %{__chmod} u+w {} \;
++
++%post -p /sbin/ldconfig
++%postun -p /sbin/ldconfig
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++#%doc src/README*.html src/perlconnect/bg.jpg
++%doc src/README*.html 
++%{_bindir}/js
++%{_libdir}/libjs.so.*
++#%{perl_vendorarch}/auto/JS/
++#%{perl_vendorarch}/*.pm
++
++%files devel
++%defattr(-, root, root, 0755)
++%{_bindir}/jscpucfg
++%{_libdir}/libjs.so
++%{_libdir}/libjs.a
++%{_libdir}/pkgconfig/libjs.pc
++%{_includedir}/js*.h
++%{_includedir}/*.tbl
++
++%changelog
++* Wed Nov 18 2009 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 1.7.0-1
++- Updated to release 1.7.0.
++- Not sure what went wrong here, but there's no more perlconnect.
++
++* Sun Mar 25 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.60-1
++- Updated to release 1.60.
++
++* Fri Nov 11 2005 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 1.5-1
++- Updated to final release of 1.5.
++
++* Sat Mar 26 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.5-0.rc6a
++- Added x86_64 VA_COPY patch. (Stef Van Dessel)
++
++* Tue Jun 15 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.5-0.rc6a
++- Update to 1.5rc6a.
++
++* Tue Mar 02 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.5-0.rc6
++- Initial package. (using DAR)
++
+
+
+Property changes on: trunk/rpms/js/js-1.7.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006820.html">[svn] r8025 - trunk/rpms/js
+</A></li>
+	<LI>Next message: <A HREF="006822.html">[svn] r8027 - trunk/rpms/js
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6821">[ date ]</a>
+              <a href="thread.html#6821">[ thread ]</a>
+              <a href="subject.html#6821">[ subject ]</a>
+              <a href="author.html#6821">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

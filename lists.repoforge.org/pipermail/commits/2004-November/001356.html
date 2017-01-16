@@ -1,0 +1,334 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2551 - trunk/rpms/kannel
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2551%20-%20trunk/rpms/kannel&In-Reply-To=%3C20041125142214.E942917FD8%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001355.html">
+   <LINK REL="Next"  HREF="001357.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2551 - trunk/rpms/kannel</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2551%20-%20trunk/rpms/kannel&In-Reply-To=%3C20041125142214.E942917FD8%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2551 - trunk/rpms/kannel">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Nov 25 15:22:14 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001355.html">[SVN] r2550 - in trunk/rpms: gtkpod squale
+</A></li>
+        <LI>Next message: <A HREF="001357.html">[SVN] r2552 - trunk/tools/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1356">[ date ]</a>
+              <a href="thread.html#1356">[ thread ]</a>
+              <a href="subject.html#1356">[ subject ]</a>
+              <a href="author.html#1356">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-11-25 15:22:12 +0100 (Thu, 25 Nov 2004)
+New Revision: 2551
+
+Added:
+   trunk/rpms/kannel/kavkaz.diff
+Modified:
+   trunk/rpms/kannel/kannel.spec
+Log:
+Small specific patch.
+
+
+Modified: trunk/rpms/kannel/kannel.spec
+===================================================================
+--- trunk/rpms/kannel/kannel.spec	2004-11-25 13:19:47 UTC (rev 2550)
++++ trunk/rpms/kannel/kannel.spec	2004-11-25 14:22:12 UTC (rev 2551)
+@@ -8,12 +8,13 @@
+ Summary: WAP and SMS gateway
+ Name: kannel
+ Version: 1.3.2
+-Release: 4
++Release: 5
+ License: Kannel
+ Group: System Environment/Daemons
+ URL: <A HREF="http://www.kannel.org/">http://www.kannel.org/</A>
+ Source: <A HREF="http://www.kannel.org/download/%{version">http://www.kannel.org/download/%{version</A>}/gateway-%{version}.tar.bz2
+-Patch: mblox_optionals_0.1.diff
++Patch0: mblox_optionals_0.1.diff
++Patch1: kavkaz.diff
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: bison, byacc, flex, ImageMagick
+ BuildRequires: libxml2-devel, openssl-devel, zlib-devel
+@@ -51,7 +52,8 @@
+ 
+ %prep
+ %setup -n gateway-%{version}
+-%patch -p1 -b .mblox
++%patch0 -p1 -b .mblox
++%patch1 -p1 -b .kavkaz
+ 
+ 
+ %build
+@@ -105,6 +107,9 @@
+ 
+ 
+ %changelog
++* Thu Nov 25 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.3.2-5
++- Added Kavkaz operator patch.
++
+ * Thu Nov  4 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.3.2-4
+ - Added pcre support, doc building (almost) and sqlite backend...
+   it still fails with a corrupt first line of .depend on FC3, though.
+
+Added: trunk/rpms/kannel/kavkaz.diff
+===================================================================
+--- trunk/rpms/kannel/kavkaz.diff	2004-11-25 13:19:47 UTC (rev 2550)
++++ trunk/rpms/kannel/kavkaz.diff	2004-11-25 14:22:12 UTC (rev 2551)
+@@ -0,0 +1,219 @@
++diff -ru gateway-1.3.2-old/gw/smsc/smsc_http.c gateway-1.3.2/gw/smsc/smsc_http.c
++--- gateway-1.3.2-old/gw/smsc/smsc_http.c	2004-06-29 18:22:34.000000000 +0400
+++++ gateway-1.3.2/gw/smsc/smsc_http.c	2004-11-09 15:30:56.000000000 +0300
++@@ -505,6 +505,198 @@
++     http_destroy_headers(reply_headers);
++ }
++ 
+++// mgfkavkaz version of Kannel HTTP SMSC
+++// &quot;text&quot; parameter is renamed to &quot;msg&quot;
+++
+++static void mgfkavkaz_send_sms(SMSCConn *conn, Msg *sms)
+++{
+++    ConnData *conndata = conn-&gt;data;
+++    Octstr *url;
+++    List *headers;
+++
+++    if (!conndata-&gt;no_sep) {
+++        url = octstr_format(&quot;%S?&quot;
+++			    &quot;username=%E&amp;password=%E&amp;to=%E&amp;msg=%E&quot;,
+++			     conndata-&gt;send_url,
+++			     conndata-&gt;username, conndata-&gt;password,
+++			     sms-&gt;sms.receiver, sms-&gt;sms.msgdata);
+++    } else {
+++        octstr_binary_to_hex(sms-&gt;sms.msgdata, HEX_NOT_UPPERCASE);
+++        url = octstr_format(&quot;%S?&quot;
+++			    &quot;username=%E&amp;password=%E&amp;to=%E&amp;msg=%S&quot;,
+++			     conndata-&gt;send_url,
+++			     conndata-&gt;username, conndata-&gt;password,
+++			     sms-&gt;sms.receiver, 
+++                             sms-&gt;sms.msgdata); 
+++    }   
+++
+++    if (octstr_len(sms-&gt;sms.udhdata)) {
+++        if (!conndata-&gt;no_sep) {
+++	    octstr_format_append(url, &quot;&amp;udh=%E&quot;, sms-&gt;sms.udhdata);
+++        } else {
+++	    octstr_binary_to_hex(sms-&gt;sms.udhdata, HEX_NOT_UPPERCASE);
+++            octstr_format_append(url, &quot;&amp;udh=%S&quot;, sms-&gt;sms.udhdata);
+++	}
+++    }
+++
+++    if (!conndata-&gt;no_sender)
+++        octstr_format_append(url, &quot;&amp;from=%E&quot;, sms-&gt;sms.sender);
+++    if (sms-&gt;sms.mclass != MC_UNDEF)
+++	octstr_format_append(url, &quot;&amp;mclass=%d&quot;, sms-&gt;sms.mclass);
+++    if (!conndata-&gt;no_coding &amp;&amp; sms-&gt;sms.coding != DC_UNDEF)
+++	octstr_format_append(url, &quot;&amp;coding=%d&quot;, sms-&gt;sms.coding);
+++    if (sms-&gt;sms.mwi != MWI_UNDEF)
+++	octstr_format_append(url, &quot;&amp;mwi=%d&quot;, sms-&gt;sms.mwi);
+++    if (sms-&gt;sms.account) /* prepend account with local username */
+++	octstr_format_append(url, &quot;&amp;account=%E:%E&quot;, sms-&gt;sms.service, sms-&gt;sms.account);
+++    if (sms-&gt;sms.binfo) /* prepend billing info */
+++	octstr_format_append(url, &quot;&amp;binfo=%S&quot;, sms-&gt;sms.binfo);
+++    if (sms-&gt;sms.smsc_id) /* proxy the smsc-id to the next instance */
+++	octstr_format_append(url, &quot;&amp;smsc=%S&quot;, sms-&gt;sms.smsc_id);
+++    if (sms-&gt;sms.dlr_url) {
+++        octstr_format_append(url, &quot;&amp;dlr-url=%E&quot;, sms-&gt;sms.dlr_url);
+++    }
+++    if (sms-&gt;sms.dlr_mask != DLR_UNDEFINED &amp;&amp; sms-&gt;sms.dlr_mask != DLR_NOTHING)
+++        octstr_format_append(url, &quot;&amp;dlr-mask=%d&quot;, sms-&gt;sms.dlr_mask);
+++
+++    headers = list_create();
+++    debug(&quot;smsc.http.kannel&quot;, 0, &quot;HTTP[%s]: Start request&quot;,
+++          octstr_get_cstr(conn-&gt;id));
+++    http_start_request(conndata-&gt;http_ref, HTTP_METHOD_GET, url, headers, 
+++                       NULL, 0, sms, NULL);
+++
+++    octstr_destroy(url);
+++    http_destroy_headers(headers);
+++
+++}
+++
+++static void mgfkavkaz_parse_reply(SMSCConn *conn, Msg *msg, int status,
+++			       List *headers, Octstr *body)
+++{
+++    /* Test on three cases:
+++     * 1. an smsbox reply of an remote kannel instance
+++     * 2. an smsc_http response (if used for MT to MO looping)
+++     * 3. an smsbox reply of partly sucessfull sendings */
+++    if ((status == HTTP_OK || status == HTTP_ACCEPTED)
+++        &amp;&amp; (octstr_case_compare(body, octstr_imm(&quot;Sent.&quot;)) == 0 ||
+++            octstr_case_compare(body, octstr_imm(&quot;Ok.&quot;)) == 0 ||
+++            octstr_ncompare(body, octstr_imm(&quot;Result: OK&quot;),10) == 0)) {
+++        bb_smscconn_sent(conn, msg, NULL);
+++    } else {
+++        bb_smscconn_send_failed(conn, msg,
+++	            SMSCCONN_FAILED_MALFORMED, octstr_duplicate(body));
+++    }
+++}
+++
+++static void mgfkavkaz_receive_sms(SMSCConn *conn, HTTPClient *client,
+++			       List *headers, Octstr *body, List *cgivars)
+++{
+++    ConnData *conndata = conn-&gt;data;
+++    Octstr *user, *pass, *from, *to, *text, *udh, *account, *binfo, *tmp_string;
+++    Octstr *retmsg;
+++    int	mclass, mwi, coding, validity, deferred;
+++    List *reply_headers;
+++    int ret;
+++
+++    mclass = mwi = coding = validity = deferred = 0;
+++
+++    user = http_cgi_variable(cgivars, &quot;username&quot;);
+++    pass = http_cgi_variable(cgivars, &quot;password&quot;);
+++    from = http_cgi_variable(cgivars, &quot;from&quot;);
+++    to = http_cgi_variable(cgivars, &quot;to&quot;);
+++    text = http_cgi_variable(cgivars, &quot;text&quot;);
+++    udh = http_cgi_variable(cgivars, &quot;udh&quot;);
+++    account = http_cgi_variable(cgivars, &quot;account&quot;);
+++    binfo = http_cgi_variable(cgivars, &quot;binfo&quot;);
+++    tmp_string = http_cgi_variable(cgivars, &quot;flash&quot;);
+++    if(tmp_string) {
+++	sscanf(octstr_get_cstr(tmp_string),&quot;%d&quot;, &amp;mclass);
+++    }
+++    tmp_string = http_cgi_variable(cgivars, &quot;mclass&quot;);
+++    if(tmp_string) {
+++	sscanf(octstr_get_cstr(tmp_string),&quot;%d&quot;, &amp;mclass);
+++    }
+++    tmp_string = http_cgi_variable(cgivars, &quot;mwi&quot;);
+++    if(tmp_string) {
+++	sscanf(octstr_get_cstr(tmp_string),&quot;%d&quot;, &amp;mwi);
+++    }
+++    tmp_string = http_cgi_variable(cgivars, &quot;coding&quot;);
+++    if(tmp_string) {
+++	sscanf(octstr_get_cstr(tmp_string),&quot;%d&quot;, &amp;coding);
+++    }
+++    tmp_string = http_cgi_variable(cgivars, &quot;validity&quot;);
+++    if(tmp_string) {
+++	sscanf(octstr_get_cstr(tmp_string),&quot;%d&quot;, &amp;validity);
+++    }
+++    tmp_string = http_cgi_variable(cgivars, &quot;deferred&quot;);
+++    if(tmp_string) {
+++	sscanf(octstr_get_cstr(tmp_string),&quot;%d&quot;, &amp;deferred);
+++    }
+++    debug(&quot;smsc.http.kannel&quot;, 0, &quot;HTTP[%s]: Received an HTTP request&quot;,
+++          octstr_get_cstr(conn-&gt;id));
+++    
+++    if (user == NULL || pass == NULL ||
+++	    octstr_compare(user, conndata-&gt;username) != 0 ||
+++	    octstr_compare(pass, conndata-&gt;password) != 0) {
+++
+++        error(0, &quot;HTTP[%s]: Authorization failure&quot;,
+++              octstr_get_cstr(conn-&gt;id));
+++        retmsg = octstr_create(&quot;Authorization failed for sendsms&quot;);
+++    }
+++    else if (from == NULL || to == NULL || text == NULL) {
+++	
+++        error(0, &quot;HTTP[%s]: Insufficient args&quot;,
+++              octstr_get_cstr(conn-&gt;id));
+++        retmsg = octstr_create(&quot;Insufficient args, rejected&quot;);
+++    }
+++    else if (udh != NULL &amp;&amp; (octstr_len(udh) != octstr_get_char(udh, 0) + 1)) {
+++        error(0, &quot;HTTP[%s]: UDH field misformed, rejected&quot;,
+++              octstr_get_cstr(conn-&gt;id));
+++        retmsg = octstr_create(&quot;UDH field misformed, rejected&quot;);
+++    }
+++    else if (udh != NULL &amp;&amp; octstr_len(udh) &gt; MAX_SMS_OCTETS) {
+++        error(0, &quot;HTTP[%s]: UDH field is too long, rejected&quot;,
+++              octstr_get_cstr(conn-&gt;id));
+++        retmsg = octstr_create(&quot;UDH field is too long, rejected&quot;);
+++    }
+++    else {
+++
+++	Msg *msg;
+++	msg = msg_create(sms);
+++
+++	debug(&quot;smsc.http.kannel&quot;, 0, &quot;HTTP[%s]: Constructing new SMS&quot;,
+++          octstr_get_cstr(conn-&gt;id));
+++	
+++	msg-&gt;sms.sender = octstr_duplicate(from);
+++	msg-&gt;sms.receiver = octstr_duplicate(to);
+++	msg-&gt;sms.msgdata = octstr_duplicate(text);
+++	msg-&gt;sms.udhdata = octstr_duplicate(udh);
+++
+++	msg-&gt;sms.smsc_id = octstr_duplicate(conn-&gt;id);
+++	msg-&gt;sms.time = time(NULL);
+++	msg-&gt;sms.mclass = mclass;
+++	msg-&gt;sms.mwi = mwi;
+++	msg-&gt;sms.coding = coding;
+++	msg-&gt;sms.validity = validity;
+++	msg-&gt;sms.deferred = deferred;
+++	msg-&gt;sms.account = octstr_duplicate(account);
+++	msg-&gt;sms.binfo = octstr_duplicate(binfo);
+++	ret = bb_smscconn_receive(conn, msg);
+++	if (ret == -1)
+++	    retmsg = octstr_create(&quot;Not accepted&quot;);
+++	else
+++	    retmsg = octstr_create(&quot;Sent.&quot;);
+++    }
+++    reply_headers = list_create();
+++    http_header_add(reply_headers, &quot;Content-Type&quot;, &quot;text/plain&quot;);
+++    debug(&quot;smsc.http.kannel&quot;, 0, &quot;HTTP[%s]: Sending reply&quot;,
+++          octstr_get_cstr(conn-&gt;id));
+++    http_send_reply(client, HTTP_ACCEPTED, reply_headers, retmsg);
+++
+++    octstr_destroy(retmsg);
+++    http_destroy_headers(reply_headers);
+++}
+++
++ 
++ /*----------------------------------------------------------------
++  * Brunet - A german aggregator (mainly doing T-Mobil D1 connections)
++@@ -1041,6 +1233,16 @@
++         conndata-&gt;send_sms = wapme_smsproxy_send_sms;
++         conndata-&gt;parse_reply = wapme_smsproxy_parse_reply;
++     }
+++    else if (octstr_case_compare(type, octstr_imm(&quot;mgfkavkaz&quot;)) == 0) {
+++        if (conndata-&gt;username == NULL || conndata-&gt;password == NULL) {
+++            error(0, &quot;HTTP[%s]: 'username' and 'password' required for mgfkavkaz http smsc&quot;,
+++                  octstr_get_cstr(conn-&gt;id));
+++            goto error;
+++        }
+++        conndata-&gt;receive_sms = mgfkavkaz_receive_sms;
+++        conndata-&gt;send_sms = mgfkavkaz_send_sms;
+++        conndata-&gt;parse_reply = mgfkavkaz_parse_reply;
+++    }
++     /*
++      * ADD NEW HTTP SMSC TYPES HERE
++      */
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001355.html">[SVN] r2550 - in trunk/rpms: gtkpod squale
+</A></li>
+	<LI>Next message: <A HREF="001357.html">[SVN] r2552 - trunk/tools/pydar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1356">[ date ]</a>
+              <a href="thread.html#1356">[ thread ]</a>
+              <a href="subject.html#1356">[ subject ]</a>
+              <a href="author.html#1356">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

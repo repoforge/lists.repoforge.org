@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4399 - trunk/rpms/xine
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4399%20-%20trunk/rpms/xine&In-Reply-To=%3C20060522105259.9981C318107%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003198.html">
+   <LINK REL="Next"  HREF="003200.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4399 - trunk/rpms/xine</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4399%20-%20trunk/rpms/xine&In-Reply-To=%3C20060522105259.9981C318107%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4399 - trunk/rpms/xine">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon May 22 12:52:59 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003198.html">[svn] r4398 - in trunk/rpms: asterisk zaptel
+</A></li>
+        <LI>Next message: <A HREF="003200.html">[svn] r4400 - in trunk/rpms: . gneutronica
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3199">[ date ]</a>
+              <a href="thread.html#3199">[ thread ]</a>
+              <a href="subject.html#3199">[ subject ]</a>
+              <a href="author.html#3199">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-05-22 12:52:58 +0200 (Mon, 22 May 2006)
+New Revision: 4399
+
+Added:
+   trunk/rpms/xine/xine-ui-0.99.3-shared-lirc.patch
+Modified:
+   trunk/rpms/xine/xine.spec
+Log:
+Fix lirc support in xine.
+
+
+Added: trunk/rpms/xine/xine-ui-0.99.3-shared-lirc.patch
+===================================================================
+--- trunk/rpms/xine/xine-ui-0.99.3-shared-lirc.patch	2006-05-22 08:49:57 UTC (rev 4398)
++++ trunk/rpms/xine/xine-ui-0.99.3-shared-lirc.patch	2006-05-22 10:52:58 UTC (rev 4399)
+@@ -0,0 +1,16 @@
++--- m4/_xine.m4~	2003-12-24 15:04:09.000000000 +0200
+++++ m4/_xine.m4	2005-07-10 21:43:53.000000000 +0300
++@@ -37,11 +37,4 @@
++ 
++-        if test x&quot;$LIRC_PREFIX&quot; != &quot;x&quot;; then
++-           lirc_libprefix=&quot;$LIRC_PREFIX/lib&quot;
++-  	   LIRC_INCLUDE=&quot;-I$LIRC_PREFIX/include&quot;
++-        fi
++-        for llirc in $lirc_libprefix /lib /usr/lib /usr/local/lib; do
++-          AC_CHECK_FILE([&quot;$llirc/liblirc_client.a&quot;],
++-             [LIRC_LIBS=&quot;$llirc/liblirc_client.a&quot;]
++-             AC_DEFINE([HAVE_LIRC],,[Define this if you have LIRC (liblir_client) installed]),,)
++-        done
+++        AC_DEFINE([HAVE_LIRC],,[Define this if you have LIRC (liblirc_client) installed])
+++        LIRC_LIBS=-llirc_client
++      else
+
+Modified: trunk/rpms/xine/xine.spec
+===================================================================
+--- trunk/rpms/xine/xine.spec	2006-05-22 08:49:57 UTC (rev 4398)
++++ trunk/rpms/xine/xine.spec	2006-05-22 10:52:58 UTC (rev 4399)
+@@ -15,7 +15,7 @@
+ Summary: Free multimedia player
+ Name: xine
+ Version: 0.99.4
+-Release: 4
++Release: 5
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://xinehq.de/">http://xinehq.de/</A>
+@@ -26,11 +26,14 @@
+ Patch0: xine-ui-0.99.3-sprintf.patch
+ Patch1: xine-ui-0.99.3-xftfontsize.patch
+ Patch2: xine-ui-0.99.3-uifixups.patch
++Patch3: xine-ui-0.99.3-shared-lirc.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires: xine-lib &gt;= 1.0.0
+ BuildRequires: gcc-c++, libpng-devel, xine-lib-devel &gt;= 1.0.0
+ BuildRequires: curl-devel, libidn-devel, libtermcap-devel, readline-devel
+ BuildRequires: pkgconfig, /usr/bin/find
++# Required by autogen.sh
++Buildrequires: autoconf, automake, libtool
+ %{!?_without_freedesktop:BuildRequires: desktop-file-utils}
+ %{?_with_modxorg:BuildRequires: libXt-devel, libXv-devel, libXinerama-devel, libXtst-devel, libXxf86vm-devel, libXext-devel, libXft-devel}
+ %{!?_with_modxorg:BuildRequires: XFree86-devel}
+@@ -56,10 +59,11 @@
+ %patch0 -p1 -b .strintf
+ %patch1 -p1 -b .xftfontsize
+ %patch2 -p1 -b .uifixups
+-# Fix for lirc needed to be searched for in lib64
+-%{__perl} -pi.orig -e 's|(lirc_libprefix /lib) /usr/lib|$1 %{_libdir}|g' \
+-    configure
++%patch3 -p0 -b .shared-lirc
+ 
++# Required by the shared-lirc patch
++./autogen.sh
++
+ # Replace the default Christmas splash screen, it's nearly May already!
+ %{__cp} -a -f %{SOURCE2} misc/xine_splash.png
+ # Replace the default window content with one matching the splash screen
+@@ -161,6 +165,10 @@
+ 
+ 
+ %changelog
++* Mon May 22 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.99.4-5
++- Replace old lirc workaround with patch from Ville to use the shared library,
++  since the static library has been removed from the Extras lirc packages.
++
+ * Wed Mar 22 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.99.4-4
+ - Make the aaxine and cacaxine %%files entries conditional too (thanks to
+   John Robinson for spotting this).
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003198.html">[svn] r4398 - in trunk/rpms: asterisk zaptel
+</A></li>
+	<LI>Next message: <A HREF="003200.html">[svn] r4400 - in trunk/rpms: . gneutronica
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3199">[ date ]</a>
+              <a href="thread.html#3199">[ thread ]</a>
+              <a href="subject.html#3199">[ subject ]</a>
+              <a href="author.html#3199">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

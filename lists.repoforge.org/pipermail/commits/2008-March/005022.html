@@ -1,0 +1,365 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6223 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6223%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200803160618.m2G6IHKa006454%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005021.html">
+   <LINK REL="Next"  HREF="005023.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6223 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6223%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200803160618.m2G6IHKa006454%40surya.karan.org%3E"
+       TITLE="[svn] r6223 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Mar 16 07:18:17 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005021.html">[svn] r6222 - trunk/rpms/evolution-report-spam
+</A></li>
+        <LI>Next message: <A HREF="005023.html">[svn] r6224 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5022">[ date ]</a>
+              <a href="thread.html#5022">[ thread ]</a>
+              <a href="subject.html#5022">[ subject ]</a>
+              <a href="author.html#5022">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-03-16 06:18:16 +0000 (Sun, 16 Mar 2008)
+New Revision: 6223
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+   trunk/tools/dstat/plugins/dstat_snooze.py
+Log:
+Cleanup of the main loop to reduce cycles.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-03-15 23:26:42 UTC (rev 6222)
++++ trunk/tools/dstat/ChangeLog	2008-03-16 06:18:16 UTC (rev 6223)
+@@ -1,4 +1,4 @@
+-* 0.6.7svn - ... - release 14/03/2008
++* 0.6.7svn - ... - release 16/03/2008
+ - Added improved tick patch (Kelly Long)
+ - Show milliseconds in dstat_time when using --debug cfr. dstat_epoch
+ - Difference in integer rounding should not affect colouring
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-03-15 23:26:42 UTC (rev 6222)
++++ trunk/tools/dstat/dstat	2008-03-16 06:18:16 UTC (rev 6223)
+@@ -16,7 +16,7 @@
+ 
+ from __future__ import generators
+ 
+-VERSION = '0.6.7'
++VERSION = '0.6.7svn'
+ 
+ def inspath(path):
+     if os.path.isdir(path) and path not in sys.path:
+@@ -1631,8 +1631,6 @@
+     &quot;Initialise terminal&quot;
+     global termsize
+ 
+-    termsize = None, None
+-
+     ### Unbuffered sys.stdout
+ #    sys.stdout = os.fdopen(1, 'w', 0)
+ 
+@@ -1794,22 +1792,19 @@
+         print
+ 
+ def main():
+-    global update, loop, step, pagesize, cpunr, ansi, interval, outputfile, tick, cols
+-    global totlist, oldvislist, tt, tickbefore
++    global update, loop, step, pagesize, cpunr, ansi, interval, outputfile
++    global totlist, tickbefore, now
+ 
+     loop = update = 0
+     step = op.delay
+-    tick = ticks()
++
+     pagesize = resource.getpagesize()
+     cpunr = getcpunr()
+-#   hz = os.sysconf('SC_CLK_TCK')
+     interval = 1
+ 
+     user = getpass.getuser()
+     hostname = os.uname()[1].split('.')[0]
+ 
+-    rows, cols = gettermsize()
+-
+     ### Write term-title
+     if sys.stdout.isatty():
+         shell = os.getenv('XTERM_SHELL')
+@@ -1856,7 +1851,6 @@
+ 
+     ### Build list of requested modules
+     linewidth = 0
+-    oldvislist = []
+     totlist = []
+     for module in op.modlist:
+         if module in ('list', 'help'):
+@@ -1925,59 +1919,66 @@
+         showcsvtitle(1, totlist)
+         showcsvtitle(2, totlist)
+ 
+-    ### Always show header the first time
+-    showheader = True
+-
+-    tt = 0
+-
+     scheduler = sched.scheduler(time.time, time.sleep)
+-    now = time.time()
+-    tickbefore = now
++    now = tickbefore = time.time()
+ 
+     ### Let the games begin
+     while update &lt;= op.delay * op.count or op.count == -1:
+         scheduler.enterabs(now + update, 1, perform, ())
+         scheduler.run()
+ 
++        update = update + interval
++
+     if op.update:
+         sys.stdout.write('\n')
+ 
+ def perform():
+-        global totlist, oldvislist, loop, step, interval, update, showheader, tickbefore, tt, t1, t2, tick
++        global totlist, oldvislist, vislist, showheader, rows, cols
++        global tick, tickbefore, totaltime
++        global loop, step, update
+ 
+-        ### The last step in a loop is to show the definitive line on its own line
+-        if op.update:
+-            if step == op.delay and update != 0:
+-                sys.stdout.write('\n' + ansi['reset'] + ansi['clearline'] + ansi['save'])
+-#               import gc
+-#               for object in gc.get_objects():
+-#                   if isinstance(object, dstat):
+-#                       print dir(object)
+-#                       for object2 in gc.get_referents(object):
+-#                           print object2
+-            else:
+-                sys.stdout.write(ansi['restore'])
+-
+-        loop = (update + op.delay - 1) / op.delay
++        loop = (update - 1 + op.delay) / op.delay
+         step = ((update - 1) % op.delay) + 1
+ 
+-        if op.debug:
+-            if step == 1: tt = 0
+-            t1 = time.time()
++        ### Get current time (may be different from schedule) for debugging
++        if not op.debug:
++            curwidth = 0
++        else:
++            starttime = time.time()
++            if step == 1 or loop == 0:
++                totaltime = 0
+             curwidth = 8
++
++        ### Initialise certain variables
++        if loop == 0:
++            tick = ticks()
++            rows, cols = 0, 0
++            oldvislist = []
++            showheader = True
+         else:
+-            curwidth = 0
++            tick = step
+ 
+-        ### Trim object list to what is visible on screen
++        ### The first step is to show the definitive line if necessary
++        if op.update:
++            if step == 1 and update != 0:
++                sys.stdout.write('\n' + ansi['reset'] + ansi['clearline'] + ansi['save'])
++            else:
++                sys.stdout.write(ansi['restore'])
++
++        ### FIXME: Make this part smarter
+         if sys.stdout.isatty():
++            oldrows, oldcols = rows, cols
+             rows, cols = gettermsize()
+-            vislist = []
+-            for o in totlist:
+-                newwidth = curwidth + o.statwidth() + 1
+-                if newwidth &lt;= cols or ( vislist == totlist[:-1] and newwidth &lt; cols ):
+-                    vislist.append(o)
+-                    curwidth = newwidth
+ 
++            ### Trim object list to what is visible on screen
++            if oldcols != cols:
++                vislist = []
++                for o in totlist:
++                    newwidth = curwidth + o.statwidth() + 1
++                    if newwidth &lt;= cols or ( vislist == totlist[:-1] and newwidth &lt; cols ):
++                        vislist.append(o)
++                        curwidth = newwidth
++
+             ### Check when to display the header
+             if op.header and rows &gt;= 6:
+                 if oldvislist != vislist:
+@@ -1989,6 +1990,7 @@
+         else:
+             vislist = totlist
+ 
++        ### Display header
+         if showheader:
+             if loop == 0 and totlist != vislist:
+                 info(1, 'Terminal width too small, trimming output.')
+@@ -2001,16 +2003,9 @@
+             ansi['default'] = ansi['reset']
+         else:
+             ansi['default'] = ansi['gray']
+-        line = ansi['default']
+ 
+-        ### Recalculate the time spend
+-        ticknow = time.time()
+-        if loop != 0:
+-            tick = ticknow - tickbefore
+-        if step == op.delay:
+-            tickbefore = ticknow
+-
+         ### Calculate all objects (visible, invisible)
++        line = ''
+         oline = ''
+         for o in totlist:
+             o.extract()
+@@ -2018,28 +2013,29 @@
+                 line = line + o.show() + o.showend(totlist, vislist)
+             if op.output and step == op.delay:
+                 oline = oline + o.showcsv() + o.showcsvend(totlist, vislist)
++
+         ### Print stats
+-        sys.stdout.write(line + ansi['default'])
++        sys.stdout.write(line)
+         if op.output and step == op.delay:
+             outputfile.write(oline + '\n')
+ 
+         ### Print debugging output
+         if op.debug:
+-            t2 = time.time();
+-            tt = tt + (t2 - t1) * 1000.0
+-            if loop == 0: tt = tt * step
++            totaltime = totaltime + (time.time() - starttime) * 1000.0
++            if loop == 0: totaltime = totaltime * step
+             if op.debug == 1:
+-                sys.stdout.write('%s%6.2fms%s' % (ansi['darkblue'], tt / step, ansi['default']))
++                sys.stdout.write('%s%6.2fms%s' % (ansi['darkblue'], totaltime / step, ansi['default']))
+             elif op.debug &gt; 1:
+-                sys.stdout.write('%s%6.2f %s%d:%d:%d%s' % (ansi['darkblue'], tt / step, ansi['gray'], loop, step, update, ansi['default']))
++                sys.stdout.write('%s%6.2f %s%d:%d:%d%s' % (ansi['darkblue'], totaltime / step, ansi['darkred'], loop, step, update, ansi['default']))
+ 
+-        ### If intermediate results, update increases with 1 sec (=interval)
+-        update = update + interval
++        ### FIXME: This is temporary functionality, we should do this better
++        ### If it takes longer than 500ms, than warn !
++        if time.time() - now - update &gt; 1:
++            sys.stdout.write(' '+ansi['redbg']+ansi['white']+'= warn =')
+ 
++        ### Finish the line
+         if not op.update:
+             sys.stdout.write('\n')
+-
+-        ### Flush output since this is buffered I/O
+         sys.stdout.flush()
+ 
+ ### Main entrance
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2008-03-15 23:26:42 UTC (rev 6222)
++++ trunk/tools/dstat/dstat.spec	2008-03-16 06:18:16 UTC (rev 6223)
+@@ -9,7 +9,7 @@
+ 
+ Summary: Versatile resource statistics tool
+ Name: dstat
+-Version: 0.6.7
++Version: 0.6.7svn
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -60,6 +60,9 @@
+ %{_datadir}/dstat/
+ 
+ %changelog
++* Sun Mar 16 2008 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.7svn-1
++- Updated to release 0.6.7svn.
++
+ * Tue Feb 26 2008 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.7-1
+ - Updated to release 0.6.7.
+ 
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2008-03-15 23:26:42 UTC (rev 6222)
++++ trunk/tools/dstat/dstat15	2008-03-16 06:18:16 UTC (rev 6223)
+@@ -16,7 +16,7 @@
+ 
+ #from __future__ import generators
+ 
+-VERSION = '0.6.7'
++VERSION = '0.6.7svn'
+ 
+ def inspath(path):
+     if os.path.isdir(path) and path not in sys.path:
+
+Modified: trunk/tools/dstat/plugins/dstat_snooze.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_snooze.py	2008-03-15 23:26:42 UTC (rev 6222)
++++ trunk/tools/dstat/plugins/dstat_snooze.py	2008-03-16 06:18:16 UTC (rev 6223)
+@@ -4,10 +4,17 @@
+         self.format = ('s', 6, 0)
+         self.nick = ('snooze',)
+         self.vars = self.nick
++        self.before = time.time()
+         self.init(self.vars, 1)
+ 
+     def extract(self):
+-        self.val['snooze'] = tick
++        now = time.time()
++        if loop != 0:
++            self.val['snooze'] = now - self.before
++        else:
++            self.val['snooze'] = self.before
++        if step == op.delay:
++            self.before = now
+ 
+     def show(self):
+         if self.val['snooze'] &gt; step + 1:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005021.html">[svn] r6222 - trunk/rpms/evolution-report-spam
+</A></li>
+	<LI>Next message: <A HREF="005023.html">[svn] r6224 - in trunk/tools/dstat: . plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5022">[ date ]</a>
+              <a href="thread.html#5022">[ thread ]</a>
+              <a href="subject.html#5022">[ subject ]</a>
+              <a href="author.html#5022">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

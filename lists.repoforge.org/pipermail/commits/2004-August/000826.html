@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2020 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2020%20-%20trunk/tools/yam&In-Reply-To=%3C20040816092146.7E10017F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000825.html">
+   <LINK REL="Next"  HREF="000827.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2020 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2020%20-%20trunk/tools/yam&In-Reply-To=%3C20040816092146.7E10017F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2020 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Aug 16 11:21:46 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000825.html">[SVN] r2019 - trunk/rpms/id3lib
+</A></li>
+        <LI>Next message: <A HREF="000827.html">[SVN] r2021 - trunk/rpms/kino
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#826">[ date ]</a>
+              <a href="thread.html#826">[ thread ]</a>
+              <a href="subject.html#826">[ subject ]</a>
+              <a href="author.html#826">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-16 11:21:44 +0200 (Mon, 16 Aug 2004)
+New Revision: 2020
+
+Modified:
+   trunk/tools/yam/README.usage
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.httpd
+Log:
+Another batch of small fixes.
+
+Modified: trunk/tools/yam/README.usage
+===================================================================
+--- trunk/tools/yam/README.usage	2004-08-16 07:52:43 UTC (rev 2019)
++++ trunk/tools/yam/README.usage	2004-08-16 09:21:44 UTC (rev 2020)
+@@ -38,7 +38,9 @@
+ The default directory structure that Yam uses is explained in
+ README.dirs.
+ 
+-Yam by default will mount the ISO files if not already done so.
++Yam by default will mount as many ISO files as possible. If you
++have problems with the maximum number of loop devices, please read
++README.loop
+ 
+ Yam can also download the distribution RPM packages if you want to,
+ if you did not specify any ISO images it will download any os or core
+@@ -48,9 +50,16 @@
+ or
+ 	yam -uv
+ 
+-This will do more though, it will also update any other repositories
+-that you have mentioned in the distribution section.
++If this worked out fine, you can have Yam update all the non-os
++(3rd party) repositories by doing:
+ 
++	yam -x
++or
++	yam -xv
++
++Yam considers all repositories not named 'os', 'core' or 'updates' to
++by non-os repositories.
++
+ To finally generate a complete working repository based on the
+ repositories, you need to issues:
+ 
+@@ -72,11 +81,11 @@
+ If you want to update only a part of your repository, you can select
+ the distributions by doing:
+ 
+-	yam -ugv -d fc2
++	yam -uxgv -d fc2
+ or
+-	yam -ugv -d fc2-i386
++	yam -uxgv -d fc2-i386
+ or even
+-	yam -ugv -d fc2-i386,fc2-x86_64
++	yam -uxgv -d fc2-i386,fc2-x86_64
+ 
+ If you want to have multiple setups of Yam running on a single system
+ (say one of your users wants its own setup), you can specify an
+@@ -86,7 +95,11 @@
+ 
+ In that case the user may want to use another srcdir and wwwdir.
+ 
++Finally, you can see if everything worked, by looking at /var/www/yam
++(wwwdir) or by surfing to <A HREF="http://localhost/yam/,">http://localhost/yam/,</A> see README.web for
++more information about the web-access.
+ 
++
+ The yam.conf file
+ &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+ yam.conf file holds all the information yam uses to find the repos such
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-16 07:52:43 UTC (rev 2019)
++++ trunk/tools/yam/yam	2004-08-16 09:21:44 UTC (rev 2020)
+@@ -5,7 +5,7 @@
+ 
+ archs = {
+ 	'i386': ['i386', 'i486', 'i586', 'i686', 'athlon'],
+-	'x86_64': ['i386', 'i586', 'i686', 'x86_64'],
++	'x86_64': ['i386', 'i486', 'i586', 'i686', 'athlon', 'x86_64'],
+ 	'ppc64': ['ppc', 'ppc64'],
+ }
+ 
+@@ -52,8 +52,11 @@
+ 		if self.quiet:
+ 			self.verbose = 0
+ 
++		if self.verbose &gt;= 3:
++			print 'Verbosity set to level %s' % (self.verbose - 1)
++
+ 	def usage(self):
+-		print 'usage: yam [-g] [-h] [-q] [-u] [-v[vv]] [-x] [-c config] [-d dist1,dist2-arch]'
++		print 'usage: yam [-g] [-q] [-u] [-v] [-x] [-c config] [-d dist1,dist2-arch]'
+ 
+ 	def help(self):
+ 		print '''Set up a distribution server from ISO files
+@@ -66,7 +69,7 @@
+   -u, --update          fetch updates (if possible)
+   -v, --verbose         increase verbosity (only Yam info)
+   -vv, -vvv             increase verbosity more
+-  -x, --extras          fetch extras (if possible)
++  -x, --extras          fetch extra repos
+       --unmount         unmount distributions
+ '''
+ 
+@@ -89,7 +92,7 @@
+ 				die(6, 'Error accessing file: %s' % self.configfile)
+ 
+ 		self.htmldir = self.getoption('main', 'htmldir', '/usr/share/yam/html')
+-		self.lockfile = self.getoption('main', 'lockfile', '/var/run/yam.pid')
++#		self.lockfile = self.getoption('main', 'lockfile', '/var/run/yam.pid')
+ 		self.pxelinux = self.getoption('main', 'pxelinux', '/usr/lib/syslinux/pxelinux.0')
+ 		self.srcdir = self.getoption('main', 'srcdir', '/var/yam')
+ 		self.tftpdir = self.getoption('main', 'tftpdir', '/tftpboot/yam')
+@@ -140,11 +143,11 @@
+ 		&quot;Get an option from a section from configfile&quot;
+ 		try:
+ 			var = self.cfg.get(section, option)
+-			info(4, 'Setting config %s in section %s to %s' % (option, section, var))
++			info(4, 'Setting config %s in section [%s] to: %s' % (option, section, var))
+ 		except ConfigParser.NoSectionError, e:
+ 			info(4, 'Failed to find [%s] in op.configfile' % section)
+ 		except ConfigParser.NoOptionError, e:
+-			info(4, 'Failed to find option %s in [%s], set to %s' % (option, section, var))
++			info(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
+ 			pass
+ 		return var
+ 
+@@ -410,8 +413,8 @@
+ 	if cf.rsynccleanup: opts = ' --delete-after --delete-excluded' + opts
+ 	if cf.rsyncbwlimit: opts = ' --bwlimit='+cf.rsyncbwlimit + opts
+ 	if op.verbose &lt;= 1: opts = ' -q' + opts
+-	elif op.verbose == 2: opts = ' -v' + opts
+-	elif op.verbose &gt;= 3: opts = ' -v --progress' + opts
++	elif op.verbose == 3: opts = ' -v' + opts
++	elif op.verbose &gt;= 4: opts = ' -v --progress' + opts
+ 	opts = ' --timeout=30' + opts
+ 	info(4, '%s -ahL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+ 	os.system('%s -aHL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+
+Modified: trunk/tools/yam/yam.httpd
+===================================================================
+--- trunk/tools/yam/yam.httpd	2004-08-16 07:52:43 UTC (rev 2019)
++++ trunk/tools/yam/yam.httpd	2004-08-16 09:21:44 UTC (rev 2020)
+@@ -10,6 +10,7 @@
+ 
+ 	AddDescription &quot;CDROM ISO files&quot; iso
+ 	AddDescription &quot;Custom local RPM packages&quot; RPMS.local
++	AddDescription &quot;OS RPM packages&quot; RPMS.core
+ 	AddDescription &quot;OS RPM packages&quot; RPMS.os
+ 	AddDescription &quot;OS update RPM packages&quot; RPMS.updates
+ 	AddDescription &quot;3rd party RPM packages&quot; RPMS.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000825.html">[SVN] r2019 - trunk/rpms/id3lib
+</A></li>
+	<LI>Next message: <A HREF="000827.html">[SVN] r2021 - trunk/rpms/kino
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#826">[ date ]</a>
+              <a href="thread.html#826">[ thread ]</a>
+              <a href="subject.html#826">[ subject ]</a>
+              <a href="author.html#826">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

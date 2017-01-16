@@ -1,0 +1,414 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2481 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2481%20-%20trunk/tools/dstat&In-Reply-To=%3C20041113020923.AB5CD19860%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001285.html">
+   <LINK REL="Next"  HREF="001287.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2481 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2481%20-%20trunk/tools/dstat&In-Reply-To=%3C20041113020923.AB5CD19860%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2481 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Nov 13 03:09:23 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001285.html">[SVN] r2480 - trunk/rpms/xmame
+</A></li>
+        <LI>Next message: <A HREF="001287.html">[SVN] r2482 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1286">[ date ]</a>
+              <a href="thread.html#1286">[ thread ]</a>
+              <a href="subject.html#1286">[ subject ]</a>
+              <a href="author.html#1286">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-13 03:09:19 +0100 (Sat, 13 Nov 2004)
+New Revision: 2481
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+more updates.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-12 20:40:44 UTC (rev 2480)
++++ trunk/tools/dstat/ChangeLog	2004-11-13 02:09:19 UTC (rev 2481)
+@@ -1,6 +1,8 @@
+ * 0.5.2
+-- Improved disk and net discovery functions
++- Improved disk and net discovery functions (Ville Herva)
+ - Fixed a bug with values when using --noupdate (Pasi Pirhonen)
++- Documented the internals a bit more, hoping people will contribute
++- Implemented a fix for when the output exceeds terminal columns
+ 
+ * 0.5.1
+ - Fixed bug that caused counters to not be averages when delay &gt; 1
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-12 20:40:44 UTC (rev 2480)
++++ trunk/tools/dstat/dstat	2004-11-13 02:09:19 UTC (rev 2481)
+@@ -112,9 +112,10 @@
+ 	def version(self):
+ 		print 'Dstat %s' % VERSION
+ 		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
+-		print 'Homepage at <A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>&gt;'
++		print 'Homepage at <A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>'
+ 		print
+ 		print 'Platform %s/%s' % (os.name, sys.platform)
++		print 'Kernel %s' % os.uname()[2]
+ 		print 'Python %s' % sys.version
+ 
+ 	def usage(self):
+@@ -185,8 +186,8 @@
+ 	def init(self):
+ 		if not self.check(): return
+ 
+-		self.title1 = self.set_title1()
+-		self.title2 = self.set_title2()
++		self.title1 = self.title1()
++		self.title2 = self.title2()
+ 
+ 		### Initialise default variables
+ 		self.val = {}
+@@ -194,11 +195,14 @@
+ 		self.cn2 = {}
+ 		for i in self.vars: self.val[i] = self.cn1[i] = self.cn2[i] = 0
+ 
+-	def set_title1(self):
+-		max = len(self.vars) * self.len + len(self.vars) - 1
++	def width(self):
++		return len(self.vars) * self.len + len(self.vars) - 1
++
++	def title1(self):
++		max = self.width()
+ 		return ansi['blue'] + self.name[0:max-2].center(max).replace(' ', '-') + ansi['default']
+ 
+-	def set_title2(self):
++	def title2(self):
+ 		ret = ''
+ 		for str in self.nick:
+ 			ret = ret + str[0:self.len].center(self.len).replace(' ', '_')
+@@ -259,7 +263,6 @@
+ 		self.format = '%s %s'
+ 		self.len = 11
+ 		self.name = 'disk i/o'
+-		self.uptime = 0 ### Needed for dstat_disk24
+ 		if op.disklist:
+ 			self.vars = op.disklist
+ 		else:
+@@ -272,12 +275,9 @@
+ 		self.nick = self.vars
+ 		self.init()
+ 
+-		for name in self.vars: self.cn1[name] = (0, 0)
+-		self.cn1['total'] = (0, 0)
+-		for name in self.vars: self.cn2[name] = (0, 0)
+-		self.cn2['total'] = (0, 0)
+-		for name in self.vars: self.val[name] = (0, 0)
+-		self.val['total'] = (0, 0)
++		for name in self.vars: self.cn1[name] = (0, 0); self.cn1['total'] = (0, 0)
++		for name in self.vars: self.cn2[name] = (0, 0); self.cn2['total'] = (0, 0)
++		for name in self.vars: self.val[name] = (0, 0); self.val['total'] = (0, 0)
+ 
+ 	def discover(self):
+ 		retlist = []
+@@ -303,8 +303,6 @@
+ 			if len(l) &lt; 13: continue
+ 			name = l[2]
+ 			if name in self.vars:
+-#				print mountpoint('/dev/' + name)
+-#				bsize = os.statvfs(mountpoint('/dev/' + name))[0]
+ 				self.cn2[name] = ( self.cn2[name][0] + long(l[5]), self.cn2[name][1] + long(l[9]) )
+ 			for set in self.vars:
+ 				if set in self.diskset and name in self.diskset[set]:
+@@ -332,7 +330,6 @@
+ 		if len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+ 		return retlist
+-#		return ('local', 'lores', 'hires', 'total')
+ 
+ 	def check(self):
+ 		if os.path.exists('/proc/partitions') and not os.path.exists('/proc/diskstats'):
+@@ -374,7 +371,7 @@
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			l = line.split(':');
+-			if len(l) &lt; 1: continue
++			if len(l) &lt; 4: continue
+ 			name = l[0]
+ 			if name == 'disk_io':
+ 				for pair in line.split()[1:]:
+@@ -427,7 +424,9 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/interrupts', 'r').readlines():
+-			l = line.split(); name = l[0].split(':')[0]
++			l = line.split();
++			if len(l) &lt; 2: continue
++			name = l[0].split(':')[0]
+ 			if name in self.vars:
+ 				self.cn2[name] = long(l[1])
+ 			elif len(l) &gt; 2 + procs:
+@@ -457,7 +456,7 @@
+ 	def stats(self):
+ 		for line in open('/proc/loadavg', 'r').readlines():
+ 			l = line.split()
+-			if len(l) &lt; 1: continue
++			if len(l) &lt; 3: continue
+ 			self.val['load1'] = float(l[0])
+ 			self.val['load5'] = float(l[1])
+ 			self.val['load15'] = float(l[2])
+@@ -479,7 +478,7 @@
+ 	def stats(self):
+ 		for line in open('/proc/meminfo', 'r').readlines():
+ 			l = line.split()
+-			if len(l) &lt; 1: continue
++			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+ 			if name in self.vars + ('MemTotal',):
+ 				self.val[name] = long(l[1]) * 1024.0
+@@ -497,17 +496,15 @@
+ 		self.nick = self.vars
+ 		self.init()
+ 
+-		for name in self.vars: self.cn1[name] = (0, 0)
+-		self.cn1['total'] = (0, 0)
+-		for name in self.vars: self.cn2[name] = (0, 0)
+-		self.cn2['total'] = (0, 0)
+-		for name in self.vars: self.val[name] = (0, 0)
+-		self.val['total'] = (0, 0)
++		for name in self.vars: self.cn1[name] = (0, 0); self.cn1['total'] = (0, 0)
++		for name in self.vars: self.cn2[name] = (0, 0); self.cn2['total'] = (0, 0)
++		for name in self.vars: self.val[name] = (0, 0); self.val['total'] = (0, 0)
+ 
+ 	def discover(self):
+ 		retlist = []
+ 		for line in open('/proc/net/dev', 'r').readlines():
+ 			l = line.split()
++			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+ 			if l[1] == '0': continue
+ 			if not re.match('^(Inter-\||face|lo|wifi\d+)$', name):
+@@ -525,7 +522,9 @@
+ 		self.cn2['total'] = (0, 0)
+ 		for line in open('/proc/net/dev', 'r').readlines():
+ 			l = line.split()
++			if len(l) &lt; 1: continue
+ 			l2 = l[0].split(':')
++			if len(l2) &lt; 1: continue
+ 			name = l2[0]
+ 			if len(l2) &gt; 1 and l2[1].strip():
+ 				l = l2[1:] + l[1:]
+@@ -560,7 +559,9 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/vmstat', 'r').readlines():
+-			l = line.split(); name = l[0]
++			l = line.split();
++			if len(l) &lt; 2: continue
++			name = l[0]
+ 			if name in self.vars:
+ 				self.cn2[name] = long(l[1])
+ 		if update:
+@@ -577,7 +578,9 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = line.split(); name = l[0]
++			l = line.split();
++			if len(l) &lt; 3: continue
++			name = l[0]
+ 			if name == 'swap':
+ 				self.cn2['pswpin'] = long(l[1])
+ 				self.cn2['pswpout'] = long(l[2])
+@@ -606,7 +609,9 @@
+ 
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+-			l = line.split(); name = l[0]
++			l = line.split();
++			if len(l) &lt; 2: continue
++			name = l[0]
+ 			if name in self.vars:
+ 				self.val[name] = long(l[1])
+ #			if name in ('processes',):
+@@ -635,6 +640,7 @@
+ 	def stats(self):
+ 		for line in open('/proc/meminfo', 'r').readlines():
+ 			l = line.split()
++			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+ 			if name in self.vars + ('SwapTotal',):
+ 				self.val[name] = long(l[1]) * 1024.0
+@@ -726,6 +732,8 @@
+ 	'save': '\033[s',
+ 	'restore': '\033[u',
+ 
++	'up': '\033[1A',
++
+ 	'default': '\033[0;0m',
+ }
+ 
+@@ -827,6 +835,7 @@
+ 		for key in ansi.keys():
+ 			ansi[key] = ''
+ 
++	### Build list of requested modules
+ 	olist = []
+ 	for mod in op.modlist:
+ 		if mod == 'cpu':	olist.append(dstat_cpu())
+@@ -846,15 +855,27 @@
+ 		elif mod == 'sys':	olist.append(dstat_sys())
+ 		elif mod == 'time':	olist.append(dstat_time())
+ 
+-	### Remove defect objects
++	(rows, cols) = getwinsize()
++
++	### Remove defect objects and calculate line length
++	linewidth = 0
+ 	for o in olist + []:
+ 		if not o.check():
+ 			olist.remove(o)
++		else:
++			linewidth = linewidth + o.width() + 1
+ 
++	if linewidth &gt; cols:
++		print 'Screen width too small, trimming output.'
++
++	### Increase precision if we're root
+ 	if os.geteuid() == 0:
+ 		os.nice(-10)
++
+ #	sys.setcheckinterval(op.delay * 1.5 * 100)
+ 	signal.signal(signal.SIGALRM, handler)
++
++	### Let the games begin
+ 	while loop != op.count:
+ 
+ 		### When intermediate updates are enabled, signal each second
+@@ -863,16 +884,23 @@
+ 		else:
+ 			signal.alarm(op.delay)
+ 
+-		rows = getwinsize()[0]
++		### Trim object list to what is visible on screen
++		(rows, cols) = getwinsize()
++		plist = []
++		curwidth = 0
++		for o in olist:
++			curwidth = curwidth + o.width() + 1
++			if curwidth &lt; cols:
++				plist.append(o)
+ 
+-		### Check when to display a header
+-		if step == op.delay and loop % (rows-2) == 0 and (op.header or loop == 0):
+-			for o in olist:
++		### Check when to display the header
++		if (loop == 0 or op.header) and step == op.delay and loop % (rows-2) == 0:
++			for o in plist:
+ 				sys.stdout.write(o.title1)
+ 				if o != olist[-1]: sys.stdout.write(' ')
+ 			sys.stdout.write('\n')
+ 
+-			for o in olist:
++			for o in plist:
+ 				sys.stdout.write(o.title2)
+ 				if o != olist[-1]: sys.stdout.write(ansi['silver'] + '|' + ansi['default'])
+ 			sys.stdout.write('\n')
+@@ -887,30 +915,33 @@
+ 		### Debugging info
+ #		sys.stdout.write('[%d:%d:%d]' % (loop,step,update))
+ 
+-		### Show the stats
++		### Show the stats, calculate all objects (visible, invisible)
+ 		for o in olist:
+ 			o.stats()
+-			o.show()
+-			if o != olist[-1]: sys.stdout.write(ansi['silver'] + '|' + ansi['default'])
++			if o in plist:
++				o.show()
++				if o != olist[-1]: sys.stdout.write(ansi['silver'] + '|' + ansi['default'])
+ 
+-		### The last step in a loop is to show the definitive line on a new line
+-		if step == op.delay:
+-			sys.stdout.write('\n' + ansi['save'])
+-		else:
+-#			sys.stdout.write('\n')
+-			sys.stdout.write(ansi['restore'])
+-
+ 		### If intermediate results, update increases with 1 sec
+ 		if op.update:
+ 			update = update + 1
+ 		else:
+ 			update = update + op.delay
++		oldstep = step
+ 		step = ((update - 1) % op.delay) + 1
+ 		loop = update / op.delay 
+ 
++		### Do not pause when this is the final loop
+ 		if loop != op.count:
+ 			signal.pause()
+ 
++		### The last step in a loop is to show the definitive line on a new line
++		if oldstep == op.delay:
++			sys.stdout.write('\n' + ansi['save'])
++		else:
++#			sys.stdout.write('\n')
++			sys.stdout.write(ansi['restore'])
++
+ ### Unbuffered sys.stdout
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+@@ -939,13 +970,13 @@
+ 	except KeyboardInterrupt, e:
+ 		if step != op.delay:
+ 			print
+-		print 'Exiting on user request'
++		print ansi['reset'] + 'Exiting on user request'
+ 		sys.exit(6)
+ 	except OSError, e:
+ #		print e.errno
+ 		if step != op.delay:
+ 			print
+-		print 'OSError: %s' %e
++		print ansi['reset'] + 'OSError: %s' %e
+ 		sys.exit(7)
+ 
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001285.html">[SVN] r2480 - trunk/rpms/xmame
+</A></li>
+	<LI>Next message: <A HREF="001287.html">[SVN] r2482 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1286">[ date ]</a>
+              <a href="thread.html#1286">[ thread ]</a>
+              <a href="subject.html#1286">[ subject ]</a>
+              <a href="author.html#1286">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

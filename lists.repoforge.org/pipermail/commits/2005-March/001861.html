@@ -1,0 +1,309 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3057 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3057%20-%20trunk/tools/dstat&In-Reply-To=%3C20050328155724.EEDF65C402B%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001860.html">
+   <LINK REL="Next"  HREF="001862.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3057 - trunk/tools/dstat</H1>
+    <B>svn-commits at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3057%20-%20trunk/tools/dstat&In-Reply-To=%3C20050328155724.EEDF65C402B%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3057 - trunk/tools/dstat">svn-commits at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar 28 17:57:24 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001860.html">[svn] r3056 - in trunk/rpms: . python-forward-compat
+</A></li>
+        <LI>Next message: <A HREF="001862.html">[svn] r3058 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1861">[ date ]</a>
+              <a href="thread.html#1861">[ thread ]</a>
+              <a href="subject.html#1861">[ subject ]</a>
+              <a href="author.html#1861">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-28 17:57:23 +0200 (Mon, 28 Mar 2005)
+New Revision: 3057
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat15
+Log:
+Updates, preparing for 0.5.9
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-03-27 09:14:13 UTC (rev 3056)
++++ trunk/tools/dstat/ChangeLog	2005-03-28 15:57:23 UTC (rev 3057)
+@@ -1,8 +1,11 @@
+ * 0.5.9
+ - Make default list total lists (cpu, disk, net)
+-- Fix clearline ANSI to work on (Debian?) rxvt (Joshua Rodman)
++- Fix clearline ANSI to work on older (Debian?) rxvt (Joshua Rodman)
+ - Improved color/vt100 terminal capabilities logic (Charles Lepple)
++- Finally use curses for some of the terminal capabilities logic
+ - Improvement to non-tty handling for intermediate updates
++- Small fix to handle the edge of the counters better
++- Prevent keyboard input/echo when running
+ 
+ * 0.5.8
+ - Added user stats using python-utmp
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-03-27 09:14:13 UTC (rev 3056)
++++ trunk/tools/dstat/dstat	2005-03-28 15:57:23 UTC (rev 3057)
+@@ -14,10 +14,15 @@
+ ### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ### Copyright 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
++import sys
++
++if sys.version_info &lt; (2, 2):
++	sys.exit('error: Python 2.2 or later required, try dstat15 instead')
++
+ from __future__ import generators
+-import fcntl, struct, types
+-import os, sys, re, getopt, time, termios
++import os, re, getopt, time, types
+ import ConfigParser, urlparse, signal, resource
++import curses, termios
+ 
+ VERSION = '0.5.9'
+ 
+@@ -1256,17 +1261,20 @@
+ def getwinsize():
+ 	if op.nolimit:
+ 		return 1024, 1024
+-#	curses.wrapper(lambda s:curses.setupterm())
+-#	return curses.wrapper(lambda s:curses.tigetnum('lines')), curses.wrapper(lambda s:curses.tigetnum('cols'))
+ 	try:
+-		s = struct.pack('HHHH', 0, 0, 0, 0)
+-		x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+-		return struct.unpack('HHHH', x)[:2]
++		curses.setupterm()
++		return curses.tigetnum('lines'), curses.tigetnum('cols')
+ 	except:
+ 		try:
+-			return int(os.environ['LINES']), int(os.environ['COLUMNS'])
++			import fcntl, struct, termios
++			s = struct.pack('HHHH', 0, 0, 0, 0)
++			x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
++			return struct.unpack('HHHH', x)[:2]
+ 		except:
+-			return 25, 80
++			try:
++				return int(os.environ['LINES']), int(os.environ['COLUMNS'])
++			except:
++				return 25, 80
+ 
+ def getcpunr():
+ 	cpunr = -1
+@@ -1347,9 +1355,7 @@
+ 
+ 	### Check terminal capabilities
+ 	if sys.stdout.isatty():
+-#		import curses
+-#		if not curses.wrapper(lambda s:curses.has_colors()):
+-		if os.environ.get('TERM', None) not in ('ansi', 'gnome', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm', 'xterm-color'):
++		if curses.tigetnum('colors') &lt; 0:
+ 			op.color = False
+ 	else:
+ 		op.color = False
+@@ -1378,10 +1384,6 @@
+ 	if not totlist:
+ 		die(8, 'None of the stats you selected are available.')
+ 
+-	if not op.nolimit:
+-		if linewidth &gt; cols:
+-			print 'Screen width too small, trimming output.'
+-
+ 	### FIXME: Get rid of socket()
+ 	if op.output:
+ 		import socket
+@@ -1417,6 +1419,9 @@
+ 			if curwidth + o.varwidth() + 1 &lt;= cols:
+ 				vislist.append(o)
+ 				curwidth = curwidth + o.varwidth() + 1
++			elif vislist == totlist[:-1] and curwidth + o.varwidth() &lt;= cols:
++				vislist.append(o)
++				curwidth = curwidth + o.varwidth() + 1
+ 
+ 		### Check when to display the header
+ 		if op.header:
+@@ -1426,6 +1431,8 @@
+ 				showheader = True
+ 
+ 		if showheader:
++			if loop == 0 and totlist != vislist:
++				print 'Screen width too small, trimming output.'
+ 			showheader = False
+ 			showtitle(1, totlist, vislist, ansi['darkblue'] + char['space'], ansi['darkblue'] + char['gt'])
+ 			showtitle(2, totlist, vislist, ansi['silver'] + char['pipe'], ansi['darkblue'] + char['gt'])
+@@ -1474,6 +1481,15 @@
+ ### Unbuffered sys.stdout
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
++curses.setupterm()
++
++### Prevent keyboard input
++fd = sys.stdin.fileno()
++old = termios.tcgetattr(fd)
++new = termios.tcgetattr(fd)
++new[3] = new[3] &amp; ~termios.ECHO
++termios.tcsetattr(fd, termios.TCSADRAIN, new)
++
+ ### Workaround for python &gt; 2.1 and &lt; 2.3
+ def enumerate(sequence):
+     index = 0
+@@ -1489,14 +1505,22 @@
+ 		main()
+ 	except KeyboardInterrupt, e:
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
++		termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ 		print ansi['reset']
+ 	except OSError, e:
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
++		termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ #		print e.errno
+ 		print
+-		print ansi['reset'] + 'OSError: %s' %e
++		print ansi['reset'] + 'OSError: %s' % e
+ 		sys.exit(7)
++#	except Exception, e:
++#		signal.signal(signal.SIGALRM, signal.SIG_DFL)
++#		termios.tcsetattr(fd, termios.TCSADRAIN, old)
++#		raise e
+ 
++signal.signal(signal.SIGALRM, signal.SIG_DFL)
++termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ sys.exit(0)
+ 
+ # vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-03-27 09:14:13 UTC (rev 3056)
++++ trunk/tools/dstat/dstat15	2005-03-28 15:57:23 UTC (rev 3057)
+@@ -14,10 +14,15 @@
+ ### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ### Copyright 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
++import sys
++
++#if sys.version_info &lt; (1, 5):
++#	sys.exit('error: Python 1.5 or later required')
++
+ #from __future__ import generators
+-import fcntl, struct, types, string
+-import os, sys, re, getopt, time, termios
++import os, re, getopt, time, types, string
+ import ConfigParser, urlparse, signal, resource
++import curses, termios
+ 
+ VERSION = '0.5.9'
+ 
+@@ -1256,17 +1261,20 @@
+ def getwinsize():
+ 	if op.nolimit:
+ 		return 1024, 1024
+-#	curses.wrapper(lambda s:curses.setupterm())
+-#	return curses.wrapper(lambda s:curses.tigetnum('lines')), curses.wrapper(lambda s:curses.tigetnum('cols'))
+ 	try:
+-		s = struct.pack('HHHH', 0, 0, 0, 0)
+-		x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+-		return struct.unpack('HHHH', x)[:2]
++		curses.setupterm()
++		return curses.tigetnum('lines'), curses.tigetnum('cols')
+ 	except:
+ 		try:
+-			return int(os.environ['LINES']), int(os.environ['COLUMNS'])
++			import fcntl, struct, termios
++			s = struct.pack('HHHH', 0, 0, 0, 0)
++			x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
++			return struct.unpack('HHHH', x)[:2]
+ 		except:
+-			return 25, 80
++			try:
++				return int(os.environ['LINES']), int(os.environ['COLUMNS'])
++			except:
++				return 25, 80
+ 
+ def getcpunr():
+ 	cpunr = -1
+@@ -1347,8 +1355,7 @@
+ 
+ 	### Check terminal capabilities
+ 	if sys.stdout.isatty():
+-#		import curses
+-#		if not curses.wrapper(lambda s:curses.has_colors()):
++#		if curses.tigetnum('colors') &lt; 0:
+ 		if os.environ.get('TERM', None) not in ('ansi', 'gnome', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm', 'xterm-color'):
+ 			op.color = False
+ 	else:
+@@ -1417,6 +1424,9 @@
+ 			if curwidth + o.varwidth() + 1 &lt;= cols:
+ 				vislist.append(o)
+ 				curwidth = curwidth + o.varwidth() + 1
++			elif vislist == totlist[:-1] and curwidth + o.varwidth() &lt;= cols:
++				vislist.append(o)
++				curwidth = curwidth + o.varwidth() + 1
+ 
+ 		### Check when to display the header
+ 		if op.header:
+@@ -1426,6 +1436,8 @@
+ 				showheader = True
+ 
+ 		if showheader:
++			if loop == 0 and totlist != vislist:
++				print 'Screen width too small, trimming output.'
+ 			showheader = False
+ 			showtitle(1, totlist, vislist, ansi['darkblue'] + char['space'], ansi['darkblue'] + char['gt'])
+ 			showtitle(2, totlist, vislist, ansi['silver'] + char['pipe'], ansi['darkblue'] + char['gt'])
+@@ -1506,9 +1518,10 @@
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+ #		print e.errno
+ 		print
+-		print ansi['reset'] + 'OSError: %s' %e
++		print ansi['reset'] + 'OSError: %s' % e
+ 		sys.exit(7)
+ 
++signal.signal(signal.SIGALRM, signal.SIG_DFL)
+ sys.exit(0)
+ 
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001860.html">[svn] r3056 - in trunk/rpms: . python-forward-compat
+</A></li>
+	<LI>Next message: <A HREF="001862.html">[svn] r3058 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1861">[ date ]</a>
+              <a href="thread.html#1861">[ thread ]</a>
+              <a href="subject.html#1861">[ subject ]</a>
+              <a href="author.html#1861">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,337 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3466 - in trunk/tools/pydar2: pydar scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3466%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050808190351.A0091318033%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002266.html">
+   <LINK REL="Next"  HREF="002268.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3466 - in trunk/tools/pydar2: pydar scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3466%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050808190351.A0091318033%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3466 - in trunk/tools/pydar2: pydar scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Aug  8 21:03:51 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002266.html">[svn] r3465 - in trunk/rpms: gnustep-base gnustep-make mathomatic	perl-Mail-Mbox-MessageParser tor umbrello
+</A></li>
+        <LI>Next message: <A HREF="002268.html">[svn] r3467 - in trunk/rpms: . atlantis cacti-cactid devilspie	drgeo gnome-schedule grepmail httping interbench lbe lzo	mcabber mplayerplug-in openvpn perl-Kolab-Cyrus	perl-Kolab-LDAP-Backend-ad perl-Statistics-Distributions	pydsh python-elementtree pytraffic revelation rrdtool	rsnapshot sitecopy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2267">[ date ]</a>
+              <a href="thread.html#2267">[ thread ]</a>
+              <a href="subject.html#2267">[ subject ]</a>
+              <a href="author.html#2267">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-08-08 21:03:48 +0200 (Mon, 08 Aug 2005)
+New Revision: 3466
+
+Modified:
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/scripts/rpmforgesite.py
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-08-07 20:21:38 UTC (rev 3465)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-08-08 19:03:48 UTC (rev 3466)
+@@ -29,6 +29,12 @@
+ import pgdb, posixpath, posix, string
+ import rights
+ 
++# get the id of each specfile in rpmforge + the lastversionid
++#select sf.id, max(sv.id) as lastversionid from pydar2_specfile sf, pydar2_specrepo repo, pydar2_specfile_version sv where #repo.id=sf.specrepoid and repo.name='rpmforge' and sv.specfileid=sf.id group by sv.id, sf.id;
++
++
++
++
+ class PostgresqlStorage(Storage):
+     def __init__(self):
+         self.__cat = Logger().get_instance(self)
+@@ -46,6 +52,25 @@
+         self.__releaseConnection(conn)
+         return retval
+         
++    def getNameSummaryAndGroupOfLastVersionsOfSpecFiles(self, specRepoName):
++        retval = []
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        sql = &quot;select current.id, current.lastversionid, tname.value as name, tsumm.value as summary, tgroup.value as group from (select sf.id, max(sv.id) as lastversionid from pydar2_specfile sf, pydar2_specrepo repo, pydar2_specfile_version sv where repo.id=sf.specrepoid and repo.name='&quot; + specRepoName + &quot;' and sv.specfileid=sf.id group by sv.id, sf.id) as current, pydar2_specfile_tags tname, pydar2_specfile_tags tsumm, pydar2_specfile_tags tgroup where tname.versionid=current.lastversionid and tsumm.versionid=current.lastversionid and tgroup.versionid=current.lastversionid and tname.name='NAME' and tsumm.name='SUMMARY' and tgroup.name='GROUP' and tname.distroid=1 and tsumm.distroid=1 and tgroup.distroid=1 order by tgroup.value asc, tname.value asc&quot;
++        cursor.execute(sql)
++        for row in cursor.fetchall():
++            temp = {}
++            temp['id'] = row[0]
++            temp['lastversionid'] = row[1]
++            temp['name'] = row[2]
++            temp['summary'] = row[3]
++            temp['group'] = row[4]
++            retval.append(temp)
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++        
++        
+     def getAuthorityOfMostRecentVersion(self, specFileId):
+         retval = None
+         conn = self.__getConnection()
+
+Modified: trunk/tools/pydar2/scripts/rpmforgesite.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgesite.py	2005-08-07 20:21:38 UTC (rev 3465)
++++ trunk/tools/pydar2/scripts/rpmforgesite.py	2005-08-08 19:03:48 UTC (rev 3466)
+@@ -39,6 +39,85 @@
+     def __init__(self,distroArchObject,name):
+         self.distroArchObject = distroArchObject
+         self.name = name
++        # let's extract the version-release
++        self.verrel = &quot;&quot;
++        tempname = name
++        
++        regex1 = re.compile(&quot;0\\.el[234]\\.dag\\..*\\.rpm&quot;)
++        regex2 = re.compile(&quot;0\\.el[234]\\.1\\.dag\\..*\\.rpm&quot;)
++        regex3 = re.compile(&quot;rhel[234]\\.1\\.dag\\..*\\.rpm&quot;)
++        regex4 = re.compile(&quot;0\\.el[234]\\.rf\\..*\\.rpm&quot;)
++        regex5 = re.compile(&quot;1\\.el3\\.dag\\..*\\.rpm&quot;)
++        regex6 = re.compile(&quot;dag\\.rhel3\\..*\\.rpm&quot;)
++        regex7 = re.compile(&quot;rhel3\\.dag\\..*\\.rpm&quot;)
++        regex8 = re.compile(&quot;1\\.el3\\.rf\\..*\\.rpm&quot;)
++        regex9 = re.compile(&quot;2\\.el4\\.rf\\..*\\.rpm&quot;)
++        regex10 = re.compile(&quot;1\\.fc[12]\\.dag\\..*\\.rpm&quot;)
++        regex11 = re.compile(&quot;rhfc1\\.dag\\..*\\.rpm&quot;)
++        regex12 = re.compile(&quot;rh80\\.dag\\..*\\.rpm&quot;)
++        regex13 = re.compile(&quot;dag\\.rh80\\..*\\.rpm&quot;)
++        regex14 = re.compile(&quot;rh90\\.dag\\..*\\.rpm&quot;)
++        regex15 = re.compile(&quot;dag\\.rh90\\..*\\.rpm&quot;)
++        regex16 = re.compile(&quot;0\\.au1\\.9[12]\\..*\\.rpm&quot;)
++        regex17 = re.compile(&quot;1\\.fc[123]\\.rf\\..*\\.rpm&quot;)
++        regex18 = re.compile(&quot;dag\\.rhfc1\\..*\\.rpm&quot;)
++        regex19 = re.compile(&quot;1\\.fc[12]\\.dries\\..*\\.rpm&quot;)
++        regex20 = re.compile(&quot;2\\.fc4\\.rf\\..*\\.rpm&quot;)
++        regex21 = re.compile(&quot;dag\\.rh62\\..*\\.rpm&quot;)
++        regex22 = re.compile(&quot;1\\.el3\\.dries\\..*\\.rpm&quot;)
++        regex23 = re.compile(&quot;rh6.\\.dag\\..*\\.rpm&quot;)
++        regex24 = re.compile(&quot;0\\.rh[6789]\\.dag\\..*\\.rpm&quot;)
++        regex25 = re.compile(&quot;0\\.dag\\.noarch\\.rpm&quot;)
++        regex26 = re.compile(&quot;rh73\\.dag\\..*\\.rpm&quot;)
++        regex27 = re.compile(&quot;0\\.rh[789]\\.rf\\..*\\.rpm&quot;)
++        regex28 = re.compile(&quot;dag\\.rh73\\..*\\.rpm&quot;)
++        regex29 = re.compile(&quot;0\\.rf\\.noarch\\.rpm&quot;)
++        tempname = re.sub(regex1,&quot;&quot;,tempname)
++        tempname = re.sub(regex2,&quot;&quot;,tempname)
++        tempname = re.sub(regex3,&quot;&quot;,tempname)
++        tempname = re.sub(regex4,&quot;&quot;,tempname)
++        tempname = re.sub(regex5,&quot;&quot;,tempname)
++        tempname = re.sub(regex6,&quot;&quot;,tempname)
++        tempname = re.sub(regex7,&quot;&quot;,tempname)
++        tempname = re.sub(regex8,&quot;&quot;,tempname)
++        tempname = re.sub(regex9,&quot;&quot;,tempname)
++        tempname = re.sub(regex10,&quot;&quot;,tempname)
++        tempname = re.sub(regex11,&quot;&quot;,tempname)
++        tempname = re.sub(regex12,&quot;&quot;,tempname)
++        tempname = re.sub(regex13,&quot;&quot;,tempname)
++        tempname = re.sub(regex14,&quot;&quot;,tempname)
++        tempname = re.sub(regex15,&quot;&quot;,tempname)
++        tempname = re.sub(regex16,&quot;&quot;,tempname)
++        tempname = re.sub(regex17,&quot;&quot;,tempname)
++        tempname = re.sub(regex18,&quot;&quot;,tempname)
++        tempname = re.sub(regex19,&quot;&quot;,tempname)
++        tempname = re.sub(regex20,&quot;&quot;,tempname)
++        tempname = re.sub(regex21,&quot;&quot;,tempname)
++        tempname = re.sub(regex22,&quot;&quot;,tempname)
++        tempname = re.sub(regex23,&quot;&quot;,tempname)
++        tempname = re.sub(regex24,&quot;&quot;,tempname)
++        tempname = re.sub(regex25,&quot;&quot;,tempname)
++        tempname = re.sub(regex26,&quot;&quot;,tempname)
++        tempname = re.sub(regex27,&quot;&quot;,tempname)
++        tempname = re.sub(regex28,&quot;&quot;,tempname)
++        tempname = re.sub(regex29,&quot;&quot;,tempname)
++        
++
++        
++        
++        if tempname.find(&quot;.rpm&quot;) &gt; 0:
++            print &quot;suffix not known in BinaryRpm::__init__ : &quot; + name + &quot;, &quot; + tempname
++            exit(1)
++        regexp = &quot;^(.*)-(.*?)-(.*?)\.$&quot;
++        regex = re.compile(regexp)
++        result = regex.match(tempname)
++        if result:
++            self.version = result.group(2)
++            self.release = result.group(3)
++            self.verrel = self.version + &quot;-&quot; + self.release
++        else:
++            print &quot;could not get version and release, name&quot; + name + &quot;, tempname: &quot;+ tempname
++            exit(1)
+     
+ # actually not an object for each distro/arch combination, but an object for each distro/arch/packager combination!!
+ # it contains all the rpms on a certain url
+@@ -171,6 +250,8 @@
+             lijn = f.readline()
+             while lijn != &quot;&quot;:
+                 #print l
++                # some stuff which should not get into the lists...
++                lijn = lijn.replace(&quot;gcc-c++-3.2.2-5.i386.rpm&quot;,&quot;&quot;)
+                 mo = secondre.search(lijn)
+                 if mo != None:
+                     rpm = mo.group(1)
+@@ -248,6 +329,7 @@
+             self.generateOnePackagePage(i)
+             #self.RFgenerateUserPackagePage(i)
+             self.RFgenerateSpecPages(i)
++        self.RFgeneratePackagesPages()
+         print &quot;start, distropages&quot;
+         for i in self.__rpmlists:
+             if i.packager == &quot;dries&quot;:
+@@ -580,6 +662,8 @@
+         f = open(os.path.join(dir,fname), &quot;w&quot;)
+         f.write(full)
+         f.close()
++
++    #### start of rpmforge track pages
+         
+         
+     def RFgenerateSpecPages(self, specRepoSpecFile):
+@@ -590,9 +674,67 @@
+         self.RFgenerateDeveloperPackagePage(specRepoSpecFile, arr)
+         self.RFgeneratePackagerPackagePage(specRepoSpecFile)
+         
++    def RFgeneratePackagesPages(self):
++        # 1 pagina met daarop:
++        #  - de lijst van groepen
++        #  - de lijst van beginletters
++        # 1 pagina per beginletter
++        # 1 pagina per groep
++
++
++        grouppages = {}
++        letterpages = {}
+         
+-    #### start of rpmforge track pages
++        specArr = self.__storage.getNameSummaryAndGroupOfLastVersionsOfSpecFiles('rpmforge')        
++        for specHash in specArr:
++            name = specHash['name']
++            summary = specHash['summary']
++            group = specHash['group']
++            print &quot;name: &quot; + str(name)
++            beginletter = name[0].capitalize()
++            print &quot;name: &quot;+ name + &quot;,beginletter:&quot;+ beginletter + &quot;,group:&quot;+ group
+         
++            currentgroupcontents = &quot;&quot;
++            if group in grouppages.keys():
++                currentgroupcontents = grouppages[group]
++            else:
++                currentgroupcontents = &quot;&lt;h2&gt;Group &quot; + group + &quot;&lt;/h2&gt;&quot;
++            currentgroupcontents = currentgroupcontents + &quot;&lt;a href=\&quot;&quot; + name + &quot;/\&quot;&gt;&quot; + name + &quot;&lt;/a&gt;: &quot; + summary + &quot;&lt;br /&gt;&quot;
++            grouppages[group] = currentgroupcontents
++            
++            currentlettercontents = &quot;&quot;
++            if beginletter in letterpages.keys():
++                currentlettercontents = letterpages[beginletter]
++            else:
++                currentlettercontents = &quot;&lt;h2&gt;Letter &quot; + beginletter + &quot;&lt;/h2&gt;&quot;
++            currentlettercontents = currentlettercontents + &quot;&lt;a href=\&quot;&quot; + name + &quot;/\&quot;&gt;&quot; + name + &quot;&lt;/a&gt;: &quot; + summary + &quot;&lt;br /&gt;&quot;
++            letterpages[beginletter] = currentlettercontents
++            
++        contents = &quot;&quot;
++        
++        contents = contents + &quot;&lt;h2&gt;Packages sorted by group&lt;/h2&gt;&quot;
++        
++        groupcnt = 0
++        keys = grouppages.keys()
++        keys.sort()
++        for key in keys:
++            contents = contents + &quot;&lt;a href=\&quot;packages-group&quot; + str(groupcnt) + &quot;.php\&quot;&gt;&quot; + key + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++            self.RFgenerateFullPage(grouppages[key],[&quot;Packages&quot;,&quot;User track: list of packages&quot;], &quot;user/packages/packages-group&quot; + str(groupcnt) + &quot;.php&quot;,key + &quot; RPM packages for Red Hat / Fedora / Aurora&quot;)
++            groupcnt = groupcnt + 1
++                       
++        contents = contents + &quot;&lt;h2&gt;Packages sorted by first letter&lt;/h2&gt;&quot;
++
++        lettercnt = 0
++        keys = letterpages.keys()
++        keys.sort()
++        for key in keys:
++            contents = contents + &quot;&lt;a href=\&quot;packages&quot; + str(lettercnt) + &quot;.php\&quot;&gt;&quot; + key + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++            self.RFgenerateFullPage(letterpages[key],[&quot;Packages&quot;,&quot;User track: list of packages&quot;], &quot;user/packages/packages&quot; + str(lettercnt) + &quot;.php&quot;,&quot;Packages starting with &quot; + key + &quot;: RPM packages for Red Hat / Fedora / Aurora&quot;)
++            lettercnt = lettercnt + 1
++                            
++        self.RFgenerateFullPage(contents,[&quot;Packages&quot;,&quot;User track: list of packages&quot;], &quot;user/packages/index.php&quot;,&quot;RPM packages for Red Hat / Fedora / Aurora&quot;)
++            
++        
+     def RFgenerateUserPackagePage(self, specRepoSpecFile, distNameValueArr):
+         shortName = specRepoSpecFile.getSubDir()
+         contents = &quot;&quot;
+@@ -635,26 +777,31 @@
+         contents = contents + &quot;&lt;pre&gt;&quot; + description + &quot;&lt;/pre&gt;&lt;br /&gt;&quot;
+         contents = contents + &quot;&lt;small&gt;&quot;
+         
+-        contents = contents + &quot;Maintainer: &lt;a href=\&quot;/packager/&quot; + authority + &quot;/\&quot;&gt;&quot; + authority + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+-        contents = contents + &quot;Version: &quot; + version + &quot;-&quot; + release + &quot;&lt;br /&gt;&quot;
+-        contents = contents + &quot;License: &quot; + license + &quot;&lt;br /&gt;&quot;
+-        contents = contents + &quot;Group: &quot; + group + &quot;&lt;br /&gt;&quot;
+-        contents = contents + &quot;URL: &lt;a href=\&quot;&gt;&quot; +  url + &quot;\&quot;&gt;&quot; + url + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++        contents = contents + &quot;&lt;b&gt;Maintainer:&lt;/b&gt; &lt;a href=\&quot;/packager/&quot; + authority + &quot;/\&quot;&gt;&quot; + authority + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++        contents = contents + &quot;&lt;b&gt;Version:&lt;/b&gt; &quot; + version + &quot;-&quot; + release + &quot;&lt;br /&gt;&quot;
++        contents = contents + &quot;&lt;b&gt;License:&lt;/b&gt; &quot; + license + &quot;&lt;br /&gt;&quot;
++        contents = contents + &quot;&lt;b&gt;Group:&lt;/b&gt; &quot; + group + &quot;&lt;br /&gt;&quot;
++        contents = contents + &quot;&lt;b&gt;URL:&lt;/b&gt; &lt;a href=\&quot;&gt;&quot; +  url + &quot;\&quot;&gt;&quot; + url + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         
+         if screenshot != &quot;&quot;:
+-            contents = contents + &quot;Screenshot: &lt;a href=\&quot;&quot; + screenshot + &quot;\&quot;&gt;&quot; + screenshot + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++            contents = contents + &quot;&lt;b&gt;Screenshot:&lt;/b&gt; &lt;a href=\&quot;&quot; + screenshot + &quot;\&quot;&gt;&quot; + screenshot + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         contents = contents + &quot;&lt;/small&gt;&quot;
+-        specRepoSpecFile.binaryrpms.sort(lambda y,x : cmp(y.distroArchObject.distroArch+&quot;=&quot;+y.name+&quot;=&quot;+y.distroArchObject.rpmsUrl,  x.distroArchObject.distroArch+&quot;=&quot; + x.name+&quot;=&quot;+x.distroArchObject.rpmsUrl))
++        specRepoSpecFile.binaryrpms.sort(lambda x,y : cmp((y.version,y.release,y.distroArchObject.distroArch),(x.version,x.release,x.distroArchObject.distroArch)))
++        #specRepoSpecFile.binaryrpms.sort(lambda y,x : cmp(y.verrely.distroArchObject.distroArch+&quot;=&quot;+y.name+&quot;=&quot;+y.distroArchObject.rpmsUrl,  x.distroArchObject.distroArch+&quot;=&quot; + x.name+&quot;=&quot;+x.distroArchObject.rpmsUrl))
+         lastda = &quot;&quot;
+         lastdadesc = &quot;&quot;
++        lastverrel = &quot;&quot;
+         for b in specRepoSpecFile.binaryrpms:
+             if b.name.find('.src.rpm') &lt; 0 and b.name.find('-debuginfo-') &lt; 0:
++                if lastverrel != b.verrel:
++                    lastverrel = b.verrel
++                    contents = contents + &quot;&lt;h3&gt;Version &quot; + lastverrel + &quot;&lt;/h3&gt;\n&quot;
+                 if lastda != b.distroArchObject.distroArch:
+                     lastda = b.distroArchObject.distroArch
+                     lastdadesc = b.distroArchObject.fullName
+-                    contents = contents + &quot;&lt;h4&gt;&quot; + lastdadesc + &quot; (&quot; + lastda + &quot;)&lt;/h4&gt;&quot;
++                    contents = contents + &quot;&lt;h4&gt;&quot; + lastdadesc + &quot; (&quot; + lastda + &quot;)&lt;/h4&gt;\n&quot;
+                 url = b.distroArchObject.rpmsUrl + b.name
+-                contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.name + &quot;&lt;/a&gt; (&quot; + b.distroArchObject.packager + &quot;)&lt;br /&gt;&quot;
++                contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.name + &quot;&lt;/a&gt; (&quot; + b.distroArchObject.packager + &quot;)&lt;br /&gt;\n&quot;
+             
+         self.RFgenerateFullPage(contents,[&quot;Packages&quot;,&quot;User track: &quot; + shortName], &quot;user/packages/&quot; + shortName + &quot;/index.php&quot;, shortName + &quot; RPM package for Red Hat / Fedora / Aurora&quot;)
+         
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002266.html">[svn] r3465 - in trunk/rpms: gnustep-base gnustep-make mathomatic	perl-Mail-Mbox-MessageParser tor umbrello
+</A></li>
+	<LI>Next message: <A HREF="002268.html">[svn] r3467 - in trunk/rpms: . atlantis cacti-cactid devilspie	drgeo gnome-schedule grepmail httping interbench lbe lzo	mcabber mplayerplug-in openvpn perl-Kolab-Cyrus	perl-Kolab-LDAP-Backend-ad perl-Statistics-Distributions	pydsh python-elementtree pytraffic revelation rrdtool	rsnapshot sitecopy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2267">[ date ]</a>
+              <a href="thread.html#2267">[ thread ]</a>
+              <a href="subject.html#2267">[ subject ]</a>
+              <a href="author.html#2267">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

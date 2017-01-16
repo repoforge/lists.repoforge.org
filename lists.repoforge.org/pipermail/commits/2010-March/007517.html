@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8722 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8722%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C201003290805.o2T855oM010814%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007516.html">
+   <LINK REL="Next"  HREF="007518.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8722 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8722%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C201003290805.o2T855oM010814%40surya.karan.org%3E"
+       TITLE="[svn] r8722 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar 29 10:05:05 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007516.html">[svn] r8721 - trunk/rpms/perl-Time-HiRes
+</A></li>
+        <LI>Next message: <A HREF="007518.html">[svn] r8723 - in trunk/rpms: squidguard squidguard-blacklists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7517">[ date ]</a>
+              <a href="thread.html#7517">[ thread ]</a>
+              <a href="subject.html#7517">[ subject ]</a>
+              <a href="author.html#7517">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2010-03-29 09:05:05 +0100 (Mon, 29 Mar 2010)
+New Revision: 8722
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/docs/dstat.1
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/plugins/dstat_disk_tps.py
+   trunk/tools/dstat/plugins/dstat_disk_util.py
+Log:
+Added support for filtering /dev/vdaX devices (KVM virtio)
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2010-03-26 15:05:20 UTC (rev 8721)
++++ trunk/tools/dstat/ChangeLog	2010-03-29 08:05:05 UTC (rev 8722)
+@@ -1,4 +1,6 @@
+ * 0.7.1svn - ... - release 23/02/2010
++- Added external dstat_disk_tps plugin to show transactions per second
++- Added support for filtering /dev/vdaX devices (KVM virtio)
+ 
+ * 0.7.1 - Just the three of us - release 22/02/2010
+ - Fix external plugins on python 2.2 and older (eg. RHEL3)
+@@ -13,7 +15,6 @@
+ - Introduced proc_readlines() and proc_splitlines() using linecache for top-plugins
+ - Introduced proc_pidlist() for top-plugins
+ - New tchg() function to format the time depending on width
+-- Added external dstat_disk_tps plugin to show transactions per second
+ 
+ * 0.7.0 - Tokyo - release 25/11/2009
+ - Fixed dstat_disk plugin for total calculation on 2.6.25+ kernels (Noel J. Bergman)
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2010-03-26 15:05:20 UTC (rev 8721)
++++ trunk/tools/dstat/Makefile	2010-03-29 08:05:05 UTC (rev 8722)
+@@ -34,6 +34,7 @@
+ 
+ dist: clean
+ 	$(MAKE) -C docs dist
++	svn up
+ 	svn list -R | pax -d -w -x ustar -s ,^,$(name)-$(version)/, | bzip2 &gt;../$(name)-$(version).tar.bz2
+ 
+ rpm: dist
+
+Modified: trunk/tools/dstat/docs/dstat.1
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1	2010-03-26 15:05:20 UTC (rev 8721)
++++ trunk/tools/dstat/docs/dstat.1	2010-03-29 08:05:05 UTC (rev 8722)
+@@ -2,7 +2,7 @@
+ .\&quot; It was generated using the DocBook XSL Stylesheets (version 1.69.1).
+ .\&quot; Instead of manually editing it, you probably should edit the DocBook XML
+ .\&quot; source for it and then use the DocBook XSL Stylesheets to regenerate it.
+-.TH &quot;DSTAT&quot; &quot;1&quot; &quot;02/22/2010&quot; &quot;\  0.7.0&quot; &quot;\ &quot;
++.TH &quot;DSTAT&quot; &quot;1&quot; &quot;03/16/2010&quot; &quot;\  0.7.0&quot; &quot;\ &quot;
+ .\&quot; disable hyphenation
+ .nh
+ .\&quot; disable justification (adjust text to left margin only)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2010-03-26 15:05:20 UTC (rev 8721)
++++ trunk/tools/dstat/dstat	2010-03-29 08:05:05 UTC (rev 8722)
+@@ -673,7 +673,7 @@
+     def __init__(self):
+         self.nick = ('read', 'writ')
+         self.type = 'd'
+-        self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)$')
++        self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hsv]d[a-z]+[0-9]+)$')
+         self.open('/proc/diskstats')
+         self.cols = 2
+ 
+@@ -740,7 +740,7 @@
+     def __init__(self):
+         self.nick = ('read', 'writ')
+         self.type = 'd'
+-        self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)')
++        self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hsv]d[a-z]+[0-9]+)')
+         self.open('/proc/partitions')
+         if self.fd and not self.discover:
+             raise Exception, 'Kernel is not compiled with CONFIG_BLK_STATS'
+@@ -805,7 +805,7 @@
+     def __init__(self):
+         self.nick = ('read', 'writ')
+         self.type = 'd'
+-        self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)')
++        self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hsv]d[a-z]+[0-9]+)')
+         self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
+         self.open('/proc/stat')
+         self.cols = 2
+@@ -1054,7 +1054,7 @@
+         self.type = 'f'
+         self.width = 5
+         self.scale = 1000
+-        self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)')
++        self.diskfilter = re.compile('(dm-[0-9]+|md[0-9]+|[hsv]d[a-z]+[0-9]+)')
+         self.open('/proc/diskstats')
+         self.cols = 3
+ 
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2010-03-26 15:05:20 UTC (rev 8721)
++++ trunk/tools/dstat/dstat.spec	2010-03-29 08:05:05 UTC (rev 8722)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Versatile resource statistics tool
+ Name: dstat
+-Version: 0.7.1
++Version: 0.7.1svn
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+
+Modified: trunk/tools/dstat/plugins/dstat_disk_tps.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_disk_tps.py	2010-03-26 15:05:20 UTC (rev 8721)
++++ trunk/tools/dstat/plugins/dstat_disk_tps.py	2010-03-29 08:05:05 UTC (rev 8722)
+@@ -13,7 +13,7 @@
+         self.nick = ('reads', 'writs' )
+         self.type = 'd'
+         self.scale = 1000
+-        self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)$')
++        self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hsv]d[a-z]+[0-9]+)$')
+         self.open('/proc/diskstats')
+         self.cols = 2
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_disk_util.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_disk_util.py	2010-03-26 15:05:20 UTC (rev 8721)
++++ trunk/tools/dstat/plugins/dstat_disk_util.py	2010-03-29 08:05:05 UTC (rev 8722)
+@@ -14,7 +14,7 @@
+         self.type = 'f'
+         self.width = 4
+         self.scale = 34
+-        self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)$')
++        self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hsv]d[a-z]+[0-9]+)$')
+         self.open('/proc/diskstats')
+         self.cols = 1
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007516.html">[svn] r8721 - trunk/rpms/perl-Time-HiRes
+</A></li>
+	<LI>Next message: <A HREF="007518.html">[svn] r8723 - in trunk/rpms: squidguard squidguard-blacklists
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7517">[ date ]</a>
+              <a href="thread.html#7517">[ thread ]</a>
+              <a href="subject.html#7517">[ subject ]</a>
+              <a href="author.html#7517">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5361 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5361%20-%20trunk/tools/dar&In-Reply-To=%3C20070504003549.A7EE3944A87%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004159.html">
+   <LINK REL="Next"  HREF="004161.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5361 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5361%20-%20trunk/tools/dar&In-Reply-To=%3C20070504003549.A7EE3944A87%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5361 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri May  4 02:35:49 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004159.html">[svn] r5360 - in trunk/rpms: re2c syck
+</A></li>
+        <LI>Next message: <A HREF="004161.html">[svn] r5362 - in trunk/rpms: . perl-Gtk2-GladeXML	perl-Module-Loaded perl-Module-Locate perl-Module-Pluggable	perl-Module-Starter-PBP perl-Moose perl-Moose-Policy	perl-MooseX-Object-Pluggable perl-Net-DBus perl-Net-GPSD	perl-Net-SCP perl-Object-InsideOut perl-OpenFrame	perl-Sub-Exporter perl-Sub-Install perl-Sub-Name perl-gettext	perl-version
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4160">[ date ]</a>
+              <a href="thread.html#4160">[ thread ]</a>
+              <a href="subject.html#4160">[ subject ]</a>
+              <a href="author.html#4160">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-04 02:35:47 +0200 (Fri, 04 May 2007)
+New Revision: 5361
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Fixes a few more problems with Source and archive handling.
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-05-03 22:10:12 UTC (rev 5360)
++++ trunk/tools/dar/dar-perl.py	2007-05-04 00:35:47 UTC (rev 5361)
+@@ -1,5 +1,11 @@
+ #!/usr/bin/python
+ 
++### This python scripts automatically generates an RPMforge SPEC files
++### for Perl modules.
++
++### Failed examples:
++###	perl-Moose		- problem with single component modules
++
+ import sys, os, time, getopt, urllib2, gzip, re
+ import cElementTree as ElementTree
+ import tarfile
+@@ -103,7 +109,7 @@
+ if sdistname != cdistname:
+ 	realversion = version
+ 	### FIXME: Get the version from the cdistname
+-	m = re.match('.+-([\d\.]+).tar.gz', cdistname)
++	m = re.match('[^\d]+([\d\.]+).tar.gz', cdistname)
+ 	if m:
+ 	        l = m.groups()
+ 		version = l[0]
+@@ -111,12 +117,26 @@
+ 
+ ### Try to download distribution
+ archive = os.path.join('/dar/tmp', cdistname)
+-download(&quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], cdistname))
+-bymodule = True
+-if not os.path.exists(archive):
+-	download(location)
+-	bymodule = False
++if os.path.isfile(archive):
++	os.remove(archive)
++source = &quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], cdistname)
++download(source)
++if not os.path.isfile(archive):
++	source = &quot;<A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
++	download(source)
+ 
++### Add %{version} and %{real_version} to source and basedir
++source = source.replace(version, '%{version}')
++if realversion:
++	source = source.replace(realversion, '%{real_version}')
++
++### Create basedir out of cdistname
++basedir = cdistname.replace('.tar.gz', '')
++basedir = basedir.replace(version, '%{version}')
++if realversion:
++	basedir = basedir.replace(realversion, '%{real_version}')
++basedir = basedir.replace(module, '%{real_name}')
++
+ ### Inspect distribution and extract information (%doc, META.yml, arch/noarch)
+ distfd = tarfile.open(archive, 'r:gz')
+ ### Remove .tar.gz from base (Name-Version)
+@@ -182,7 +202,7 @@
+ print
+ 
+ ### FIXME: Get Summary from README in Archive
+-print &quot;Summary: %s module for perl&quot; % module
++print &quot;Summary: Perl module named %s&quot; % module
+ print &quot;Name: perl-%s&quot; % module
+ print 'Version:', version
+ print 'Release: 1'
+@@ -192,12 +212,7 @@
+ print 'Group: Applications/CPAN'
+ print &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+ print
+-
+-if bymodule:
+-	print &quot;Source: <A HREF="http://www.cpan.org/modules/by-module/%s/%s-%%{version">http://www.cpan.org/modules/by-module/%s/%s-%%{version</A>}.tar.gz&quot; % (modparts[0], module)
+-else:
+-	print &quot;Source: <A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
+-
++print &quot;Source: %s&quot; % source
+ print 'BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root'
+ print
+ 
+@@ -210,12 +225,10 @@
+ 
+ ### FIXME: Get Description from README in Archive
+ print &quot;%description&quot;
+-print &quot;%s module for perl.&quot; % module
++print &quot;perl-%s is a Perl module.&quot; % module
+ print
+ print &quot;%prep&quot;
+-#if realversion:
+-#	print &quot;%setup -n %{real_name}-%{real_version}&quot;
+-print &quot;%setup -n %{real_name}-%{version}&quot;
++print &quot;%%setup -n %s&quot; % basedir
+ print
+ print &quot;%build&quot;
+ if noarch:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004159.html">[svn] r5360 - in trunk/rpms: re2c syck
+</A></li>
+	<LI>Next message: <A HREF="004161.html">[svn] r5362 - in trunk/rpms: . perl-Gtk2-GladeXML	perl-Module-Loaded perl-Module-Locate perl-Module-Pluggable	perl-Module-Starter-PBP perl-Moose perl-Moose-Policy	perl-MooseX-Object-Pluggable perl-Net-DBus perl-Net-GPSD	perl-Net-SCP perl-Object-InsideOut perl-OpenFrame	perl-Sub-Exporter perl-Sub-Install perl-Sub-Name perl-gettext	perl-version
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4160">[ date ]</a>
+              <a href="thread.html#4160">[ thread ]</a>
+              <a href="subject.html#4160">[ subject ]</a>
+              <a href="author.html#4160">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

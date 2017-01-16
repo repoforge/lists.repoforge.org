@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2677 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2677%20-%20trunk/tools/dstat&In-Reply-To=%3C20041214161034.C90DD17F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001481.html">
+   <LINK REL="Next"  HREF="001483.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2677 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2677%20-%20trunk/tools/dstat&In-Reply-To=%3C20041214161034.C90DD17F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2677 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Dec 14 17:10:34 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001481.html">[SVN] r2676 - trunk/rpms/inkscape
+</A></li>
+        <LI>Next message: <A HREF="001483.html">[SVN] r2678 - in trunk/rpms: kexi krusader perl-WWW-Search-Ebay
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1482">[ date ]</a>
+              <a href="thread.html#1482">[ thread ]</a>
+              <a href="subject.html#1482">[ subject ]</a>
+              <a href="author.html#1482">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-14 17:10:32 +0100 (Tue, 14 Dec 2004)
+New Revision: 2677
+
+Modified:
+   trunk/tools/dstat/TESTS
+   trunk/tools/dstat/dstat
+Log:
+Fixes by Bert
+
+Modified: trunk/tools/dstat/TESTS
+===================================================================
+--- trunk/tools/dstat/TESTS	2004-12-14 15:44:42 UTC (rev 2676)
++++ trunk/tools/dstat/TESTS	2004-12-14 16:10:32 UTC (rev 2677)
+@@ -1,12 +1,24 @@
+ TESTED environments
+ &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+-Dist			Kernel			Python
+-&quot;&quot;&quot;&quot;			&quot;&quot;&quot;&quot;&quot;&quot;			&quot;&quot;&quot;&quot;&quot;&quot;
+-Conectiva 10		2.6.9			2.3.4
+-Fedora Core 3		2.6.8-1.521		2.3.4-11
+-Fedora Core 2		2.6.7-1.494		2.3.3-6
+-Red Hat EL3 U3		2.4.21-20		2.2.3-5
+-Debian 3.0		2.4.26			2.1.3
+-Red Hat 7.1		2.4.18-17.7.x		1.5.2
+-Red Hat 7.1		2.4.12-ac3		1.5.2
+-Red Hat 7.1		2.4.9-31		1.5.2
++Dstat		Dist			Kernel		Python		Arch
++&quot;&quot;&quot;&quot;&quot;		&quot;&quot;&quot;&quot;			&quot;&quot;&quot;&quot;&quot;&quot;		&quot;&quot;&quot;&quot;&quot;&quot;		&quot;&quot;&quot;&quot;
++		Conectiva 10		2.6.9		2.3.4
++		Fedora Core 3		2.6.8-1.521	2.3.4-11
++		Fedora Core 2		2.6.7-1.494	2.3.3-6
++		Red Hat EL3 U3		2.4.21-20	2.2.3-5
++		Debian 3.0		2.4.26		2.1.3
++		Red Hat 7.1		2.4.18-17.7.x	1.5.2
++		Red Hat 7.1		2.4.12-ac3	1.5.2
++		Red Hat 7.1		2.4.9-31	1.5.2
++
++0.5.6b		Debian 3.0		2.4.25		2.3.4		ppc
++0.5.6b		Debian 3.0		2.4.27		2.3.4		ia64
++0.5.6b		Debian 3.0		2.4.22		2.3.4		mips
++0.5.6b		Debian 3.0		2.4.26		2.3.4		m68k
++0.5.6b		Debian 3.0		2.4.25		2.3.4		arm
++0.5.6b		Debian 3.0		2.4.26		2.3.4		sparc
++0.5.6b		Debian 3.0		2.4.17		2.3.4		s390
++0.5.6b		Debian 3.0		2.4.26		2.3.4		hppa
++
++0.5.6b		Red Hat EL3 U3		2.4.21-20	2.2.3-5		i386
++0.5.6b		Fedora Core 3		2.6.8-1.521	2.3.4-11	i386,x86_64
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-14 15:44:42 UTC (rev 2676)
++++ trunk/tools/dstat/dstat	2004-12-14 16:10:32 UTC (rev 2677)
+@@ -571,6 +571,52 @@
+ 
+ 	def discover(self):
+ 		ret = []
++		if os.path.exists('/proc/stat'):
++			for line in open('/proc/stat', 'r').readlines():
++				l = line.split()
++				if l[0] != 'intr': continue
++				for name, i in enumerate(l[2:]):
++					if long(i) &gt; 10: ret.append(str(name))
++		return ret
++
++	def vars(self):
++		ret = []
++		if op.intlist:
++			list = op.intlist
++		else:
++			list = self.discover()
++			for name in list:
++				if name in ('0', '1', '2', '8', 'NMI', 'LOC', 'MIS', 'CPU0'):
++					list.remove(name)
++			if not op.full and len(list) &gt; 3: list = list[-3:]
++		for name in list:
++			if name in self.discover():
++				ret.append(name)
++		return ret
++
++	def stats(self):
++		for line in open('/proc/stat', 'r').readlines():
++			l = line.split()
++			if l[0] != 'intr': continue
++			for name in self.vars:
++				self.cn2[name] = long(l[int(name) + 2])
++		if update:
++			for name in self.vars:
++				self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / step
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++class dstat_int24(dstat):
++	def __init__(self):
++		self.len = 5
++		self.format = '%ds'
++		self.name = 'interrupts'
++		self.vars = self.vars()
++		self.nick = self.vars
++		self.init()
++
++	def discover(self):
++		ret = []
+ 		if os.path.exists('/proc/interrupts'):
+ 			for line in open('/proc/interrupts', 'r').readlines():
+ 				l = line.split()
+@@ -580,6 +626,14 @@
+ 					ret.append(name)
+ 		return ret
+ 
++	def check(self):
++		for line in open('/proc/stat', 'r').readlines():
++			l = line.split()
++			if l[0] != 'intr' or len(l) &gt; 2: continue
++			if self.discover():
++				return True
++		return False
++
+ 	def vars(self):
+ 		ret = []
+ 		if op.intlist:
+@@ -589,7 +643,7 @@
+ 			for name in list:
+ 				if name in ('0', '1', '2', '8', 'NMI', 'LOC', 'MIS', 'CPU0'):
+ 					list.remove(name)
+-			if not op.full and len(list) &gt; 3: list = list[-4:-1]
++			if not op.full and len(list) &gt; 3: list = list[-3:]
+ 		for name in list:
+ 			if name in self.discover():
+ 				ret.append(name)
+@@ -1117,7 +1171,9 @@
+ 			olist.append(dstat_disk())
+ 			olist.append(dstat_disk24())
+ 			olist.append(dstat_disk24old())
+-		elif mod == 'int':	olist.append(dstat_int())
++		elif mod == 'int':
++			olist.append(dstat_int())
++			olist.append(dstat_int24())
+ 		elif mod == 'load':	olist.append(dstat_load())
+ 		elif mod == 'mem':	olist.append(dstat_mem())
+ 		elif mod == 'net':	olist.append(dstat_net())
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001481.html">[SVN] r2676 - trunk/rpms/inkscape
+</A></li>
+	<LI>Next message: <A HREF="001483.html">[SVN] r2678 - in trunk/rpms: kexi krusader perl-WWW-Search-Ebay
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1482">[ date ]</a>
+              <a href="thread.html#1482">[ thread ]</a>
+              <a href="subject.html#1482">[ subject ]</a>
+              <a href="author.html#1482">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

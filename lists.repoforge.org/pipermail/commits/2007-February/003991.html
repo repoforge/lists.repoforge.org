@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5192 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5192%20-%20trunk/tools/dar&In-Reply-To=%3C20070222151131.58B1D95CDC4%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003990.html">
+   <LINK REL="Next"  HREF="003992.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5192 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5192%20-%20trunk/tools/dar&In-Reply-To=%3C20070222151131.58B1D95CDC4%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5192 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Feb 22 16:11:31 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003990.html">[svn] r5191 - in trunk/rpms: . dkms-fuse
+</A></li>
+        <LI>Next message: <A HREF="003992.html">[svn] r5193 - in trunk/rpms: . perl-X11-GUITest watchdog
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3991">[ date ]</a>
+              <a href="thread.html#3991">[ thread ]</a>
+              <a href="subject.html#3991">[ subject ]</a>
+              <a href="author.html#3991">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-02-22 16:11:30 +0100 (Thu, 22 Feb 2007)
+New Revision: 5192
+
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+Log:
+Better handling of nodist packages.
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2007-02-22 14:11:11 UTC (rev 5191)
++++ trunk/tools/dar/dar-build	2007-02-22 15:11:30 UTC (rev 5192)
+@@ -109,7 +109,7 @@
+ 		fi
+ 
+ 		for exclude_dist in $EXCLUDE_DIST; do
+-			if [ &quot;$exclude_dist&quot; == &quot;$DISTNAME&quot; -o &quot;$exclude_dist&quot; == &quot;$DISTNICK&quot; ]; then
++			if [ &quot;$exclude_dist&quot; == &quot;$DISTNAME&quot; -o &quot;$exclude_dist&quot; == &quot;$DISTNICK&quot; -o &quot;$DISTNAME&quot; == &quot;nodist&quot; ]; then
+ 				warning &quot;Distribution $DISTNAME/$DISTARCH is excluded for package $app. Aborting.&quot;
+ 				continue 2
+ 			fi
+@@ -118,7 +118,7 @@
+ 		if [ &quot;$EXCLUSIVE_DIST&quot; ]; then
+ 			EXCLUSIVE=0
+ 			for exclusive_dist in $EXCLUSIVE_DIST; do
+-				if [ &quot;$exclusive_dist&quot; == &quot;$DISTNAME&quot; -o &quot;$exclusive_dist&quot; == &quot;$DISTNICK&quot; ]; then
++				if [ &quot;$exclusive_dist&quot; == &quot;$DISTNAME&quot; -o &quot;$exclusive_dist&quot; == &quot;$DISTNICK&quot; -o &quot;$DISTNAME&quot; == &quot;nodist&quot; ]; then
+ 					EXCLUSIVE=1
+ 				fi
+ 			done
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2007-02-22 14:11:11 UTC (rev 5191)
++++ trunk/tools/dar/dar-functions	2007-02-22 15:11:30 UTC (rev 5192)
+@@ -206,7 +206,7 @@
+ 	fi
+ 	if [ &quot;$(metaconf Dist)&quot; == &quot;nodist&quot; ]; then
+ 		NODIST=&quot;nodist&quot;
+-		DISTS=&quot;$(echo &quot;$DISTS&quot; | cut -f1)&quot;
++		DISTS=&quot;$(echo $DISTS | cut -f1)&quot;
+ 	fi
+ 	if [ -z &quot;$DISTS&quot; ]; then DISTS=&quot;$DEFAULT_DISTS&quot;; fi
+ }
+@@ -373,7 +373,7 @@
+ 
+ 	### FIXME: This should not be done hardcoded, rather have a list of archs inside the dist-config
+ 	### FIXME: And iterate through that list
+-	for disttag in $DISTTAG; do
++	for disttag in $DISTTAG nodist 0; do
+ 		for tag in $TAGS; do
+ 		
+ 		case &quot;$DISTARCH&quot; in
+@@ -384,10 +384,7 @@
+ 						-o -name &quot;*.$tag.$disttag.athlon.rpm&quot; \
+ 						-o -name &quot;*.$disttag.$tag.noarch.rpm&quot; \
+ 						-o -name &quot;*.$disttag.$tag.i?86.rpm&quot; \
+-						-o -name &quot;*.$disttag.$tag.athlon.rpm&quot; \
+-						-o -name &quot;*.0.$tag.noarch.rpm&quot; \
+-						-o -name &quot;*.0.$tag.i?86.rpm&quot; \
+-						-o -name &quot;*.0.$tag.athlon.rpm&quot; \) \
++						-o -name &quot;*.$disttag.$tag.athlon.rpm&quot; \) \
+ 					-exec ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ \;
+ #				echo $PACKAGEDIR/*/*.$tag.$disttag.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null # Backward compatibility
+ #				echo $PACKAGEDIR/*/*.{$disttag,0}.$tag.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
+@@ -401,9 +398,7 @@
+ 						-name &quot;*.$tag.$disttag.noarch.rpm&quot; \
+ 						-o -name &quot;*.$tag.$disttag.$DISTARCH.rpm&quot; \
+ 						-o -name &quot;*.$disttag.$tag.noarch.rpm&quot; \
+-						-o -name &quot;*.$disttag.$tag.$DISTARCH.rpm&quot; \
+-						-o -name &quot;*.0.$tag.noarch.rpm&quot; \
+-						-o -name &quot;*.0.$tag.$DISTARCH.rpm&quot; \) \
++						-o -name &quot;*.$disttag.$tag.$DISTARCH.rpm&quot; \) \
+ 					-exec ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ \;
+ #				echo $PACKAGEDIR/*/*.$tag.$disttag.{noarch,$DISTARCH}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null # Backward compatibility
+ #				echo $PACKAGEDIR/*/*.{$disttag,0}.$tag.{noarch,$DISTARCH}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
+@@ -419,8 +414,12 @@
+ 
+ 	echo &quot;Building Apt repo.&quot;
+ 
++	if [ ! -d &quot;$TEMPDIR/.cache/genbasedir/$DISTNICK/$REPO&quot; ]; then
++		mkdir -p &quot;$TEMPDIR/.cache/genbasedir/$DISTNICK/$REPO&quot;
++	fi
++
+ 	### Build Apt repository
+-	genbasedir --flat --bloat --bz2only $FTPDIR/$DISTPATH $REPO &gt;/dev/null
++	genbasedir --flat --bloat --cachedir=&quot;$TEMPDIR/.cache/genbasedir/$DISTNICK/$REPO&quot; --bz2only $FTPDIR/$DISTPATH $REPO &gt;/dev/null
+ #	genbasedir --progress --flat --bloat $FTPDIR/$DISTPATH $REPO
+ #	genbasedir --progress --hashonly $FTPDIR/$DISTPATH $REPO
+ }
+@@ -441,7 +440,7 @@
+ 	### FIXME: This should not be done hardcoded, rather have a list of archs inside the dist-config
+ 	### FIXME: And iterate through that list
+ 	### Hardlink files
+-	for disttag in $DISTTAG; do
++	for disttag in $DISTTAG nodist 0; do
+ 		for tag in $TAGS; do
+ 
+ 		case &quot;$DISTARCH&quot; in
+@@ -452,10 +451,7 @@
+ 						-o -name &quot;*.$tag.$disttag.athlon.rpm&quot; \
+ 						-o -name &quot;*.$disttag.$tag.noarch.rpm&quot; \
+ 						-o -name &quot;*.$disttag.$tag.i?86.rpm&quot; \
+-						-o -name &quot;*.$disttag.$tag.athlon.rpm&quot; \
+-						-o -name &quot;*.0.$tag.noarch.rpm&quot; \
+-						-o -name &quot;*.0.$tag.i?86.rpm&quot; \
+-						-o -name &quot;*.0.$tag.athlon.rpm&quot; \) \
++						-o -name &quot;*.$disttag.$tag.athlon.rpm&quot; \) \
+ 					-exec ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ \;
+ #				echo $PACKAGEDIR/*/*.$tag.$disttag.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null # Backward compatibility
+ #				echo $PACKAGEDIR/*/*.{$disttag,0}.$tag.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null
+@@ -469,9 +465,7 @@
+ 						-name &quot;*.$tag.$disttag.noarch.rpm&quot; \
+ 						-o -name &quot;*.$tag.$disttag.$DISTARCH.rpm&quot; \
+ 						-o -name &quot;*.$disttag.$tag.noarch.rpm&quot; \
+-						-o -name &quot;*.$disttag.$tag.$DISTARCH.rpm&quot; \
+-						-o -name &quot;*.0.$tag.noarch.rpm&quot; \
+-						-o -name &quot;*.0.$tag.$DISTARCH.rpm&quot; \) \
++						-o -name &quot;*.$disttag.$tag.$DISTARCH.rpm&quot; \) \
+ 					-exec ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ \;
+ #				echo $PACKAGEDIR/*/*.$tag.$disttag.{noarch,$DISTARCH}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null # Backward compatibility
+ #				echo $PACKAGEDIR/*/*.{$disttag,0}.$tag.{noarch,$DISTARCH}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003990.html">[svn] r5191 - in trunk/rpms: . dkms-fuse
+</A></li>
+	<LI>Next message: <A HREF="003992.html">[svn] r5193 - in trunk/rpms: . perl-X11-GUITest watchdog
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3991">[ date ]</a>
+              <a href="thread.html#3991">[ thread ]</a>
+              <a href="subject.html#3991">[ subject ]</a>
+              <a href="author.html#3991">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

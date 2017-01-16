@@ -1,0 +1,212 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6967 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6967%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200906141501.n5EF1Tc3009745%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005765.html">
+   <LINK REL="Next"  HREF="005767.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6967 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6967%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200906141501.n5EF1Tc3009745%40surya.karan.org%3E"
+       TITLE="[svn] r6967 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jun 14 17:01:29 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005765.html">[svn] r6966 - in trunk/rpms: . python-mpd sonata
+</A></li>
+        <LI>Next message: <A HREF="005767.html">[svn] r6968 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5766">[ date ]</a>
+              <a href="thread.html#5766">[ thread ]</a>
+              <a href="subject.html#5766">[ subject ]</a>
+              <a href="author.html#5766">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-06-14 16:01:29 +0100 (Sun, 14 Jun 2009)
+New Revision: 6967
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/wiipresent.c
+   trunk/tools/wiipresent/wiipresent.spec
+Log:
+Added preliminary kpdf and kpresent support.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-06-13 06:47:04 UTC (rev 6966)
++++ trunk/tools/wiipresent/ChangeLog	2009-06-14 15:01:29 UTC (rev 6967)
+@@ -1,3 +1,6 @@
++* 0.7.2svn - release 24/04/2009
++- Added support for kpdf
++
+ * 0.7.2 - release 17/04/2009
+ - Added -r/--reconnect option to wait for reconnect on disconnect
+ - Check bluetooth address length
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-06-13 06:47:04 UTC (rev 6966)
++++ trunk/tools/wiipresent/wiipresent.c	2009-06-14 15:01:29 UTC (rev 6967)
+@@ -38,7 +38,7 @@
+ Status XQueryCommand(Display *display, Window window, char **name);
+ 
+ static char NAME[] = &quot;wiipresent&quot;;
+-static char VERSION[] = &quot;0.7.2&quot;;
++static char VERSION[] = &quot;0.7.2svn&quot;;
+ 
+ static char *displayname = NULL;
+ static Display *display = NULL;
+@@ -676,6 +676,8 @@
+                         XKeycode(XK_Home, ControlMask);
+                     } else if (strcasestr(name, &quot;firefox&quot;) == name) {
+                         XKeycode(XK_Home, 0);
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_Home, ControlMask);
+                     } else if (strcasestr(name, &quot;kpresenter&quot;) == name) {
+                         XKeycode(XK_Home, 0);
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+@@ -710,6 +712,8 @@
+                         XKeycode(XK_Page_Down, 0);
+                     } else if (strcasestr(name, &quot;gxine&quot;) == name) {
+                         XKeycode(XK_space, 0);
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_Page_Down, 0);
+                     } else if (strcasestr(name, &quot;kpresenter&quot;) == name) {
+                         XKeycode(XK_Page_Down, 0);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+@@ -765,6 +769,11 @@
+                         XKeycode(XK_F, 0);
+                     } else if (strcasestr(name, &quot;gxine&quot;) == name) {
+                         XKeycode(XK_f, ControlMask);
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        if ( (fullscreentoggle = ! fullscreentoggle ) )
++                            XKeycode(XK_Escape, 0);
++                        else
++                            XKeycode(XK_p, ControlMask | ShiftMask);
+                     } else if (strcasestr(name, &quot;kpresenter&quot;) == name) {
+                         XKeycode(XK_F12, 0);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+@@ -837,6 +846,10 @@
+                         XKeycode(XK_Up, 0);
+                     } else if (strcasestr(name, &quot;gqview&quot;) == name) {
+                         XKeycode(XK_bracketright, 0); // FIXME: This does not work
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_Page_Up, 0);
++                    } else if (strcasestr(name, &quot;kpresenter&quot;) == name) {
++                        XKeycode(XK_Page_Up, 0);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_0, ShiftMask);
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+@@ -882,6 +895,10 @@
+                         XKeycode(XK_Down, 0);
+                     } else if (strcasestr(name, &quot;gqview&quot;) == name) {
+                         XKeycode(XK_bracketleft, 0); // FIXME: This does not work
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_Page_Down, 0);
++                    } else if (strcasestr(name, &quot;kpresenter&quot;) == name) {
++                        XKeycode(XK_Page_Down, 0);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_9, ShiftMask);
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+@@ -931,6 +948,8 @@
+                         XKeycode(XK_Right, 0);
+                     } else if (strcasestr(name, &quot;gxine&quot;) == name) {
+                         XKeycode(XK_Right, 0);
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_Page_Down, 0);
+                     } else if (strcasestr(name, &quot;kpresenter&quot;) == name) {
+                         XKeycode(XK_Page_Down, 0);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+@@ -990,6 +1009,8 @@
+                         XKeycode(XK_Page_Up, 0);
+                     } else if (strcasestr(name, &quot;gxine&quot;) == name) {
+                         XKeycode(XK_Left, 0);
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_Page_Up, 0);
+                     } else if (strcasestr(name, &quot;kpresenter&quot;) == name) {
+                         XKeycode(XK_Page_Up, 0);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+@@ -1031,12 +1052,14 @@
+                     }
+                 }
+ 
+-                // Zoom out, voldume down
++                // Zoom out, volume down
+                 if (wmote.keys.minus) {
+                     if (strcasestr(name, &quot;firefox&quot;) == name) {
+                         XKeycode(XK_minus, ControlMask);
+                     } else if (strcasestr(name, &quot;gnome-terminal&quot;) == name) {
+                         XKeycode(XK_minus, ControlMask);
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_minus, ControlMask);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_9, ShiftMask);
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+@@ -1068,6 +1091,8 @@
+                         XKeycode(XK_plus, ControlMask);
+                     } else if (strcasestr(name, &quot;gnome-terminal&quot;) == name) {
+                         XKeycode(XK_plus, ShiftMask | ControlMask);
++                    } else if (strcasestr(name, &quot;kpdf&quot;) == name) {
++                        XKeycode(XK_plus, ControlMask);
+                     } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                         XKeycode(XK_0, ShiftMask);
+                     } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+
+Modified: trunk/tools/wiipresent/wiipresent.spec
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.spec	2009-06-13 06:47:04 UTC (rev 6966)
++++ trunk/tools/wiipresent/wiipresent.spec	2009-06-14 15:01:29 UTC (rev 6967)
+@@ -6,7 +6,7 @@
+ 
+ Summary: Giving presentations with your Wiimote (or control applications with the Wiimote)
+ Name: wiipresent
+-Version: 0.7.2
++Version: 0.7.2svn
+ Release: 1
+ License: GPL
+ Group: Applications/Productivity
+@@ -42,6 +42,9 @@
+ %{_bindir}/wiipresent
+ 
+ %changelog
++* Fri Apr 24 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.7.2svn-1
++- Updated to release 0.7.2svn.
++
+ * Fri Apr 17 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.7.2-1
+ - Updated to release 0.7.2.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005765.html">[svn] r6966 - in trunk/rpms: . python-mpd sonata
+</A></li>
+	<LI>Next message: <A HREF="005767.html">[svn] r6968 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5766">[ date ]</a>
+              <a href="thread.html#5766">[ thread ]</a>
+              <a href="subject.html#5766">[ subject ]</a>
+              <a href="author.html#5766">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] php-sqlite missing on RedHat 5 / CentOS 5
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20php-sqlite%20missing%20on%20RedHat%205%20/%20CentOS%205&In-Reply-To=%3CSNT104-DS37460A833F67662FB5DF9C2600%40phx.gbl%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002728.html">
+   <LINK REL="Next"  HREF="002731.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] php-sqlite missing on RedHat 5 / CentOS 5</H1>
+    <B>Bjarne Saltbaek</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20php-sqlite%20missing%20on%20RedHat%205%20/%20CentOS%205&In-Reply-To=%3CSNT104-DS37460A833F67662FB5DF9C2600%40phx.gbl%3E"
+       TITLE="[packagers] php-sqlite missing on RedHat 5 / CentOS 5">arnebjarne72 at hotmail.com
+       </A><BR>
+    <I>Tue May 12 15:38:51 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002728.html">[packagers] Zim (desktop wiki)
+</A></li>
+        <LI>Next message: <A HREF="002731.html">[packagers] installation of vlc fails
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2729">[ date ]</a>
+              <a href="thread.html#2729">[ thread ]</a>
+              <a href="subject.html#2729">[ subject ]</a>
+              <a href="author.html#2729">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>I was missing the sqlite module for PHP and saw in
+
+<A HREF="http://packages.sw.be/php-sqlite/">http://packages.sw.be/php-sqlite/</A>
+
+that it wasn't build for RH5/CO5.
+
+The package <A HREF="http://packages.sw.be/php-sqlite/php-sqlite-1.0.2-3.rf.src.rpm">http://packages.sw.be/php-sqlite/php-sqlite-1.0.2-3.rf.src.rpm</A>
+
+uses and invalid/outdated sqlite package.
+sqlite is now included in the php tree
+(and sqlite-1.0.2-3.rf.src.rpm expects sqlite version 2 and must be patched
+to build with sqlite 3 - sqlite.h does not exsists anymore. It is replaced
+by sqlite3.h ;-) )
+
+Here is an updated php-sqlite.spec that builds on RH5/CO5
+
+# disable creation of *-debuginfo-*.rpm
+%define debug_package %{nil}
+
+%define phpname php
+%define modname sqlite
+%define phpver %(rpm -q php-devel --qf '%{RPMTAG_VERSION}' | tail -1)
+%define sqlitever 2.0
+
+Summary: PHP module for using SQLite databases
+Name: php-%{modname}
+Version: %{sqlitever}
+Release: 1.rf
+License: GPL
+Group: Development/Languages
+URL: <A HREF="http://www.php.net/">http://www.php.net/</A>
+
+Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt;
+Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+
+Source: <A HREF="http://www.php.net/distributions/php-%{phpver">http://www.php.net/distributions/php-%{phpver</A>}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{phpver}-%{release}-root
+
+BuildRequires: php-devel &gt;= 5.1
+Requires:      php &gt;= 5.1
+
+BuildRequires: sqlite &gt;= 2.8, sqlite-devel
+Requires:      sqlite &gt;= 2.8
+
+Provides: php-%{modname} = %{version}-%{release}
+
+%description
+PHP module for using SQLite databases.
+
+This module is built for PHP v%{phpver}.
+
+%prep
+%setup -n %{phpname}-%{phpver}
+
+%build
+cd ext/%{modname}
+%{_bindir}/phpize
+%configure \
+    --enable-sqlite-utf8
+
+%{__make} %{?_smp_mflags}
+
+
+%install
+%{__rm} -rf %{buildroot}
+cd ext/%{modname}
+%{__make} INSTALL_ROOT=%{buildroot} install
+
+%{__install} -m 755 --d %{buildroot}%{_sysconfdir}/php.d
+
+%{__cat} &gt; %{buildroot}%{_sysconfdir}/php.d/%{modname}.ini &lt;&lt;EOF
+; Enable %{modname} extension module
+extension=%{modname}.so
+EOF
+
+%clean
+%{__rm} -rf %{buildroot}
+
+%files
+%defattr(-, root, root, 0755)
+%doc ext/%{modname}/CREDITS ext/%{modname}/README ext/%{modname}/TODO
+%config(noreplace) %attr(644,root,root) %{_sysconfdir}/php.d/%{modname}.ini
+%{_includedir}/php/libsqlite/src/sqlite.h
+%attr(755,root,root) %{_libdir}/php/modules/%{modname}.so
+
+%changelog
+* Mon May 11 2009 Bjarne Saltbaek &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">arnebjarne72 at hotmail.com</A>&gt; - 2.0-1
+- Rebuild against new php version.
+
+* Sun Jan 02 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt; - 1.0.2-3 - 3051/dag
+- Rebuild against new php version.
+
+* Sun May 30 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt; - 1.0.2-2
+- Rebuild against new php versions in fc1 and fc2.
+
+* Sun Feb 29 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt; - 1.0.2-1
+- Fixed problematic sqlite requirement. (Alain Rykaert)
+
+* Sun Feb 29 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt; - 1.0.2-0
+- Initial package. (using DAR)
+
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002728.html">[packagers] Zim (desktop wiki)
+</A></li>
+	<LI>Next message: <A HREF="002731.html">[packagers] installation of vlc fails
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2729">[ date ]</a>
+              <a href="thread.html#2729">[ thread ]</a>
+              <a href="subject.html#2729">[ subject ]</a>
+              <a href="author.html#2729">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

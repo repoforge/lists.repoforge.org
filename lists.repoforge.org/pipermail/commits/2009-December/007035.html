@@ -1,0 +1,430 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8240 - in trunk/rpms: . sphinx
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8240%20-%20in%20trunk/rpms%3A%20.%20sphinx&In-Reply-To=%3C200912272055.nBRKt1PC024309%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007034.html">
+   <LINK REL="Next"  HREF="007036.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8240 - in trunk/rpms: . sphinx</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8240%20-%20in%20trunk/rpms%3A%20.%20sphinx&In-Reply-To=%3C200912272055.nBRKt1PC024309%40surya.karan.org%3E"
+       TITLE="[svn] r8240 - in trunk/rpms: . sphinx">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Dec 27 21:55:01 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007034.html">[svn] r8239 - trunk/rpms/subversion
+</A></li>
+        <LI>Next message: <A HREF="007036.html">[svn] r8241 - trunk/rpms/perl-User-Identity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7035">[ date ]</a>
+              <a href="thread.html#7035">[ thread ]</a>
+              <a href="subject.html#7035">[ subject ]</a>
+              <a href="author.html#7035">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: yury
+Date: 2009-12-27 20:55:01 +0000 (Sun, 27 Dec 2009)
+New Revision: 8240
+
+Added:
+   trunk/rpms/sphinx/
+   trunk/rpms/sphinx/libsphinxclient-0.9.9.patch
+   trunk/rpms/sphinx/sphinx.init
+   trunk/rpms/sphinx/sphinx.spec
+Log:
+Ported Sphinx over RPMForge from EPEL, bumped the version and fixed build failure.
+
+
+
+Added: trunk/rpms/sphinx/libsphinxclient-0.9.9.patch
+===================================================================
+--- trunk/rpms/sphinx/libsphinxclient-0.9.9.patch	                        (rev 0)
++++ trunk/rpms/sphinx/libsphinxclient-0.9.9.patch	2009-12-27 20:55:01 UTC (rev 8240)
+@@ -0,0 +1,11 @@
++--- a/sphinx-0.9.9/api/libsphinxclient/sphinxclient.c	2009-11-14 00:23:06.000000000 +0100
+++++ b/sphinx-0.9.9/api/libsphinxclient/sphinxclient.c	2009-12-27 21:46:21.000000000 +0100
++@@ -277,7 +277,7 @@
++ }
++ 
++ 
++-void sock_close ( int sock );
+++static void sock_close ( int sock );
++ 
++ void sphinx_destroy ( sphinx_client * client )
++ {
+
+Added: trunk/rpms/sphinx/sphinx.init
+===================================================================
+--- trunk/rpms/sphinx/sphinx.init	                        (rev 0)
++++ trunk/rpms/sphinx/sphinx.init	2009-12-27 20:55:01 UTC (rev 8240)
+@@ -0,0 +1,105 @@
++#!/bin/sh
++#
++# sphinx searchd Free open-source SQL full-text search engine
++#
++# chkconfig:   - 20 80
++# description: Starts and stops the sphinx searchd daemon that handles \
++#	       all search requests.
++
++### BEGIN INIT INFO
++# Provides: searchd
++# Required-Start: $local_fs $network
++# Required-Stop: $local_fs $network
++# Should-Start: $remote_fs
++# Should-Stop: $remote_fs
++# Default-Start: 
++# Default-Stop: 0 1 2 3 4 5 6
++# Short-Description: start and stop sphinx searchd daemon
++# Description: Sphinx is a free open-source SQL full-text search engine     
++### END INIT INFO
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++exec=&quot;/usr/bin/searchd&quot;
++prog=&quot;searchd&quot;
++config=&quot;/etc/sphinx/sphinx.conf&quot;
++
++lockfile=/var/lock/subsys/searchd
++
++start() {
++    [ -x $exec ] || exit 5
++    [ -f $config ] || exit 6
++    echo -n $&quot;Starting $prog: &quot;
++    # if not running, start it up here, usually something like &quot;daemon $exec&quot;
++    daemon $exec --config $config
++    retval=$?
++    echo
++    [ $retval -eq 0 ] &amp;&amp; touch $lockfile
++    return $retval
++}
++
++stop() {
++    echo -n $&quot;Stopping $prog: &quot;
++    # stop it here, often &quot;killproc $prog&quot;
++    killproc $prog
++    retval=$?
++    echo
++    [ $retval -eq 0 ] &amp;&amp; rm -f $lockfile
++    return $retval
++}
++
++restart() {
++    stop
++    start
++}
++
++reload() {
++    restart
++}
++
++force_reload() {
++    restart
++}
++
++rh_status() {
++    # run checks to determine if the service is running or use generic status
++    status $prog
++}
++
++rh_status_q() {
++    rh_status &gt;/dev/null 2&gt;&amp;1
++}
++
++
++case &quot;$1&quot; in
++    start)
++        rh_status_q &amp;&amp; exit 0
++        $1
++        ;;
++    stop)
++        rh_status_q || exit 0
++        $1
++        ;;
++    restart)
++        $1
++        ;;
++    reload)
++        rh_status_q || exit 7
++        $1
++        ;;
++    force-reload)
++        force_reload
++        ;;
++    status)
++        rh_status
++        ;;
++    condrestart|try-restart)
++        rh_status_q || exit 0
++        restart
++        ;;
++    *)
++        echo $&quot;Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}&quot;
++        exit 2
++esac
++exit $?
+
+
+Property changes on: trunk/rpms/sphinx/sphinx.init
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/rpms/sphinx/sphinx.spec
+===================================================================
+--- trunk/rpms/sphinx/sphinx.spec	                        (rev 0)
++++ trunk/rpms/sphinx/sphinx.spec	2009-12-27 20:55:01 UTC (rev 8240)
+@@ -0,0 +1,212 @@
++# $Id$
++# Authority: yury
++# Upstream:  Sphinx Technologies Inc. &lt;sales$sphinxsearch,com&gt;
++
++Name:           sphinx
++Version:        0.9.9
++Release:        1%{?dist}
++Summary:        Free open-source SQL full-text search engine
++
++Group:          Applications/Text
++License:        GPLv2+
++URL:            <A HREF="http://sphinxsearch.com">http://sphinxsearch.com</A>
++Source0:        <A HREF="http://sphinxsearch.com/downloads/%{name">http://sphinxsearch.com/downloads/%{name</A>}-%{version}.tar.gz
++Source1:        %{name}.init
++Patch0:         libsphinxclient-0.9.9.patch
++BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires:  mysql-devel
++BuildRequires:  postgresql-devel
++BuildRequires:  expat-devel
++#Requires:
++
++Requires(post): chkconfig
++Requires(preun): chkconfig
++# This is for /sbin/service
++Requires(preun): initscripts
++
++
++%description
++Sphinx is a full-text search engine, distributed under GPL version 2.
++Commercial licensing (eg. for embedded use) is also available upon request.
++
++Generally, it's a standalone search engine, meant to provide fast,
++size-efficient and relevant full-text search functions to other
++applications. Sphinx was specially designed to integrate well with SQL
++databases and scripting languages.
++
++Currently built-in data source drivers support fetching data either via
++direct connection to MySQL, or PostgreSQL, or from a pipe in a custom XML
++format. Adding new drivers (eg. to natively support some other DBMSes) is
++designed to be as easy as possible.
++
++Search API is natively ported to PHP, Python, Perl, Ruby, Java, and also
++available as a pluggable MySQL storage engine. API is very lightweight so
++porting it to new language is known to take a few hours.
++
++As for the name, Sphinx is an acronym which is officially decoded as SQL
++Phrase Index. Yes, I know about CMU's Sphinx project.
++
++
++%package -n libsphinxclient
++Summary:        Pure C searchd client API library
++Group:          Development/Libraries
++
++
++%description -n libsphinxclient
++Pure C searchd client API library
++Sphinx search engine, <A HREF="http://sphinxsearch.com/">http://sphinxsearch.com/</A>
++
++
++%package -n libsphinxclient-devel
++Summary:        Development libraries and header files for libsphinxclient
++Group:          Development/Libraries
++Requires:       libsphinxclient = %{version}-%{release}
++
++
++%description -n libsphinxclient-devel
++Pure C searchd client API library
++Sphinx search engine, <A HREF="http://sphinxsearch.com/">http://sphinxsearch.com/</A>
++
++
++%prep
++%setup -q
++%patch0 -p2 -b .libsphinxclient
++
++# Fix wrong-file-end-of-line-encoding
++sed -i 's/\r//' api/ruby/spec/sphinx/sphinx_test.sql
++sed -i 's/\r//' api/java/mk.cmd
++sed -i 's/\r//' api/ruby/spec/fixtures/keywords.php
++sed -i 's/\r//' api/ruby/lib/sphinx/response.rb
++
++
++%build
++%configure --sysconfdir=/etc/sphinx --with-mysql --with-pgsql
++make %{?_smp_mflags}
++
++# Build libsphinxclient
++cd api/libsphinxclient/
++%configure
++make #%{?_smp_mflags}
++
++
++%install
++rm -rf $RPM_BUILD_ROOT
++make install DESTDIR=$RPM_BUILD_ROOT INSTALL=&quot;%{__install} -p -c&quot;
++
++# Install sphinx initscript
++install -p -D -m 0755 %{SOURCE1} $RPM_BUILD_ROOT%{_initrddir}/searchd
++
++# Create /var/log/sphinx
++mkdir -p $RPM_BUILD_ROOT%{_localstatedir}/log/sphinx
++
++# Create /var/run/sphinx
++mkdir -p $RPM_BUILD_ROOT%{_localstatedir}/run/sphinx
++
++# Create /var/lib/sphinx
++mkdir -p $RPM_BUILD_ROOT%{_localstatedir}/lib/sphinx
++
++# Create sphinx.conf
++cp $RPM_BUILD_ROOT%{_sysconfdir}/sphinx/sphinx-min.conf.dist \
++    $RPM_BUILD_ROOT%{_sysconfdir}/sphinx/sphinx.conf
++    
++# Modify sphinx.conf
++sed -i 's/\/var\/log\/searchd.log/\/var\/log\/sphinx\/searchd.log/g' \
++$RPM_BUILD_ROOT%{_sysconfdir}/sphinx/sphinx.conf
++
++sed -i 's/\/var\/log\/query.log/\/var\/log\/sphinx\/query.log/g' \
++$RPM_BUILD_ROOT%{_sysconfdir}/sphinx/sphinx.conf
++
++sed -i 's/\/var\/log\/searchd.pid/\/var\/run\/sphinx\/searchd.pid/g' \
++$RPM_BUILD_ROOT%{_sysconfdir}/sphinx/sphinx.conf
++
++sed -i 's/\/var\/data\/test1/\/var\/lib\/sphinx\/test1/g' \
++$RPM_BUILD_ROOT%{_sysconfdir}/sphinx/sphinx.conf
++
++# Create /etc/logrotate.d/sphinx
++mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/logrotate.d
++cat &gt; $RPM_BUILD_ROOT%{_sysconfdir}/logrotate.d/sphinx &lt;&lt; EOF
++/var/log/sphinx/*.log {
++       weekly
++       rotate 10
++       copytruncate
++       delaycompress
++       compress
++       notifempty
++       missingok
++}
++EOF
++
++# Install libsphinxclient
++cd api/libsphinxclient/
++make install DESTDIR=$RPM_BUILD_ROOT INSTALL=&quot;%{__install} -p -c&quot;
++
++# clean-up .la archives
++find $RPM_BUILD_ROOT -name '*.la' -exec rm -f {} ';'
++
++# clean-up .a archives
++find $RPM_BUILD_ROOT -name '*.a' -exec rm -f {} ';'
++
++
++%clean
++rm -rf $RPM_BUILD_ROOT
++
++%post
++/sbin/chkconfig --add searchd
++
++%preun
++if [ $1 = 0 ] ; then
++    /sbin/service searchd stop &gt;/dev/null 2&gt;&amp;1
++    /sbin/chkconfig --del searchd
++fi
++
++
++%post -p /sbin/ldconfig -n libsphinxclient
++
++
++%postun -p /sbin/ldconfig -n libsphinxclient
++ 
++
++
++%files
++%defattr(-,root,root,-)
++%doc COPYING doc/sphinx.txt sphinx-min.conf.dist sphinx.conf.dist example.sql
++%dir %{_sysconfdir}/sphinx
++%config(noreplace) %{_sysconfdir}/sphinx/sphinx.conf
++%exclude %{_sysconfdir}/sphinx/*.conf.dist
++%exclude %{_sysconfdir}/sphinx/example.sql
++%{_initrddir}/searchd
++%config(noreplace) %{_sysconfdir}/logrotate.d/sphinx
++%{_bindir}/*
++%dir %{_localstatedir}/log/sphinx
++%dir %{_localstatedir}/run/sphinx
++%dir %{_localstatedir}/lib/sphinx
++
++%files -n libsphinxclient
++%defattr(-,root,root,-)
++%doc api/java api/ruby api/*.php api/*.py api/libsphinxclient/README
++%{_libdir}/libsphinxclient-0*.so
++
++
++%files -n libsphinxclient-devel
++%defattr(-,root,root,-)
++%{_libdir}/libsphinxclient.so
++%{_includedir}/*
++
++%changelog
++* Sun Dec 27 2009 Yury V. Zaytsev &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">yury at shurup.com</A>&gt; - 0.9.9-1
++- Ported over RPMForge from EPEL.
++- Bumped to the newest version.
++- Patched faulty libsphinxclient.
++
++* Wed Aug 12 2009 Allisson Azevedo &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">allisson at gmail.com</A>&gt; - 0.9.8.1-3
++- Fixed macros consistency.
++- Modified make install to keep timestamps.
++- Added libsphinxclient package.
++
++* Fri Aug  7 2009 Allisson Azevedo &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">allisson at gmail.com</A>&gt; - 0.9.8.1-2
++- Added sysv init.
++- Added logrotate.d entry.
++
++* Thu Jul 30 2009 Allisson Azevedo &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">allisson at gmail.com</A>&gt; - 0.9.8.1-1
++- Initial rpm release.
+
+
+Property changes on: trunk/rpms/sphinx/sphinx.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007034.html">[svn] r8239 - trunk/rpms/subversion
+</A></li>
+	<LI>Next message: <A HREF="007036.html">[svn] r8241 - trunk/rpms/perl-User-Identity
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7035">[ date ]</a>
+              <a href="thread.html#7035">[ thread ]</a>
+              <a href="subject.html#7035">[ subject ]</a>
+              <a href="author.html#7035">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

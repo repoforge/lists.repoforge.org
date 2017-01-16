@@ -1,0 +1,322 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8704 - in trunk/rpms: . dropbox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8704%20-%20in%20trunk/rpms%3A%20.%20dropbox&In-Reply-To=%3C201003241952.o2OJqNdH030998%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007498.html">
+   <LINK REL="Next"  HREF="007500.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8704 - in trunk/rpms: . dropbox</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8704%20-%20in%20trunk/rpms%3A%20.%20dropbox&In-Reply-To=%3C201003241952.o2OJqNdH030998%40surya.karan.org%3E"
+       TITLE="[svn] r8704 - in trunk/rpms: . dropbox">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Mar 24 20:52:23 CET 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007498.html">[svn] r8703 - in trunk/rpms: . perl-Parse-Dia-SQL
+</A></li>
+        <LI>Next message: <A HREF="007500.html">[svn] r8705 - in trunk/rpms: . perl-Net-Dropbox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7499">[ date ]</a>
+              <a href="thread.html#7499">[ thread ]</a>
+              <a href="subject.html#7499">[ subject ]</a>
+              <a href="author.html#7499">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: 2010-03-24 19:52:23 +0000 (Wed, 24 Mar 2010)
+New Revision: 8704
+
+Added:
+   trunk/rpms/dropbox/
+   trunk/rpms/dropbox/dropbox.spec
+Log:
+initial commit of dropbox-0.7.110-1
+NOT READY for production use!  this is essentially just a repackaging of the binary distribution.  much better to rebuild the nautilus integration plugin from source.
+
+
+Added: trunk/rpms/dropbox/dropbox.spec
+===================================================================
+--- trunk/rpms/dropbox/dropbox.spec	                        (rev 0)
++++ trunk/rpms/dropbox/dropbox.spec	2010-03-24 19:52:23 UTC (rev 8704)
+@@ -0,0 +1,240 @@
++# $Id$
++# Authority: shuff
++# Upstream: Dropbox Support (<A HREF="https://www.dropbox.com/ticket">https://www.dropbox.com/ticket</A>)
++# ExclusiveArch: i386 x86_64
++# Test
++
++Summary: Sync and backup files between computers
++Name: dropbox
++Version: 0.7.110
++Release: 1%{?dist}
++License: Proprietary
++Group: Applications/Utilities
++URL: <A HREF="http://www.dropbox.com/">http://www.dropbox.com/</A>
++
++ExclusiveArch: i386 x86_64
++%ifarch i386
++    %define dropbox_arch x86
++%else
++    %define dropbox_arch x86_64
++%endif
++Source: <A HREF="http://dl-web.dropbox.com/u/17/dropbox-lnx.%{dropbox_arch">http://dl-web.dropbox.com/u/17/dropbox-lnx.%{dropbox_arch</A>}-%{version}.tar.gz
++Source1: <A HREF="https://dl.getdropbox.com/u/43645/dbcli.py">https://dl.getdropbox.com/u/43645/dbcli.py</A>
++Source2: <A HREF="http://dl.dropbox.com/u/119154/permalink/dropboxdir.py">http://dl.dropbox.com/u/119154/permalink/dropboxdir.py</A>
++Patch0: %{name}_parentdir.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: dos2unix
++BuildRequires: rpm-macros-rpmforge
++
++# trim python2.5
++%filter_from_requires /python2\.5/d
++%filter_setup
++
++# there are binaries in this package, don't mess with them
++%define debug_package %{nil}
++%define _enable_debug_packages %{nil}
++%define __os_install_post %{nil}
++
++%description
++Dropbox is software that syncs your files online and across your computers.
++
++Put your files into your Dropbox on one computer, and they'll be instantly
++available on any of your other computers that you've installed Dropbox on
++(Windows, Mac, and Linux too!) Because a copy of your files are stored on
++Dropbox's secure servers, you can also access them from any computer or mobile
++device using the Dropbox website.
++
++%prep
++%setup -n .dropbox-dist
++cd %{_builddir}/.dropbox-dist
++cp %{_sourcedir}/dbcli.py .
++dos2unix -q dbcli.py
++cp %{_sourcedir}/dropboxdir.py .
++dos2unix -q dropboxdir.py
++%patch0 -p0
++
++%build
++
++# generate init script
++%{__cat} &lt;&lt;'EOFINIT' &gt;dropbox-init
++# chkconfig: 345 85 15
++# description: Startup script for dropbox daemon
++#
++# processname: dropboxd
++# pidfile: /var/run/dropbox.pid
++# config: /etc/sysconfig/dropbox
++#
++
++### BEGIN INIT INFO
++# Provides: dropboxd
++# Required-Start: $local_fs $network $syslog
++# Required-Stop: $local_fs $syslog
++# Should-Start: $syslog
++# Should-Stop: $network $syslog
++# Default-Start: 2 3 4 5
++# Default-Stop: 0 1 6
++# Short-Description: Start up the Dropbox file syncing daemon
++# Description:       Dropbox is a filesyncing sevice provided by dropbox.com
++#                    This service starts up the dropbox daemon.
++### END INIT INFO
++
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++DROPBOX_PATH=%{_libexecdir}/dropbox
++[ -f %{_sysconfdir}/sysconfig/dropbox ] &amp;&amp; . %{_sysconfdir}/sysconfig/dropbox
++
++if [ -z $DROPBOX_GROUP ]; then
++    DROPBOX_GROUP='dropbox'
++fi
++
++if [ -z $DROPBOX_USERS ]; then
++    DROPBOX_USERS=$(lid -gn &quot;$DROPBOX_GROUP&quot;)
++fi
++
++prog=dropboxd
++lockfile=${LOCKFILE-/var/lock/subsys/$prog}
++config=${CONFIG-%{_sysconfdir}/dropbox}
++RETVAL=0
++
++start() {
++        echo -n $&quot;Starting $prog&quot;
++
++        if [ -z $DROPBOX_USERS ] ; then
++                echo -n &quot;: unconfigured: $config&quot;
++                echo_failure
++                echo
++                rm -f ${lockfile} ${pidfile}
++                RETURN=6
++                return $RETVAL
++        fi
++
++        for dbuser in $DROPBOX_USERS; do
++            daemon --user $dbuser /bin/sh -c &quot;$DROPBOX_PATH/dropboxd&amp;&quot;
++        done
++
++        RETVAL=$?
++        echo
++        [ $RETVAL = 0 ] &amp;&amp; touch ${lockfile}
++        return $RETVAL
++}
++
++status() {
++    for dbuser in $DROPBOX_USERS; do
++        dbpid=`pgrep -u $dbuser dropbox`
++        if [ -z $dbpid ] ; then
++            echo &quot;dropboxd for USER $dbuser: not running.&quot;
++        else
++            echo &quot;dropboxd for USER $dbuser: running (pid $dbpid)&quot;
++        fi
++    done
++}
++
++stop() {
++        echo -n $&quot;Stopping $prog&quot;
++    for dbuser in $DROPBOX_USERS; do
++        pkill -u $dbuser -f -x &quot;$DROPBOX_PATH/dropboxd&quot;
++    done
++        RETVAL=$?
++        echo
++        [ $RETVAL = 0 ] &amp;&amp; rm -f ${lockfile} ${pidfile}
++}
++
++# See how we were called.
++case &quot;$1&quot; in
++  start)
++        start
++        ;;
++  status)
++        status
++        ;;
++  stop)
++        stop
++        ;;
++  restart)
++        stop
++        start
++        ;;
++  *)
++        echo $&quot;Usage: $prog {start|status|stop|restart}&quot;
++        RETVAL=3
++esac
++
++exit $RETVAL
++EOFINIT
++
++# generate the sysconfig
++%{__cat} &lt;&lt;'EOFSYSCONFIG' &gt;dropbox-sysconfig 
++# By default, a dropbox daemon will be started for all users in the dropbox 
++# group.  You can override the group name here, or define the users any other
++# way you like.
++#
++#DROPBOX_GROUP=dropbox
++#DROPBOX_USERS=foo bar baz
++EOFSYSCONFIG
++
++# generate the launcher
++%{__cat} &lt;&lt;'EOFBIN' &gt;dropbox-bin 
++#!/bin/sh
++#
++# Simple wrapper script for %{_libexecdir}/dropbox/dropboxd.
++cd %{_libexecdir}/dropbox
++exec ./dropboxd &quot;$@&quot;
++EOFBIN
++
++%install
++%{__rm} -rf %{buildroot}
++
++# first install the init script
++%{__install} -m0755 -d %{buildroot}%{_sysconfdir}/init.d
++%{__install} -m0755 dropbox-init %{buildroot}%{_sysconfdir}/init.d/dropbox
++%{__rm} -f dropbox-init
++
++# then install the sysconfig
++%{__install} -m0755 -d %{buildroot}%{_sysconfdir}/sysconfig
++%{__install} -m0644 dropbox-sysconfig %{buildroot}%{_sysconfdir}/sysconfig/dropbox
++%{__rm} -f dropbox-sysconfig
++
++# and now the helper scripts
++%{__install} -m0755 -d %{buildroot}%{_bindir}
++%{__install} -m0755 dropbox-bin %{buildroot}%{_bindir}/dropbox
++%{__rm} -f dropbox-bin
++%{__install} -m0755 dbcli.py %{buildroot}%{_bindir}/dbcli
++%{__rm} -f dbcli.py
++%{__install} -m0755 dropboxdir.py %{buildroot}%{_bindir}/dropboxdir
++%{__rm} -f dropboxdir.py
++
++# finally, install everything else
++%{__install} -d %{buildroot}%{_libexecdir}/dropbox
++%{__cp} -a ./* %{buildroot}%{_libexecdir}/dropbox
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%post
++if [ $1 -lt 2 ]; then
++    /sbin/chkconfig --add dropbox 2&gt;&amp;1 &gt;/dev/null
++fi
++/usr/bin/chcon -u system_u -t initrc_exec_t /etc/init.d/dropbox
++/usr/bin/chcon -u system_u -t etc_t /etc/sysconfig/dropbox
++
++
++%preun
++if [ $1 -eq 0 ]; then
++    /sbin/chkconfig --del dropbox 2&gt;&amp;1 &gt;/dev/null
++fi
++
++%files
++%defattr(-, root, root, 0755)
++%doc ACKNOWLEDGEMENTS VERSION
++%{_bindir}/*
++%{_libexecdir}/dropbox
++%config(noreplace) %{_sysconfdir}/init.d/*
++%config(noreplace) %{_sysconfdir}/sysconfig/*
++
++%changelog
++* Wed Mar 24 2010 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 0.7.110-1
++- Initial package.
++- Just a repackaging of the binary install; needs testing.
+
+
+Property changes on: trunk/rpms/dropbox/dropbox.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007498.html">[svn] r8703 - in trunk/rpms: . perl-Parse-Dia-SQL
+</A></li>
+	<LI>Next message: <A HREF="007500.html">[svn] r8705 - in trunk/rpms: . perl-Net-Dropbox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7499">[ date ]</a>
+              <a href="thread.html#7499">[ thread ]</a>
+              <a href="subject.html#7499">[ subject ]</a>
+              <a href="author.html#7499">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

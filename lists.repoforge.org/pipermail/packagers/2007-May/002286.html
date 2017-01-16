@@ -1,0 +1,161 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] Shared libraries in RPMforge packages...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Shared%20libraries%20in%20RPMforge%20packages...&In-Reply-To=%3C464AAA1B.9000402%40statsbiblioteket.dk%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002285.html">
+   <LINK REL="Next"  HREF="002287.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] Shared libraries in RPMforge packages...</H1>
+    <B>Tom G. Christensen</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Shared%20libraries%20in%20RPMforge%20packages...&In-Reply-To=%3C464AAA1B.9000402%40statsbiblioteket.dk%3E"
+       TITLE="[packagers] Shared libraries in RPMforge packages...">tgc at statsbiblioteket.dk
+       </A><BR>
+    <I>Wed May 16 08:52:11 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002285.html">[packagers] Shared libraries in RPMforge packages...
+</A></li>
+        <LI>Next message: <A HREF="002287.html">[packagers] Shared libraries in RPMforge packages...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2286">[ date ]</a>
+              <a href="thread.html#2286">[ thread ]</a>
+              <a href="subject.html#2286">[ subject ]</a>
+              <a href="author.html#2286">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Morten Kjeldgaard wrote:
+&gt;<i> Hi friends,
+</I>&gt;<i> 
+</I>&gt;<i> I want to point you attention to the way shared libraries are being 
+</I>&gt;<i> packaged in RPMforge. I think it is necessary to rethink the policy (if 
+</I>&gt;<i> there is one ;-) ). The problem is illustrated by the following example:
+</I>&gt;<i> 
+</I>&gt;<i> A few days ago, there was an update to the openexr package, which was 
+</I>&gt;<i> version 1.3 before, and is 1.4 now. The new package of course wants to 
+</I>&gt;<i> upgrade the older package, since 1.4 &gt; 1.3. The NEW package contains:
+</I>&gt;<i> /usr/bin/exrdisplay
+</I>&gt;<i> ... and more programs...
+</I>&gt;<i> /usr/lib/libHalf.so.4
+</I>&gt;<i> /usr/lib/libHalf.so.4.0.0
+</I>&gt;<i> /usr/lib/libIex.so.4
+</I>&gt;<i> ... and more shared libraries...
+</I>&gt;<i> /usr/share/doc/openexr-1.4.0a
+</I>&gt;<i> ... etc.
+</I>&gt;<i> 
+</I>&gt;<i> The OLD package contains:
+</I>&gt;<i> /usr/bin/exrdisplay
+</I>&gt;<i> ...
+</I>&gt;<i> /usr/lib/libHalf.so.3
+</I>&gt;<i> /usr/lib/libHalf.so.3.0.0
+</I>&gt;<i> /usr/lib/libIex.so.3
+</I>&gt;<i> /usr/lib/libIex.so.3.0.0
+</I>&gt;<i> ... etc...
+</I>&gt;<i> /usr/share/doc/openexr-1.3.0
+</I>&gt;<i> 
+</I>&gt;<i> When the NEW package replaces the OLD package, it wants to remove the 
+</I>&gt;<i> shared libraries version 3. However, I have a bunch of (local) packages 
+</I>&gt;<i> installed that depend on the OLD shared libraries, and apt-get therefore 
+</I>&gt;<i> wants to uninstall those.
+</I>&gt;<i> 
+</I>&gt;<i> This behaviour is not desirable, and is a packaging bug IMHO.
+</I> &gt;
+This does IMHO not qualify as a packaging bug. It's an issue of policy.
+The upgrade worked as expected and apt-get solved the dependencies 
+correctly.
+
+&gt;<i> The openexr package -- and probably others -- need to split into several 
+</I>&gt;<i> subpackages. There is no reason that /usr/lib/libHalf.so.3 and 
+</I>&gt;<i> /usr/lib/libHalf.so.4 could not live next to each other (in the old and 
+</I>&gt;<i> new packages resp.). But this requires that the files that clash -- (in 
+</I>&gt;<i> this case the binaries) must be in their own package.
+</I>&gt;<i> 
+</I>&gt;<i> The solution to the problem is the following:
+</I>&gt;<i> When the major number of a shared library changes, it is necessary to 
+</I>&gt;<i> change the name of the package. The obvious choice is to append the 
+</I>&gt;<i> major .so number to the package name, i.e. openexr4. You need to have 3 
+</I>&gt;<i> packages for this to work: one with programs (openexr4), one with shared 
+</I>&gt;<i> libraries (openexr4-libs) and one with header files and some of the 
+</I>&gt;<i> libraries (openexr4-devel).
+</I>&gt;<i> 
+</I>Much like Debian that splits everything up in tiny little bits. I find 
+it annoying but it does have its advantages.
+
+&gt;<i> The binaries package (openexr4) depends on openexr4-libs, and replaces 
+</I>&gt;<i> the binaries in the old package (openexr3). Thus, in the upgrade, 
+</I>&gt;<i> openexr4 will pull in openexr4-libs. However,  openexr3-libs will be 
+</I>&gt;<i> allowed to remain on the system, like it should if other programs or 
+</I>&gt;<i> packages depend on it.
+</I>&gt;<i>
+</I>What if another package depends on the openexr3 binaries?
+
+&gt;<i> Programs that need to use the openexr4 libraries, need to contain the lines
+</I>&gt;<i> BuildRequires: openexr4-devel
+</I>&gt;<i> Requires: openexr4-libs
+</I>&gt;<i> in the spec file. But openexr4-devel need to be able to coexist with 
+</I>&gt;<i> openexr3-devel, so their header files need to be in separate directories 
+</I>&gt;<i> (for example /usr/include/openexr3/ etc.). I may still wish to be able 
+</I>&gt;<i> to compile programs that need openexr3-devel to compile. And the 
+</I>&gt;<i> libraries will still be there, since openexr3-devel depends on 
+</I>&gt;<i> openexr3-libs.
+</I>&gt;<i> 
+</I>Allowing -devel packages to coexist in this way is more work since it 
+will require modification of every single upstream package that need to 
+find the headers.
+Also how do you handle that the -devel package usually contains a 
+symlink pointing to the shared library with the unversioned name? This 
+would clash in your example:
+openexr3-devel:
+/usr/lib/libIex.so -&gt; /usr/lib/Iex.so.3.0.0
+openexr4-devel:
+/usr/lib/libIex.so -&gt; /usr/lib/Iex.so.4.0.0
+
+&gt;<i> We have to assume that people:
+</I>&gt;<i> 1) Can have locally built binaries that depend on shared libraries. 
+</I>&gt;<i> These should not disappear overnight without a warning since it may 
+</I>&gt;<i> break the locally compiled software.
+</I>&gt;<i> 2) Can have locally built RPMs that rely on certain shared libraries.
+</I>&gt;<i> 3) May still want to develop programs using the old version headers and 
+</I>&gt;<i> link to old libraries, so the development environment should coexist 
+</I>&gt;<i> with programs using the new version.
+</I>&gt;<i> 
+</I>It's a policy decision if RPMforge should cater to this usage. One could 
+rightfully argue that if RPMforge itself is depcomplete then that is 
+enough. In that case openexr4 would only be introduced if there was no 
+way to rebuild another RPMforge package against the new version.
+
+It's not like people are not warned about what is happening, you said 
+yourself that apt-get would not allow you to install the update without 
+removing the packages that depended on the old version.
+
+-tgc
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002285.html">[packagers] Shared libraries in RPMforge packages...
+</A></li>
+	<LI>Next message: <A HREF="002287.html">[packagers] Shared libraries in RPMforge packages...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2286">[ date ]</a>
+              <a href="thread.html#2286">[ thread ]</a>
+              <a href="subject.html#2286">[ subject ]</a>
+              <a href="author.html#2286">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9201 - in /trunk/rpms/leafnode: ./ leafnode.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9201%20-%20in%20/trunk/rpms/leafnode%3A%20./%20leafnode.spec&In-Reply-To=%3C201010262022.o9QKMglf011091%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007984.html">
+   <LINK REL="Next"  HREF="007986.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9201 - in /trunk/rpms/leafnode: ./ leafnode.spec</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9201%20-%20in%20/trunk/rpms/leafnode%3A%20./%20leafnode.spec&In-Reply-To=%3C201010262022.o9QKMglf011091%40surya.karan.org%3E"
+       TITLE="[svn] r9201 - in /trunk/rpms/leafnode: ./ leafnode.spec">shuff at vecna.org
+       </A><BR>
+    <I>Tue Oct 26 22:22:42 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007984.html">[svn] r9200 - in /trunk/rpms: python-beaker/ python-beaker/python-beaker.spec python-cherrypy/ python-cherrypy/python-cherrypy.spec python-mako/ python-mako/python-mako.spec python-markupsafe/ python-markupsafe/python-markupsafe.spec
+</A></li>
+        <LI>Next message: <A HREF="007986.html">[svn] r9202 - in /trunk/rpms/plink: ./ plink.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7985">[ date ]</a>
+              <a href="thread.html#7985">[ thread ]</a>
+              <a href="subject.html#7985">[ subject ]</a>
+              <a href="author.html#7985">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: Tue Oct 26 21:22:42 2010
+New Revision: 9201
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9201&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9201&amp;view=rev</A>
+Log:
+
+initial package of leafnode-1.11.8
+
+Added:
+    trunk/rpms/leafnode/
+    trunk/rpms/leafnode/leafnode.spec   (with props)
+
+Added: trunk/rpms/leafnode/leafnode.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/leafnode/leafnode.spec?rev=9201&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/leafnode/leafnode.spec?rev=9201&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/leafnode/leafnode.spec (added)
++++ trunk/rpms/leafnode/leafnode.spec Tue Oct 26 21:22:42 2010
+@@ -1,0 +1,108 @@
++# $Id$
++# Authority: shuff
++# Upstream: Matthias Andree &lt;m-a$users,sourceforge,net&gt;
++
++Summary: NNTP server for small sites
++Name: leafnode
++Version: 1.11.8
++Release: 1%{?dist}
++License: GPL
++Group: System Environment/Daemons
++URL: <A HREF="http://leafnode.sourceforge.net/">http://leafnode.sourceforge.net/</A>
++
++Source: <A HREF="http://www.dt.e-technik.uni-dortmund.de/~ma/leafnode/leafnode-%{version">http://www.dt.e-technik.uni-dortmund.de/~ma/leafnode/leafnode-%{version</A>}.tar.bz2
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: binutils
++BuildRequires: gawk
++BuildRequires: gcc
++BuildRequires: make
++BuildRequires: pcre-devel
++BuildRequires: rpm-macros-rpmforge
++Requires: vixie-cron
++Requires: xinetd
++
++%description
++Leafnode is a software package that implements a store &amp; forward NNTP proxy
++(client and server) that supports TCP connections across IPv4 and IPv6. It can
++be used to give a regular newsreader off-line functionality, merge news
++articles from several upstream newsservers for newsreaders that only support
++one server well and avoid duplicate news download for a small LAN with multiple
++users reading news.
++
++%prep
++%setup
++
++%build
++%configure \
++    --disable-dependency-tracking \
++    --with-ipv6 \
++    --with-user=daemon \
++    --with-group=daemon \
++    --with-lockfile='%{_localstatedir}/lock/leafnode/lock' \
++    --sysconfdir=%{_sysconfdir}/leafnode
++%{__make} %{?_smp_mflags}
++
++# create xinetd config
++%{__cat} &lt;&lt;XINETD &gt;nntp.xinetd
++service nntp
++{
++    disable         = yes
++
++    flags           = NAMEINARGS NOLIBWRAP
++    socket_type     = stream
++    protocol        = tcp
++    wait            = no
++    user            = daemon
++    server          = /usr/sbin/tcpd
++    server_args     = %{_sbindir}/leafnode
++    instances       = 10
++    per_source      = 2
++}
++XINETD
++
++# create cron job
++%{__cat} &lt;&lt;CRON &gt;nntp.cron
++# run texpire to purge old articles
++0 4 * * * daemon %{_sbindir}/texpire
++# run fetchnews to get new articles
++0,30 * * * * daemon %{_sbindir}/fetchnews
++CRON
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++
++%{__install} -m0755 -d %{buildroot}%{_sysconfdir}/cron.d/
++%{__install} -m0644 nntp.cron %{buildroot}%{_sysconfdir}/cron.d/nntp
++
++%{__install} -m0755 -d %{buildroot}%{_sysconfdir}/xinetd.d/
++%{__install} -m0644 nntp.xinetd %{buildroot}%{_sysconfdir}/xinetd.d/nntp
++
++%{__install} -m0755 -d %{buildroot}%{_localstatedir}/lock/leafnode/
++%{__install} -m0755 -d %{buildroot}%{_localstatedir}/spool/news/
++
++# clean up some mess
++%{__rm} %{buildroot}%{_sysconfdir}/leafnode/Makefile.dist
++%{__rm} %{buildroot}%{_sysconfdir}/leafnode/UNINSTALL-daemontools
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc ADD-ONS ChangeLog* COPYING* CREDITS FAQ* INSTALL KNOWNBUGS NEWS OLDNEWS
++%doc README* TODO UNINSTALL-daemontools
++%doc %{_mandir}/man?/*
++%{_bindir}/*
++%{_sbindir}/*
++%{_sysconfdir}/leafnode/
++%{_sysconfdir}/cron.d/nntp
++%{_sysconfdir}/xinetd.d/nntp
++%attr(0755, daemon, daemon) %dir %{_localstatedir}/lock/leafnode/
++%attr(0755, daemon, daemon) %dir %{_localstatedir}/spool/news/
++
++%changelog
++* Tue Oct 26 2010 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 1.11.8-1
++- Initial package.
+
+Propchange: trunk/rpms/leafnode/leafnode.spec
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/rpms/leafnode/leafnode.spec
+------------------------------------------------------------------------------
+    svn:keywords = Id Revision
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007984.html">[svn] r9200 - in /trunk/rpms: python-beaker/ python-beaker/python-beaker.spec python-cherrypy/ python-cherrypy/python-cherrypy.spec python-mako/ python-mako/python-mako.spec python-markupsafe/ python-markupsafe/python-markupsafe.spec
+</A></li>
+	<LI>Next message: <A HREF="007986.html">[svn] r9202 - in /trunk/rpms/plink: ./ plink.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7985">[ date ]</a>
+              <a href="thread.html#7985">[ thread ]</a>
+              <a href="subject.html#7985">[ subject ]</a>
+              <a href="author.html#7985">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

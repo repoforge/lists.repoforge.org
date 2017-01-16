@@ -1,0 +1,169 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1257 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1257%20-%20trunk/tools/dar&In-Reply-To=%3C20040608031909.41EBC1FC8B%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000065.html">
+   <LINK REL="Next"  HREF="000067.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1257 - trunk/tools/dar</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1257%20-%20trunk/tools/dar&In-Reply-To=%3C20040608031909.41EBC1FC8B%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1257 - trunk/tools/dar">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Jun  8 05:19:09 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000065.html">[SVN] r1256 - trunk/rpms/gtoaster
+</A></li>
+        <LI>Next message: <A HREF="000067.html">[SVN] r1258 - trunk/rpms/giftoxic
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66">[ date ]</a>
+              <a href="thread.html#66">[ thread ]</a>
+              <a href="subject.html#66">[ subject ]</a>
+              <a href="author.html#66">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-06-08 05:19:07 +0200 (Tue, 08 Jun 2004)
+New Revision: 1257
+
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-prepare
+   trunk/tools/dar/dar-sync
+Log:
+dar-sync: Beep before key-press/password.
+dar-prepare: Add /dev/pts to mounted filesystems.
+dar-build: Added subversion support.
+
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2004-06-08 02:48:41 UTC (rev 1256)
++++ trunk/tools/dar/dar-build	2004-06-08 03:19:07 UTC (rev 1257)
+@@ -18,11 +18,10 @@
+ for app in $PKGS; do
+ 	DARBUILDRC=1
+ 
+-	SPECFILE=&quot;$app&quot;
+ 	app=&quot;$(basename $app .spec)&quot;
++	SPECDIR=&quot;$(dirname $app)&quot;
++	SPECFILE=&quot;$app.spec&quot;
+ 
+-	SPECDIR=&quot;$(dirname $SPECFILE)&quot;
+-
+ 	if [ &quot;$SPECDIR&quot; == &quot;.&quot; ]; then
+ 		SPECDIR=&quot;$PWD&quot;
+ 		SPECFILE=&quot;$SPECDIR/$SPECFILE&quot;
+@@ -45,6 +44,10 @@
+ 		continue
+ 	fi
+ 
++	if [ -d &quot;$SPECDIR/.svn/&quot; ]; then
++		svn -q up &quot;$SPECDIR/&quot;
++	fi
++
+ 	### Export to rpmconf
+ 	export RVERSION=&quot;$(rpmmacro real_version)&quot;
+ 	export RRELEASE=&quot;$(rpmmacro real_release)&quot;
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2004-06-08 02:48:41 UTC (rev 1256)
++++ trunk/tools/dar/dar-functions	2004-06-08 03:19:07 UTC (rev 1257)
+@@ -81,6 +81,9 @@
+                         s|\%{kversion}|kv|;
+                         s|\%{krelease}|kr|;
+                         s|\%{.*}||g;
++			s|\s+| |g;
++			s|^\s+||;
++			s|\s+$||;
+                 &quot;
+ }
+ 
+@@ -228,16 +231,12 @@
+ 	local RC=1
+ 	local ERC=0
+ 	local i=1
+-#	while [ $RC -ne 0 -a $i -lt 4 ]; do
+-#		spectool -g &quot;$SPECFILE&quot; &amp;&gt;/dev/null
+-#		RC=$?
+-#		i=$((i+1))
+-#	done
+ 	for url in $(spectool -l &quot;$SPECFILE&quot; 2&gt;/dev/null | cut -f2 -d' '); do
+ 		filename=&quot;$SPECSDIR/$app/$(basename $url)&quot;
+ 		if [ ! -s &quot;$filename&quot; ]; then
+ 			warning &quot;Source \&quot;$filename\&quot; not found, downloading.&quot;
+ 			local i=1
++			RC=1
+ 			while [ $RC -ne 0 -a $i -lt 4 ]; do
+ 				wget -q -T 10 -O &quot;$filename&quot; &quot;$url&quot;
+ 				RC=$?
+
+Modified: trunk/tools/dar/dar-prepare
+===================================================================
+--- trunk/tools/dar/dar-prepare	2004-06-08 02:48:41 UTC (rev 1256)
++++ trunk/tools/dar/dar-prepare	2004-06-08 03:19:07 UTC (rev 1257)
+@@ -12,10 +12,11 @@
+ 	if [ &quot;${DEFAULT_DISTS// */}&quot; != $distname ]; then
+ 		ln -f $CHROOTDIR/${DEFAULT_DISTS// */}/root/.bash_history $CHROOTDIR/$distname/root/.bash_history
+ 	fi
+-	umount $CHROOTDIR/$distname{/proc,/tmp,/mnt/dar}/
+-	mkdir -p $CHROOTDIR/$distname{/proc,/tmp,/mnt/dar}/
++	umount $CHROOTDIR/$distname{/dev/pts,/proc,/tmp,/mnt/dar}/
++	mkdir -p $CHROOTDIR/$distname{/dev/pts,/proc,/tmp,/mnt/dar}/
+ #	rm -rf $CHROOTDIR/$distname{$RPMTMPPATH}/*
+ 	mount -o bind /tmp/ $CHROOTDIR/$distname/tmp/
+ 	mount -o bind $ROOT $CHROOTDIR/$distname/mnt/dar
+ 	mount -t proc proc $CHROOTDIR/$distname/proc/
++	mount -t devpts devpts $CHROOTDIR/$distname/dev/pts
+ done
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2004-06-08 02:48:41 UTC (rev 1256)
++++ trunk/tools/dar/dar-sync	2004-06-08 03:19:07 UTC (rev 1257)
+@@ -64,8 +64,8 @@
+ find $PACKAGEDIR/ -name &quot;*.rpm&quot; -printf &quot;%P\n&quot; | sort &gt; $FTPDIR/extra/state/all-packages.list
+ echo -e &quot;\t($(wc -l $FTPDIR/extra/state/all-packages.list))&quot;
+ 
+-echo -n &quot;Press enter to start remote synchronisation.&quot;
++echo -n &quot;Press enter to start remote synchronisation.&quot;
+ read
+-echo &quot;Starting remote synchronisation.&quot;
++echo &quot;Starting remote synchronisation.&quot;
+ #rsync -anvzHL --progress --delete-after --bwlimit=&quot;$RSYNC_LIMIT&quot; -e /usr/bin/ssh $PACKAGEDIR $FTPDIR $RSYNC_TARGET
+ rsync -avHL --progress --delete-after --bwlimit=&quot;$RSYNC_LIMIT&quot; -e &quot;/usr/bin/ssh -oCompression=no&quot; $PACKAGEDIR $FTPDIR $RSYNC_TARGET
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000065.html">[SVN] r1256 - trunk/rpms/gtoaster
+</A></li>
+	<LI>Next message: <A HREF="000067.html">[SVN] r1258 - trunk/rpms/giftoxic
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#66">[ date ]</a>
+              <a href="thread.html#66">[ thread ]</a>
+              <a href="subject.html#66">[ subject ]</a>
+              <a href="author.html#66">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

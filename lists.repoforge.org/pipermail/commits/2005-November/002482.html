@@ -1,0 +1,252 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3682 - in trunk/tools/dstat: examples plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3682%20-%20in%20trunk/tools/dstat%3A%20examples%20plugins&In-Reply-To=%3C20051104100143.6ADB650A09%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002481.html">
+   <LINK REL="Next"  HREF="002483.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3682 - in trunk/tools/dstat: examples plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3682%20-%20in%20trunk/tools/dstat%3A%20examples%20plugins&In-Reply-To=%3C20051104100143.6ADB650A09%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3682 - in trunk/tools/dstat: examples plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Nov  4 11:01:43 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002481.html">[svn] r3681 - in trunk/tools/dstat: . plugins
+</A></li>
+        <LI>Next message: <A HREF="002483.html">[svn] r3683 - in trunk/rpms: bitlbee bogofilter clearsilver clex	iozone kflickr ocaml perl-Proc-ProcessTable sketch	wifiscanner workrave
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2482">[ date ]</a>
+              <a href="thread.html#2482">[ thread ]</a>
+              <a href="subject.html#2482">[ subject ]</a>
+              <a href="author.html#2482">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-11-04 11:01:30 +0100 (Fri, 04 Nov 2005)
+New Revision: 3682
+
+Added:
+   trunk/tools/dstat/examples/mmpipe.py
+   trunk/tools/dstat/examples/tdbtest
+   trunk/tools/dstat/plugins/dstat_wifi.py
+Modified:
+   trunk/tools/dstat/plugins/dstat_battery.py
+   trunk/tools/dstat/plugins/dstat_clock.py
+   trunk/tools/dstat/plugins/dstat_cpufreq.py
+   trunk/tools/dstat/plugins/dstat_dbus.py
+Log:
+Added extra test scripts, dstat_wifi, small fixes
+
+Added: trunk/tools/dstat/examples/mmpipe.py
+===================================================================
+--- trunk/tools/dstat/examples/mmpipe.py	2005-11-04 09:41:14 UTC (rev 3681)
++++ trunk/tools/dstat/examples/mmpipe.py	2005-11-04 10:01:30 UTC (rev 3682)
+@@ -0,0 +1,39 @@
++#!/usr/bin/python
++import select, sys, os
++
++def readpipe(file, tmout = 0.001):
++	&quot;Read available data from pipe&quot;
++	ret = ''
++	while not select.select([file.fileno()], [], [], tmout)[0]:
++		pass
++	while select.select([file.fileno()], [], [], tmout)[0]:
++		ret = ret + file.read(1)
++		return ret.split('\n')
++
++def dpopen(cmd):
++	&quot;Open a pipe for reuse, if already opened, return pipes&quot;
++	global pipes
++	if 'pipes' not in globals().keys(): pipes = {}
++	if cmd not in pipes.keys():
++		pipes[cmd] = os.popen3(cmd, 't', 0)
++	return pipes[cmd]
++
++### Unbuffered sys.stdout
++sys.stdout = os.fdopen(1, 'w', 0)
++
++### Main entrance
++if __name__ == '__main__':
++	try:
++		stdin, stdout, stderr = dpopen('/usr/lpp/mmfs/bin/mmpmon -p -s')
++		stdin.write('reset\n')
++		readpipe(stdout)
++
++		while True:
++			stdin.write('io_s\n')
++			for line in readpipe(stdout):
++				print line
++
++	except KeyboardInterrupt, e:
++		print
++
++# vim:ts=4:sw=4
+
+Added: trunk/tools/dstat/examples/tdbtest
+===================================================================
+--- trunk/tools/dstat/examples/tdbtest	2005-11-04 09:41:14 UTC (rev 3681)
++++ trunk/tools/dstat/examples/tdbtest	2005-11-04 10:01:30 UTC (rev 3682)
+@@ -0,0 +1,17 @@
++#!/usr/bin/python
++import sys, tdb
++
++db = tdb.tdb('/var/cache/samba/connections.tdb')
++print db.keys()
++
++key=db.firstkey()
++while key:
++	print db.fetch(key)
++	key=db.nextkey(key)
++
++db = tdb.tdb('/var/cache/samba/locking.tdb')
++print db.keys
++
++db = tdb.tdb('/var/cache/samba/sessionid.tdb')
++print db.keys
++
+
+
+Property changes on: trunk/tools/dstat/examples/tdbtest
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/dstat/plugins/dstat_battery.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_battery.py	2005-11-04 09:41:14 UTC (rev 3681)
++++ trunk/tools/dstat/plugins/dstat_battery.py	2005-11-04 10:01:30 UTC (rev 3682)
+@@ -1,3 +1,8 @@
++### Dstat battery plugin
++### Displays battery information from ACPI
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
+ global string
+ import string
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_clock.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_clock.py	2005-11-04 09:41:14 UTC (rev 3681)
++++ trunk/tools/dstat/plugins/dstat_clock.py	2005-11-04 10:01:30 UTC (rev 3682)
+@@ -1,14 +1,17 @@
++### Dstat clock plugin
++### Displays human readable clock
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
+ class dstat_clock(dstat):
+ 	def __init__(self):
+-		self.name = 'human clock'
++		self.name = 'clock'
+ 		self.format = ('t', 14, 0)
+ 		self.nick = ('date/time',)
+ 		self.vars = self.nick
+-		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+ 		pass
+-#		self.val['epoch'] = time.date('M d H:i', time.time())
+ 
+ 	def show(self):
+ 		return time.strftime('%d-%m %H:%M:%S', time.gmtime())
+
+Modified: trunk/tools/dstat/plugins/dstat_cpufreq.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_cpufreq.py	2005-11-04 09:41:14 UTC (rev 3681)
++++ trunk/tools/dstat/plugins/dstat_cpufreq.py	2005-11-04 10:01:30 UTC (rev 3682)
+@@ -1,3 +1,8 @@
++### Dstat cpu frequency plugin
++### Displays CPU frequency information (from ACPI)
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
+ global string
+ import string
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_dbus.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_dbus.py	2005-11-04 09:41:14 UTC (rev 3681)
++++ trunk/tools/dstat/plugins/dstat_dbus.py	2005-11-04 10:01:30 UTC (rev 3682)
+@@ -1,3 +1,8 @@
++### Dstat DBUS plugin
++### Displays dbus sessions
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
+ class dstat_dbus(dstat):
+ 	def __init__(self):
+ 		self.name = 'dbus'
+
+Added: trunk/tools/dstat/plugins/dstat_wifi.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_wifi.py	2005-11-04 09:41:14 UTC (rev 3681)
++++ trunk/tools/dstat/plugins/dstat_wifi.py	2005-11-04 10:01:30 UTC (rev 3682)
+@@ -0,0 +1,32 @@
++global iwlibs
++import iwlibs
++
++class dstat_wifi(dstat):
++	def __init__(self):
++		self.name = 'wifi'
++		self.format = ('d', 3, 33)
++		self.vars = iwlibs.getNICnames()
++		self.name = self.vars
++		self.nick = ('lnk', 's/n')
++		self.init(self.vars, 2)
++
++	def check(self): 
++		try:
++			global iwlibs
++			import iwlibs
++		except:
++			raise Exception, 'Module needs the python-wifi module.'
++		return True
++
++	def extract(self):
++		for name in self.vars:
++			wifi = iwlibs.Wireless(name)
++			stat, qual, discard, missed_beacon = wifi.getStatistics()
++#			print qual.quality, qual.signallevel, qual.noiselevel
++			if qual.quality == 0 and qual.signallevel == qual.noiselevel == -101:
++				self.val[name] = ( -1, -1 )
++			else:
++				self.val[name][0] = qual.quality * 100 / 160
++				self.val[name][1] = qual.signallevel * 100 / qual.noiselevel
++
++# vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002481.html">[svn] r3681 - in trunk/tools/dstat: . plugins
+</A></li>
+	<LI>Next message: <A HREF="002483.html">[svn] r3683 - in trunk/rpms: bitlbee bogofilter clearsilver clex	iozone kflickr ocaml perl-Proc-ProcessTable sketch	wifiscanner workrave
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2482">[ date ]</a>
+              <a href="thread.html#2482">[ thread ]</a>
+              <a href="subject.html#2482">[ subject ]</a>
+              <a href="author.html#2482">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

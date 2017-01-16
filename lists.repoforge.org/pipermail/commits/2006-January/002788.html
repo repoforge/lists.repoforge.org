@@ -1,0 +1,325 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3988 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3988%20-%20trunk/tools/yam&In-Reply-To=%3C20060119144755.6E60C3180D0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002787.html">
+   <LINK REL="Next"  HREF="002789.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3988 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3988%20-%20trunk/tools/yam&In-Reply-To=%3C20060119144755.6E60C3180D0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3988 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jan 19 15:47:55 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002787.html">[svn] r3987 - trunk/rpms/mach
+</A></li>
+        <LI>Next message: <A HREF="002789.html">[svn] r3989 - in trunk/rpms: bmp-mac mac
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2788">[ date ]</a>
+              <a href="thread.html#2788">[ thread ]</a>
+              <a href="subject.html#2788">[ subject ]</a>
+              <a href="author.html#2788">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-19 15:47:53 +0100 (Thu, 19 Jan 2006)
+New Revision: 3988
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/README.rhn
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-complex.conf
+   trunk/tools/yam/yam-example.conf
+   trunk/tools/yam/yam.conf
+Log:
+Improvements to RHN support code and documentation/config fixes.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-01-19 13:09:20 UTC (rev 3987)
++++ trunk/tools/yam/ChangeLog	2006-01-19 14:47:53 UTC (rev 3988)
+@@ -12,8 +12,9 @@
+ - Added lftp-mirror-options config option
+ - Fixed a bug with the metadata config option (Alain Rykaert)
+ - Added cachedir config option (used by createrepo as md5 cache)
++- Fixed a small bug in fetching updates
+ - Added RHN support
+-- Fixed a small bug in updates fetching
++- Added RHN channel subscription support
+ 
+ * 0.7.3 - released 25/03/2005
+ - Added ia64 support (Gareth Armstrong)
+
+Modified: trunk/tools/yam/README.rhn
+===================================================================
+--- trunk/tools/yam/README.rhn	2006-01-19 13:09:20 UTC (rev 3987)
++++ trunk/tools/yam/README.rhn	2006-01-19 14:47:53 UTC (rev 3988)
+@@ -67,7 +67,11 @@
+ 	chmod og= /etc/yam.conf
+ 	chown root.root /etc/yam.conf
+ 
++Since you only need the username/password to subscribe to new channels
++(only the very first time you access them) you may wish to remove the
++login information from yam.conf after that.
+ 
++
+ Ignore packages you already have
+ &quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
+ This is possible, although hard to implement currently. I could check
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-01-19 13:09:20 UTC (rev 3987)
++++ trunk/tools/yam/yam	2006-01-19 14:47:53 UTC (rev 3988)
+@@ -48,8 +48,8 @@
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'c:d:ghqruvx',
+-				['config=', 'dist=', 'generate=', 'help', 'quiet', 'remount', 'repo=',
++			opts, args = getopt.getopt (args, 'c:d:ghquvx',
++				['config=', 'dist=', 'generate=', 'help', 'quiet', 'remount',
+ 				'umount', 'unmount', 'update', 'verbose', 'version', 'extras'])
+ 		except getopt.error, exc:
+ 			print 'yam: %s, try yam -h for a list of all the options' % str(exc)
+@@ -68,8 +68,8 @@
+ 				sys.exit(0)
+ 			elif opt in ['-q', '--quiet']:
+ 				self.quiet = True
+-			elif opt in ['-r', '--repo']:
+-				self.repo = arg.split(',')
++#			elif opt in ['-r', '--repo']:
++#				self.repo = arg.split(',')
+ 			elif opt in ['--remount']:
+ 				self.remount = True
+ 			elif opt in ['-u', '--update']:
+@@ -644,22 +644,25 @@
+ 	mkdir(cfg['storageDir'])
+ 	repos = repoDirector.initRepoDirector()
+ 
+-	if cf.rhnlogin:
+-		rhnusername, rhnpasswd = cf.rhnlogin.split(':')
+-		channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
+-		error(1, 'Subscribed to channel: %s' % label)
+-	else:
+-		error(3, 'No RHN username or password supplied, channel subscriptions unchanged.')
+-	
+-#	rhnChannel.updateChannels(label)
+ 	channel = rhnChannel.getChannels().getByLabel(label)
+ 	if not channel:
+-#		from up2date_client import rhnChannel
+-#		version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
+-#		channel = rhnChannel.rhnChannel(label = label, version = '0', type = 'up2date', url = cfg['serverURL'])
+-		error(0, 'RHN id for %s not subscribed to channel %s, dropping.' % (dist.nick, label))
+-		error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
+-		return
++		if cf.rhnlogin:
++			rhnusername, rhnpasswd = cf.rhnlogin.split(':')
++			channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
++			error(1, 'Subscribed to channel: %s' % label)
++			rhnChannel.updateChannels(label)
++			channel = rhnChannel.getChannels().getByLabel(label)
++#			version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
++#			channel = rhnChannel.rhnChannel(label = label, version = '0', type = 'up2date', url = cfg['serverURL'])
++			if not channel:
++				error(1, 'Failed to subscribe RHN id %s to channel %s, dropping.' % (dist.nick, label))
++				error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
++				return
++		else:
++			error(1, 'No RHN username or password supplied. Please add channel %s on RHN website.' % label)
++			error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
++			return
++
+ 	package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	signal.signal(signal.SIGINT, signal.SIG_DFL)
+ 	for pkg in package_list:
+@@ -755,8 +758,6 @@
+ 
+ 		### Downloading things
+ 		for repo in dist.repos.keys():
+-			if op.repo and repo not in op.repo:
+-					continue
+ 			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 			if repo in ['os', 'core']:
+ 				if op.update and not dist.isos():
+@@ -793,11 +794,9 @@
+ 
+ 		dist.clean()
+ 		if dist.isos():
+-			if not op.repo or 'os' in op.repo:
+-				dist.clean('os')
++			dist.clean('os')
+ 		for repo in dist.repos.keys():
+-			if not op.repo or repo in op.repo:
+-				dist.clean(repo)
++			dist.clean(repo)
+ 		dist.clean('local')
+ 
+ 		for repo in dist.repos.keys():
+
+Modified: trunk/tools/yam/yam-complex.conf
+===================================================================
+--- trunk/tools/yam/yam-complex.conf	2006-01-19 13:09:20 UTC (rev 3987)
++++ trunk/tools/yam/yam-complex.conf	2006-01-19 14:47:53 UTC (rev 3988)
+@@ -6,6 +6,7 @@
+ srcdir = /var/yam
+ wwwdir = /var/www/yam
+ arch = i386
++#rhnlogin = username:password
+ 
+ rsync-timeout = 3600
+ rsync-bandwidth-limit = 5
+@@ -13,9 +14,9 @@
+ 
+ ### Any other section is considered a definition for a distribution
+ ### Below are a few examples to show the possibilities
+-[fc3]
++[fc4]
+ name = Fedora Core $release ($arch)
+-release = 3
++release = 4
+ metadata = apt createrepo
+ iso = FC$release-$arch-disc?.iso
+ core = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+@@ -25,12 +26,24 @@
+ freshrpms = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ newrpms = <A HREF="rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/">rsync://newrpms.sunsite.dk/projects/newrpms/www/htdocs/apt/redhat/en/$arch/fc$release/RPMS.$repo/</A>
+ 
+-#[rhes3]
+-#name = Red Hat Enterprise Server $release U3 ($arch)
++#[rhel4as]
++#name = Red Hat Advanced Server $release U2 ($arch)
++#release = 4
++#rhnrelease = 4AS
++#metadata = apt createrepo
++#iso = RHEL$release-U2-$arch-as-disc?.iso
++#updates = <A HREF="rhn:///rhel-$release-as-$arch">rhn:///rhel-$release-as-$arch</A>
++#extras = <A HREF="rhn:///rhel-$release-as-$arch-extras">rhn:///rhel-$release-as-$arch-extras</A>
++#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++
++#[rhel3es]
++#name = Red Hat Enterprise Server $release U6 ($arch)
+ #release = 3
++#rhnrelease = 3ES
+ #metadata = apt yum
+-#iso = rhel-$release-U4-$arch-es-disc?.iso
+-#updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
++#iso = RHEL$release-U6-$arch-es-disc?.iso
++#updates = <A HREF="rhn:///rhel-$release-as-$arch">rhn:///rhel-$release-as-$arch</A>
++#extras = <A HREF="rhn:///rhel-$release-as-$arch-extras">rhn:///rhel-$release-as-$arch-extras</A>
+ #dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ #[centos3]
+@@ -71,6 +84,7 @@
+ #[rhas21]
+ #name = Red hat Advanced Server $release U5 ($arch)
+ #release = 2.1
++#rhnrelease = 2.1AS
+ #metadata = apt
+ #iso = RHEL2.1AS-U5-re0810.RC.0-$arch-disc?.iso
+ #updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2006-01-19 13:09:20 UTC (rev 3987)
++++ trunk/tools/yam/yam-example.conf	2006-01-19 14:47:53 UTC (rev 3988)
+@@ -37,6 +37,9 @@
+ ## What repository metadata do you want to generate ?
+ metadata = apt createrepo yum
+ 
++## Your username and password for RHN channel subscriptions
++rhnlogin = username:password
++
+ ## Hardlink files in the srcdir before ending Yam
+ hardlink = no
+ 
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2006-01-19 13:09:20 UTC (rev 3987)
++++ trunk/tools/yam/yam.conf	2006-01-19 14:47:53 UTC (rev 3988)
+@@ -6,31 +6,37 @@
+ srcdir = /var/yam
+ wwwdir = /var/www/yam
+ arch = i386
++#rhnlogin = username:password
+ 
+ ### Any other section is considered a definition for a distribution
+ ### Also see yam-complex.conf, yam-dag.conf and yam-example.conf
+-[fc3]
++[fc4]
+ name = Fedora Core $release ($arch)
+-release = 3
++release = 4
+ metadata = apt createrepo
+ iso = FC$release-$arch-disc?.iso
+ core = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ updates = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+-dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
++dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/$release/en/$arch/$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/$release/en/$arch/$repo/</A>
+ 
+-[rhes4]
+-name = Red Hat Enterprise Server $release ($arch)
+-release = 3
++[rhel4as]
++name = Red Hat Advanced Server $release U2 ($arch)
++release = 4
++rhnrelease = 4AS
+ metadata = apt createrepo
+ arch = i386 x86_64
+-iso = RHEL$release-$arch-ES-disc?.iso
+-updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
++iso = RHEL$release-U2-$arch-AS-disc?.iso
++updates = <A HREF="rhn:///rhel-$release-as-$arch">rhn:///rhel-$release-as-$arch</A>
++extras = <A HREF="rhn:///rhel-$arch-as-$release-extras">rhn:///rhel-$arch-as-$release-extras</A>
++#dag = <A HREF="http://apt.sw.be/redhat/el$release/en/$arch/RPMS.$repo/">http://apt.sw.be/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+-[rhes3]
+-name = Red Hat Enterprise Server $release U4 ($arch)
++[rhel3as]
++name = Red Hat Advanced Server $release U6 ($arch)
+ release = 3
++rhnrelease = 3AS
+ metadata = apt yum
+-iso = rhel-$release-U4-$arch-es-disc?.iso
+-updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
++iso = RHEL$release-U6-$arch-AS-disc?.iso
++updates = <A HREF="rhn:///rhel-$release-as-$arch">rhn:///rhel-$release-as-$arch</A>
++extras = <A HREF="rhn:///rhel-$arch-as-$release-extras">rhn:///rhel-$arch-as-$release-extras</A>
+ dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002787.html">[svn] r3987 - trunk/rpms/mach
+</A></li>
+	<LI>Next message: <A HREF="002789.html">[svn] r3989 - in trunk/rpms: bmp-mac mac
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2788">[ date ]</a>
+              <a href="thread.html#2788">[ thread ]</a>
+              <a href="subject.html#2788">[ subject ]</a>
+              <a href="author.html#2788">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

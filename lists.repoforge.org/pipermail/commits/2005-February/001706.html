@@ -1,0 +1,560 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2905 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2905%20-%20trunk/tools/dstat&In-Reply-To=%3C200502271521.j1RFLwpq009405%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001705.html">
+   <LINK REL="Next"  HREF="001707.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2905 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2905%20-%20trunk/tools/dstat&In-Reply-To=%3C200502271521.j1RFLwpq009405%40lists.rpmforge.net%3E"
+       TITLE="[SVN] r2905 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Feb 27 16:21:58 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001705.html">[SVN] r2904 - in trunk/rpms: alltray bitlbee chkrootkit gaim	libextractor ngrep stardict tcptraceroute x11vnc
+</A></li>
+        <LI>Next message: <A HREF="001707.html">[SVN] r2906 - in trunk/rpms: libebml libmatroska
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1706">[ date ]</a>
+              <a href="thread.html#1706">[ thread ]</a>
+              <a href="subject.html#1706">[ subject ]</a>
+              <a href="author.html#1706">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-02-27 16:21:58 +0100 (Sun, 27 Feb 2005)
+New Revision: 2905
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+Added import output option
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-02-27 11:26:26 UTC (rev 2904)
++++ trunk/tools/dstat/ChangeLog	2005-02-27 15:21:58 UTC (rev 2905)
+@@ -4,6 +4,8 @@
+ - Replaced --noheader option --noheaders (like vmstat)
+ - Added -V as short for --version
+ - Improved help output
++- Allow CSV output and human output concurrently
++- Removed --csv option (now use --output file)
+ 
+ * 0.5.7
+ - Change Makefile to not install when run without target (Kurt Roeckx)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-02-27 11:26:26 UTC (rev 2904)
++++ trunk/tools/dstat/TODO	2005-02-27 15:21:58 UTC (rev 2905)
+@@ -7,8 +7,8 @@
+ + Re-implement -I eth0,eth1
+ 
+ ### Export/Graph
+-+ Add -o/--output option to save directly to a file
+ + Interface with rrdtool
+++ Allow for different types of export modules (only CSV now)
+ 
+ ### Extending statistics (help welcome!)
+ + Add all stats to seperate modules and allow people to plugin their own modules
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-02-27 11:26:26 UTC (rev 2904)
++++ trunk/tools/dstat/dstat	2005-02-27 15:21:58 UTC (rev 2905)
+@@ -18,7 +18,6 @@
+ import fcntl, struct, types
+ import os, sys, re, getopt, time, termios
+ import ConfigParser, urlparse, signal, resource
+-#import curses
+ 
+ VERSION = '0.5.8'
+ 
+@@ -30,7 +29,6 @@
+ 		self.args = args
+ 		self.count = -1
+ 		self.cpulist = None
+-		self.csv = False
+ 		self.delay = 1
+ 		self.disklist = None
+ 		self.full = False
+@@ -41,12 +39,13 @@
+ 		self.color = True
+ 		self.update = True
+ 		self.header = True
++		self.output = False
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'acdfghilmnpstuvyC:D:I:M:N:V',
++			opts, args = getopt.getopt (args, 'acdfghilmnopstuvyC:D:I:M:N:V',
+ 				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net', 'page', 'proc',
+ 				'swap', 'sys', 'tcp', 'time', 'udp', 'user', 'version', 'vmstat',
+-				'csv', 'full', 'integer', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate'])
++				'full', 'integer', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate', 'output='])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -99,8 +98,6 @@
+ 				self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+ 				self.disklist = ('total',)
+ 
+-			elif opt in ['--csv']:
+-				self.csv = True
+ 			elif opt in ['-f', '--full']:
+ 				self.full = True
+ 			elif opt in ['--integer']:
+@@ -112,7 +109,8 @@
+ 				self.header = False
+ 			elif opt in ['--noupdate']:
+ 				self.update = False
+-
++			elif opt in ['-o', '--output']:
++				self.output = arg
+ 			elif opt in ['-h', '--help']:
+ 				self.usage()
+ 				self.help()
+@@ -135,12 +133,6 @@
+ 			print 'dstat: delay must be an integer, greater than zero'
+ 			sys.exit(1)
+ 
+-		if self.csv:
+-			self.color = False
+-			self.header = False
+-			self.nolimit = True
+-			self.update = False
+-
+ 	def version(self):
+ 		print 'Dstat %s' % VERSION
+ 		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
+@@ -189,11 +181,11 @@
+   -v, --vmstat       equals -pmgdsc -D total
+   -f, --full         expand -D, -I and -N discovery lists
+ 
+-  --csv              output CSV format
+   --integer          show integer values
+   --nocolor          disable colors (implies --noupdate)
+   --noheaders        disable repetitive headers
+   --noupdate         disable intermediate updates when delay &gt; 1
++  --output file      write CSV output to file
+ 
+   delay is the delay in seconds between each update
+   count is the number of updates to display before exiting
+@@ -250,60 +242,71 @@
+ 				return len(self.cn2[name]) * self.len + len(self.cn2[name]) - 1
+ 			return 0
+ 
+-	def title1(self):
+-		if op.csv:
+-			if isinstance(self.name, types.StringType):
+-				return '&quot;' + self.name + '&quot;' + ',' * (len(self.nick) - 1)
+-			else:
+-				ret = ''
+-				for i, name in enumerate(self.name):
+-					ret = ret + '&quot;' + name + '&quot;' + ',' * (len(self.nick) - 1)
+-					if i + 1 != len(self.name): ret = ret + ','
+-				return ret
++	def title(self, nr):
++		if nr == 1:
++			return self.title1()
+ 		else:
+-			if isinstance(self.name, types.StringType):
+-				max = self.varwidth()
+-				return ansi['darkblue'] + self.name[0:max].center(max).replace(' ', '-') + ansi['default']
+-			else:
+-				ret = ''
+-				for i, name in enumerate(self.name):
+-					max = self.width()
+-					ret = ret + name[0:max].center(max).replace(' ', '-')
+-					if i + 1 != len(self.name): ret = ret + '-'
+-				return ansi['darkblue'] + ret
++			return self.title2()
+ 
++	def title1(self):
++		if isinstance(self.name, types.StringType):
++			max = self.varwidth()
++			return ansi['darkblue'] + self.name[0:max].center(max).replace(' ', '-') + ansi['default']
++		ret = ''
++		for i, name in enumerate(self.name):
++			max = self.width()
++			ret = ret + name[0:max].center(max).replace(' ', '-')
++			if i + 1 != len(self.name): ret = ret + '-'
++		return ansi['darkblue'] + ret
++
+ 	def title2(self):
+-		if op.csv:
+-			if isinstance(self.name, types.StringType):
+-				ret = ''
+-				for i, nick in enumerate(self.nick):
+-					ret = ret + '&quot;' + nick + '&quot;'
+-					if i + 1 != len(self.nick): ret = ret + ','
+-				return ret
+-			else:
+-				ret = ''
+-				for i, name in enumerate(self.name):
+-					for j, nick in enumerate(self.nick):
+-						ret = ret + '&quot;' + nick + '&quot;'
+-						if j + 1 != len(self.nick): ret = ret + ','
+-					if i + 1 != len(self.name): ret = ret + ','
+-				return ret
++		if isinstance(self.name, types.StringType):
++			ret = ''
++			for i, nick in enumerate(self.nick):
++				ret = ret + nick.center(self.len).replace(' ', '_')
++				if i + 1 != len(self.nick): ret = ret + ' '
++			return ansi['blue'] + ret
+ 		else:
+-			if isinstance(self.name, types.StringType):
+-				ret = ''
+-				for i, nick in enumerate(self.nick):
+-					ret = ret + nick.center(self.len).replace(' ', '_')
+-					if i + 1 != len(self.nick): ret = ret + ' '
+-				return ansi['blue'] + ret
+-			else:
+-				ret = ''
+-				for i, name in enumerate(self.name):
+-					for j, nick in enumerate(self.nick):
+-						ret = ret + ansi['blue'] + nick.center(self.len).replace(' ', '_')
+-						if j + 1 != len(self.nick): ret = ret + ' '
+-					if i + 1 != len(self.name): ret = ret + ' '
+-				return ansi['blue'] + ret
++			ret = ''
++			for i, name in enumerate(self.name):
++				for j, nick in enumerate(self.nick):
++					ret = ret + ansi['blue'] + nick.center(self.len).replace(' ', '_')
++					if j + 1 != len(self.nick): ret = ret + ' '
++				if i + 1 != len(self.name): ret = ret + ' '
++			return ansi['blue'] + ret
+ 
++	def titlecsv(self, nr):
++		if nr == 1:
++			return self.titlecsv1()
++		else:
++			return self.titlecsv2()
++
++	def titlecsv1(self):
++		if isinstance(self.name, types.StringType):
++			return '&quot;' + self.name + '&quot;' + ',' * (len(self.nick) - 1)
++		else:
++			ret = ''
++			for i, name in enumerate(self.name):
++				ret = ret + '&quot;' + name + '&quot;' + ',' * (len(self.nick) - 1)
++				if i + 1 != len(self.name): ret = ret + ','
++			return ret
++
++	def titlecsv2(self):
++		if isinstance(self.name, types.StringType):
++			ret = ''
++			for i, nick in enumerate(self.nick):
++				ret = ret + '&quot;' + nick + '&quot;'
++				if i + 1 != len(self.nick): ret = ret + ','
++			return ret
++		else:
++			ret = ''
++			for i, name in enumerate(self.name):
++				for j, nick in enumerate(self.nick):
++					ret = ret + '&quot;' + nick + '&quot;'
++					if j + 1 != len(self.nick): ret = ret + ','
++				if i + 1 != len(self.name): ret = ret + ','
++			return ret
++
+ 	def check(self):
+ 		if self.discover() and self.width():
+ 			return True
+@@ -339,25 +342,36 @@
+ 			if i + 1 != len(self.vars):
+ 				sys.stdout.write(sep)
+ 
++	def showend(self, totlist, vislist):
++		if self is not vislist[-1]:
++			sys.stdout.write(ansi['default'] + char['pipe'])
++		elif self is not totlist[-1]:
++			sys.stdout.write(ansi['default'] + char['gt'])
++
+ 	def showcsv(self):
+-
+ 		def printcsv(var):
+ 			if var != round(var):
+-				sys.stdout.write('%.2f' % var)
++				outputfile.write('%.2f' % var)
+ 			else:
+-				sys.stdout.write('%d' % round(var))
++				outputfile.write('%d' % round(var))
+ 
+ 		for i, name in enumerate(self.vars):
+ 			if isinstance(self.val[name], types.ListType) or isinstance(self.val[name], types.TupleType):
+ 				for j, val in enumerate(self.val[name]):
+ 					printcsv(val)
+ 					if j + 1 != len(self.val[name]):
+-						sys.stdout.write(',')
++						outputfile.write(',')
+ 			else:
+ 				printcsv(self.val[name])
+ 			if i + 1 != len(self.vars):
+-				sys.stdout.write(',')
++				outputfile.write(',')
+ 
++	def showcsvend(self, totlist, vislist):
++		if self is not vislist[-1]:
++			outputfile.write(',')
++		elif self is not totlist[-1]:
++			outputfile.write(',')
++
+ class dstat_cpu(dstat):
+ 	def __init__(self):
+ 		self.len = 3
+@@ -1184,6 +1198,22 @@
+ 		return ansi['default'] + ('0' + ' ' * len(unit[0])).rjust(max)
+ 	return ansi[color[c]] + repr.rjust(max)
+ 
++def showtitle(nr, totlist, vislist, midchar, endchar):
++	for o in vislist:
++		sys.stdout.write(o.title(nr))
++		if o is not vislist[-1]:
++			sys.stdout.write(midchar)
++		elif totlist != vislist:
++			sys.stdout.write(endchar)
++	sys.stdout.write('\n')
++
++def showcsvtitle(nr, totlist):
++	for o in totlist:
++		outputfile.write(o.titlecsv(nr))
++		if o is not totlist[-1]:
++			outputfile.write(',')
++	outputfile.write('\n')
++
+ def info(level, str):
+ 	&quot;Output info message&quot;
+ #	if level &lt;= op.verbose:
+@@ -1245,7 +1275,7 @@
+ 	signal.alarm(interval)
+ 
+ def main():
+-	global update, loop, step, pagesize, procs, ansi, interval
++	global update, loop, step, pagesize, procs, ansi, interval, outputfile
+ 
+ 	loop = update = 0
+ 	step = op.delay
+@@ -1257,36 +1287,40 @@
+ 	if not op.update:
+ 		interval = op.delay
+ 
++	if op.output:
++		outputfile = open(op.output, 'a', 0)
++
+ 	### Build list of requested modules
+-	olist = []
++	totlist = []
+ 	for mod in op.modlist:
+ 		if mod == 'cpu':
+-			olist.append(dstat_cpu())
+-			olist.append(dstat_cpu24())
++			totlist.append(dstat_cpu())
++			totlist.append(dstat_cpu24())
+ 		elif mod == 'disk':
+-			olist.append(dstat_disk())
+-			olist.append(dstat_disk24())
+-			olist.append(dstat_disk24old())
++			totlist.append(dstat_disk())
++			totlist.append(dstat_disk24())
++			totlist.append(dstat_disk24old())
+ 		elif mod == 'int':
+-			olist.append(dstat_int())
+-			olist.append(dstat_int24())
+-		elif mod == 'load':	olist.append(dstat_load())
+-		elif mod == 'mem':	olist.append(dstat_mem())
+-		elif mod == 'net':	olist.append(dstat_net())
++			totlist.append(dstat_int())
++			totlist.append(dstat_int24())
++		elif mod == 'load':	totlist.append(dstat_load())
++		elif mod == 'mem':	totlist.append(dstat_mem())
++		elif mod == 'net':	totlist.append(dstat_net())
+ 		elif mod == 'page':
+-			olist.append(dstat_page())
+-			olist.append(dstat_page24())
+-		elif mod == 'proc':	olist.append(dstat_proc())
+-		elif mod == 'swap':	olist.append(dstat_swap())
+-		elif mod == 'sys':	olist.append(dstat_sys())
+-		elif mod == 'tcp':	olist.append(dstat_tcp())
+-		elif mod == 'time':	olist.append(dstat_time())
+-		elif mod == 'udp':	olist.append(dstat_udp())
+-		elif mod == 'user':	olist.append(dstat_user())
++			totlist.append(dstat_page())
++			totlist.append(dstat_page24())
++		elif mod == 'proc':	totlist.append(dstat_proc())
++		elif mod == 'swap':	totlist.append(dstat_swap())
++		elif mod == 'sys':	totlist.append(dstat_sys())
++		elif mod == 'tcp':	totlist.append(dstat_tcp())
++		elif mod == 'time':	totlist.append(dstat_time())
++		elif mod == 'udp':	totlist.append(dstat_udp())
++		elif mod == 'user':	totlist.append(dstat_user())
+ 		else:
+ 			info(1, 'Module \'%s\' does not exist or failed to load.' % mod)
+ 
+ 	### Check terminal capabilities
++#	import curses
+ #	if not sys.stdout.isatty() or not curses.wrapper(lambda s:curses.has_colors()):
+ 	if not sys.stdout.isatty() or os.environ.get('TERM',None) not in ('ansi', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm'):
+ 		op.color = False
+@@ -1301,36 +1335,35 @@
+ 		for key in ansi.keys():
+ 			ansi[key] = ''
+ 
+-	if op.csv:
+-		for key in char.keys():
+-			char[key] = ','
+-
+ 	### Remove defect objects and calculate line length
+ 	linewidth = 0
+-	for o in olist + []:
++	for o in totlist + []:
+ 		if o.check():
+ 			linewidth = linewidth + o.varwidth() + 1
+ 		else:
+-			olist.remove(o)
++			totlist.remove(o)
+ 
+-	if not olist:
++	if not totlist:
+ 		die(8, 'None of the stats you selected are available.')
+ 
+ 	if not op.nolimit:
+ 		if linewidth &gt; cols:
+ 			print 'Screen width too small, trimming output.'
+ 
+-	if op.csv:
++	### FIXME: Get rid of socket()
++	if op.output:
+ 		import socket
+-		print '&quot;Dstat %s CSV output&quot;' % VERSION
+-		print '&quot;Author:&quot;,&quot;Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;&quot;,,,,&quot;URL:&quot;,&quot;<A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>&quot;'
+-		print '&quot;Host:&quot;,&quot;%s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;' % (socket.gethostbyaddr(socket.gethostname())[0], time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime()))
++		outputfile.write('&quot;Dstat %s CSV output&quot;\n' % VERSION)
++		outputfile.write('&quot;Author:&quot;,&quot;Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;&quot;,,,,&quot;URL:&quot;,&quot;<A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>&quot;\n')
++		outputfile.write('&quot;Host:&quot;,&quot;%s&quot;,,,,&quot;Date:&quot;,&quot;%s&quot;\n' % (socket.gethostbyaddr(socket.gethostname())[0], time.strftime('%d %b %Y %H:%M:%S %Z', time.localtime())))
++		outputfile.write('&quot;Cmd:&quot;,&quot;dstat %s&quot;\n\n' % ' '.join(op.args))
+ 
+-		print '&quot;Cmd:&quot;,&quot;dstat %s&quot;\n' % ' '.join(op.args)
++		if op.output:
++			showcsvtitle(1, totlist)
++			showcsvtitle(2, totlist)
++	oldvislist = []
+ 
+-	oldplist = []
+-
+-	### Increase precision if we're root (does not have effect)
++	### Increase precision if we're root (does not seem to have effect)
+ #	if os.geteuid() == 0:
+ #		os.nice(-20)
+ #	sys.setcheckinterval(op.delay / 10000)
+@@ -1346,40 +1379,27 @@
+ 
+ 		### Trim object list to what is visible on screen
+ 		(rows, cols) = getwinsize()
+-		plist = []
++		vislist = []
+ 		curwidth = 0
+-		for o in olist:
++		for o in totlist:
+ 			if curwidth + o.varwidth() + 1 &lt;= cols:
+-				plist.append(o)
++				vislist.append(o)
+ 				curwidth = curwidth + o.varwidth() + 1
+ 
+ 		### Check when to display the header
+ 		if op.header:
+-			if oldplist != plist:
++			if oldvislist != vislist:
+ 				showheader = True
+ 			elif step == 1 and loop % (rows - 1) == 0:
+ 				showheader = True
+ 
+ 		if showheader:
+ 			showheader = False
+-			for o in plist:
+-				sys.stdout.write(o.title1())
+-				if o is not plist[-1]:
+-					sys.stdout.write(ansi['darkblue'] + char['space'])
+-				elif olist != plist:
+-					sys.stdout.write(ansi['darkblue'] + char['gt'])
+-			sys.stdout.write('\n')
++			showtitle(1, totlist, vislist, ansi['darkblue'] + char['space'], ansi['darkblue'] + char['gt'])
++			showtitle(2, totlist, vislist, ansi['silver'] + char['pipe'], ansi['darkblue'] + char['gt'])
+ 
+-			for o in plist:
+-				sys.stdout.write(o.title2())
+-				if o is not plist[-1]:
+-					sys.stdout.write(ansi['silver'] + char['pipe'])
+-				elif olist != plist:
+-					sys.stdout.write(ansi['darkblue'] + char['gt'])
+-			sys.stdout.write('\n')
++		oldvislist = vislist
+ 
+-		oldplist = plist
+-
+ 		### Prepare the colors for intermediate updates, last step in a loop is definitive
+ 		if step == op.delay:
+ 			ansi['default'] = ansi['reset']
+@@ -1391,18 +1411,17 @@
+ #		sys.stdout.write('[%d:%d:%d]' % (loop, step, update))
+ 
+ 		### Show the stats, calculate all objects (visible, invisible)
+-		for o in olist:
++		for o in totlist:
+ 			o.stats()
+-			if o in plist:
+-				if op.csv:
++			if o in vislist:
++				o.show()
++				o.showend(totlist, vislist)
++				if op.output and step == op.delay:
+ 					o.showcsv()
+-				else:
+-					o.show()
+-				if o is not plist[-1]:
+-					sys.stdout.write(ansi['default'] + char['pipe'])
+-				elif o is not olist[-1]:
+-					sys.stdout.write(ansi['default'] + char['gt'])
++					o.showcsvend(totlist, vislist)
+ 		sys.stdout.write(ansi['default'])
++		if op.output and step == op.delay:
++			outputfile.write('\n')
+ 
+ 		### If intermediate results, update increases with 1 sec (=interval)
+ 		update = update + interval
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001705.html">[SVN] r2904 - in trunk/rpms: alltray bitlbee chkrootkit gaim	libextractor ngrep stardict tcptraceroute x11vnc
+</A></li>
+	<LI>Next message: <A HREF="001707.html">[SVN] r2906 - in trunk/rpms: libebml libmatroska
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1706">[ date ]</a>
+              <a href="thread.html#1706">[ thread ]</a>
+              <a href="subject.html#1706">[ subject ]</a>
+              <a href="author.html#1706">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

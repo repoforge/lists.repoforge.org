@@ -1,0 +1,322 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3055 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3055%20-%20trunk/tools/dar&In-Reply-To=%3C20050325164013.54EF05C4053%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001858.html">
+   <LINK REL="Next"  HREF="001860.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3055 - trunk/tools/dar</H1>
+    <B>svn-commits at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3055%20-%20trunk/tools/dar&In-Reply-To=%3C20050325164013.54EF05C4053%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3055 - trunk/tools/dar">svn-commits at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Mar 25 17:40:13 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001858.html">[svn] r3054 - in trunk/rpms: . 3ddesktop aterm autossh centericq	esvn gdesklets iozone mod_log_sql perl-Convert-UUlib pfqueue	rootsh smart
+</A></li>
+        <LI>Next message: <A HREF="001860.html">[svn] r3056 - in trunk/rpms: . python-forward-compat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1859">[ date ]</a>
+              <a href="thread.html#1859">[ thread ]</a>
+              <a href="subject.html#1859">[ subject ]</a>
+              <a href="author.html#1859">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-25 17:40:12 +0100 (Fri, 25 Mar 2005)
+New Revision: 3055
+
+Modified:
+   trunk/tools/dar/ChangeLog
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-exec
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-shell
+   trunk/tools/dar/dar-update
+Log:
+Added colors, small improvements
+
+Modified: trunk/tools/dar/ChangeLog
+===================================================================
+--- trunk/tools/dar/ChangeLog	2005-03-25 00:16:20 UTC (rev 3054)
++++ trunk/tools/dar/ChangeLog	2005-03-25 16:40:12 UTC (rev 3055)
+@@ -42,6 +42,8 @@
+ - scripts: Added pre-changelog-trim and pre-diskspace
+ - dar-update: If arguments are given, don't do update/upgrade
+ - dar-build: Added support for nosrc packages
++- dar-exec: Started adding colors !
++- dar-shell: Started adding colors !
+ 
+ Version 0.6.0
+ - dar.conf: Removed DISTSMAP, added it to dists specific section
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2005-03-25 00:16:20 UTC (rev 3054)
++++ trunk/tools/dar/dar-build	2005-03-25 16:40:12 UTC (rev 3055)
+@@ -133,7 +133,7 @@
+ 		fi
+ 
+ 		### Export RPMVER to rpmconf
+-		export RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK /bin/su - -m $BUILD_USER -c &quot;rpm --version&quot; | cut -d' ' -f3)&quot;
++		export RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK /bin/su -lm $BUILD_USER -c &quot;rpm --version&quot; | cut -d' ' -f3)&quot;
+ 
+ 		set_archs
+ 
+@@ -329,7 +329,7 @@
+ 						--define &quot;$DISTNICK 1&quot; \
+ 						&quot;$NEWSPECFILE&quot;
+ 				else
+-					$SETARCH chroot &quot;$CHROOTDIR/$dist&quot; /bin/su - -m $BUILD_USER -c &quot;/usr/bin/rpmbuild -bb --clean $RPMOPTS \
++					$SETARCH chroot &quot;$CHROOTDIR/$dist&quot; /bin/su -lm $BUILD_USER -c &quot;/usr/bin/rpmbuild -bb --clean $RPMOPTS \
+ 						--define '_smp_mflags $MAKEFLAGS' \
+ 						--define '_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm' \
+ 						--define '_initrddir %{_sysconfdir}/rc.d/init.d' \
+
+Modified: trunk/tools/dar/dar-exec
+===================================================================
+--- trunk/tools/dar/dar-exec	2005-03-25 00:16:20 UTC (rev 3054)
++++ trunk/tools/dar/dar-exec	2005-03-25 16:40:12 UTC (rev 3055)
+@@ -1,10 +1,33 @@
+ #!/bin/bash
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+-### dar-exec  [ -d &lt;dists&gt; ]  &lt;cmd&gt; ...
++function help {
++	cat &lt;&lt;EOF
++usage: dar-exec [-q] [-d dist,dist2] cmd	
++Run a command in one or more DAR build environments
+ 
+-source &quot;/usr/share/dar/dar-functions&quot;
++dar-exec options:
+ 
+-daropts &quot;d:&quot; $@
++  -d dist,dist2         select build envs
++  -h                    this help message
++  -q                    be very quiet
++
++exported variables:
++
++  arch, dist, nick, path, repo, tag
++
++examples:
++
++  dar-exec cat /etc/redhat-release
++  dar-exec 'rpm -qa | wc -l'
++  dar-exec 'rpm -ihvU /dar/packages/foo/*\$dist*\$arch.rpm'
++  diff -u &lt;(dar-exec -d el4i rpm -qa | sort) &lt;(dar-exec -d el4a rpm -qa | sort)
++
++EOF
++exit 1
++}
++
++daropts &quot;d:hq&quot; $@
+ CMD=&quot;$OPTS&quot;
+ 
+ if [ ! -d &quot;$ROOT&quot; ]; then
+@@ -17,28 +40,29 @@
+ AS_ROOT=1
+ 
+ for distname in $DISTS; do
+-	echo &quot;Executing \&quot;$CMD\&quot; for $distname.&quot;
++	if [ -z &quot;$QUIET&quot; ]; then
++		echo -e &quot;$_BL_$_WH= Executing \&quot;$_YE$CMD$_WH\&quot; for $_YE$distname$_WH.$_DE&quot;
++	fi
+ 
+ 	if [ -r &quot;$CONFIGDIR/dists/$distname/config&quot; ]; then
+ 		source &quot;$CONFIGDIR/dists/$distname/config&quot;
+-		export arch=&quot;$DISTARCH&quot; dist=&quot;${DISTNAME// *}&quot; nick=&quot;$DISTNICK&quot; path=&quot;$DISTPATH&quot; repo=&quot;$REPO&quot; tag=&quot;$TAG&quot;
++		export arch=&quot;$DISTARCH&quot; dist=&quot;${DISTNAME// *}&quot; nick=&quot;$DISTNICK&quot; path=&quot;$DISTPATH&quot; repo=&quot;$REPO&quot; tag=&quot;${DISTTAG// *}&quot;
+ 	fi
+ 
+ 	### Check for building as user
+ 	if [ $AS_ROOT -eq 1 ]; then
+-#		DO_SU=&quot;/bin/su - -c&quot;
++#		DO_SU=&quot;/bin/su -l -c&quot;
+ 		DO_SU=&quot;/bin/bash -c&quot;
+ 	else
+-		DO_SU=&quot;/bin/su - -m $BUILD_USER -c&quot;
++		DO_SU=&quot;/bin/su -lm $BUILD_USER -c&quot;
+ 	fi
+ 
+ 	chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU &quot;$CMD&quot;
+ 	RC=$?
+ 
+ 	if [ $RC -ne 0 ]; then
+-		error &quot;Failed executing \&quot;$CMD\&quot; (RC=$RC)&quot;
++		error &quot;$_RE_${_WH}Failed execution (RC=$_YE$RC$_WH)$_DE&quot;
+ 	fi
+-	echo
+ done
+ 
+ exit 0
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2005-03-25 00:16:20 UTC (rev 3054)
++++ trunk/tools/dar/dar-functions	2005-03-25 16:40:12 UTC (rev 3055)
+@@ -6,6 +6,25 @@
+ ### general variables
+ DARCONFIG=&quot;/etc/dar/dar.conf&quot;
+ 
++### ANSI colors
++_DE=&quot;\033[0;0m&quot;		# Default
++_BK=&quot;\033[0;30m&quot;	# Black
++_DB=&quot;\033[0;34m&quot;	# Dark Blue
++_SI=&quot;\033[0;37m&quot;	# Silver
++_GA=&quot;\033[1;30m&quot;	# Gray
++_RE=&quot;\033[1;31m&quot;	# Red
++_GR=&quot;\033[1;32m&quot;	# Green
++_YE=&quot;\033[1;33m&quot;	# Yellow
++_BL=&quot;\033[1;34m&quot;	# Blue
++_MA=&quot;\033[1;35m&quot;	# Magenta
++_CY=&quot;\033[1;36m&quot;	# Cyan
++_WH=&quot;\033[1;37m&quot;	# White
++
++_BK_=&quot;\033[40m&quot;		# Black BG
++_RE_=&quot;\033[41m&quot;		# Red BG
++_BL_=&quot;\033[44m&quot;		# Blue BG
++_WH_=&quot;\033[47m&quot;		# White BG
++
+ ### Cleans environment
+ function clean_env {
+ 	:
+@@ -36,7 +55,7 @@
+ ### Log and put error-boolean on (so die will escalate the problem)
+ function error {
+ 	ERROR=&quot;yes&quot;
+-	echo &quot;ERROR: $*&quot; &gt;&amp;2
++	echo -e &quot;ERROR: $*&quot; &gt;&amp;2
+ #	log &quot;ERROR: $*&quot;
+ }
+ 
+@@ -75,7 +94,7 @@
+ 		fi
+ 
+ 	(
+-	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su - -m $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNAME\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n128 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
++	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su -lm $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNAME\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n128 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 		if ! grep -i &quot;^ *$CONFIG *:&quot; $SPECFILE | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 			debug &quot;Config $CONFIG not found in $SPECFILE&quot;
+ 		fi
+@@ -140,11 +159,13 @@
+ 			(a)	FORCE_ARCHS=&quot;$OPTARG&quot;;;
+ 			(d)	FORCE_DISTS=&quot;$OPTARG&quot;;;
+ 			(f)	FORCE_OVERWRITE=&quot;true&quot;;;
++			(h)	help;;
+ 			(n)	NOSOURCE=&quot;true&quot;;;
+ 			(r)	CREATE_REPO=&quot;true&quot;;;
+ 			(s)	FORCE_SOURCE_DISTS=&quot;$OPTARG&quot;;;
+ 			(t)	FORCE_TAG=&quot;$OPTARG&quot;;;
+ 			(v)	FORCE_VERBOSE=&quot;true&quot;;;
++			(q)	QUIET=&quot;true&quot;;;
+ #			(-)	c=${OPTARG/#-/}; OPTARG=&quot;$(echo $* | cut -d' ' -f$OPTIND)&quot;
+ #			case &quot;$c&quot; in
+ #				(port) port=&quot;$OPTARG&quot;; OPTIND=$((OPTIND+1));;
+
+Modified: trunk/tools/dar/dar-shell
+===================================================================
+--- trunk/tools/dar/dar-shell	2005-03-25 00:16:20 UTC (rev 3054)
++++ trunk/tools/dar/dar-shell	2005-03-25 16:40:12 UTC (rev 3055)
+@@ -1,10 +1,26 @@
+ #!/bin/bash
++source &quot;/usr/share/dar/dar-functions&quot;
+ 
+-### dar-shell  [ -d &lt;dists&gt; ]
++function help {
++	cat &lt;&lt;EOF
++usage: dar-shell [-q] [-d dist,dist2] cmd     
++Acquire a shell in one or more DAR build environments
+ 
+-source &quot;/usr/share/dar/dar-functions&quot;
++dar-exec options:
+ 
+-daropts &quot;d:&quot; $@
++  -d dist,dist2         select build envs
++  -h                    this help message
++  -q                    be very quiet
++
++exported variables:
++
++  arch, dist, nick, path, repo, tag
++
++EOF
++exit 1
++}
++
++daropts &quot;d:hq&quot; $@
+ CMD=&quot;$OPTS&quot;
+ 
+ if [ ! -d &quot;$ROOT&quot; ]; then
+@@ -16,16 +32,20 @@
+ set_as_root
+ AS_ROOT=1
+ 
+-echo &quot;Entering shells.&quot;
++if [ -z &quot;$QUIET&quot; ]; then
++	echo -e &quot;$_BL_$_WH= Entering shells.$_DE&quot;
++fi
+ for distname in $DISTS; do
+ 	if [ -r &quot;$CONFIGDIR/dists/$distname/config&quot; ]; then
+ 		source &quot;$CONFIGDIR/dists/$distname/config&quot;
+-		export arch=&quot;$DISTARCH&quot; dist=&quot;${DISTNAME// *}&quot; nick=&quot;$DISTNICK&quot; path=&quot;$DISTPATH&quot; repo=&quot;$REPO&quot; tag=&quot;$TAG&quot;
++		export arch=&quot;$DISTARCH&quot; dist=&quot;${DISTNAME// *}&quot; nick=&quot;$DISTNICK&quot; path=&quot;$DISTPATH&quot; repo=&quot;$REPO&quot; tag=&quot;${DISTTAG// *}&quot;
+ 	fi
+ 
+ 	chroot $CHROOTDIR/$distname
+ done
+-echo -n &quot;Returning to parent shell. Press ENTER.&quot;
+-read a
++if [ -z &quot;$QUIET&quot; ]; then
++	echo -en &quot;$_BL_$_WH= Returning to parent shell. Press ENTER.$_DE&quot;
++	read a
++fi
+ 
+ exit 0
+
+Modified: trunk/tools/dar/dar-update
+===================================================================
+--- trunk/tools/dar/dar-update	2005-03-25 00:16:20 UTC (rev 3054)
++++ trunk/tools/dar/dar-update	2005-03-25 16:40:12 UTC (rev 3055)
+@@ -30,7 +30,7 @@
+ 		chroot $CHROOTDIR/$distname $UPDATECMD
+ 	fi
+ 
+-	if [ -z &quot;$PKGS&quot; &quot;$UPGRADECMD&quot; ]; then
++	if [ -z &quot;$PKGS&quot; -a &quot;$UPGRADECMD&quot; ]; then
+ 		chroot $CHROOTDIR/$distname $UPGRADECMD
+ 	fi
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001858.html">[svn] r3054 - in trunk/rpms: . 3ddesktop aterm autossh centericq	esvn gdesklets iozone mod_log_sql perl-Convert-UUlib pfqueue	rootsh smart
+</A></li>
+	<LI>Next message: <A HREF="001860.html">[svn] r3056 - in trunk/rpms: . python-forward-compat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1859">[ date ]</a>
+              <a href="thread.html#1859">[ thread ]</a>
+              <a href="subject.html#1859">[ subject ]</a>
+              <a href="author.html#1859">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

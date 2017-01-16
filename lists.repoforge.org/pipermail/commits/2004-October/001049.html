@@ -1,0 +1,1583 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2243 - trunk/rpms/firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2243%20-%20trunk/rpms/firefox&In-Reply-To=%3C20041003135502.ED1A117F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001048.html">
+   <LINK REL="Next"  HREF="001050.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2243 - trunk/rpms/firefox</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2243%20-%20trunk/rpms/firefox&In-Reply-To=%3C20041003135502.ED1A117F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2243 - trunk/rpms/firefox">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Oct  3 15:55:02 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001048.html">[SVN] r2242 - trunk/rpms/perl-GD-Graph3d
+</A></li>
+        <LI>Next message: <A HREF="001050.html">[SVN] r2244 - in trunk/rpms: celestia gnome-cpufreq-applet lftp	libds liferea mozilla-bonobo tvtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1049">[ date ]</a>
+              <a href="thread.html#1049">[ thread ]</a>
+              <a href="subject.html#1049">[ subject ]</a>
+              <a href="author.html#1049">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-10-03 15:55:01 +0200 (Sun, 03 Oct 2004)
+New Revision: 2243
+
+Added:
+   trunk/rpms/firefox/firefox-PR1-alt-num-tab-switch.patch
+   trunk/rpms/firefox/firefox-PR1-clipboard-access.patch
+   trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-trunk.patch
+   trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-updates.patch
+   trunk/rpms/firefox/firefox-PR1-pkgconfig.patch
+Modified:
+   trunk/rpms/firefox/firefox.spec
+Log:
+More updates.
+
+Added: trunk/rpms/firefox/firefox-PR1-alt-num-tab-switch.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-PR1-alt-num-tab-switch.patch	2004-10-03 13:36:21 UTC (rev 2242)
++++ trunk/rpms/firefox/firefox-PR1-alt-num-tab-switch.patch	2004-10-03 13:55:01 UTC (rev 2243)
+@@ -0,0 +1,50 @@
++Index: browser/base/content/browser.js
++===================================================================
++RCS file: /cvsroot/mozilla/browser/base/content/browser.js,v
++retrieving revision 1.296.2.3.2.94
++diff -d -u -p -2 -0 -r1.296.2.3.2.94 browser.js
++--- browser/base/content/browser.js	10 Sep 2004 22:57:37 -0000	1.296.2.3.2.94
+++++ browser/base/content/browser.js	1 Oct 2004 06:00:34 -0000
++@@ -1494,41 +1494,41 @@ URLBarAutoFillPrefListener.prototype =
++     if (prefValue)
++       gURLBar.setAttribute(&quot;completedefaultindex&quot;, &quot;true&quot;);
++     else
++       gURLBar.removeAttribute(&quot;completedefaultindex&quot;);
++   }
++ }
++ 
++ function ctrlNumberTabSelection(event)
++ {  
++   if (event.altKey &amp;&amp; event.keyCode == KeyEvent.DOM_VK_RETURN) {    
++     // XXXblake Proper fix is to just check whether focus is in the urlbar. However, focus with the autocomplete widget is all
++     // hacky and broken and there's no way to do that right now. So this just patches it to ensure that alt+enter works when focus
++     // is on a link.
++     if (!document.commandDispatcher.focusedElement || document.commandDispatcher.focusedElement.localName.toLowerCase() != &quot;a&quot;) {
++       // Don't let winxp beep on ALT+ENTER, since the URL bar uses it.
++       event.preventDefault();
++       return;
++     }
++   }
++ 
++-#ifdef XP_MACOSX
+++#ifdef XP_UNIX
++   if (!event.metaKey)
++ #else
++   if (!event.ctrlKey)
++ #endif
++     return;
++ 
++   var index = event.charCode - 49;
++   if (index &lt; 0 || index &gt; 8)
++     return;
++ 
++   if (index &gt;= gBrowser.tabContainer.childNodes.length)
++     return;
++ 
++   var oldTab = gBrowser.selectedTab;
++   var newTab = gBrowser.tabContainer.childNodes[index];
++   if (newTab != oldTab) {
++     oldTab.selected = false;
++     gBrowser.selectedTab = newTab;
++   }
++ 
+
+Added: trunk/rpms/firefox/firefox-PR1-clipboard-access.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-PR1-clipboard-access.patch	2004-10-03 13:36:21 UTC (rev 2242)
++++ trunk/rpms/firefox/firefox-PR1-clipboard-access.patch	2004-10-03 13:55:01 UTC (rev 2243)
+@@ -0,0 +1,36 @@
++Index: layout/html/forms/src/nsTextControlFrame.cpp
++===================================================================
++RCS file: /cvsroot/mozilla/layout/html/forms/src/nsTextControlFrame.cpp,v
++retrieving revision 3.145.2.4.2.1
++diff -d -u -p -r3.145.2.4.2.1 nsTextControlFrame.cpp
++--- layout/html/forms/src/nsTextControlFrame.cpp	10 Sep 2004 02:47:57 -0000	3.145.2.4.2.1
+++++ layout/html/forms/src/nsTextControlFrame.cpp	30 Sep 2004 12:37:58 -0000
++@@ -99,6 +99,7 @@
++ #include &quot;nsGUIEvent.h&quot;
++ #include &quot;nsIDOMEventGroup.h&quot;
++ #include &quot;nsIDOM3EventTarget.h&quot;
+++#include &quot;nsIDOMNSEvent.h&quot;
++ #include &quot;nsIDOMNSUIEvent.h&quot;
++ #include &quot;nsIEventStateManager.h&quot;
++ 
++@@ -390,12 +391,18 @@ static PRBool
++ DOMEventToNativeKeyEvent(nsIDOMEvent      *aDOMEvent,
++                          nsNativeKeyEvent *aNativeEvent)
++ {
++-  nsCOMPtr&lt;nsIDOMNSUIEvent&gt; nsevent = do_QueryInterface(aDOMEvent);
+++  nsCOMPtr&lt;nsIDOMNSUIEvent&gt; uievent = do_QueryInterface(aDOMEvent);
++   PRBool defaultPrevented;
++-  nsevent-&gt;GetPreventDefault(&amp;defaultPrevented);
+++  uievent-&gt;GetPreventDefault(&amp;defaultPrevented);
++   if (defaultPrevented)
++     return PR_FALSE;
++ 
+++  nsCOMPtr&lt;nsIDOMNSEvent&gt; nsevent = do_QueryInterface(aDOMEvent);
+++  PRBool trusted = PR_FALSE;
+++  nsevent-&gt;GetIsTrusted(&amp;trusted);
+++  if (!trusted)
+++    return PR_FALSE;
+++
++   nsCOMPtr&lt;nsIDOMKeyEvent&gt; keyEvent = do_QueryInterface(aDOMEvent);
++ 
++   keyEvent-&gt;GetCharCode(&amp;aNativeEvent-&gt;charCode);
+
+Added: trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-trunk.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-trunk.patch	2004-10-03 13:36:21 UTC (rev 2242)
++++ trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-trunk.patch	2004-10-03 13:55:01 UTC (rev 2243)
+@@ -0,0 +1,820 @@
++? widget/src/gtk2/nsFilePicker.cpp
++? widget/src/gtk2/nsFilePicker.h
++Index: widget/src/gtk2/Makefile.in
++===================================================================
++RCS file: /cvsroot/mozilla/widget/src/gtk2/Makefile.in,v
++retrieving revision 1.31.8.1
++diff -d -u -p -r1.31.8.1 Makefile.in
++--- widget/src/gtk2/Makefile.in	10 Sep 2004 02:47:59 -0000	1.31.8.1
+++++ widget/src/gtk2/Makefile.in	28 Sep 2004 22:19:43 -0000
++@@ -62,6 +62,7 @@ CPPSRCS		= \
++ 		nsGtkMozRemoteHelper.cpp \
++ 		nsClipboard.cpp \
++ 		nsDragService.cpp \
+++		nsFilePicker.cpp \
++ 		nsSound.cpp \
++ 		nsNativeKeyBindings.cpp \
++ 		$(NULL)
++Index: widget/src/gtk2/nsWidgetFactory.cpp
++===================================================================
++RCS file: /cvsroot/mozilla/widget/src/gtk2/nsWidgetFactory.cpp,v
++retrieving revision 1.19.32.2
++diff -d -u -p -r1.19.32.2 nsWidgetFactory.cpp
++--- widget/src/gtk2/nsWidgetFactory.cpp	10 Sep 2004 08:11:27 -0000	1.19.32.2
+++++ widget/src/gtk2/nsWidgetFactory.cpp	28 Sep 2004 22:19:44 -0000
++@@ -48,10 +48,23 @@
++ #include &quot;nsHTMLFormatConverter.h&quot;
++ #include &quot;nsClipboard.h&quot;
++ #include &quot;nsDragService.h&quot;
+++#include &quot;nsFilePicker.h&quot;
++ #include &quot;nsSound.h&quot;
++ #include &quot;nsBidiKeyboard.h&quot;
++ #include &quot;nsNativeKeyBindings.h&quot;
++ 
+++#include &quot;nsIComponentRegistrar.h&quot;
+++#include &quot;nsComponentManagerUtils.h&quot;
+++#include &quot;nsAutoPtr.h&quot;
+++#include &lt;gtk/gtk.h&gt;
+++
+++/* from nsFilePicker.js */
+++#define XULFILEPICKER_CID \
+++  { 0x54ae32f8, 0x1dd2, 0x11b2, \
+++    { 0xa2, 0x09, 0xdf, 0x7c, 0x50, 0x53, 0x70, 0xf8} }
+++static NS_DEFINE_CID(kXULFilePickerCID, XULFILEPICKER_CID);
+++static NS_DEFINE_CID(kNativeFilePickerCID, NS_FILEPICKER_CID);
+++
++ NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindow)
++ NS_GENERIC_FACTORY_CONSTRUCTOR(nsChildWindow)
++ NS_GENERIC_FACTORY_CONSTRUCTOR(nsAppShell)
++@@ -109,6 +122,77 @@ nsNativeKeyBindingsTextAreaConstructor(n
++                                           eKeyBindings_TextArea);
++ }
++ 
+++static NS_IMETHODIMP
+++nsFilePickerConstructor(nsISupports *aOuter, REFNSIID aIID,
+++                        void **aResult)
+++{
+++  *aResult = nsnull;
+++  if (aOuter != nsnull) {
+++    return NS_ERROR_NO_AGGREGATION;
+++  }
+++
+++  nsCOMPtr&lt;nsIFilePicker&gt; picker;
+++  if (gtk_check_version(2,4,0) == NULL) {
+++    picker = new nsFilePicker;
+++  } else {
+++    picker = do_CreateInstance(kXULFilePickerCID);
+++  }
+++
+++  if (!picker) {
+++    return NS_ERROR_OUT_OF_MEMORY;
+++  }
+++
+++  return picker-&gt;QueryInterface(aIID, aResult);
+++}
+++
+++static NS_IMETHODIMP
+++nsFilePickerRegisterSelf(nsIComponentManager *aCompMgr,
+++                         nsIFile *aPath,
+++                         const char *aLoaderStr,
+++                         const char *aType,
+++                         const nsModuleComponentInfo *aInfo)
+++{
+++  static PRBool been_here;
+++  if (!been_here) {
+++    been_here = PR_TRUE;
+++
+++    // Make sure we re-register this so it gets picked up after the XUL picker.
+++    return NS_ERROR_FACTORY_REGISTER_AGAIN;
+++  }
+++
+++  nsresult rv;
+++  nsCOMPtr&lt;nsIComponentRegistrar&gt; compReg = do_QueryInterface(aCompMgr, &amp;rv);
+++
+++  if (NS_SUCCEEDED(rv) &amp;&amp; compReg) {
+++    rv = compReg-&gt;RegisterFactoryLocation(kNativeFilePickerCID,
+++                                          &quot;Gtk2 File Picker&quot;,
+++                                          &quot;@mozilla.org/filepicker;1&quot;,
+++                                          aPath, aLoaderStr, aType);
+++  }
+++
+++  return rv;
+++}
+++
+++static NS_IMETHODIMP
+++nsFilePickerUnregisterSelf(nsIComponentManager *aCompMgr,
+++                           nsIFile *aPath,
+++                           const char *aLoaderStr,
+++                           const nsModuleComponentInfo *aInfo)
+++{
+++  nsFilePicker::Shutdown();
+++
+++  nsresult rv;
+++  nsCOMPtr&lt;nsIComponentRegistrar&gt; compReg = do_QueryInterface(aCompMgr, &amp;rv);
+++
+++  if (NS_SUCCEEDED(rv) &amp;&amp; compReg) {
+++    rv = compReg-&gt;UnregisterFactoryLocation(kNativeFilePickerCID,
+++                                            aPath);
+++  }
+++
+++  return rv;
+++}
+++
+++
++ static const nsModuleComponentInfo components[] =
++ {
++     { &quot;Gtk2 Window&quot;,
++@@ -127,6 +211,12 @@ static const nsModuleComponentInfo compo
++       NS_LOOKANDFEEL_CID,
++       &quot;@mozilla.org/widget/lookandfeel;1&quot;,
++       nsLookAndFeelConstructor },
+++    { &quot;Gtk2 File Picker&quot;,
+++      NS_FILEPICKER_CID,
+++      &quot;@mozilla.org/filepicker;1&quot;,
+++      nsFilePickerConstructor,
+++      nsFilePickerRegisterSelf,
+++      nsFilePickerUnregisterSelf },
++     { &quot;Gtk2 Sound&quot;,
++       NS_SOUND_CID,
++       &quot;@mozilla.org/sound;1&quot;,
++Index: widget/src/gtk2/nsFilePicker.cpp
++===================================================================
++RCS file: widget/src/gtk2/nsFilePicker.cpp
++diff -N widget/src/gtk2/nsFilePicker.cpp
++--- /dev/null	1 Jan 1970 00:00:00 -0000
+++++ widget/src/gtk2/nsFilePicker.cpp	27 Sep 2004 17:52:57 -0000	1.5
++@@ -0,0 +1,545 @@
+++/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+++/* ***** BEGIN LICENSE BLOCK *****
+++ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+++ *
+++ * The contents of this file are subject to the Mozilla Public License Version
+++ * 1.1 (the &quot;License&quot;); you may not use this file except in compliance with
+++ * the License. You may obtain a copy of the License at
+++ * <A HREF="http://www.mozilla.org/MPL/">http://www.mozilla.org/MPL/</A>
+++ *
+++ * Software distributed under the License is distributed on an &quot;AS IS&quot; basis,
+++ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+++ * for the specific language governing rights and limitations under the
+++ * License.
+++ *
+++ * The Original Code is the Mozilla GTK2 File Chooser.
+++ *
+++ * The Initial Developer of the Original Code is Red Hat, Inc.
+++ * Portions created by the Initial Developer are Copyright (C) 2004
+++ * the Initial Developer. All Rights Reserved.
+++ *
+++ * Contributor(s):
+++ *   Christopher Aillon &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">caillon at redhat.com</A>&gt;
+++ *
+++ * Alternatively, the contents of this file may be used under the terms of
+++ * either the GNU General Public License Version 2 or later (the &quot;GPL&quot;), or
+++ * the GNU Lesser General Public License Version 2.1 or later (the &quot;LGPL&quot;),
+++ * in which case the provisions of the GPL or the LGPL are applicable instead
+++ * of those above. If you wish to allow use of your version of this file only
+++ * under the terms of either the GPL or the LGPL, and not to allow others to
+++ * use your version of this file under the terms of the MPL, indicate your
+++ * decision by deleting the provisions above and replace them with the notice
+++ * and other provisions required by the GPL or the LGPL. If you do not delete
+++ * the provisions above, a recipient may use your version of this file under
+++ * the terms of any one of the MPL, the GPL or the LGPL.
+++ *
+++ * ***** END LICENSE BLOCK ***** */
+++
+++#include &lt;gtk/gtkwindow.h&gt;
+++#include &lt;gtk/gtkdialog.h&gt;
+++#include &lt;gtk/gtkstock.h&gt;
+++
+++#include &quot;nsIFileURL.h&quot;
+++#include &quot;nsIURI.h&quot;
+++#include &quot;nsIWidget.h&quot;
+++#include &quot;nsILocalFile.h&quot;
+++#include &quot;nsArrayEnumerator.h&quot;
+++#include &quot;nsVoidArray.h&quot;
+++#include &quot;nsMemory.h&quot;
+++#include &quot;nsEnumeratorUtils.h&quot;
+++#include &quot;nsNetUtil.h&quot;
+++#include &quot;nsReadableUtils.h&quot;
+++
+++#include &quot;prmem.h&quot;
+++#include &quot;prlink.h&quot;
+++
+++#include &quot;nsFilePicker.h&quot;
+++
+++#define DECL_FUNC_PTR(func) static _##func##_fn _##func
+++#define GTK_FILE_CHOOSER(widget) ((GtkFileChooser*) widget)
+++
+++PRLibrary    *nsFilePicker::mGTK24 = nsnull;
+++nsILocalFile *nsFilePicker::mPrevDisplayDirectory = nsnull;
+++
+++// XXX total ass.  We should really impose a build-time requirement on gtk2.4
+++// and then check at run-time whether the user is actually running gtk2.4.
+++// We should then decide to load the component (or not) from the component mgr.
+++// We don't really have a mechanism to do that, though....
+++
+++typedef struct _GtkFileChooser GtkFileChooser;
+++typedef struct _GtkFileFilter GtkFileFilter;
+++
+++/* Copied from gtkfilechooser.h */
+++typedef enum
+++{
+++  GTK_FILE_CHOOSER_ACTION_OPEN,
+++  GTK_FILE_CHOOSER_ACTION_SAVE,
+++  GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+++  GTK_FILE_CHOOSER_ACTION_CREATE_FOLDER
+++} GtkFileChooserAction;
+++
+++
+++typedef gchar* (*_gtk_file_chooser_get_filename_fn)(GtkFileChooser *chooser);
+++typedef GSList* (*_gtk_file_chooser_get_filenames_fn)(GtkFileChooser *chooser);
+++typedef GtkWidget* (*_gtk_file_chooser_dialog_new_fn)(const gchar *title,
+++                                                      GtkWindow *parent,
+++                                                      GtkFileChooserAction action,
+++                                                      const gchar *first_button_text,
+++                                                      ...);
+++typedef void (*_gtk_file_chooser_set_select_multiple_fn)(GtkFileChooser* chooser, gboolean truth);
+++typedef void (*_gtk_file_chooser_set_current_name_fn)(GtkFileChooser* chooser, const gchar* name);
+++typedef void (*_gtk_file_chooser_set_current_folder_fn)(GtkFileChooser* chooser, const gchar* folder);
+++typedef void (*_gtk_file_chooser_add_filter_fn)(GtkFileChooser* chooser, GtkFileFilter* filter);
+++typedef GtkFileFilter* (*_gtk_file_filter_new_fn)();
+++typedef void (*_gtk_file_filter_add_pattern_fn)(GtkFileFilter* filter, const gchar* pattern);
+++typedef void (*_gtk_file_filter_set_name_fn)(GtkFileFilter* filter, const gchar* name);
+++
+++
+++DECL_FUNC_PTR(gtk_file_chooser_get_filename);
+++DECL_FUNC_PTR(gtk_file_chooser_get_filenames);
+++DECL_FUNC_PTR(gtk_file_chooser_dialog_new);
+++DECL_FUNC_PTR(gtk_file_chooser_set_select_multiple);
+++DECL_FUNC_PTR(gtk_file_chooser_set_current_name);
+++DECL_FUNC_PTR(gtk_file_chooser_set_current_folder);
+++DECL_FUNC_PTR(gtk_file_chooser_add_filter);
+++DECL_FUNC_PTR(gtk_file_filter_new);
+++DECL_FUNC_PTR(gtk_file_filter_add_pattern);
+++DECL_FUNC_PTR(gtk_file_filter_set_name);
+++
+++
+++static PRLibrary *
+++LoadVersionedLibrary(const char* libName, const char* libVersion)
+++{
+++  char *platformLibName = PR_GetLibraryName(nsnull, libName);
+++  nsCAutoString versionLibName(platformLibName);
+++  versionLibName.Append(libVersion);
+++  PR_FreeLibraryName(platformLibName);
+++  return PR_LoadLibrary(versionLibName.get());
+++}
+++
+++/* static */
+++nsresult
+++nsFilePicker::LoadSymbolsGTK24()
+++{
+++  static PRBool initialized;
+++  if (initialized) {
+++    return NS_OK;
+++  }
+++
+++  initialized = PR_TRUE;
+++
+++  #define GET_LIBGTK_FUNC(func) \
+++    PR_BEGIN_MACRO \
+++    _##func = (_##func##_fn) PR_FindFunctionSymbol(mGTK24, #func); \
+++    if (!_##func) { \
+++      NS_WARNING(&quot;Can't load ##func##&quot;); \
+++      return NS_ERROR_NOT_AVAILABLE; \
+++    } \
+++    PR_END_MACRO
+++
+++  PRFuncPtr func = PR_FindFunctionSymbolAndLibrary(&quot;gtk_file_chooser_get_filename&quot;,
+++                                                   &amp;mGTK24);
+++  if (mGTK24) {
+++    _gtk_file_chooser_get_filename = (_gtk_file_chooser_get_filename_fn)func;
+++  } else {
+++    // XXX hmm, this seems to fail when gtk 2.4 is already loaded...
+++    mGTK24 = LoadVersionedLibrary(&quot;gtk-2&quot;, &quot;.4&quot;);
+++    if (!mGTK24) {
+++      return NS_ERROR_NOT_AVAILABLE;
+++    }
+++    GET_LIBGTK_FUNC(gtk_file_chooser_get_filename);
+++  }
+++
+++  GET_LIBGTK_FUNC(gtk_file_chooser_get_filenames);
+++  GET_LIBGTK_FUNC(gtk_file_chooser_dialog_new);
+++  GET_LIBGTK_FUNC(gtk_file_chooser_set_select_multiple);
+++  GET_LIBGTK_FUNC(gtk_file_chooser_set_current_name);
+++  GET_LIBGTK_FUNC(gtk_file_chooser_set_current_folder);
+++  GET_LIBGTK_FUNC(gtk_file_chooser_add_filter);
+++  GET_LIBGTK_FUNC(gtk_file_filter_new);
+++  GET_LIBGTK_FUNC(gtk_file_filter_add_pattern);
+++  GET_LIBGTK_FUNC(gtk_file_filter_set_name);
+++
+++  // Woot.
+++  return NS_OK;
+++}
+++
+++void
+++nsFilePicker::Shutdown()
+++{
+++  PR_UnloadLibrary(mGTK24);
+++
+++  NS_IF_RELEASE(mPrevDisplayDirectory);
+++}
+++
+++// Ok, lib loading crap is done... the real code starts here:
+++
+++static GtkFileChooserAction
+++GetGtkFileChooserAction(PRInt16 aMode)
+++{
+++  GtkFileChooserAction action;
+++
+++  switch (aMode) {
+++    case nsIFilePicker::modeSave:
+++    action = GTK_FILE_CHOOSER_ACTION_SAVE;
+++    break;
+++
+++    case nsIFilePicker::modeGetFolder:
+++    action = GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER;
+++    break;
+++
+++    default:
+++    NS_WARNING(&quot;Unknown nsIFilePicker mode&quot;);
+++    // fall through
+++
+++    case nsIFilePicker::modeOpen:
+++    case nsIFilePicker::modeOpenMultiple:
+++    action = GTK_FILE_CHOOSER_ACTION_OPEN;
+++    break;
+++  }
+++
+++  return action;
+++}
+++
+++
+++NS_IMPL_ISUPPORTS1(nsFilePicker, nsIFilePicker)
+++
+++nsFilePicker::nsFilePicker()
+++  : mMode(nsIFilePicker::modeOpen),
+++    mSelectedType(0)
+++{
+++}
+++
+++nsFilePicker::~nsFilePicker()
+++{
+++}
+++
+++void
+++ReadMultipleFiles(gpointer filename, gpointer array)
+++{
+++  nsCOMPtr&lt;nsILocalFile&gt; localfile;
+++  nsresult rv = NS_NewNativeLocalFile(nsDependentCString(NS_STATIC_CAST(char*, filename)),
+++                                      PR_FALSE,
+++                                      getter_AddRefs(localfile));
+++  if (NS_SUCCEEDED(rv)) {
+++    nsCOMArray&lt;nsILocalFile&gt;&amp; files = *NS_STATIC_CAST(nsCOMArray&lt;nsILocalFile&gt;*, array);
+++    files.AppendObject(localfile);
+++  }
+++
+++  g_free(filename);
+++}
+++
+++void
+++nsFilePicker::ReadValuesFromFileChooser(GtkWidget *file_chooser)
+++{
+++  mFiles.Clear();
+++
+++  if (mMode == nsIFilePicker::modeOpenMultiple) {
+++    mFile.Truncate();
+++
+++    GSList *list = _gtk_file_chooser_get_filenames (GTK_FILE_CHOOSER(file_chooser));
+++    g_slist_foreach(list, ReadMultipleFiles, NS_STATIC_CAST(gpointer, &amp;mFiles));
+++    g_slist_free(list);
+++  } else {
+++    gchar *filename = _gtk_file_chooser_get_filename (GTK_FILE_CHOOSER(file_chooser));
+++    mFile.Assign(filename);
+++    g_free(filename);
+++  }
+++
+++  // Remember last used directory.
+++  nsCOMPtr&lt;nsILocalFile&gt; file;
+++  GetFile(getter_AddRefs(file));
+++  if (file) {
+++    nsCOMPtr&lt;nsIFile&gt; dir;
+++    file-&gt;GetParent(getter_AddRefs(dir));
+++    nsCOMPtr&lt;nsILocalFile&gt; localDir(do_QueryInterface(dir));
+++    if (localDir) {
+++      localDir.swap(mPrevDisplayDirectory);
+++    }
+++  }
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::Init(nsIDOMWindow *aParent, const nsAString &amp;aTitle, PRInt16 aMode)
+++{
+++  nsresult rv = LoadSymbolsGTK24();
+++  if (NS_FAILED(rv)) {
+++    return rv;
+++  }
+++
+++  return nsBaseFilePicker::Init(aParent, aTitle, aMode);
+++}
+++
+++void
+++nsFilePicker::InitNative(nsIWidget *aParent,
+++                         const nsAString&amp; aTitle,
+++                         PRInt16 aMode)
+++{
+++  mParentWidget = aParent;
+++  mTitle.Assign(aTitle);
+++  mMode = aMode;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::AppendFilters(PRInt32 aFilterMask)
+++{
+++  return nsBaseFilePicker::AppendFilters(aFilterMask);
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::AppendFilter(const nsAString&amp; aTitle, const nsAString&amp; aFilter)
+++{
+++  if (aFilter.Equals(NS_LITERAL_STRING(&quot;..apps&quot;))) {
+++    // No platform specific thing we can do here, really....
+++    return NS_OK;
+++  }
+++
+++  nsCAutoString filter, name;
+++  CopyUTF16toUTF8(aFilter, filter);
+++  CopyUTF16toUTF8(aTitle, name);
+++
+++  mFilters.AppendCString(filter);
+++  mFilterNames.AppendCString(name);
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::SetDefaultString(const nsAString&amp; aString)
+++{
+++  mDefault = aString;
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::GetDefaultString(nsAString&amp; aString)
+++{
+++  // Per API...
+++  return NS_ERROR_FAILURE;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::SetDefaultExtension(const nsAString&amp; aExtension)
+++{
+++  mDefaultExtension = aExtension;
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::GetDefaultExtension(nsAString&amp; aExtension)
+++{
+++  aExtension = mDefaultExtension;
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::GetFilterIndex(PRInt32 *aFilterIndex)
+++{
+++  *aFilterIndex = mSelectedType;
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
+++{
+++  mSelectedType = aFilterIndex;
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::SetDisplayDirectory(nsILocalFile *aDirectory)
+++{
+++  mDisplayDirectory = aDirectory;
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::GetDisplayDirectory(nsILocalFile **aDirectory)
+++{
+++  NS_IF_ADDREF(*aDirectory = mDisplayDirectory);
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::GetFile(nsILocalFile **aFile)
+++{
+++  NS_ENSURE_ARG_POINTER(aFile);
+++
+++  *aFile = nsnull;
+++  if (mFile.IsEmpty()) {
+++    return NS_OK;
+++  }
+++
+++  nsCOMPtr&lt;nsILocalFile&gt; file(do_CreateInstance(&quot;@mozilla.org/file/local;1&quot;));
+++  NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
+++
+++  file-&gt;InitWithNativePath(mFile);
+++
+++  NS_ADDREF(*aFile = file);
+++
+++  return NS_OK;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::GetFileURL(nsIFileURL **aFileURL)
+++{
+++  nsCOMPtr&lt;nsILocalFile&gt; file;
+++  GetFile(getter_AddRefs(file));
+++
+++  nsCOMPtr&lt;nsIURI&gt; uri;
+++  NS_NewFileURI(getter_AddRefs(uri), file);
+++  NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
+++
+++  return CallQueryInterface(uri, aFileURL);
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
+++{
+++  NS_ENSURE_ARG_POINTER(aFiles);
+++
+++  if (mMode == nsIFilePicker::modeOpenMultiple) {
+++    return NS_NewArrayEnumerator(aFiles, mFiles);
+++  }
+++
+++  return NS_ERROR_FAILURE;
+++}
+++
+++NS_IMETHODIMP
+++nsFilePicker::Show(PRInt16 *aReturn)
+++{
+++  NS_ENSURE_ARG_POINTER(aReturn);
+++
+++  nsXPIDLCString title;
+++  title.Adopt(ToNewUTF8String(mTitle));
+++
+++  GtkWidget *parent = (GtkWidget*)mParentWidget-&gt;GetNativeData(NS_NATIVE_WIDGET);
+++  GtkFileChooserAction action = GetGtkFileChooserAction(mMode);
+++  const gchar *accept_button = (mMode == GTK_FILE_CHOOSER_ACTION_SAVE)
+++                               ? GTK_STOCK_SAVE : GTK_STOCK_OPEN;
+++
+++  GtkWidget *file_chooser =
+++      _gtk_file_chooser_dialog_new(title, GTK_WINDOW(parent), action,
+++                                   GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+++                                   accept_button, GTK_RESPONSE_ACCEPT,
+++                                   NULL);
+++  if (mMode == nsIFilePicker::modeOpenMultiple) {
+++    _gtk_file_chooser_set_select_multiple (GTK_FILE_CHOOSER(file_chooser), TRUE);
+++  }
+++
+++  if (mMode == nsIFilePicker::modeSave) {
+++    char *default_filename = ToNewUTF8String(mDefault);
+++    _gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(file_chooser),
+++                                       NS_STATIC_CAST(const gchar*, default_filename));
+++    nsMemory::Free(default_filename);
+++  }
+++
+++  gtk_dialog_set_default_response(GTK_DIALOG(file_chooser), GTK_RESPONSE_ACCEPT);
+++
+++  nsCAutoString directory;
+++  if (mDisplayDirectory) {
+++    mDisplayDirectory-&gt;GetNativePath(directory);
+++  } else if (mPrevDisplayDirectory) {
+++    mPrevDisplayDirectory-&gt;GetNativePath(directory);
+++  }
+++
+++  if (!directory.IsEmpty()) {
+++    _gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER(file_chooser),
+++                                         directory.get());
+++  }
+++
+++  PRInt32 count = mFilters.Count();
+++  for (PRInt32 i = 0; i &lt; count; ++i) {
+++    GtkFileFilter *filter = _gtk_file_filter_new ();
+++
+++    // This is fun... the GTK file picker does not accept a list of filters
+++    // so we need to split out each string, and add it manually.
+++    nsCAutoString pattern_list;
+++    pattern_list.Assign(*mFilters[i]);
+++    nsCString::const_iterator start, end, cur;
+++    pattern_list.BeginReading(start);
+++    pattern_list.EndReading(end);
+++
+++    cur = start;
+++    while (cur != end) {
+++      // Look for our delimiter of '; ' (semi-colon space)
+++      if (*cur == ';') {
+++        ++cur;
+++        if (*cur != ' ') {
+++          NS_ERROR(&quot;The supplied filter is invalid.  Go read nsIFilePicker.&quot;);
+++          #ifdef DEBUG
+++          printf(&quot;The ill eagle filter: %s\n&quot;, mFilters[i]-&gt;get());
+++          #endif
+++          break;
+++        }
+++        --cur;
+++        const char* pattern = ToNewCString(Substring(start, cur));
+++        _gtk_file_filter_add_pattern(filter, pattern);
+++        nsMemory::Free((void*)pattern);
+++        ++cur; ++cur;
+++        start = cur;
+++      }
+++
+++      ++cur;
+++    }
+++
+++    // Finally add the last one
+++    const char *pattern = ToNewCString(Substring(start, end));
+++    _gtk_file_filter_add_pattern(filter, pattern);
+++    nsMemory::Free((void*)pattern);
+++
+++    if (!mFilterNames[i]-&gt;IsEmpty()) {
+++      // If we have a name for our filter, let's use that.
+++      const char *filter_name = mFilterNames[i]-&gt;get();
+++      _gtk_file_filter_set_name (filter, filter_name);
+++    } else {
+++      // If we don't have a name, let's just use the filter pattern.
+++      const char *filter_pattern = mFilters[i]-&gt;get();
+++      _gtk_file_filter_set_name (filter, filter_pattern);
+++    }
+++
+++    _gtk_file_chooser_add_filter ((GtkFileChooser*) (file_chooser), filter);
+++  }
+++
+++  gint response = gtk_dialog_run (GTK_DIALOG (file_chooser));
+++
+++  switch (response) {
+++    case GTK_RESPONSE_ACCEPT:
+++    ReadValuesFromFileChooser(file_chooser);
+++    *aReturn = nsIFilePicker::returnOK;
+++    if (mMode == modeSave) {
+++      nsCOMPtr&lt;nsILocalFile&gt; file;
+++      GetFile(getter_AddRefs(file));
+++      if (file) {
+++        PRBool exists = PR_FALSE;
+++        file-&gt;Exists(&amp;exists);
+++        if (exists) {
+++          *aReturn = nsIFilePicker::returnReplace;
+++        }
+++      }
+++    }
+++    break;
+++
+++    case GTK_RESPONSE_CANCEL:
+++    case GTK_RESPONSE_CLOSE:
+++    case GTK_RESPONSE_DELETE_EVENT:
+++    *aReturn = nsIFilePicker::returnCancel;
+++    break;
+++
+++    default:
+++    NS_WARNING(&quot;Unexpected response&quot;);
+++    *aReturn = nsIFilePicker::returnCancel;
+++    break;
+++  }
+++
+++  gtk_widget_destroy(file_chooser);
+++
+++  return NS_OK;
+++}
++Index: widget/src/gtk2/nsFilePicker.h
++===================================================================
++RCS file: widget/src/gtk2/nsFilePicker.h
++diff -N widget/src/gtk2/nsFilePicker.h
++--- /dev/null	1 Jan 1970 00:00:00 -0000
+++++ widget/src/gtk2/nsFilePicker.h	27 Sep 2004 17:52:57 -0000	1.3
++@@ -0,0 +1,90 @@
+++/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+++/* ***** BEGIN LICENSE BLOCK *****
+++ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+++ *
+++ * The contents of this file are subject to the Mozilla Public License Version
+++ * 1.1 (the &quot;License&quot;); you may not use this file except in compliance with
+++ * the License. You may obtain a copy of the License at
+++ * <A HREF="http://www.mozilla.org/MPL/">http://www.mozilla.org/MPL/</A>
+++ *
+++ * Software distributed under the License is distributed on an &quot;AS IS&quot; basis,
+++ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+++ * for the specific language governing rights and limitations under the
+++ * License.
+++ *
+++ * The Original Code is the Mozilla GTK2 File Chooser.
+++ *
+++ * The Initial Developer of the Original Code is Red Hat, Inc.
+++ * Portions created by the Initial Developer are Copyright (C) 2004
+++ * the Initial Developer. All Rights Reserved.
+++ *
+++ * Contributor(s):
+++ *   Christopher Aillon &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">caillon at redhat.com</A>&gt;
+++ *
+++ * Alternatively, the contents of this file may be used under the terms of
+++ * either the GNU General Public License Version 2 or later (the &quot;GPL&quot;), or
+++ * the GNU Lesser General Public License Version 2.1 or later (the &quot;LGPL&quot;),
+++ * in which case the provisions of the GPL or the LGPL are applicable instead
+++ * of those above. If you wish to allow use of your version of this file only
+++ * under the terms of either the GPL or the LGPL, and not to allow others to
+++ * use your version of this file under the terms of the MPL, indicate your
+++ * decision by deleting the provisions above and replace them with the notice
+++ * and other provisions required by the GPL or the LGPL. If you do not delete
+++ * the provisions above, a recipient may use your version of this file under
+++ * the terms of any one of the MPL, the GPL or the LGPL.
+++ *
+++ * ***** END LICENSE BLOCK ***** */
+++
+++#ifndef nsFilePicker_h__
+++#define nsFilePicker_h__
+++
+++#include &lt;gtk/gtkwidget.h&gt;
+++
+++#include &quot;nsBaseFilePicker.h&quot;
+++#include &quot;nsString.h&quot;
+++#include &quot;nsVoidArray.h&quot;
+++#include &quot;nsCOMArray.h&quot;
+++
+++class nsIWidget;
+++class nsILocalFile;
+++class PRLibrary;
+++
+++class nsFilePicker : public nsBaseFilePicker
+++{
+++public:
+++  nsFilePicker();
+++  virtual ~nsFilePicker();
+++
+++  NS_DECL_ISUPPORTS
+++
+++  NS_DECL_NSIFILEPICKER
+++
+++  virtual void InitNative(nsIWidget *aParent, const nsAString&amp; aTitle, PRInt16 aMode);
+++
+++  static void Shutdown();
+++
+++protected:
+++  static nsresult LoadSymbolsGTK24();
+++
+++  void ReadValuesFromFileChooser(GtkWidget *file_chooser);
+++
+++  nsCOMPtr&lt;nsIWidget&gt;    mParentWidget;
+++  nsCOMPtr&lt;nsILocalFile&gt; mDisplayDirectory;
+++  nsCOMArray&lt;nsILocalFile&gt; mFiles;
+++
+++  PRInt16   mMode;
+++  PRInt16   mSelectedType;
+++  nsCString mFile;
+++  nsString  mTitle;
+++  nsString  mDefault;
+++  nsString  mDefaultExtension;
+++
+++  nsCStringArray mFilters;
+++  nsCStringArray mFilterNames;
+++
+++private:
+++  static nsILocalFile *mPrevDisplayDirectory;
+++  static PRLibrary *mGTK24;
+++};
+++
+++#endif
++Index: widget/src/xpwidgets/Makefile.in
++===================================================================
++RCS file: /cvsroot/mozilla/widget/src/xpwidgets/Makefile.in,v
++retrieving revision 1.63
++diff -d -u -p -r1.63 Makefile.in
++--- widget/src/xpwidgets/Makefile.in	26 Mar 2004 08:51:01 -0000	1.63
+++++ widget/src/xpwidgets/Makefile.in	28 Sep 2004 22:19:44 -0000
++@@ -62,7 +62,7 @@ ifneq (,$(filter beos os2 mac cocoa wind
++ CPPSRCS += nsBaseClipboard.cpp
++ endif
++ 
++-ifneq (,$(filter beos os2 mac cocoa photon windows,$(MOZ_WIDGET_TOOLKIT)))
+++ifneq (,$(filter beos gtk2 os2 mac cocoa photon windows,$(MOZ_WIDGET_TOOLKIT)))
++ CPPSRCS += nsBaseFilePicker.cpp
++ REQUIRES += docshell view intl
++ endif
++Index: widget/src/xpwidgets/nsBaseFilePicker.h
++===================================================================
++RCS file: /cvsroot/mozilla/widget/src/xpwidgets/nsBaseFilePicker.h,v
++retrieving revision 1.6.72.1
++diff -d -u -p -r1.6.72.1 nsBaseFilePicker.h
++--- widget/src/xpwidgets/nsBaseFilePicker.h	11 Aug 2004 02:59:55 -0000	1.6.72.1
+++++ widget/src/xpwidgets/nsBaseFilePicker.h	28 Sep 2004 22:19:44 -0000
++@@ -49,8 +49,6 @@ protected:
++   virtual void InitNative(nsIWidget *aParent, const nsAString&amp; aTitle,
++                           PRInt16 aMode) = 0;
++ 
++-private:
++-
++   nsIWidget *DOMWindowToWidget(nsIDOMWindow *dw);
++ };
++ 
+
+Added: trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-updates.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-updates.patch	2004-10-03 13:36:21 UTC (rev 2242)
++++ trunk/rpms/firefox/firefox-PR1-gtk-file-chooser-updates.patch	2004-10-03 13:55:01 UTC (rev 2243)
+@@ -0,0 +1,474 @@
++diff -Nur mozilla-1.7.3/widget/src/gtk2/nsFilePicker.cpp mozilla-1.7.3-gtkfilechooser/widget/src/gtk2/nsFilePicker.cpp
++--- mozilla-1.7.3/widget/src/gtk2/nsFilePicker.cpp	2004-09-27 21:20:29.591113000 -0400
+++++ mozilla-1.7.3-gtkfilechooser/widget/src/gtk2/nsFilePicker.cpp	2004-09-27 21:23:59.687806000 -0400
++@@ -49,6 +49,7 @@
++ #include &quot;nsEnumeratorUtils.h&quot;
++ #include &quot;nsNetUtil.h&quot;
++ #include &quot;nsReadableUtils.h&quot;
+++#include &quot;mozcontainer.h&quot;
++ 
++ #include &quot;prmem.h&quot;
++ #include &quot;prlink.h&quot;
++@@ -106,6 +107,28 @@
++ DECL_FUNC_PTR(gtk_file_filter_add_pattern);
++ DECL_FUNC_PTR(gtk_file_filter_set_name);
++ 
+++static GtkWindow *
+++get_gtk_window_for_nsiwidget(nsIWidget *widget)
+++{
+++  // Get native GdkWindow
+++  GdkWindow *gdk_win = GDK_WINDOW(widget-&gt;GetNativeData(NS_NATIVE_WIDGET));
+++  if (!gdk_win)
+++    return NULL;
+++
+++  // Get the container
+++  gpointer user_data = NULL;
+++  gdk_window_get_user_data(gdk_win, &amp;user_data);
+++  if (!user_data)
+++    return NULL;
+++
+++  // Make sure its really a container
+++  MozContainer *parent_container = MOZ_CONTAINER(user_data);
+++  if (!parent_container)
+++    return NULL;
+++
+++  // Get its toplevel
+++  return GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(parent_container)));
+++}
++ 
++ static PRLibrary *
++ LoadVersionedLibrary(const char* libName, const char* libVersion)
++@@ -420,21 +443,20 @@
++   nsXPIDLCString title;
++   title.Adopt(ToNewUTF8String(mTitle));
++ 
++-  GtkWidget *parent = (GtkWidget*)mParentWidget-&gt;GetNativeData(NS_NATIVE_WIDGET);
+++  GtkWindow *parent_widget = get_gtk_window_for_nsiwidget(mParentWidget);
+++
++   GtkFileChooserAction action = GetGtkFileChooserAction(mMode);
++   const gchar *accept_button = (mMode == GTK_FILE_CHOOSER_ACTION_SAVE)
++                                ? GTK_STOCK_SAVE : GTK_STOCK_OPEN;
++-
++   GtkWidget *file_chooser =
++-      _gtk_file_chooser_dialog_new(title, GTK_WINDOW(parent), action,
+++      _gtk_file_chooser_dialog_new(title, parent_widget, action,
++                                    GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
++                                    accept_button, GTK_RESPONSE_ACCEPT,
++                                    NULL);
+++
++   if (mMode == nsIFilePicker::modeOpenMultiple) {
++     _gtk_file_chooser_set_select_multiple (GTK_FILE_CHOOSER(file_chooser), TRUE);
++-  }
++-
++-  if (mMode == nsIFilePicker::modeSave) {
+++  } else if (mMode == nsIFilePicker::modeSave) {
++     char *default_filename = ToNewUTF8String(mDefault);
++     _gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(file_chooser),
++                                        NS_STATIC_CAST(const gchar*, default_filename));
++@@ -455,45 +477,20 @@
++                                          directory.get());
++   }
++ 
++-  PRInt32 count = mFilters.Count();
++-  for (PRInt32 i = 0; i &lt; count; ++i) {
++-    GtkFileFilter *filter = _gtk_file_filter_new ();
++-
+++  int count = mFilters.Count();
+++  for (int i = 0; i &lt; count; ++i) {
++     // This is fun... the GTK file picker does not accept a list of filters
++     // so we need to split out each string, and add it manually.
++-    nsCAutoString pattern_list;
++-    pattern_list.Assign(*mFilters[i]);
++-    nsCString::const_iterator start, end, cur;
++-    pattern_list.BeginReading(start);
++-    pattern_list.EndReading(end);
++-
++-    cur = start;
++-    while (cur != end) {
++-      // Look for our delimiter of '; ' (semi-colon space)
++-      if (*cur == ';') {
++-        ++cur;
++-        if (*cur != ' ') {
++-          NS_ERROR(&quot;The supplied filter is invalid.  Go read nsIFilePicker.&quot;);
++-          #ifdef DEBUG
++-          printf(&quot;The ill eagle filter: %s\n&quot;, mFilters[i]-&gt;get());
++-          #endif
++-          break;
++-        }
++-        --cur;
++-        const char* pattern = ToNewCString(Substring(start, cur));
++-        _gtk_file_filter_add_pattern(filter, pattern);
++-        nsMemory::Free((void*)pattern);
++-        ++cur; ++cur;
++-        start = cur;
++-      }
++ 
++-      ++cur;
+++    char **patterns = g_strsplit(mFilters[i]-&gt;get(), &quot;;&quot;, -1);
+++    if (!patterns) {
+++      return NS_ERROR_UNEXPECTED;
++     }
++ 
++-    // Finally add the last one
++-    const char *pattern = ToNewCString(Substring(start, end));
++-    _gtk_file_filter_add_pattern(filter, pattern);
++-    nsMemory::Free((void*)pattern);
+++    GtkFileFilter *filter = _gtk_file_filter_new ();
+++    for (int j = 0; patterns[j] != NULL; ++j) {
+++      _gtk_file_filter_add_pattern (filter, g_strstrip (patterns[j]));
+++    }
++ 
++     if (!mFilterNames[i]-&gt;IsEmpty()) {
++       // If we have a name for our filter, let's use that.
++@@ -505,7 +502,7 @@
++       _gtk_file_filter_set_name (filter, filter_pattern);
++     }
++ 
++-    _gtk_file_chooser_add_filter ((GtkFileChooser*) (file_chooser), filter);
+++    _gtk_file_chooser_add_filter (GTK_FILE_CHOOSER (file_chooser), filter);
++   }
++ 
++   gint response = gtk_dialog_run (GTK_DIALOG (file_chooser));
++diff -Nur mozilla-1.7.3/xpfe/components/filepicker/src/Makefile.in mozilla-1.7.3-gtkfilechooser/xpfe/components/filepicker/src/Makefile.in
++--- mozilla-1.7.3/xpfe/components/filepicker/src/Makefile.in	2004-01-07 08:36:58.000000000 -0500
+++++ mozilla-1.7.3-gtkfilechooser/xpfe/components/filepicker/src/Makefile.in	2004-09-27 21:22:45.208360000 -0400
++@@ -56,3 +56,5 @@
++ 
++ EXTRA_DSO_LDOPTS += $(MOZ_COMPONENT_LIBS)
++ 
+++nsFilePicker.js: nsFilePicker.js.in
+++	$(PERL) $(MOZILLA_DIR)/config/preprocessor.pl $(DEFINES) $(ACDEFINES) $^ &gt; $@
++diff -Nur mozilla-1.7.3/xpfe/components/filepicker/src/nsFilePicker.js mozilla-1.7.3-gtkfilechooser/xpfe/components/filepicker/src/nsFilePicker.js
++--- mozilla-1.7.3/xpfe/components/filepicker/src/nsFilePicker.js	2004-03-10 00:33:14.000000000 -0500
+++++ mozilla-1.7.3-gtkfilechooser/xpfe/components/filepicker/src/nsFilePicker.js	1969-12-31 19:00:00.000000000 -0500
++@@ -1,315 +0,0 @@
++-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
++- *
++- * The contents of this file are subject to the Mozilla Public
++- * License Version 1.1 (the &quot;License&quot;); you may not use this file
++- * except in compliance with the License. You may obtain a copy of
++- * the License at <A HREF="http://www.mozilla.org/MPL/">http://www.mozilla.org/MPL/</A>
++- * 
++- * Software distributed under the License is distributed on an &quot;AS
++- * IS&quot; basis, WITHOUT WARRANTY OF ANY KIND, either express or
++- * implied. See the License for the specific language governing
++- * rights and limitations under the License.
++- * 
++- * The Original Code is mozilla.org code.
++- * 
++- * The Initial Developer of the Original Code is Netscape
++- * Communications Corporation.  Portions created by Netscape are
++- * Copyright (C) 2000 Netscape Communications Corporation.  All
++- * Rights Reserved.
++- * 
++- * Contributor(s): Stuart Parmenter &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pavlov at netscape.com</A>&gt;
++- */
++-
++-/*
++- * No magic constructor behaviour, as is de rigeur for XPCOM.
++- * If you must perform some initialization, and it could possibly fail (even
++- * due to an out-of-memory condition), you should use an Init method, which
++- * can convey failure appropriately (thrown exception in JS,
++- * NS_FAILED(nsresult) return in C++).
++- *
++- * In JS, you can actually cheat, because a thrown exception will cause the
++- * CreateInstance call to fail in turn, but not all languages are so lucky.
++- * (Though ANSI C++ provides exceptions, they are verboten in Mozilla code
++- * for portability reasons -- and even when you're building completely
++- * platform-specific code, you can't throw across an XPCOM method boundary.)
++- */
++-
++-
++-const DEBUG = false; /* set to true to enable debug messages */
++-
++-const FILEPICKER_CONTRACTID     = &quot;@mozilla.org/filepicker;1&quot;;
++-const FILEPICKER_CID        = Components.ID(&quot;{54ae32f8-1dd2-11b2-a209-df7c505370f8}&quot;);
++-const LOCAL_FILE_CONTRACTID = &quot;@mozilla.org/file/local;1&quot;;
++-const APPSHELL_SERV_CONTRACTID  = &quot;@mozilla.org/appshell/appShellService;1&quot;;
++-const STRBUNDLE_SERV_CONTRACTID = &quot;@mozilla.org/intl/stringbundle;1&quot;;
++-
++-const nsIAppShellService    = Components.interfaces.nsIAppShellService;
++-const nsILocalFile          = Components.interfaces.nsILocalFile;
++-const nsIFileURL            = Components.interfaces.nsIFileURL;
++-const nsISupports           = Components.interfaces.nsISupports;
++-const nsIFactory            = Components.interfaces.nsIFactory;
++-const nsIFilePicker         = Components.interfaces.nsIFilePicker;
++-const nsIInterfaceRequestor = Components.interfaces.nsIInterfaceRequestor
++-const nsIDOMWindow          = Components.interfaces.nsIDOMWindow;
++-const nsIStringBundleService = Components.interfaces.nsIStringBundleService;
++-const nsIWebNavigation      = Components.interfaces.nsIWebNavigation;
++-const nsIDocShellTreeItem   = Components.interfaces.nsIDocShellTreeItem;
++-const nsIBaseWindow         = Components.interfaces.nsIBaseWindow;
++-
++-var   bundle                = null;
++-var   lastDirectory         = null;
++-
++-function nsFilePicker()
++-{
++-  if (!bundle)
++-    bundle = srGetStrBundle(&quot;<A HREF="chrome://global/locale/filepicker.properties">chrome://global/locale/filepicker.properties</A>&quot;);
++-
++-  /* attributes */
++-  this.mDefaultString = &quot;&quot;;
++-  this.mFilterIndex = 0;
++-  if (lastDirectory) {
++-    this.mDisplayDirectory = Components.classes[LOCAL_FILE_CONTRACTID].createInstance(nsILocalFile);
++-    this.mDisplayDirectory.initWithPath(lastDirectory);
++-  } else {
++-    this.mDisplayDirectory = null;
++-  }
++-  this.mFilterTitles = new Array();
++-  this.mFilters = new Array();
++-}
++-
++-nsFilePicker.prototype = {
++-
++-  /* attribute nsILocalFile displayDirectory; */
++-  set displayDirectory(a) { this.mDisplayDirectory = a; },
++-  get displayDirectory()  { return this.mDisplayDirectory; },
++-
++-  /* readonly attribute nsILocalFile file; */
++-  set file(a) { throw &quot;readonly property&quot;; },
++-  get file()  { return this.mFilesEnumerator.mFiles[0]; },
++-
++-  /* readonly attribute nsISimpleEnumerator files; */
++-  set files(a) { throw &quot;readonly property&quot;; },
++-  get files()  { return this.mFilesEnumerator; },
++-
++-  /* readonly attribute nsIFileURL fileURL; */
++-  set fileURL(a) { throw &quot;readonly property&quot;; },
++-  get fileURL()  { 
++-    if (this.mFilesEnumerator) {
++-      var ioService = Components.classes[&quot;@mozilla.org/network/io-service;1&quot;]
++-                    .getService(Components.interfaces.nsIIOService);
++-      var url       = ioService.newFileURI(this.file);
++-      return url;
++-    }
++-    return null;
++-  },
++-
++-  /* attribute wstring defaultString; */
++-  set defaultString(a) { this.mDefaultString = a; },
++-  get defaultString()  { return this.mDefaultString; },
++-
++-  /* attribute wstring defaultExtension */
++-  set defaultExtension(ext) { },
++-  get defaultExtension() { return &quot;&quot;; },
++-  
++-  /* attribute long filterIndex; */
++-  set filterIndex(a) { this.mFilterIndex = a; },
++-  get filterIndex() { return this.mFilterIndex; },
++-
++-  /* members */
++-  mFilesEnumerator: undefined,
++-  mParentWindow: null,
++-
++-  /* methods */
++-  init: function(parent, title, mode) {
++-    this.mParentWindow = parent;
++-    this.mTitle = title;
++-    this.mMode = mode;
++-  },
++-
++-  appendFilters: function(filterMask) {
++-    if (filterMask &amp; nsIFilePicker.filterHTML) {
++-      this.appendFilter(bundle.GetStringFromName(&quot;htmlTitle&quot;),
++-                   bundle.GetStringFromName(&quot;htmlFilter&quot;));
++-    }
++-    if (filterMask &amp; nsIFilePicker.filterText) {
++-      this.appendFilter(bundle.GetStringFromName(&quot;textTitle&quot;),
++-                   bundle.GetStringFromName(&quot;textFilter&quot;));
++-    }
++-    if (filterMask &amp; nsIFilePicker.filterImages) {
++-      this.appendFilter(bundle.GetStringFromName(&quot;imageTitle&quot;),
++-                   bundle.GetStringFromName(&quot;imageFilter&quot;));
++-    }
++-    if (filterMask &amp; nsIFilePicker.filterXML) {
++-      this.appendFilter(bundle.GetStringFromName(&quot;xmlTitle&quot;),
++-                   bundle.GetStringFromName(&quot;xmlFilter&quot;));
++-    }
++-    if (filterMask &amp; nsIFilePicker.filterXUL) {
++-      this.appendFilter(bundle.GetStringFromName(&quot;xulTitle&quot;),
++-                   bundle.GetStringFromName(&quot;xulFilter&quot;));
++-    }
++-    if (filterMask &amp; nsIFilePicker.filterApps) {
++-      // We use &quot;..apps&quot; as a special filter for executable files
++-      this.appendFilter(bundle.GetStringFromName(&quot;appsTitle&quot;),
++-                        &quot;..apps&quot;);
++-    }
++-    if (filterMask &amp; nsIFilePicker.filterAll) {
++-      this.appendFilter(bundle.GetStringFromName(&quot;allTitle&quot;),
++-                   bundle.GetStringFromName(&quot;allFilter&quot;));
++-    }
++-  },
++-
++-  appendFilter: function(title, extensions) {
++-    this.mFilterTitles.push(title);
++-    this.mFilters.push(extensions);
++-  },
++-
++-  QueryInterface: function(iid) {
++-    if (!iid.equals(nsIFilePicker) &amp;&amp;
++-        !iid.equals(nsISupports))
++-        throw Components.results.NS_ERROR_NO_INTERFACE;
++-    return this;
++-  },
++-
++-  show: function() {
++-    var o = new Object();
++-    o.title = this.mTitle;
++-    o.mode = this.mMode;
++-    o.displayDirectory = this.mDisplayDirectory;
++-    o.defaultString = this.mDefaultString;
++-    o.filterIndex = this.mFilterIndex;
++-    o.filters = new Object();
++-    o.filters.titles = this.mFilterTitles;
++-    o.filters.types = this.mFilters;
++-    o.retvals = new Object();
++-
++-    var parent;
++-    if (this.mParentWindow) {
++-      parent = this.mParentWindow;
++-    } else if (typeof(window) == &quot;object&quot; &amp;&amp; window != null) {
++-      parent = window;
++-    } else {
++-      try {
++-        var appShellService = Components.classes[APPSHELL_SERV_CONTRACTID].getService(nsIAppShellService);
++-        parent = appShellService.hiddenDOMWindow;
++-      } catch(ex) {
++-        debug(&quot;Can't get parent.  xpconnect hates me so we can't get one from the appShellService.\n&quot;);
++-        debug(ex + &quot;\n&quot;);
++-      }
++-    }
++-
++-    var parentWin = null;
++-    try {
++-      parentWin = parent.QueryInterface(nsIInterfaceRequestor)
++-                        .getInterface(nsIWebNavigation)
++-                        .QueryInterface(nsIDocShellTreeItem)
++-                        .treeOwner
++-                        .QueryInterface(nsIInterfaceRequestor)
++-                        .getInterface(nsIBaseWindow);
++-    } catch(ex) {
++-      dump(&quot;file picker couldn't get base window\n&quot;+ex+&quot;\n&quot;);
++-    }
++-    try {
++-      if (parentWin)
++-        parentWin.blurSuppression = true;
++-      parent.openDialog(&quot;<A HREF="chrome://global/content/filepicker.xul">chrome://global/content/filepicker.xul</A>&quot;,
++-                        &quot;&quot;,
++-                        &quot;chrome,modal,titlebar,resizable=yes,dependent=yes&quot;,
++-                        o);
++-      if (parentWin)
++-        parentWin.blurSuppression = false;
++-
++-      this.mFilterIndex = o.retvals.filterIndex;
++-      this.mFilesEnumerator = o.retvals.files;
++-      lastDirectory = o.retvals.directory;
++-      return o.retvals.buttonStatus;
++-    } catch(ex) { dump(&quot;unable to open file picker\n&quot; + ex + &quot;\n&quot;); }
++-
++-    return null;
++-  }
++-}
++-
++-if (DEBUG)
++-    debug = function (s) { dump(&quot;-*- filepicker: &quot; + s + &quot;\n&quot;); }
++-else
++-    debug = function (s) {}
++-
++-/* module foo */
++-
++-var filePickerModule = new Object();
++-
++-filePickerModule.registerSelf =
++-function (compMgr, fileSpec, location, type)
++-{
++-    debug(&quot;registering (all right -- a JavaScript module!)&quot;);
++-    compMgr = compMgr.QueryInterface(Components.interfaces.nsIComponentRegistrar);
++-
++-    compMgr.registerFactoryLocation(FILEPICKER_CID, 
++-                                    &quot;FilePicker JS Component&quot;,
++-                                    FILEPICKER_CONTRACTID, 
++-                                    fileSpec, 
++-                                    location,
++-                                    type);
++-}
++-
++-filePickerModule.getClassObject =
++-function (compMgr, cid, iid) {
++-    if (!cid.equals(FILEPICKER_CID))
++-        throw Components.results.NS_ERROR_NO_INTERFACE;
++-    
++-    if (!iid.equals(Components.interfaces.nsIFactory))
++-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
++-    
++-    return filePickerFactory;
++-}
++-
++-filePickerModule.canUnload =
++-function(compMgr)
++-{
++-    debug(&quot;Unloading component.&quot;);
++-    return true;
++-}
++-    
++-/* factory object */
++-var filePickerFactory = new Object();
++-
++-filePickerFactory.createInstance =
++-function (outer, iid) {
++-    debug(&quot;CI: &quot; + iid);
++-    debug(&quot;IID:&quot; + nsIFilePicker);
++-    if (outer != null)
++-        throw Components.results.NS_ERROR_NO_AGGREGATION;
++-
++-    return (new nsFilePicker()).QueryInterface(iid);
++-}
++-
++-/* entrypoint */
++-function NSGetModule(compMgr, fileSpec) {
++-    return filePickerModule;
++-}
++-
++-
++-
++-/* crap from strres.js that I want to use for string bundles since I can't include another .js file.... */
++-
++-var strBundleService = null;
++-
++-function srGetStrBundle(path)
++-{
++-  var strBundle = null;
++-
++-  if (!strBundleService) {
++-    try {
++-      strBundleService = Components.classes[STRBUNDLE_SERV_CONTRACTID].getService(nsIStringBundleService);
++-    } catch (ex) {
++-      dump(&quot;\n--** strBundleService createInstance failed **--\n&quot;);
++-      return null;
++-    }
++-  }
++-
++-  strBundle = strBundleService.createBundle(path); 
++-  if (!strBundle) {
++-	dump(&quot;\n--** strBundle createInstance failed **--\n&quot;);
++-  }
++-  return strBundle;
++-}
++-
++diff -Nur mozilla-1.7.3/xpfe/components/filepicker/src/nsFilePicker.js.in mozilla-1.7.3-gtkfilechooser/xpfe/components/filepicker/src/nsFilePicker.js.in
++--- mozilla-1.7.3/xpfe/components/filepicker/src/nsFilePicker.js.in	2004-03-10 00:33:14.000000000 -0500
+++++ mozilla-1.7.3-gtkfilechooser/xpfe/components/filepicker/src/nsFilePicker.js.in	2004-09-27 21:22:14.858739000 -0400
++@@ -245,7 +245,11 @@
++ 
++     compMgr.registerFactoryLocation(FILEPICKER_CID, 
++                                     &quot;FilePicker JS Component&quot;,
+++#ifndef MOZ_WIDGET_GTK2
++                                     FILEPICKER_CONTRACTID, 
+++#else
+++                                    &quot;&quot;,
+++#endif
++                                     fileSpec, 
++                                     location,
++                                     type);
+
+Added: trunk/rpms/firefox/firefox-PR1-pkgconfig.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-PR1-pkgconfig.patch	2004-10-03 13:36:21 UTC (rev 2242)
++++ trunk/rpms/firefox/firefox-PR1-pkgconfig.patch	2004-10-03 13:55:01 UTC (rev 2243)
+@@ -0,0 +1,36 @@
++Index: build/autoconf/pkg.m4
++===================================================================
++RCS file: /cvsroot/mozilla/build/autoconf/pkg.m4,v
++retrieving revision 1.2
++diff -p -u -1 -2 -r1.2 pkg.m4
++--- build/autoconf/pkg.m4	3 Oct 2002 00:37:11 -0000	1.2
+++++ build/autoconf/pkg.m4	22 Sep 2004 23:00:27 -0000
++@@ -19,25 +19,27 @@ AC_DEFUN(PKG_CHECK_MODULES, [
++      if $PKG_CONFIG --atleast-pkgconfig-version $PKG_CONFIG_MIN_VERSION; then
++         AC_MSG_CHECKING(for $2)
++ 
++         if $PKG_CONFIG --exists &quot;$2&quot; ; then
++             AC_MSG_RESULT(yes)
++             succeeded=yes
++ 
++             AC_MSG_CHECKING($1_CFLAGS)
++             $1_CFLAGS=`$PKG_CONFIG --cflags &quot;$2&quot;`
++             AC_MSG_RESULT($$1_CFLAGS)
++ 
++             AC_MSG_CHECKING($1_LIBS)
++-            $1_LIBS=`$PKG_CONFIG --libs &quot;$2&quot;`
+++            ## don't use --libs since that can do evil things like add
+++            ## -Wl,--export-dynamic
+++            $1_LIBS=&quot;`$PKG_CONFIG --libs-only-L \&quot;$2\&quot;` `$PKG_CONFIG --libs-only-l \&quot;$2\&quot;`&quot;
++             AC_MSG_RESULT($$1_LIBS)
++         else
++             $1_CFLAGS=&quot;&quot;
++             $1_LIBS=&quot;&quot;
++             ## If we have a custom action on failure, don't print errors, but 
++             ## do set a variable so people can do so.
++             $1_PKG_ERRORS=`$PKG_CONFIG --errors-to-stdout --print-errors &quot;$2&quot;`
++             ifelse([$4], ,echo $$1_PKG_ERRORS,)
++         fi
++ 
++         AC_SUBST($1_CFLAGS)
++         AC_SUBST($1_LIBS)
+
+Modified: trunk/rpms/firefox/firefox.spec
+===================================================================
+--- trunk/rpms/firefox/firefox.spec	2004-10-03 13:36:21 UTC (rev 2242)
++++ trunk/rpms/firefox/firefox.spec	2004-10-03 13:55:01 UTC (rev 2243)
+@@ -11,7 +11,7 @@
+ Summary: Mozilla Firefox web browser
+ Name: firefox
+ Version: 0.10
+-Release: 0.1
++Release: 0.2
+ License: MPL/LGPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.mozilla.org/projects/firefox/">http://www.mozilla.org/projects/firefox/</A>
+@@ -28,6 +28,11 @@
+ Patch5: mozilla-1.7-psfonts.patch
+ Patch6: firefox-0.10-gcc3-alpha.patch
+ Patch7: firefox-PR1-js-64bit-math.patch
++Patch90: firefox-PR1-gtk-file-chooser-trunk.patch
++Patch91: firefox-PR1-gtk-file-chooser-updates.patch
++Patch101: firefox-PR1-pkgconfig.patch
++Patch102: firefox-PR1-clipboard-access.patch
++Patch103: firefox-PR1-alt-num-tab-switch.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: XFree86-devel, zlib-devel, zip
+@@ -52,8 +57,12 @@
+ %patch5 -p1 -b .psfonts
+ %patch6 -p1 -b .gcc3-alpha
+ %patch7 -p0 -b .64bit-math
++%patch90 -p0 -b .gtk-file-chooser-trunk
++%patch91 -p1 -b .gtk-file-chooser-updates
++%patch101 -p0 -b .pkgconfig
++%patch102 -p0 -b .clipboard-access
++%patch103 -p0 -b .alt-num-tab-switch
+ 
+-
+ %{__cat} &lt;&lt;'EOF' &gt;.mozconfig
+ . $topsrcdir/browser/config/mozconfig
+ ac_add_options --x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot;
+@@ -61,7 +70,7 @@
+ ac_add_options --disable-installer
+ ac_add_options --disable-jsd
+ ac_add_options --disable-tests
+-ac_add_options --enable-extensions=&quot;default,-content-packs,-editor,-help,-irc,-spellcheck&quot;
++ac_add_options --enable-extensions=&quot;default,-content-packs,-editor,-help,-irc,-spellcheck,-typeaheadfind&quot;
+ ac_add_options --enable-official-branding
+ # We want to replace -O? with -Os to optimize compilation for size
+ ac_add_options --enable-optimize=&quot;-Os %(echo &quot;%{optflags}&quot; | sed 's/-O.//')&quot;
+@@ -165,11 +174,16 @@
+ 
+ %build
+ export MOZ_PHOENIX=1
++export MOZILLA_OFFICIAL=1
++export BUILD_OFFICIAL=1
+ %{__make} -f client.mk depend
+ %{__make} %{?_smp_mflags} -f client.mk build
+ 
+ %install
+ %{__rm} -rf %{buildroot}
++export MOZ_PHOENIX=1
++export MOZILLA_OFFICIAL=1
++export BUILD_OFFICIAL=1
+ %{__make} -C xpinstall/packager/ \
+ 	MOZILLA_BIN=&quot;\$(DIST)/bin/firefox-bin&quot;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001048.html">[SVN] r2242 - trunk/rpms/perl-GD-Graph3d
+</A></li>
+	<LI>Next message: <A HREF="001050.html">[SVN] r2244 - in trunk/rpms: celestia gnome-cpufreq-applet lftp	libds liferea mozilla-bonobo tvtime
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1049">[ date ]</a>
+              <a href="thread.html#1049">[ thread ]</a>
+              <a href="subject.html#1049">[ subject ]</a>
+              <a href="author.html#1049">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,405 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8895 - in /trunk/rpms/mfs: mfs-1.6.15_cgi.patch mfs.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8895%20-%20in%20/trunk/rpms/mfs%3A%20mfs-1.6.15_cgi.patch%20mfs.spec&In-Reply-To=%3C201006161954.o5GJsmWN030949%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007688.html">
+   <LINK REL="Next"  HREF="007690.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8895 - in /trunk/rpms/mfs: mfs-1.6.15_cgi.patch mfs.spec</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8895%20-%20in%20/trunk/rpms/mfs%3A%20mfs-1.6.15_cgi.patch%20mfs.spec&In-Reply-To=%3C201006161954.o5GJsmWN030949%40surya.karan.org%3E"
+       TITLE="[svn] r8895 - in /trunk/rpms/mfs: mfs-1.6.15_cgi.patch mfs.spec">shuff at vecna.org
+       </A><BR>
+    <I>Wed Jun 16 21:54:48 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007688.html">[svn] r8894 - /trunk/rpms/rabbitvcs/rabbitvcs.spec
+</A></li>
+        <LI>Next message: <A HREF="007690.html">[svn] r8896 - in /trunk/rpms: perl-JSON-RPC-Common/ perl-JSON-RPC-Common/perl-JSON-RPC-Common.spec perl-Taint-Util/ perl-Taint-Util/perl-Taint-Util.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7689">[ date ]</a>
+              <a href="thread.html#7689">[ thread ]</a>
+              <a href="subject.html#7689">[ subject ]</a>
+              <a href="author.html#7689">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: Wed Jun 16 20:54:48 2010
+New Revision: 8895
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=8895&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=8895&amp;view=rev</A>
+Log:
+split out Apache-compatible version of status CGI into its own package, added init scripts for MooseFS server daemons
+
+Added:
+    trunk/rpms/mfs/mfs-1.6.15_cgi.patch
+Modified:
+    trunk/rpms/mfs/mfs.spec
+
+Added: trunk/rpms/mfs/mfs-1.6.15_cgi.patch
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mfs/mfs-1.6.15_cgi.patch?rev=8895&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mfs/mfs-1.6.15_cgi.patch?rev=8895&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/mfs/mfs-1.6.15_cgi.patch (added)
++++ trunk/rpms/mfs/mfs-1.6.15_cgi.patch Wed Jun 16 20:54:48 2010
+@@ -1,0 +1,54 @@
++diff -Naur mfs-1.6.15-orig/mfscgi/index.html mfs-1.6.15/mfscgi/index.html
++--- mfs-1.6.15-orig/mfscgi/index.html	2009-10-20 03:21:29.000000000 -0400
+++++ mfs-1.6.15/mfscgi/index.html	2010-06-14 15:31:50.000000000 -0400
++@@ -4,9 +4,9 @@
++ 		&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=utf-8&quot;&gt;
++ 		&lt;title&gt;MFS&lt;/title&gt;
++ 		&lt;script type=&quot;text/javascript&quot;&gt;
++-			document.location.href=&quot;mfs.cgi&quot;
+++			document.location.href=&quot;/cgi-bin/mfs/mfs.cgi&quot;
++ // the above uses default parameter values; full invocation example is shown below
++-//			document.location.href=&quot;mfs.cgi?masterhost=127.0.0.1&amp;amp;masterport=9421&amp;amp;mastername=MooseFS&quot;
+++//			document.location.href=&quot;/cgi-bin/mfs/mfs.cgi?masterhost=127.0.0.1&amp;amp;masterport=9421&amp;amp;mastername=MooseFS&quot;
++ 		&lt;/script&gt;
++ 	&lt;/head&gt;
++ 	&lt;body&gt;
++diff -Naur mfs-1.6.15-orig/mfscgi/mfs.cgi mfs-1.6.15/mfscgi/mfs.cgi
++--- mfs-1.6.15-orig/mfscgi/mfs.cgi	2010-02-08 01:20:27.000000000 -0500
+++++ mfs-1.6.15/mfscgi/mfs.cgi	2010-06-14 15:31:36.000000000 -0400
++@@ -108,7 +108,7 @@
++ 	print &quot;&quot;&quot;&lt;head&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot; /&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;title&gt;MFS Info (%s)&lt;/title&gt;&quot;&quot;&quot; % (htmlentities(mastername))
++-	print &quot;&quot;&quot;&lt;link rel=&quot;stylesheet&quot; href=&quot;/mfs.css&quot; type=&quot;text/css&quot; /&gt;&quot;&quot;&quot;
+++	print &quot;&quot;&quot;&lt;link rel=&quot;stylesheet&quot; href=&quot;/mfs/mfs.css&quot; type=&quot;text/css&quot; /&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;/head&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;body&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;h1 align=&quot;center&quot;&gt;Can't connect to MFS master (IP:%s ; PORT:%u)&lt;/h1&gt;&quot;&quot;&quot; % (htmlentities(masterhost),masterport)
++@@ -124,7 +124,7 @@
++ 	print &quot;&quot;&quot;&lt;head&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot; /&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;title&gt;MFS Info (%s)&lt;/title&gt;&quot;&quot;&quot; % (htmlentities(mastername))
++-	print &quot;&quot;&quot;&lt;link rel=&quot;stylesheet&quot; href=&quot;/mfs.css&quot; type=&quot;text/css&quot; /&gt;&quot;&quot;&quot;
+++	print &quot;&quot;&quot;&lt;link rel=&quot;stylesheet&quot; href=&quot;/mfs/mfs.css&quot; type=&quot;text/css&quot; /&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;/head&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;body&gt;&quot;&quot;&quot;
++ 	print &quot;&quot;&quot;&lt;h1 align=&quot;center&quot;&gt;Can't detect MFS master version&lt;/h1&gt;&quot;&quot;&quot;
++@@ -195,7 +195,7 @@
++ print &quot;&quot;&quot;&lt;head&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot; /&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;title&gt;MFS Info (%s)&lt;/title&gt;&quot;&quot;&quot; % (htmlentities(mastername))
++-print &quot;&quot;&quot;&lt;link rel=&quot;stylesheet&quot; href=&quot;/mfs.css&quot; type=&quot;text/css&quot; /&gt;&quot;&quot;&quot;
+++print &quot;&quot;&quot;&lt;link rel=&quot;stylesheet&quot; href=&quot;/mfs/mfs.css&quot; type=&quot;text/css&quot; /&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;/head&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;body&gt;&quot;&quot;&quot;
++ 
++@@ -203,7 +203,7 @@
++ print &quot;&quot;&quot;&lt;div id=&quot;header&quot;&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;table class=&quot;HDR&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;tr&gt;&quot;&quot;&quot;
++-print &quot;&quot;&quot;&lt;td class=&quot;LOGO&quot;&gt;&lt;img src=&quot;/logomini.png&quot; alt=&quot;logo&quot; width=&quot;123&quot; height=&quot;47&quot; /&gt;&lt;/td&gt;&quot;&quot;&quot;
+++print &quot;&quot;&quot;&lt;td class=&quot;LOGO&quot;&gt;&lt;img src=&quot;/mfs/logomini.png&quot; alt=&quot;logo&quot; width=&quot;123&quot; height=&quot;47&quot; /&gt;&lt;/td&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;td class=&quot;MENU&quot;&gt;&lt;table class=&quot;MENU&quot; cellspacing=&quot;0&quot;&gt;&quot;&quot;&quot;
++ print &quot;&quot;&quot;&lt;tr&gt;&quot;&quot;&quot;
++ last=&quot;U&quot;
+
+Modified: trunk/rpms/mfs/mfs.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mfs/mfs.spec?rev=8895&amp;r1=8894&amp;r2=8895&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/mfs/mfs.spec?rev=8895&amp;r1=8894&amp;r2=8895&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/mfs/mfs.spec (original)
++++ trunk/rpms/mfs/mfs.spec Wed Jun 16 20:54:48 2010
+@@ -24,6 +24,7 @@
+ BuildRequires: python
+ BuildRequires: zlib-devel
+ 
++Requires: chkconfig
+ Requires: python
+ 
+ %description
+@@ -97,6 +98,251 @@
+ %{__install} -m0644 mfscgi/err.gif %{buildroot}%{_localstatedir}/www/html/mfs
+ %{__install} -m0644 mfscgi/logomini.png %{buildroot}%{_localstatedir}/www/html/mfs
+ 
++# create the mfsmaster init script
++%{__install} -m0755 -d %{buildroot}%{_initrddir}
++%{__cat} &gt; %{buildroot}%{_initrddir}/mfsmaster &lt;&lt;'MFSMASTER'
++#!/bin/bash
++#
++# Init file for the MooseFS master service
++#
++# chkconfig: - 92 84
++#
++# description: MooseFS master
++#
++# processname: mfsmaster
++# config: %{_sysconfdir}/mfs/mfsmaster.cfg
++
++# Source function library.
++. %{_initrddir}/functions
++
++# Source networking configuration.
++. %{_sysconfdir}/sysconfig/network
++
++# Source initialization configuration.
++[ -r &quot;%{_sysconfdir}/sysconfig/mfsmaster&quot; ] &amp;&amp; . %{_sysconfdir}/sysconfig/mfsmaster
++
++# Check that networking is up.
++[ &quot;${NETWORKING}&quot; == &quot;no&quot; ] &amp;&amp; exit 0
++[ -x &quot;%{_sbindir}/mfsmaster&quot; ] || exit 1
++[ -r &quot;%{_sysconfdir}/mfs/mfsmaster.cfg&quot; ] || exit 1
++[ -r &quot;%{_sysconfdir}/mfs/mfsexports.cfg&quot; ] || exit 1
++
++RETVAL=0
++prog=&quot;mfsmaster&quot;
++
++start () {
++    echo -n $&quot;Starting $prog: &quot;
++    daemon $prog &gt;/dev/null 2&gt;&amp;1
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/\$prog
++    return $RETVAL
++}
++
++stop () {
++    echo -n $&quot;Stopping $prog: &quot;
++    $prog stop &gt;/dev/null 2&gt;&amp;1 || killproc $prog &gt;/dev/null 2&gt;&amp;1
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++    return $RETVAL
++}
++
++restart () {
++    stop
++    start
++}
++
++case &quot;$1&quot; in
++  start)
++    start
++    ;;
++  stop)
++    stop
++    ;;
++  restart|reload)
++    restart
++    ;;
++  condrestart)
++    [ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++    RETVAL=$?
++    ;;
++  status)
++    status $prog
++    RETVAL=$?
++    ;;
++  *)
++    echo $&quot;Usage: $0 {start|stop|restart|condrestart|status}&quot;
++    RETVAL=1
++esac
++
++exit $RETVAL
++MFSMASTER
++
++# create the mfsmetalogger init script
++%{__cat} &gt; %{buildroot}%{_initrddir}/mfsmetalogger &lt;&lt;'MFSMETALOGGER'
++#!/bin/bash
++#
++# Init file for the MooseFS metalogger service
++#
++# chkconfig: - 92 84
++#
++# description: MooseFS metalogger
++#
++# processname: mfsmetalogger
++# config: %{_sysconfdir}/mfs/mfsmetalogger.cfg
++
++# Source function library.
++. %{_initrddir}/functions
++
++# Source networking configuration.
++. %{_sysconfdir}/sysconfig/network
++
++# Source initialization configuration.
++[ -r &quot;%{_sysconfdir}/sysconfig/mfsmetalogger&quot; ] &amp;&amp; . %{_sysconfdir}/sysconfig/mfsmetalogger
++
++# Check that networking is up.
++[ &quot;${NETWORKING}&quot; == &quot;no&quot; ] &amp;&amp; exit 0
++[ -x &quot;%{_sbindir}/mfsmetalogger&quot; ] || exit 1
++[ -r &quot;%{_sysconfdir}/mfs/mfsmetalogger.cfg&quot; ] || exit 1
++
++RETVAL=0
++prog=&quot;mfsmetalogger&quot;
++
++start () {
++    echo -n $&quot;Starting $prog: &quot;
++    daemon $prog &gt;/dev/null 2&gt;&amp;1
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/\$prog
++    return $RETVAL
++}
++
++stop () {
++    echo -n $&quot;Stopping $prog: &quot;
++    $prog stop &gt;/dev/null 2&gt;&amp;1 || killproc $prog &gt;/dev/null 2&gt;&amp;1
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++    return $RETVAL
++}
++
++restart () {
++    stop
++    start
++}
++
++case &quot;$1&quot; in
++  start)
++    start
++    ;;
++  stop)
++    stop
++    ;;
++  restart|reload)
++    restart
++    ;;
++  condrestart)
++    [ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++    RETVAL=$?
++    ;;
++  status)
++    status $prog
++    RETVAL=$?
++    ;;
++  *)
++    echo $&quot;Usage: $0 {start|stop|restart|condrestart|status}&quot;
++    RETVAL=1
++esac
++
++exit $RETVAL
++MFSMETALOGGER
++
++# create the mfschunkserver init script
++%{__cat} &gt; %{buildroot}%{_initrddir}/mfschunkserver &lt;&lt;'MFSCHUNKSERVER'
++#!/bin/bash
++#
++# Init file for the MooseFS chunkserver service
++#
++# chkconfig: - 93 83
++#
++# description: MooseFS chunkserver
++#
++# processname: mfschunkserver
++# config: %{_sysconfdir}/mfs/mfschunkserver.cfg
++
++# Source function library.
++. %{_initrddir}/functions
++
++# Source networking configuration.
++. %{_sysconfdir}/sysconfig/network
++
++# Source initialization configuration.
++[ -r &quot;%{_sysconfdir}/sysconfig/mfschunkserver&quot; ] &amp;&amp; . %{_sysconfdir}/sysconfig/mfschunkserver
++
++# Check that networking is up.
++[ &quot;${NETWORKING}&quot; == &quot;no&quot; ] &amp;&amp; exit 0
++[ -x &quot;%{_sbindir}/mfschunkserver&quot; ] || exit 1
++[ -r &quot;%{_sysconfdir}/mfs/mfschunkserver.cfg&quot; ] || exit 1
++[ -r &quot;%{_sysconfdir}/mfs/mfshdd.cfg&quot; ] || exit 1
++
++RETVAL=0
++prog=&quot;mfschunkserver&quot;
++
++start () {
++    echo -n $&quot;Starting $prog: &quot;
++    daemon $prog &gt;/dev/null 2&gt;&amp;1
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/\$prog
++    return $RETVAL
++}
++
++stop () {
++    echo -n $&quot;Stopping $prog: &quot;
++    $prog stop &gt;/dev/null 2&gt;&amp;1 || killproc $prog &gt;/dev/null 2&gt;&amp;1
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++    return $RETVAL
++}
++
++restart () {
++    stop
++    start
++}
++
++case &quot;$1&quot; in
++  start)
++    start
++    ;;
++  stop)
++    stop
++    ;;
++  restart|reload)
++    restart
++    ;;
++  condrestart)
++    [ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++    RETVAL=$?
++    ;;
++  status)
++    status $prog
++    RETVAL=$?
++    ;;
++  *)
++    echo $&quot;Usage: $0 {start|stop|restart|condrestart|status}&quot;
++    RETVAL=1
++esac
++
++exit $RETVAL
++MFSCHUNKSERVER
++
++%post
++/sbin/chkconfig --add mfsmaster &gt;/dev/null 2&gt;&amp;1
++/sbin/chkconfig --add mfsmetalogger &gt;/dev/null 2&gt;&amp;1
++/sbin/chkconfig --add mfschunkserver &gt;/dev/null 2&gt;&amp;1
++
+ %clean
+ rm -rf %{buildroot}
+ 
+@@ -107,6 +353,8 @@
+ %exclude %doc %{_mandir}/man1/*
+ %{_sbindir}/*
+ %{_sysconfdir}/mfs/
++%dir %{_initrddir}
++%attr(0755,root,root) %{_initrddir}/*
+ %{_datadir}/mfscgi/
+ %attr(-,daemon,daemon) %{_localstatedir}/mfs/
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007688.html">[svn] r8894 - /trunk/rpms/rabbitvcs/rabbitvcs.spec
+</A></li>
+	<LI>Next message: <A HREF="007690.html">[svn] r8896 - in /trunk/rpms: perl-JSON-RPC-Common/ perl-JSON-RPC-Common/perl-JSON-RPC-Common.spec perl-Taint-Util/ perl-Taint-Util/perl-Taint-Util.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7689">[ date ]</a>
+              <a href="thread.html#7689">[ thread ]</a>
+              <a href="subject.html#7689">[ subject ]</a>
+              <a href="author.html#7689">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

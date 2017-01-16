@@ -1,0 +1,576 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3983 - trunk/rpms/smpeg
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3983%20-%20trunk/rpms/smpeg&In-Reply-To=%3C20060118184050.841783180F6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002782.html">
+   <LINK REL="Next"  HREF="002784.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3983 - trunk/rpms/smpeg</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3983%20-%20trunk/rpms/smpeg&In-Reply-To=%3C20060118184050.841783180F6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3983 - trunk/rpms/smpeg">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jan 18 19:40:50 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002782.html">[svn] r3982 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="002784.html">[svn] r3984 - trunk/rpms/xmame
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2783">[ date ]</a>
+              <a href="thread.html#2783">[ thread ]</a>
+              <a href="subject.html#2783">[ subject ]</a>
+              <a href="author.html#2783">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-01-18 19:40:48 +0100 (Wed, 18 Jan 2006)
+New Revision: 3983
+
+Added:
+   trunk/rpms/smpeg/smpeg-0.4.4-PIC.patch
+   trunk/rpms/smpeg/smpeg-0.4.4-gcc41.patch
+   trunk/rpms/smpeg/smpeg-0.4.4-gnu-stack.patch
+   trunk/rpms/smpeg/smpeg-0.4.4-m4.patch
+Modified:
+   trunk/rpms/smpeg/smpeg.spec
+Log:
+Patch smpeg so that if builds with gcc 4.1.
+
+
+Added: trunk/rpms/smpeg/smpeg-0.4.4-PIC.patch
+===================================================================
+--- trunk/rpms/smpeg/smpeg-0.4.4-PIC.patch	2006-01-18 18:12:56 UTC (rev 3982)
++++ trunk/rpms/smpeg/smpeg-0.4.4-PIC.patch	2006-01-18 18:40:48 UTC (rev 3983)
+@@ -0,0 +1,308 @@
++Fix PIC issues in mmx routines
++
++--- video/mmxflags_asm.S
+++++ video/mmxflags_asm.S
++@@ -1,11 +1,6 @@
++ 
++ #if defined(i386) &amp;&amp; defined(USE_MMX)
++ 
++-.data
++-	.align 16
++-	.type	 <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">flags, at object</A>
++-flags: .long 0
++-
++ .text
++ 	.align 4
++ .globl cpu_flags
++@@ -40,16 +35,13 @@ cpu_flags: 
++         xorl %ecx,%eax
++         je cpu_flags.L1
++ 
++-        pusha
+++        pushl %ebx
++ 
++         movl $1,%eax
++         cpuid
+++        movl %edx,%eax
++ 
++-        movl %edx,flags
++-
++-        popa
++-
++-        movl flags,%eax
+++        popl %ebx
++ 
++ cpu_flags.L1: 
++         ret
++--- video/mmxidct_asm.S
+++++ video/mmxidct_asm.S
++@@ -31,11 +31,6 @@ preSC:  .short  16384,22725,21407,19266,
++ x0005000200010001:
++ 	.long	0x00010001,0x00050002
++ 	.align 8
++-	.type	<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">x0040000000000000, at object</A>
++-	.size	x0040000000000000,8
++-x0040000000000000:
++-	.long	0, 0x00400000
++-	.align 8
++ 	.type	<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">x5a825a825a825a82, at object</A>
++ 	.size	x5a825a825a825a82,8
++ x5a825a825a825a82:
++@@ -80,8 +75,21 @@ scratch7:
++ x0:
++ 	.long 0,0
++ 	.align 8
+++
++ .text
++ 	.align 4
+++
+++#ifdef __PIC__
+++# undef __i686 /* gcc define gets in our way */
+++# define MUNG(sym) sym ## @GOTOFF(%ebx)
+++# define INIT_PIC() \
+++	call __i686.get_pc_thunk.bx ; \
+++	addl $_GLOBAL_OFFSET_TABLE_, %ebx
+++#else
+++# define MUNG(sym) sym
+++# define INIT_PIC()
+++#endif
+++
++ .globl IDCT_mmx
++ 	.type	 <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">IDCT_mmx, at function</A>
++ IDCT_mmx:
++@@ -92,8 +100,9 @@ IDCT_mmx:
++ 	pushl %edx
++ 	pushl %esi
++ 	pushl %edi
+++	INIT_PIC()
++ 	movl 8(%ebp),%esi		/* source matrix */
++-	leal preSC, %ecx
+++	leal MUNG(preSC), %ecx
++ /* column 0: even part
++  * use V4, V12, V0, V8 to produce V22..V25
++  */
++@@ -109,7 +118,7 @@ IDCT_mmx:
++ 	movq %mm1, %mm2			/* added 11/1/96 */
++ 	pmulhw 8*8(%esi),%mm5		/* V8 */
++ 	psubsw %mm0, %mm1		/* V16 */
++-	pmulhw x5a825a825a825a82, %mm1	/* 23170 -&gt;V18 */
+++	pmulhw MUNG(x5a825a825a825a82), %mm1	/* 23170 -&gt;V18 */
++ 	paddsw %mm0, %mm2		/* V17 */
++ 	movq %mm2, %mm0			/* duplicate V17 */
++ 	psraw $1, %mm2			/* t75=t82 */
++@@ -150,7 +159,7 @@ IDCT_mmx:
++ 	paddsw %mm0, %mm3		/* V29 ; free mm0 */
++ 	movq %mm7, %mm1			/* duplicate V26 */
++ 	psraw $1, %mm3			/* t91=t94 */
++-	pmulhw x539f539f539f539f,%mm7	/* V33 */
+++	pmulhw MUNG(x539f539f539f539f),%mm7	/* V33 */
++ 	psraw $1, %mm1			/* t96 */
++ 	movq %mm5, %mm0			/* duplicate V2 */
++ 	psraw $2, %mm4			/* t85=t87 */
++@@ -158,15 +167,15 @@ IDCT_mmx:
++ 	psubsw %mm4, %mm0		/* V28 ; free mm4 */
++ 	movq %mm0, %mm2			/* duplicate V28 */
++ 	psraw $1, %mm5			/* t90=t93 */
++-	pmulhw x4546454645464546,%mm0	/* V35 */
+++	pmulhw MUNG(x4546454645464546),%mm0	/* V35 */
++ 	psraw $1, %mm2			/* t97 */
++ 	movq %mm5, %mm4			/* duplicate t90=t93 */
++ 	psubsw %mm2, %mm1		/* V32 ; free mm2 */
++-	pmulhw x61f861f861f861f8,%mm1	/* V36 */
+++	pmulhw MUNG(x61f861f861f861f8),%mm1	/* V36 */
++ 	psllw $1, %mm7			/* t107 */
++ 	paddsw %mm3, %mm5		/* V31 */
++ 	psubsw %mm3, %mm4		/* V30 ; free mm3 */
++-	pmulhw x5a825a825a825a82,%mm4	/* V34 */
+++	pmulhw MUNG(x5a825a825a825a82),%mm4	/* V34 */
++ 	nop
++ 	psubsw %mm1, %mm0		/* V38 */
++ 	psubsw %mm7, %mm1		/* V37 ; free mm7 */
++@@ -233,7 +242,7 @@ IDCT_mmx:
++ 	psubsw %mm7, %mm1		/* V50 */
++ 	pmulhw 8*9(%esi), %mm5		/* V9 */
++ 	paddsw %mm7, %mm2		/* V51 */
++-	pmulhw x5a825a825a825a82, %mm1	/* 23170 -&gt;V52 */
+++	pmulhw MUNG(x5a825a825a825a82), %mm1	/* 23170 -&gt;V52 */
++ 	movq %mm2, %mm6			/* duplicate V51 */
++ 	psraw $1, %mm2			/* t138=t144 */
++ 	movq %mm3, %mm4			/* duplicate V1 */
++@@ -274,11 +283,11 @@ IDCT_mmx:
++  * even more by doing the correction step in a later stage when the number
++  * is actually multiplied by 16
++  */
++-	paddw x0005000200010001, %mm4
+++	paddw MUNG(x0005000200010001), %mm4
++ 	psubsw %mm6, %mm3		/* V60 ; free mm6 */
++ 	psraw $1, %mm0			/* t154=t156 */
++ 	movq %mm3, %mm1			/* duplicate V60 */
++-	pmulhw x539f539f539f539f, %mm1	/* V67 */
+++	pmulhw MUNG(x539f539f539f539f), %mm1	/* V67 */
++ 	movq %mm5, %mm6			/* duplicate V3 */
++ 	psraw $2, %mm4			/* t148=t150 */
++ 	paddsw %mm4, %mm5		/* V61 */
++@@ -287,13 +296,13 @@ IDCT_mmx:
++ 	psllw $1, %mm1			/* t169 */
++ 	paddsw %mm0, %mm5		/* V65 -&gt; result */
++ 	psubsw %mm0, %mm4		/* V64 ; free mm0 */
++-	pmulhw x5a825a825a825a82, %mm4	/* V68 */
+++	pmulhw MUNG(x5a825a825a825a82), %mm4	/* V68 */
++ 	psraw $1, %mm3			/* t158 */
++ 	psubsw %mm6, %mm3		/* V66 */
++ 	movq %mm5, %mm2			/* duplicate V65 */
++-	pmulhw x61f861f861f861f8, %mm3	/* V70 */
+++	pmulhw MUNG(x61f861f861f861f8), %mm3	/* V70 */
++ 	psllw $1, %mm6			/* t165 */
++-	pmulhw x4546454645464546, %mm6	/* V69 */
+++	pmulhw MUNG(x4546454645464546), %mm6	/* V69 */
++ 	psraw $1, %mm2			/* t172 */
++ /* moved from next block */
++ 	movq 8*5(%esi), %mm0		/* V56 */
++@@ -418,7 +427,7 @@ IDCT_mmx:
++ *	movq 8*13(%esi), %mm4		tmt13
++ */
++ 	psubsw %mm4, %mm3		/* V134 */
++-	pmulhw x5a825a825a825a82, %mm3	/* 23170 -&gt;V136 */
+++	pmulhw MUNG(x5a825a825a825a82), %mm3	/* 23170 -&gt;V136 */
++ 	movq 8*9(%esi), %mm6		/* tmt9 */
++ 	paddsw %mm4, %mm5		/* V135 ; mm4 free */
++ 	movq %mm0, %mm4			/* duplicate tmt1 */
++@@ -447,17 +456,17 @@ IDCT_mmx:
++ 	psubsw %mm7, %mm0		/* V144 */
++ 	movq %mm0, %mm3			/* duplicate V144 */
++ 	paddsw %mm7, %mm2		/* V147 ; free mm7 */
++-	pmulhw x539f539f539f539f, %mm0	/* 21407-&gt; V151 */
+++	pmulhw MUNG(x539f539f539f539f), %mm0	/* 21407-&gt; V151 */
++ 	movq %mm1, %mm7			/* duplicate tmt3 */
++ 	paddsw %mm5, %mm7		/* V145 */
++ 	psubsw %mm5, %mm1		/* V146 ; free mm5 */
++ 	psubsw %mm1, %mm3		/* V150 */
++ 	movq %mm7, %mm5			/* duplicate V145 */
++-	pmulhw x4546454645464546, %mm1	/* 17734-&gt; V153 */
+++	pmulhw MUNG(x4546454645464546), %mm1	/* 17734-&gt; V153 */
++ 	psubsw %mm2, %mm5		/* V148 */
++-	pmulhw x61f861f861f861f8, %mm3	/* 25080-&gt; V154 */
+++	pmulhw MUNG(x61f861f861f861f8), %mm3	/* 25080-&gt; V154 */
++ 	psllw $2, %mm0			/* t311 */
++-	pmulhw x5a825a825a825a82, %mm5	/* 23170-&gt; V152 */
+++	pmulhw MUNG(x5a825a825a825a82), %mm5	/* 23170-&gt; V152 */
++ 	paddsw %mm2, %mm7		/* V149 ; free mm2 */
++ 	psllw $1, %mm1			/* t313 */
++ 	nop	/* without the nop - freeze here for one clock */
++@@ -483,7 +492,7 @@ IDCT_mmx:
++ 	paddsw %mm3, %mm6		/* V164 ; free mm3 */
++ 	movq %mm4, %mm3			/* duplicate V142 */
++ 	psubsw %mm5, %mm4		/* V165 ; free mm5 */
++-	movq %mm2, scratch7		/* out7 */
+++	movq %mm2, MUNG(scratch7)		/* out7 */
++ 	psraw $4, %mm6
++ 	psraw $4, %mm4
++ 	paddsw %mm5, %mm3		/* V162 */
++@@ -494,11 +503,11 @@ IDCT_mmx:
++  */
++ 	movq %mm6, 8*9(%esi)		/* out9 */
++ 	paddsw %mm1, %mm0		/* V161 */
++-	movq %mm3, scratch5		/* out5 */
+++	movq %mm3, MUNG(scratch5)		/* out5 */
++ 	psubsw %mm1, %mm5		/* V166 ; free mm1 */
++ 	movq %mm4, 8*11(%esi)		/* out11 */
++ 	psraw $4, %mm5
++-	movq %mm0, scratch3		/* out3 */
+++	movq %mm0, MUNG(scratch3)		/* out3 */
++ 	movq %mm2, %mm4			/* duplicate V140 */
++ 	movq %mm5, 8*13(%esi)		/* out13 */
++ 	paddsw %mm7, %mm2		/* V160 */
++@@ -508,7 +517,7 @@ IDCT_mmx:
++ /* moved from the next block */
++ 	movq 8*3(%esi), %mm7
++ 	psraw $4, %mm4
++-	movq %mm2, scratch1		/* out1 */
+++	movq %mm2, MUNG(scratch1)		/* out1 */
++ /* moved from the next block */
++ 	movq %mm0, %mm1
++ 	movq %mm4, 8*15(%esi)		/* out15 */
++@@ -565,15 +574,15 @@ IDCT_mmx:
++ 	paddsw %mm4, %mm3		/* V113 ; free mm4 */
++ 	movq %mm0, %mm4			/* duplicate V110 */
++ 	paddsw %mm1, %mm2		/* V111 */
++-	pmulhw x539f539f539f539f, %mm0	/* 21407-&gt; V117 */
+++	pmulhw MUNG(x539f539f539f539f), %mm0	/* 21407-&gt; V117 */
++ 	psubsw %mm1, %mm5		/* V112 ; free mm1 */
++ 	psubsw %mm5, %mm4		/* V116 */
++ 	movq %mm2, %mm1			/* duplicate V111 */
++-	pmulhw x4546454645464546, %mm5	/* 17734-&gt; V119 */
+++	pmulhw MUNG(x4546454645464546), %mm5	/* 17734-&gt; V119 */
++ 	psubsw %mm3, %mm2		/* V114 */
++-	pmulhw x61f861f861f861f8, %mm4	/* 25080-&gt; V120 */
+++	pmulhw MUNG(x61f861f861f861f8), %mm4	/* 25080-&gt; V120 */
++ 	paddsw %mm3, %mm1		/* V115 ; free mm3 */
++-	pmulhw x5a825a825a825a82, %mm2	/* 23170-&gt; V118 */
+++	pmulhw MUNG(x5a825a825a825a82), %mm2	/* 23170-&gt; V118 */
++ 	psllw $2, %mm0			/* t266 */
++ 	movq %mm1, (%esi)		/* save V115 */
++ 	psllw $1, %mm5			/* t268 */
++@@ -591,7 +600,7 @@ IDCT_mmx:
++ 	movq %mm6, %mm3			/* duplicate tmt4 */
++ 	psubsw %mm0, %mm6		/* V100 */
++ 	paddsw %mm0, %mm3		/* V101 ; free mm0 */
++-	pmulhw x5a825a825a825a82, %mm6	/* 23170 -&gt;V102 */
+++	pmulhw MUNG(x5a825a825a825a82), %mm6	/* 23170 -&gt;V102 */
++ 	movq %mm7, %mm5			/* duplicate tmt0 */
++ 	movq 8*8(%esi), %mm1		/* tmt8 */
++ 	paddsw %mm1, %mm7		/* V103 */
++@@ -625,10 +634,10 @@ IDCT_mmx:
++ 	movq 8*2(%esi), %mm3		/* V123 */
++ 	paddsw %mm4, %mm7		/* out0 */
++ /* moved up from next block */
++-	movq scratch3, %mm0
+++	movq MUNG(scratch3), %mm0
++ 	psraw $4, %mm7
++ /* moved up from next block */
++-	movq scratch5, %mm6 
+++	movq MUNG(scratch5), %mm6 
++ 	psubsw %mm4, %mm1		/* out14 ; free mm4 */
++ 	paddsw %mm3, %mm5		/* out2 */
++ 	psraw $4, %mm1
++@@ -639,7 +648,7 @@ IDCT_mmx:
++ 	movq %mm5, 8*2(%esi)		/* out2 ; free mm5 */
++ 	psraw $4, %mm2
++ /* moved up to the prev block */
++-	movq scratch7, %mm4
+++	movq MUNG(scratch7), %mm4
++ /* moved up to the prev block */
++ 	psraw $4, %mm0
++ 	movq %mm2, 8*12(%esi)		/* out12 ; free mm2 */
++@@ -647,13 +656,13 @@ IDCT_mmx:
++ 	psraw $4, %mm6
++ /* move back the data to its correct place
++ * moved up to the prev block
++- *	movq scratch3, %mm0
++- *	movq scratch5, %mm6
++- *	movq scratch7, %mm4
+++ *	movq MUNG(scratch3), %mm0
+++ *	movq MUNG(scratch5), %mm6
+++ *	movq MUNG(scratch7), %mm4
++  *	psraw $4, %mm0
++  *	psraw $4, %mm6
++ */
++-	movq scratch1, %mm1
+++	movq MUNG(scratch1), %mm1
++ 	psraw $4, %mm4
++ 	movq %mm0, 8*3(%esi)		/* out3 */
++ 	psraw $4, %mm1
++@@ -671,6 +680,15 @@ IDCT_mmx:
++ .Lfe1:
++ 	.size	 IDCT_mmx,.Lfe1-IDCT_mmx
++ 
+++#ifdef __PIC__
+++	.section .gnu.linkonce.t.__i686.get_pc_thunk.bx,&quot;ax&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">, at progbits</A>
+++.globl __i686.get_pc_thunk.bx
+++	.hidden  __i686.get_pc_thunk.bx
+++	.type    <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">__i686.get_pc_thunk.bx, at function</A>
+++ __i686.get_pc_thunk.bx:
+++	movl (%esp), %ebx
+++	ret
+++#endif
++ 
++ #endif /* i386 &amp;&amp; USE_MMX */
++ 
+
+Added: trunk/rpms/smpeg/smpeg-0.4.4-gcc41.patch
+===================================================================
+--- trunk/rpms/smpeg/smpeg-0.4.4-gcc41.patch	2006-01-18 18:12:56 UTC (rev 3982)
++++ trunk/rpms/smpeg/smpeg-0.4.4-gcc41.patch	2006-01-18 18:40:48 UTC (rev 3983)
+@@ -0,0 +1,41 @@
++Index: MPEGaudio.h
++===================================================================
++RCS file: /cvs/cvsroot/smpeg/MPEGaudio.h,v
++retrieving revision 1.23
++diff -u -p -r1.23 MPEGaudio.h
++--- smpeg/MPEGaudio.h	17 Jul 2001 19:52:24 -0000	1.23
+++++ smpeg/MPEGaudio.h	6 Dec 2005 06:10:43 -0000
++@@ -151,12 +151,6 @@ private:
++ /* The actual MPEG audio class */
++ class MPEGaudio : public MPEGerror, public MPEGaudioaction {
++ 
++-    friend void Play_MPEGaudioSDL(void *udata, Uint8 *stream, int len);
++-    friend int Play_MPEGaudio(MPEGaudio *audio, Uint8 *stream, int len);
++-#ifdef THREADED_AUDIO
++-    friend int Decode_MPEGaudio(void *udata);
++-#endif
++-
++ public:
++     MPEGaudio(MPEGstream *stream, bool initSDL = true);
++     virtual ~MPEGaudio();
++@@ -367,6 +361,20 @@ public:
++ #define N_TIMESTAMPS 5
++ 
++   double timestamp[N_TIMESTAMPS];
+++
+++  /* Functions which access MPEGaudio internals */
+++  friend void Play_MPEGaudioSDL(void *udata, Uint8 *stream, int len);
+++  friend int Play_MPEGaudio(MPEGaudio *audio, Uint8 *stream, int len);
+++#ifdef THREADED_AUDIO
+++  friend int Decode_MPEGaudio(void *udata);
+++#endif
++ };
++ 
+++/* Need to duplicate the prototypes, this is not a typo :) */
+++void Play_MPEGaudioSDL(void *udata, Uint8 *stream, int len);
+++int Play_MPEGaudio(MPEGaudio *audio, Uint8 *stream, int len);
+++#ifdef THREADED_AUDIO
+++int Decode_MPEGaudio(void *udata);
+++#endif
+++
++ #endif /* _MPEGAUDIO_H_ */
+
+Added: trunk/rpms/smpeg/smpeg-0.4.4-gnu-stack.patch
+===================================================================
+--- trunk/rpms/smpeg/smpeg-0.4.4-gnu-stack.patch	2006-01-18 18:12:56 UTC (rev 3982)
++++ trunk/rpms/smpeg/smpeg-0.4.4-gnu-stack.patch	2006-01-18 18:40:48 UTC (rev 3983)
+@@ -0,0 +1,32 @@
++Make sure that the asm files don't incorrectly trigger an executable
++stack marking in the final shared library.  That's bad, mmmkay.
++
++before:
++$ readelf -l /usr/lib/libsmpeg.so | grep -A 1 GNU_STACK
++  GNU_STACK      0x0000000000000000 0x0000000000000000 0x0000000000000000
++                 0x0000000000000000 0x0000000000000000  RWE    8
++after:
++$ readelf -l /usr/lib/libsmpeg.so | grep -A 1 GNU_STACK
++  GNU_STACK      0x0000000000000000 0x0000000000000000 0x0000000000000000
++                 0x0000000000000000 0x0000000000000000  RW     8
++
++--- smpeg-0.4.4/video/mmxflags_asm.S
+++++ smpeg-0.4.4/video/mmxflags_asm.S
++@@ -57,3 +57,7 @@
++ 	.size	 cpu_flags,.Lfe1-cpu_flags
++ 
++ #endif /* i386 &amp;&amp; USE_MMX */
+++
+++#ifdef __ELF__
+++.section .note.GNU-stack,&quot;&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">, at progbits</A>
+++#endif
++--- smpeg-0.4.4/video/mmxidct_asm.S
+++++ smpeg-0.4.4/video/mmxidct_asm.S
++@@ -673,3 +673,7 @@
++ 
++ 
++ #endif /* i386 &amp;&amp; USE_MMX */
+++
+++#ifdef __ELF__
+++.section .note.GNU-stack,&quot;&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">, at progbits</A>
+++#endif
+
+Added: trunk/rpms/smpeg/smpeg-0.4.4-m4.patch
+===================================================================
+--- trunk/rpms/smpeg/smpeg-0.4.4-m4.patch	2006-01-18 18:12:56 UTC (rev 3982)
++++ trunk/rpms/smpeg/smpeg-0.4.4-m4.patch	2006-01-18 18:40:48 UTC (rev 3983)
+@@ -0,0 +1,9 @@
++Fix aclocal warning:
++/usr/share/aclocal/smpeg.m4:13: warning: underquoted definition of AM_PATH_SMPEG
++--- smpeg-0.4.4/smpeg.m4
+++++ smpeg-0.4.4/smpeg.m4
++@@ -12,3 +12,3 @@
++ dnl
++-AC_DEFUN(AM_PATH_SMPEG,
+++AC_DEFUN([AM_PATH_SMPEG],
++ [dnl
+
+Modified: trunk/rpms/smpeg/smpeg.spec
+===================================================================
+--- trunk/rpms/smpeg/smpeg.spec	2006-01-18 18:12:56 UTC (rev 3982)
++++ trunk/rpms/smpeg/smpeg.spec	2006-01-18 18:40:48 UTC (rev 3983)
+@@ -4,13 +4,17 @@
+ Summary: MPEG library for SDL
+ Name: smpeg
+ Version: 0.4.4
+-Release: 0
++Release: 1
+ License: LGPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://icculus.org/smpeg/">http://icculus.org/smpeg/</A>
+ Source: <A HREF="ftp://sunsite.dk/pub/os/linux/loki/open-source/smpeg/smpeg-%{version">ftp://sunsite.dk/pub/os/linux/loki/open-source/smpeg/smpeg-%{version</A>}.tar.gz
+ Patch0: smpeg-0.4.4-gcc32.patch
+ Patch1: smpeg-0.4.4-fixes.patch
++Patch2: smpeg-0.4.4-PIC.patch
++Patch3: smpeg-0.4.4-gnu-stack.patch
++Patch4: smpeg-0.4.4-m4.patch
++Patch5: smpeg-0.4.4-gcc41.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: SDL-devel, gtk+-devel, gcc-c++
+ BuildRequires: autoconf, automake, automake14
+@@ -21,6 +25,7 @@
+ completed the initial work to wed these two projects in order to 
+ create a general purpose MPEG video/audio player for the Linux OS. 
+ 
++
+ %package devel
+ Summary: Header files, libraries and development documentation for %{name}
+ Group: Development/Libraries
+@@ -31,11 +36,17 @@
+ documentation for %{name}. If you like to develop programs using %{name},
+ you will need to install %{name}-devel.
+ 
++
+ %prep
+ %setup
+-%patch0 -b .gcc32
+-%patch1 -b .fixes
++%patch0 -p0 -b .gcc32
++%patch1 -p0 -b .fixes
++%patch2 -p0 -b .PIC
++%patch3 -p1 -b .gnu-stack
++%patch4 -p1 -b .m4
++%patch5 -p1 -b .gcc41
+ 
++
+ %build
+ %{__automake} -a || %{__automake}-1.4 -a
+ %{__autoconf}
+@@ -43,19 +54,21 @@
+     --disable-opengl-player
+ %{__make} %{?_smp_mflags}
+ 
++
+ %install
+ %{__rm} -rf %{buildroot}
+ %makeinstall
+ 
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+-%post
+-/sbin/ldconfig
+ 
+-%postun
+-/sbin/ldconfig
++%post -p /sbin/ldconfig
+ 
++%postun -p /sbin/ldconfig
++
++
+ %files
+ %defattr(-, root, root, 0755)
+ %doc CHANGES COPYING README TODO
+@@ -73,7 +86,12 @@
+ %{_libdir}/*.so
+ %{_datadir}/aclocal/*.m4
+ 
++
+ %changelog
++* Wed Jan 18 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.4.4-1
++- Include patch from Gentoo to fix compilation with gcc 4.1 (FC5).
++- Also include nice PIC, gnu stack and m4 patches from Gentoo.
++
+ * Thu Sep 04 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.4-0
+ - Initial package. (using DAR)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002782.html">[svn] r3982 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="002784.html">[svn] r3984 - trunk/rpms/xmame
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2783">[ date ]</a>
+              <a href="thread.html#2783">[ thread ]</a>
+              <a href="subject.html#2783">[ subject ]</a>
+              <a href="author.html#2783">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,259 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2835 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2835%20-%20trunk/tools/yam&In-Reply-To=%3C20050117033014.330E517F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001639.html">
+   <LINK REL="Next"  HREF="001641.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2835 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2835%20-%20trunk/tools/yam&In-Reply-To=%3C20050117033014.330E517F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2835 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Jan 17 04:30:14 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001639.html">[SVN] r2834 - in trunk/rpms: antinat autopano-sift avidemux2	bash-completion bittorrent clamav dillo ffmpeg glame	glunarclock lft libquicktime liferea multitail	perl-Email-MIME-Encodings rsync squidguard	squidguard-blacklists subversion syslinux tcpick unfs3
+</A></li>
+        <LI>Next message: <A HREF="001641.html">[SVN] r2836 - trunk/rpms/kannel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1640">[ date ]</a>
+              <a href="thread.html#1640">[ thread ]</a>
+              <a href="subject.html#1640">[ subject ]</a>
+              <a href="author.html#1640">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-01-17 04:30:12 +0100 (Mon, 17 Jan 2005)
+New Revision: 2835
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-complex.conf
+   trunk/tools/yam/yam.conf
+   trunk/tools/yam/yam.spec
+Log:
+Updates
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2005-01-16 21:29:10 UTC (rev 2834)
++++ trunk/tools/yam/ChangeLog	2005-01-17 03:30:12 UTC (rev 2835)
+@@ -1,3 +1,7 @@
++* 0.7.3
++- Added ia64 support (Gareth Armstrong)
++- Use chkconfig to enable Yam in SPEC file (Bert de Bruijn)
++
+ * 0.7.2
+ - Enabled createrepo support by default
+ - Added support for hardlink++
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2005-01-16 21:29:10 UTC (rev 2834)
++++ trunk/tools/yam/yam	2005-01-17 03:30:12 UTC (rev 2835)
+@@ -21,6 +21,7 @@
+ 
+ archs = {
+ 	'i386': ['i386', 'i486', 'i586', 'i686', 'athlon'],
++	'ia64': ['ia64'],
+ 	'x86_64': ['i386', 'i486', 'i586', 'i686', 'athlon', 'x86_64'],
+ 	'ppc64': ['ppc', 'ppc64'],
+ }
+@@ -112,7 +113,6 @@
+ 	def __init__(self):
+ 		self.configfile = op.configfile
+ 		self.cfg = ConfigParser.ConfigParser()
+-		
+ 
+ 		(s,b,p,q,f,o) = urlparse.urlparse(self.configfile)
+ 		if s in ('http', 'ftp', 'file'):
+@@ -287,12 +287,13 @@
+ 			mkdir(os.path.join(self.dir, 'iso'))
+ 		else:
+ 			remove(os.path.join(self.dir, 'iso'))
++		regexp = re.compile('.+-CD[0-9]\..+')
+ 		for iso in self.isos():
+ 			if cf.shareiso:
+ 				symlink(iso, os.path.join(self.dir, 'iso'))
+ 			discnr = discnr + 1
+ 			discstr = 'disc'
+-			if re.compile('.+-CD[0-9]\..+').match(iso, 1):
++			if regexp.match(iso, 1):
+ 				discstr = 'CD'
+ 			disc = '%s%s' % (discstr, discnr)
+ 			discs.append(disc)
+@@ -318,10 +319,11 @@
+ 	def umount(self):
+ 		&quot;Umount all mounted ISOs&quot;
+ 		discnr = 0
++		regexp = re.compile('.+-CD[0-9]\..+')
+ 		for iso in self.isos():
+ 			discnr = discnr + 1
+ 			discstr = 'disc'
+-			if re.compile('.+-CD[0-9]\..+').match(iso, 1):
++			if regexp.match(iso, 1):
+ 				discstr = 'CD'
+ 			mount = os.path.join(self.dir, discstr + str(discnr))
+ 			if not os.path.isfile(cf.cmd['umount']):
+@@ -453,7 +455,10 @@
+ 		os.unlink(dst)
+ 	mkdir(os.path.dirname(dst))
+ 	if not os.path.exists(dst):
+-		shutil.copy2(src, dst)
++		if os.path.isfile(src):
++			shutil.copy2(src, dst)
++		elif os.path.isdir(src):
++			shutil.copytree(src, dst)
+ 
+ def remove(*files):
+ 	&quot;Remove files or directories&quot;
+@@ -573,12 +578,12 @@
+ 	if archs.has_key(dist.arch): as=archs[dist.arch] + ['noarch']
+ 	else: as=[dist.arch, 'noarch']
+ 	for arch in as:
+-		rpmmatch='.+\.' + arch + '\.rpm$'
++		regexp = re.compile('.+\.' + arch + '\.rpm$')
+ 		for file in filelist:
+ 			srcdir = os.path.join(dirpath, file)
+ 			if os.path.islink(srcdir):
+ 				os.path.walk(srcdir, rpmlink, (dist, repo))
+-			elif re.compile(rpmmatch).match(file, 1):
++			elif regexp.match(file, 1):
+ 				symlink(srcdir, os.path.join(dist.dir, 'RPMS.' + repo))
+ 				symlink(srcdir, os.path.join(dist.dir, 'RPMS'))
+ 	
+@@ -587,9 +592,9 @@
+ 		if archs.has_key(dist.arch): as=archs[dist.arch] + ['noarch']
+ 		else: as=[dist.arch, 'noarch']
+ 		for arch in as:
+-			rpmmatch='.+\.' + tag + '\..+\.' + arch + '\.rpm$'
++			regexp = re.comile('.+\.' + tag + '\..+\.' + arch + '\.rpm$')
+ 			for file in filelist:
+-				if re.compile(rpmmatch).match(file, 1):
++				if regexp.match(file, 1):
+ 					srcdir = os.path.join(dirpath, file)
+ 					symlink(srcdir, os.path.join(dist.dir, 'RPMS.' + repo))
+ 					symlink(srcdir, os.path.join(dist.dir, 'RPMS'))
+@@ -733,6 +738,7 @@
+ 		### Create pxe boot
+ 		if cf.tftpdir and os.path.isdir(cf.tftpdir):
+ 			tftpdir = os.path.join(cf.tftpdir, dist.nick)
++			mkdir(tftpdir)
+ 			info(1, '%s: Symlink pxe boot files to %s ' % (dist.nick, tftpdir))
+ 			mkdir(os.path.join(tftpdir, 'pxelinux.cfg'))
+ 			for file in glob.glob(dist.dir + '/disc1/images/pxeboot/vmlinuz'):
+
+Modified: trunk/tools/yam/yam-complex.conf
+===================================================================
+--- trunk/tools/yam/yam-complex.conf	2005-01-16 21:29:10 UTC (rev 2834)
++++ trunk/tools/yam/yam-complex.conf	2005-01-17 03:30:12 UTC (rev 2835)
+@@ -31,10 +31,22 @@
+ #updates = <A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+ #dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
++#[centos3]
++#name = CentOS $release ($arch)
++#release = 3
++#arch = i386 ia64 s390 s390x x86_64
++#iso = CentOS-$version-$arch.disc?.iso
++#os = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RedHat/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RedHat/RPMS/</A>
++#updates = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
++#extras = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
++#addons = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
++#contrib = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
++#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
++
+ #[tao1]
+ #name = Tao Linux $release ($arch)
+ #release = 1.0
+-#arch = i386 ia64 s390 s390x x86_64
++#arch = i386
+ #iso = mooch-$arch-disc?.iso
+ #os = <A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+ #updates = <A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+@@ -43,17 +55,6 @@
+ #upgrade = <A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+ #dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
+ 
+-#[centos3]
+-#name = CentOS $release ($arch)
+-#release = 3.3
+-#iso = CentOS-$version-$arch.disc?.iso
+-#os = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RedHat/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RedHat/RPMS/</A>
+-#updates = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
+-#extras = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
+-#addons = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
+-#contrib = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
+-#dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
+-
+ #[rh73]
+ #name = Red Hat $release ($arch)
+ #release = 7.3
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2005-01-16 21:29:10 UTC (rev 2834)
++++ trunk/tools/yam/yam.conf	2005-01-17 03:30:12 UTC (rev 2835)
+@@ -8,7 +8,7 @@
+ arch = i386
+ 
+ ### Any other section is considered a definition for a distribution
+-### Also see yam-complex.conf, yam-dag.conf and yam.example.conf
++### Also see yam-complex.conf, yam-dag.conf and yam-example.conf
+ [fc3]
+ name = Fedora Core $release ($arch)
+ release = 3
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2005-01-16 21:29:10 UTC (rev 2834)
++++ trunk/tools/yam/yam.spec	2005-01-17 03:30:12 UTC (rev 2835)
+@@ -44,6 +44,14 @@
+ %{__rm} -rf %{buildroot}
+ %makeinstall
+ 
++%post
++/sbin/chkconfig --add yam
++
++%postun
++if [ $1 -eq 0 ]; then
++        /sbin/chkconfig --del yam
++fi
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001639.html">[SVN] r2834 - in trunk/rpms: antinat autopano-sift avidemux2	bash-completion bittorrent clamav dillo ffmpeg glame	glunarclock lft libquicktime liferea multitail	perl-Email-MIME-Encodings rsync squidguard	squidguard-blacklists subversion syslinux tcpick unfs3
+</A></li>
+	<LI>Next message: <A HREF="001641.html">[SVN] r2836 - trunk/rpms/kannel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1640">[ date ]</a>
+              <a href="thread.html#1640">[ thread ]</a>
+              <a href="subject.html#1640">[ subject ]</a>
+              <a href="author.html#1640">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

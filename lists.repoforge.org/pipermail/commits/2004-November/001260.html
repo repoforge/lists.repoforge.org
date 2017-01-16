@@ -1,0 +1,196 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2454 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2454%20-%20trunk/tools/dstat&In-Reply-To=%3C20041108235729.F163317F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001259.html">
+   <LINK REL="Next"  HREF="001261.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2454 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2454%20-%20trunk/tools/dstat&In-Reply-To=%3C20041108235729.F163317F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2454 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Nov  9 00:57:29 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001259.html">[SVN] r2453 - trunk/rpms/stardust
+</A></li>
+        <LI>Next message: <A HREF="001261.html">[SVN] r2455 - trunk/rpms/swfdec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1260">[ date ]</a>
+              <a href="thread.html#1260">[ thread ]</a>
+              <a href="subject.html#1260">[ subject ]</a>
+              <a href="author.html#1260">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-09 00:57:27 +0100 (Tue, 09 Nov 2004)
+New Revision: 2454
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+New feature and fixes.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-08 21:57:00 UTC (rev 2453)
++++ trunk/tools/dstat/ChangeLog	2004-11-08 23:57:27 UTC (rev 2454)
+@@ -1,7 +1,8 @@
+ * 0.5
+-- Changed some more int()'s into float()'s. (Pasi Pirhonen)
++- Changed some more int()'s into long()'s. (Pasi Pirhonen)
+ - Fixed the cpu out of index, /proc instability. (Pasi Pirhonen)
+ - Improved the rounding function
++- Added --float, to get more detail
+ 
+ * 0.4
+ - Added interrupt stats
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-08 21:57:00 UTC (rev 2453)
++++ trunk/tools/dstat/dstat	2004-11-08 23:57:27 UTC (rev 2454)
+@@ -30,11 +30,13 @@
+ 		self.disklist = None
+ 		self.intlist = None
+ 		self.netlist = None
++		self.float = False
+ 
+ 		try:
+ 			opts, args = getopt.getopt (args, 'acdghilmnpsvyD:I:N:',
+ 				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net',
+-				'page', 'proc', 'swap', 'sys', 'version', '--vm', 'vmstat'])
++				'page', 'proc', 'swap', 'sys', 'version', 'vm', 'vmstat',
++				'float'])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -80,12 +82,14 @@
+ 			elif opt in ['--vm', '--vmstat']:
+ 				self.modlist = [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+ 				self.disklist = ('total',)
++			elif opt in ['--float']:
++				self.float = True
+ 
+ 		if not self.modlist:
+ 			self.modlist = [ 'cpu', 'disk', 'net', 'sys' ]
+ 
+ 		if len(args) &gt; 0:
+-			self.sleep = int(args[0])
++			self.sleep = float(args[0])
+ 
+ 		if len(args) &gt; 1:
+ 			self.count = int(args[1])
+@@ -119,6 +123,8 @@
+   -p, --proc         enable process stats
+   -s, --swap         enable swap stats
+   -y, --sys          enable system stats
++
++  --float            show numbers as floats (more detail)
+ '''
+ 
+ class Config:
+@@ -327,12 +333,12 @@
+ 			name = l[3]
+ 			if name == 'name': continue
+ 			if name in self.vars:
+-				self.cn2[name] = ( self.cn2[name][0] + float(l[6]), self.cn2[name][1] + float(l[10]) )
++				self.cn2[name] = ( self.cn2[name][0] + long(l[6]), self.cn2[name][1] + long(l[10]) )
+ 			for set in self.vars:
+ 				if set in self.diskset and name in self.diskset[set]:
+-					self.cn2[set] = ( self.cn2[set][0] + float(l[6]), self.cn2[set][1] + float(l[10]) )
++					self.cn2[set] = ( self.cn2[set][0] + long(l[6]), self.cn2[set][1] + long(l[10]) )
+ 			if len(l) &gt; 10:
+-				self.cn2['total'] = ( self.cn2['total'][0] + float(l[6]), self.cn2['total'][1] + float(l[10]))
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]))
+ 		if count != 0:
+ 			for name in self.cn2:
+ 				self.val[name] = ( 
+@@ -452,7 +458,7 @@
+ 			l = line.split()
+ 			name = l[0].split(':')[0]
+ 			if name in self.vars + ('MemTotal',):
+-				self.val[name] = int(l[1]) * 1024
++				self.val[name] = int(l[1]) * 024
+ 		self.val['MemUsed'] = self.val['MemTotal'] - self.val['MemFree'] - self.val['Buffers'] - self.val['Cached']
+ 
+ class dstat_net(dstat):
+@@ -500,9 +506,9 @@
+ 			else:
+ 				l = l[1:]
+ 			if iface in (self.vars) :
+-				self.cn2[iface] = ( float(l[0]), float(l[8]) )
++				self.cn2[iface] = ( long(l[0]), long(l[8]) )
+ 			if re.match('^(bond\d|eth\d|wifi\d)$', iface):
+-				self.cn2['total'] = ( self.cn2['total'][0] + float(l[0]), self.cn2['total'][1] + float(l[8]))
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[0]), self.cn2['total'][1] + long(l[8]))
+ 		if count != 0:
+ 			for name in self.cn2:
+ 				self.val[name] = ( 
+@@ -650,11 +656,21 @@
+ 	c = 0
+ #	var = int(var * 1.0)
+ 	var = var * 1.0
+-	while len(str(int(var))) &gt; max-1:
++	while True:
++		if len(str(var)) &lt; max:
++			if op.float and len('%1.2f' % var) &lt; max:
++				ret = '%1.2f' % var
++			elif op.float and len('%1.1f' % var) &lt; max:
++				ret = '%1.1f' % var
++			else:
++				ret = '%d' % round(var)
++			break
+ 		var = var / base * 1.0
+ 		c = c + 1
++#	print '[%d]' % digit,
+ 	if var != 0:
+-		return str(int(round(var))).rjust(max-1) + units[c]
++#		return str(int(round(var))).rjust(max-1) + units[c]
++		return ret.rjust(max-1) + units[c]
+ 	else:
+ 		return ' ' * (max-2) + '0 '
+ 
+@@ -737,7 +753,7 @@
+ #	sys.setcheckinterval(op.sleep * 1.5 * 100)
+ 	signal.signal(signal.SIGALRM, handler)
+ 	while count != op.count:
+-		signal.alarm(op.sleep)
++		signal.alarm(int(op.sleep))
+ 
+ 		rows = getwinsize()[0]
+ 		if count % (rows-2)  == 0:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001259.html">[SVN] r2453 - trunk/rpms/stardust
+</A></li>
+	<LI>Next message: <A HREF="001261.html">[SVN] r2455 - trunk/rpms/swfdec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1260">[ date ]</a>
+              <a href="thread.html#1260">[ thread ]</a>
+              <a href="subject.html#1260">[ subject ]</a>
+              <a href="author.html#1260">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

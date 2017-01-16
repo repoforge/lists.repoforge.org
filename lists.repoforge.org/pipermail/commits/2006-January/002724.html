@@ -1,0 +1,485 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3924 - trunk/tools/dar/python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3924%20-%20trunk/tools/dar/python&In-Reply-To=%3C20060110212555.EB51A318191%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002723.html">
+   <LINK REL="Next"  HREF="002725.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3924 - trunk/tools/dar/python</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3924%20-%20trunk/tools/dar/python&In-Reply-To=%3C20060110212555.EB51A318191%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3924 - trunk/tools/dar/python">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jan 10 22:25:55 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002723.html">[svn] r3923 - trunk/tools/dar/python
+</A></li>
+        <LI>Next message: <A HREF="002725.html">[svn] r3925 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2724">[ date ]</a>
+              <a href="thread.html#2724">[ thread ]</a>
+              <a href="subject.html#2724">[ subject ]</a>
+              <a href="author.html#2724">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-10 22:25:54 +0100 (Tue, 10 Jan 2006)
+New Revision: 3924
+
+Modified:
+   trunk/tools/dar/python/create-htmldir.py
+   trunk/tools/dar/python/create-pkgdb.py
+   trunk/tools/dar/python/create-specdb.py
+   trunk/tools/dar/python/darlib.py
+   trunk/tools/dar/python/print-info.py
+   trunk/tools/dar/python/print-missing.py
+   trunk/tools/dar/python/print-obsolete.py
+Log:
+Another cleanup
+
+Modified: trunk/tools/dar/python/create-htmldir.py
+===================================================================
+--- trunk/tools/dar/python/create-htmldir.py	2006-01-10 20:28:21 UTC (rev 3923)
++++ trunk/tools/dar/python/create-htmldir.py	2006-01-10 21:25:54 UTC (rev 3924)
+@@ -48,42 +48,47 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(darlib.dbase)
+-speccur = darlib.opentb(con, 'spec')
++con, cur = darlib.opendb()
+ 
+-speccur.execute('select distinct category from spec order by category')
+-
+ try: os.mkdir(htmldir)
+ except: pass
+ 
+ # FIXME: Create the alphabetic list
+ categorylist = ''
+ alphabeticlist = 'TBD'
+-for cat in speccur.fetchall():
++
++cur.execute('select distinct category from spec order by category')
++for (category,) in cur.fetchall():
++	print category
+ 	# FIXME: Add license when rpmdb has been improved
+-	speccur.execute('select name, version, release, authority, summary, description, category, url, license, parent, upstream from spec where category = &quot;%s&quot; order by name' % cat[0])
++	cur.execute('select name, version, release, authority, summary, description, category, url, license, parent, upstream from spec where category = &quot;%s&quot; order by name' % category)
+ 
+ 	rec = {}
+ 	packagelist = ''
+ 	categorysize = 0
+-	for rec['name'], rec['version'], rec['release'], rec['authority'], rec['summary'], rec['description'], rec['category'], rec['url'], rec['license'], rec['parent'], rec['upstream'] in speccur.fetchall():
++	for rec['name'], rec['version'], rec['release'], rec['authority'], rec['summary'], rec['description'], rec['category'], rec['url'], rec['license'], rec['parent'], rec['upstream'] in cur.fetchall():
+ 		packagelist += '&lt;a href=&quot;%(name)s/&quot;&gt;%(name)s&lt;/a&gt;: %(summary)s&lt;br&gt;\n' % rec
+ 		
+ 		try: os.mkdir(os.path.join(htmldir, rec['name']))
+ 		except: pass
+ 
+ 		# FIXME: Remove license when rpmdb has been improved and get authority fom specdb
+-		rec['categoryidx'] = convgroup(cat[0])
++		rec['categoryidx'] = convgroup(category)
+ 
+ 		rec['rpmlist'] = '&lt;h2&gt;Package list (TBD)&lt;/h2&gt; TBD'
++#		cur.execute('select version, release, filename from pkg where parent = &quot;%s&quot; order by version' % rec['name'])
++		cur.execute('select distinct filename from pkg where parent = &quot;%s&quot; order by version, filename' % rec['name'])
+ 
++		for (filename, ) in cur.fetchall():
++			rec['rpmlist'] += '  &lt;div&gt;%s&lt;/div&gt;\n' % filename
++
+ 		open(os.path.join(htmldir, rec['name'], 'index.php'), 'w').write(package_template % rec)
+ 
+ 		categorysize+=1
+ 
+-	rec = { 'category': cat[0], 'categoryidx': convgroup(cat[0]), 'categorysize': categorysize, 'packagelist': packagelist }
++	rec = { 'category': category, 'categoryidx': convgroup(category), 'categorysize': categorysize, 'packagelist': packagelist }
+ 	categorylist += '&lt;a href=&quot;group-%(categoryidx)s.php&quot;&gt;%(category)s&lt;/a&gt; (%(categorysize)s)&lt;br&gt;\n' % rec
+-	open(os.path.join(htmldir, 'group-' + convgroup(cat[0])) + '.php', 'w').write(category_template % rec)
++	open(os.path.join(htmldir, 'group-' + convgroup(category)) + '.php', 'w').write(category_template % rec)
+ 
+ 	# FIXME: Add alphabetic group files + index
+ 
+
+Modified: trunk/tools/dar/python/create-pkgdb.py
+===================================================================
+--- trunk/tools/dar/python/create-pkgdb.py	2006-01-10 20:28:21 UTC (rev 3923)
++++ trunk/tools/dar/python/create-pkgdb.py	2006-01-10 21:25:54 UTC (rev 3924)
+@@ -46,7 +46,7 @@
+ 
+ def readfile(file, builder=None):
+ 	rec = {
+-		'filename': os.path.basename(file),
++		'filename': os.path.basename(file).strip(),
+ 		'parent': os.path.basename(os.path.dirname(file)),
+ 		'builder': builder,
+ 	}
+@@ -60,8 +60,8 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(darlib.dbase)
+-pkgcur = darlib.opentb(con, 'pkg', create=True)
++con, cur = darlib.opendb()
++darlib.createtb(cur, 'pkg')
+ #pkgcon.autocommit = 1
+ 
+ #list = []
+@@ -88,5 +88,5 @@
+ 		except:
+ #			print file, 'FAILED'
+ 			continue
+-		darlib.inserttb(pkgcur, 'pkg', pkgrec)
++		darlib.insertrec(cur, 'pkg', pkgrec)
+ con.commit()
+
+Modified: trunk/tools/dar/python/create-specdb.py
+===================================================================
+--- trunk/tools/dar/python/create-specdb.py	2006-01-10 20:28:21 UTC (rev 3923)
++++ trunk/tools/dar/python/create-specdb.py	2006-01-10 21:25:54 UTC (rev 3924)
+@@ -14,7 +14,7 @@
+ 	'release':	'^Release: ([\w\.]+)$',
+ 	'summary':	'^Summary: (.+?)$',
+ 	'name':		'^Name: ([\w\-\+_]+)$',
+-	'parent':	'^Name: ([\w\-\+_]+)$',
++#	'parent':	'^Name: ([\w\-\+_]+)$',
+ 	'license':	'^License: (.+?)$',
+ 	'category':	'^Group: (.+?)$',
+ 	'url':		'^URL: ([^\s]+)$',
+@@ -29,21 +29,23 @@
+ 			rec[key] = ''
+ 		try:
+ 			rec[key] += re.search(specre[key], data, re.M | re.DOTALL).group(1).replace('&quot;', '\'')
+-		except:
++		except Exception, e:
+ 			if key in ('epoch', 'upstream'):
+-				pass
++				continue
+ 			elif key in ('url', ):
+ 				print 'Error with key &quot;%s&quot; in &quot;%s&quot;' % (key, file)
+ 			else:
+ 				print 'Error with key &quot;%s&quot; in &quot;%s&quot; (FAILED)' % (key, file)
+ 				raise
+ 	if not rec['upstream']: rec['upstream'] = '<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">packagers at list.rpmforge.net</A>'
++	rec['specname'] = os.path.basename(file).replace('.spec','')
++	rec['parent'] = os.path.basename(os.path.dirname(file))
+ 	return rec
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(darlib.dbase)
+-speccur = darlib.opentb(con, 'spec', create=True)
++con, cur = darlib.opendb()
++darlib.createtb(cur, 'spec')
+ 
+ #createsta = 'create table info ( name varchar(10) unique primary key, '
+ #for key in spechdr[1:]: createsta += '%s varchar(10), ' % key
+@@ -52,11 +54,14 @@
+ for file in glob.glob(os.path.join(specdir, '*/*.spec')):
+ 	try:
+ 		specrec = readspec(file)
+-	except:
++	except Exception, e:
+ #		print file, 'FAILED'
++#		print e
+ 		continue
++#		pass
+ 	try: 
+-		darlib.inserttb(speccur, 'spec', specrec)
+-	except: pass
++		darlib.insertrec(cur, 'spec', specrec)
++	except Exception, e:
++		print 'ERROR', e, specrec['specname'], file
+ 		
+ con.commit()
+
+Modified: trunk/tools/dar/python/darlib.py
+===================================================================
+--- trunk/tools/dar/python/darlib.py	2006-01-10 20:28:21 UTC (rev 3923)
++++ trunk/tools/dar/python/darlib.py	2006-01-10 21:25:54 UTC (rev 3924)
+@@ -3,14 +3,15 @@
+ dbase = 'darbase.sqlite'
+ 
+ headers = {
+-	'spec': ('name', 'authority', 'summary', 'epoch', 'version', 'release', 'license', 'category', 'url', 'description', 'upstream', 'parent'),
+-	'pkg': ('name', 'version', 'release', 'arch', 'repo', 'dist', 'parent', 'builder'),
++	'spec': ('name', 'authority', 'summary', 'epoch', 'version', 'release', 'license', 'category', 'url', 'description', 'upstream', 'parent', 'specname'),
++	'pkg': ('name', 'version', 'release', 'arch', 'repo', 'dist', 'parent', 'builder', 'filename'),
+ 	'info': ('name', 'summary', 'description', 'url', 'license', 'category', 'parent'),
+ 	'rpm': ('name', 'version', 'release', 'arch', 'repo', 'dist', 'epoch'),
+ }
+ 
+ dataset = {
+-	'spec': { 'name': 'varchar(10) unique primary key', },
++	'spec': { 'specname': 'varchar(12) unique primary key', },
++#	'pkg' : {'filename': 'varchar(25) unique primary key', },
+ 	'info': { 'name': 'varchar(10) unique primary key', },
+ }
+ 
+@@ -32,16 +33,20 @@
+ 	for key in headers[name]: str += '&quot;%%(%s)s&quot;, ' % key
+ 	return str.rstrip(', ') + ' )'
+ 
+-def opentb(con, name, create=False):
+-	'Open a database and return references'
++def opendb():
++	con = sqlite.connect(dbase)
+ 	cur = con.cursor()
+-	if create:
+-		try: cur.execute('drop table &quot;%s&quot;' % name)
+-		except: pass
+-		cur.execute(sqlcreate(name))
+-	return cur
++	return (con, cur)
+ 
+-def inserttb(cur, name, rec):
++def createtb(cur, name, create=False):
++	'Open a database and return references'
++	try:
++		cur.execute('drop table &quot;%s&quot;' % name)
++	except Exception ,e:
++		print e
++	cur.execute(sqlcreate(name))
++
++def insertrec(cur, name, rec):
+ 	'Insert a record in a database'
+ 	### Convert unicode to UTF-8
+ 	for key in rec.keys():
+
+Modified: trunk/tools/dar/python/print-info.py
+===================================================================
+--- trunk/tools/dar/python/print-info.py	2006-01-10 20:28:21 UTC (rev 3923)
++++ trunk/tools/dar/python/print-info.py	2006-01-10 21:25:54 UTC (rev 3924)
+@@ -5,75 +5,73 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(darlib.dbase)
+-speccur = darlib.opentb(con, 'spec')
+-pkgcur = darlib.opentb(con, 'pkg')
++con, cur = darlib.opendb()
+ 
+ print 'General info'
+-speccur.execute('select distinct name from spec order by name')
+-tot = len(speccur.fetchall())
++cur.execute('select distinct name from spec order by name')
++tot = len(cur.fetchall())
+ print '  Number of SPEC files:', tot
+ 
+-speccur.execute('select distinct category from spec order by name')
+-print '  Number of categories:', len(speccur.fetchall())
++cur.execute('select distinct category from spec order by name')
++print '  Number of categories:', len(cur.fetchall())
+ 
+-pkgcur.execute('select name from pkg')
+-tot2 = len(pkgcur.fetchall())
++cur.execute('select name from pkg')
++tot2 = len(cur.fetchall())
+ print '  Number of packages:', tot2
+ 
+-pkgcur.execute('select distinct name from pkg')
+-print '  Number of unique packages:', len(pkgcur.fetchall())
++cur.execute('select distinct name from pkg')
++print '  Number of unique packages:', len(cur.fetchall())
+ 
+-pkgcur.execute('select distinct name from pkg where arch = &quot;src&quot;')
+-print '  Number of unique source packages:', len(pkgcur.fetchall())
++cur.execute('select distinct name from pkg where arch = &quot;src&quot;')
++print '  Number of unique source packages:', len(cur.fetchall())
+ 
+ print
+ print 'Arch stats:'
+-pkgcur.execute('select distinct arch from pkg order by arch')
+-for arch, in pkgcur.fetchall():
+-	pkgcur.execute('select * from pkg where arch = &quot;%s&quot;' % arch)
+-	print '  %s has %d packages' % (arch, len(pkgcur.fetchall()))
++cur.execute('select distinct arch from pkg order by arch')
++for arch, in cur.fetchall():
++	cur.execute('select * from pkg where arch = &quot;%s&quot;' % arch)
++	print '  %s has %d packages' % (arch, len(cur.fetchall()))
+ 
+ print
+ print 'Dist stats:'
+-pkgcur.execute('select distinct dist from pkg order by dist')
+-for dist, in pkgcur.fetchall():
++cur.execute('select distinct dist from pkg order by dist')
++for dist, in cur.fetchall():
+ 	if dist in ('0', 'nosrc', 'src'): continue
+ 	if dist in ('rh6', 'rh7', 'rh8', 'rh9', 'el2', 'el3', 'el4', 'fc1', 'fc2', 'fc3', 'fc4', 'fc5'):
+-		pkgcur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; or repo = &quot;dries&quot; ) and ( arch = &quot;i386&quot; or arch = &quot;i586&quot; or arch = &quot;i686&quot; or arch = &quot;athlon&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
+-		print '  %s-i386 has %d packages' % (dist, len(pkgcur.fetchall()))
++		cur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; or repo = &quot;dries&quot; ) and ( arch = &quot;i386&quot; or arch = &quot;i586&quot; or arch = &quot;i686&quot; or arch = &quot;athlon&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
++		print '  %s-i386 has %d packages' % (dist, len(cur.fetchall()))
+ 	if dist in ('el3', 'el4', 'fc2', 'fc3', 'fc4', 'fc5'):
+-		pkgcur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; or repo = &quot;dries&quot; ) and ( arch = &quot;x86_64&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
+-		print '  %s-x86_64 has %d packages' % (dist, len(pkgcur.fetchall()))
++		cur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; or repo = &quot;dries&quot; ) and ( arch = &quot;x86_64&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
++		print '  %s-x86_64 has %d packages' % (dist, len(cur.fetchall()))
+ 	if dist in ('au1.91', 'au1.92'):
+-		pkgcur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; or repo = &quot;dries&quot; ) and ( arch = &quot;sparc&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
+-		print '  %s-sparc has %d packages' % (dist, len(pkgcur.fetchall()))
++		cur.execute('select distinct name from pkg where (dist = &quot;%s&quot; or dist = &quot;0&quot;) and ( repo = &quot;rf&quot; or repo = &quot;dag&quot; or repo = &quot;dries&quot; ) and ( arch = &quot;sparc&quot; or arch = &quot;noarch&quot; or arch = &quot;nosrc&quot; )' % dist)
++		print '  %s-sparc has %d packages' % (dist, len(cur.fetchall()))
+ 
+ print
+ print 'Packager activity:'
+-speccur.execute('select distinct authority from spec order by authority')
+-for authority, in speccur.fetchall():
++cur.execute('select distinct authority from spec order by authority')
++for authority, in cur.fetchall():
+ 	if authority:
+-		speccur.execute('select distinct parent from spec where authority = &quot;%s&quot;' % authority)
+-		nr = len(speccur.fetchall())
++		cur.execute('select distinct parent from spec where authority = &quot;%s&quot;' % authority)
++		nr = len(cur.fetchall())
+ 		print '  %s maintains %d packages (%.1f%%)' % (authority, nr, nr * 100.0 / tot)
+ 
+ print
+ print 'Builder activity:'
+-pkgcur.execute('select distinct builder from pkg order by builder')
+-for builder, in pkgcur.fetchall():
++cur.execute('select distinct builder from pkg order by builder')
++for builder, in cur.fetchall():
+ 	if builder:
+-		pkgcur.execute('select * from pkg where builder = &quot;%s&quot;' % builder)
+-		nr = len(pkgcur.fetchall())
++		cur.execute('select * from pkg where builder = &quot;%s&quot;' % builder)
++		nr = len(cur.fetchall())
+ 		print '  %s builds %d packages (%.1f%%)' % (builder, nr, nr * 100.0 / tot2)
+ 
+ ### Debug printing
+-#speccur.execute('select distinct name, epoch, version, release, url from spec order by name')
+-#for all in speccur.fetchall():
++#cur.execute('select distinct name, epoch, version, release, url from spec order by name')
++#for all in cur.fetchall():
+ #	print all
+ 
+ #print
+ #print 'Print summaries:'
+-#speccur.execute('select distinct name, summary from spec order by name')
+-#for pkg in speccur.fetchall():
++#cur.execute('select distinct name, summary from spec order by name')
++#for pkg in cur.fetchall():
+ #	print '  %s: %s' % (pkg[0], pkg[1])
+
+Modified: trunk/tools/dar/python/print-missing.py
+===================================================================
+--- trunk/tools/dar/python/print-missing.py	2006-01-10 20:28:21 UTC (rev 3923)
++++ trunk/tools/dar/python/print-missing.py	2006-01-10 21:25:54 UTC (rev 3924)
+@@ -48,21 +48,20 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(darlib.dbase)
+-pkgcur = darlib.opentb(con, 'pkg')
++con, cur = darlib.opendb()
+ 
+ missinglist = []
+ oldname = ''
+ oldarch = ''
+ oldparent = ''
+ 
+-pkgcur.execute('select distinct dist, arch from pkg where builder = &quot;%s&quot; order by dist, arch' % builder1)
++cur.execute('select distinct dist, arch from pkg where builder = &quot;%s&quot; order by dist, arch' % builder1)
+ builder1dists = []
+-for set in pkgcur.fetchall(): builder1dists.append(set)
++for set in cur.fetchall(): builder1dists.append(set)
+ 
+-pkgcur.execute('select distinct dist, arch from pkg where builder = &quot;%s&quot; order by dist, arch' % builder2)
++cur.execute('select distinct dist, arch from pkg where builder = &quot;%s&quot; order by dist, arch' % builder2)
+ builder2dists = []
+-for set in pkgcur.fetchall(): builder2dists.append(set)
++for set in cur.fetchall(): builder2dists.append(set)
+ 
+ builderdists = []
+ for set in builder1dists:
+@@ -76,8 +75,8 @@
+ #	print dist+archmap[arch],
+ #print
+ 
+-pkgcur.execute('select parent, name, dist, arch from pkg where builder = &quot;%s&quot; order by parent, name, dist' % builder2)
+-for parent, name, dist, arch in pkgcur.fetchall():
++cur.execute('select parent, name, dist, arch from pkg where builder = &quot;%s&quot; order by parent, name, dist' % builder2)
++for parent, name, dist, arch in cur.fetchall():
+ #	if parent.find('gno') != 0: continue
+ 	if parent.find('kernel') == 0: continue
+ 	if name.rfind('debuginfo') &gt;= 0: continue
+@@ -98,8 +97,8 @@
+ 	C = {}
+ 	D = { 'version': '0', 'release': '0' }
+ 
+-	pkgcur.execute('select version, release, repo from pkg where name = &quot;%s&quot; and arch = &quot;%s&quot; and dist = &quot;%s&quot; and builder = &quot;%s&quot; order by version, release' % (name, arch, dist, builder2))
+-	for A['version'], A['release'], A['repo'] in pkgcur.fetchall():
++	cur.execute('select version, release, repo from pkg where name = &quot;%s&quot; and arch = &quot;%s&quot; and dist = &quot;%s&quot; and builder = &quot;%s&quot; order by version, release' % (name, arch, dist, builder2))
++	for A['version'], A['release'], A['repo'] in cur.fetchall():
+ 	        ### Clean up release tag :(
+ 		for disttag in disttaglist:
+ 			A['release'] = A['release'].replace('.'+disttag+'.'+A['repo'], '')
+@@ -107,8 +106,8 @@
+ 		if vercmp(('0', A['version'], A['release']), ('0', B['version'], B['release'])) &gt; 0:
+ 			B = A.copy()
+ 
+-	pkgcur.execute('select version, release, repo from pkg where name = &quot;%s&quot; and arch = &quot;%s&quot; and dist = &quot;%s&quot; and builder = &quot;%s&quot; order by version, release' % (name, arch, dist, builder1))
+-	for C['version'], C['release'], C['repo'] in pkgcur.fetchall():
++	cur.execute('select version, release, repo from pkg where name = &quot;%s&quot; and arch = &quot;%s&quot; and dist = &quot;%s&quot; and builder = &quot;%s&quot; order by version, release' % (name, arch, dist, builder1))
++	for C['version'], C['release'], C['repo'] in cur.fetchall():
+ 	        ### Clean up release tag :(
+ 		for disttag in disttaglist:
+ 			C['release'] = C['release'].replace('.'+disttag+'.'+C['repo'], '')
+
+Modified: trunk/tools/dar/python/print-obsolete.py
+===================================================================
+--- trunk/tools/dar/python/print-obsolete.py	2006-01-10 20:28:21 UTC (rev 3923)
++++ trunk/tools/dar/python/print-obsolete.py	2006-01-10 21:25:54 UTC (rev 3924)
+@@ -16,14 +16,13 @@
+ 
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-con = sqlite.connect(darlib.dbase)
+-pkgcur = darlib.opentb(con, 'pkg')
++con, cur = darlib.opendb()
+ 
+-pkgcur.execute('select distinct name, parent, builder from pkg order by parent, name')
+-for name, parent, builder in pkgcur.fetchall():
++cur.execute('select distinct name, parent, builder from pkg order by parent, name')
++for name, parent, builder in cur.fetchall():
+ 	if parent.find('kernel') == 0: continue
+-	pkgcur.execute('select name, arch, version, release, dist, repo, parent from pkg where name = &quot;%s&quot; and builder = &quot;%s&quot; and arch != &quot;src&quot; order by dist, version, release, arch' % (name, builder))
+-	pkgs = pkgcur.fetchall()
++	cur.execute('select name, arch, version, release, dist, repo, parent from pkg where name = &quot;%s&quot; and builder = &quot;%s&quot; and arch != &quot;src&quot; order by dist, version, release, arch' % (name, builder))
++	pkgs = cur.fetchall()
+ 	A = {}
+ 	obsoletelist = []
+ 	for A['name'], A['arch'], A['version'], A['release'], A['dist'], A['repo'], A['parent'] in pkgs:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002723.html">[svn] r3923 - trunk/tools/dar/python
+</A></li>
+	<LI>Next message: <A HREF="002725.html">[svn] r3925 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2724">[ date ]</a>
+              <a href="thread.html#2724">[ thread ]</a>
+              <a href="subject.html#2724">[ subject ]</a>
+              <a href="author.html#2724">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

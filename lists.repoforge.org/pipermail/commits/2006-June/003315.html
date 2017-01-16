@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4515 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4515%20-%20trunk/tools/yam&In-Reply-To=%3C20060616091719.EBFA83180C4%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003314.html">
+   <LINK REL="Next"  HREF="003316.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4515 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4515%20-%20trunk/tools/yam&In-Reply-To=%3C20060616091719.EBFA83180C4%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4515 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jun 16 11:17:19 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003314.html">[svn] r4514 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="003316.html">[svn] r4516 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3315">[ date ]</a>
+              <a href="thread.html#3315">[ thread ]</a>
+              <a href="subject.html#3315">[ subject ]</a>
+              <a href="author.html#3315">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-06-16 11:17:16 +0200 (Fri, 16 Jun 2006)
+New Revision: 4515
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/Makefile
+   trunk/tools/yam/yam.spec
+Log:
+Various updates to Makefile and SPEC file
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-06-15 20:29:43 UTC (rev 4514)
++++ trunk/tools/yam/ChangeLog	2006-06-16 09:17:16 UTC (rev 4515)
+@@ -26,6 +26,7 @@
+ - Default metadata formats are now set to repomd and repoview
+ - Reintroduced -r/--repo option to narrow down to a specific repository
+ - Removed -x/--extras option as it is obsoleted by a combination of -u and -r
++- Added 'dist' and 'rpm' targets to Makefile (Matthew Hannigan)
+ 
+ * 0.8.0 - Meerenhof - released 09/03/2006
+ - Allow to specify metadata per distribution (Jason Kim)
+
+Modified: trunk/tools/yam/Makefile
+===================================================================
+--- trunk/tools/yam/Makefile	2006-06-15 20:29:43 UTC (rev 4514)
++++ trunk/tools/yam/Makefile	2006-06-16 09:17:16 UTC (rev 4515)
+@@ -15,6 +15,7 @@
+ srcdir = $(localstatedir)/yam
+ wwwdir = $(localstatedir)/www/yam
+ 
++version = $(shell awk '/^Version: / {print $$2}' yam.spec)
+ 
+ all: install
+ 
+@@ -32,8 +33,8 @@
+ 	install -d -m0755 $(DESTDIR)$(wwwdir)
+ 	install -d -m0755 $(DESTDIR)$(cachedir)
+ 
+-	[ -d &quot;$(DESTDIR)$(sysconfdir)/sysconfig&quot; -a ! -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -D -m0644 yam.sysconfig $(DESTDIR)$(sysconfdir)/sysconfig/yam || :
+-	[ -d &quot;$(DESTDIR)$(sysconfdir)/sysconfig&quot; -a -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -D -m0755 yam.cron $(DESTDIR)$(sysconfdir)/cron.daily/yam || :
++	[ -d &quot;$(sysconfdir)/sysconfig&quot; -a ! -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -D -m0644 yam.sysconfig $(DESTDIR)$(sysconfdir)/sysconfig/yam || :
++	[ -d &quot;$(sysconfdir)/sysconfig&quot; -a -f &quot;$(DESTDIR)$(sysconfdir)/sysconfig/yam&quot; ] &amp;&amp; install -D -m0755 yam.cron $(DESTDIR)$(sysconfdir)/cron.daily/yam || :
+ 	
+ 	@if [ -z &quot;$(DESTDIR)&quot; -a -x &quot;/sbin/chkconfig&quot; ]; then \
+ 		/sbin/chkconfig --add yam; \
+@@ -44,5 +45,11 @@
+ docs:
+ 	make -C docs
+ 
++dist:
++	find . ! -wholename '*/.svn/*' | pax -w -x ustar -s ,^,yam-$(version)/, * | bzip2 &gt;../yam-$(version).tar.bz2
++
++rpm: ../yam-$(version).tar.bz2
++	rpmbuild -tb ../yam-$(version).tar.bz2
++
+ clean:
+ 	rm -f README*.html
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-06-15 20:29:43 UTC (rev 4514)
++++ trunk/tools/yam/yam.spec	2006-06-16 09:17:16 UTC (rev 4515)
+@@ -2,7 +2,7 @@
+ # Authority: dag
+ # Upstream: Dag Wieers &lt;dag$wieers,com&gt;
+ 
+-Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, rsync, http, ftp, ...)
++Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, RHN, rsync, http, ftp, ...)
+ Name: yam
+ Version: 0.8.0svn
+ Release: 1
+@@ -14,12 +14,11 @@
+ Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+ 
+ Source: <A HREF="http://dag.wieers.com/home-made/yam/yam-%{version">http://dag.wieers.com/home-made/yam/yam-%{version</A>}.tar.bz2
+-#Patch0: yam-0.8.0-yumgroups.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildArch: noarch
+ BuildRequires: /usr/bin/python2
+-Requires: python &gt;= 2.0, createrepo &gt;= 0.4.3
++Requires: python &gt;= 2.0, createrepo &gt;= 0.4.4-3
+ 
+ %description
+ Yam builds a local Apt/Yum RPM repository from local ISO files,
+@@ -36,7 +35,6 @@
+ 
+ %prep
+ %setup
+-#%patch0 -p0
+ 
+ %{__perl} -pi.orig -e 's|^(VERSION)\s*=\s*.+$|$1 = &quot;%{version}&quot;|' yam
+ 
+@@ -45,8 +43,8 @@
+ #DAILY_UPDATE=&quot;yes&quot;
+ 
+ ### Define your local proxy here
+-#HTTP_PROXY=&quot;<A HREF="http://proxy:8080/">http://proxy:8080/</A>&quot;
+-#FTP_PROXY=&quot;<A HREF="http://proxy:8080/">http://proxy:8080/</A>&quot;
++#ftp_proxy=&quot;<A HREF="http://proxy:8080/">http://proxy:8080/</A>&quot;
++#http_proxy=&quot;<A HREF="http://proxy:8080/">http://proxy:8080/</A>&quot;
+ 
+ ### In case you want to override the default options
+ YAM_OPTIONS=&quot;-q -ug&quot;
+@@ -61,18 +59,17 @@
+ 
+ [ -r &quot;/etc/sysconfig/yam&quot; ] &amp;&amp; source &quot;/etc/sysconfig/yam&quot;
+ 
+-export FTP_PROXY HTTP_PROXY
++export ftp_proxy http_proxy
+ 
+ [ &quot;$DAILY_UPDATE&quot; != &quot;yes&quot; ] &amp;&amp; exit 0
+ 
+-yam $YAM_OPTIONS
++exec %{_bindir}/yam $YAM_OPTIONS
+ EOF
+ 
+ %build
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__install} -d -m0755 %{buildroot}%{_sysconfdir}/sysconfig/
+ %{__make} install DESTDIR=&quot;%{buildroot}&quot;
+ 
+ %preun
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003314.html">[svn] r4514 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="003316.html">[svn] r4516 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3315">[ date ]</a>
+              <a href="thread.html#3315">[ thread ]</a>
+              <a href="subject.html#3315">[ subject ]</a>
+              <a href="author.html#3315">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

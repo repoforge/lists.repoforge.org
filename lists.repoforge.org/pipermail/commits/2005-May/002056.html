@@ -1,0 +1,215 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3254 - in trunk/tools/pydar2: . pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3254%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar&In-Reply-To=%3C20050529125504.EF5D51D02A0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002055.html">
+   <LINK REL="Next"  HREF="002057.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3254 - in trunk/tools/pydar2: . pydar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3254%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar&In-Reply-To=%3C20050529125504.EF5D51D02A0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3254 - in trunk/tools/pydar2: . pydar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May 29 14:55:04 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002055.html">[svn] r3253 - trunk/tools/pydar2/pydar
+</A></li>
+        <LI>Next message: <A HREF="002057.html">[svn] r3255 - in trunk/tools/pydar2: pydar sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2056">[ date ]</a>
+              <a href="thread.html#2056">[ thread ]</a>
+              <a href="subject.html#2056">[ subject ]</a>
+              <a href="author.html#2056">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-05-29 14:55:04 +0200 (Sun, 29 May 2005)
+New Revision: 3254
+
+Modified:
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar-master-update.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/pydarclient.py
+   trunk/tools/pydar2/pydar/specrepositorylist.py
+Log:
+updates
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-05-29 11:02:00 UTC (rev 3253)
++++ trunk/tools/pydar2/pydar/config.py	2005-05-29 12:55:04 UTC (rev 3254)
+@@ -231,6 +231,7 @@
+             myParser.read(['/etc/pydar2/client.conf',os.path.expanduser('~/.pydar2/client.conf')])
+         self.__buildmasterurlclient = myParser.get('client','buildmasterurl')
+         self.__clientpassword = myParser.get('client','password')
++        self.__clientuserid = myParser.get('client','userid')
+         __withinFullInitClient = False
+         __fullInitClientDone = True
+         self.__cat.debug('end')
+@@ -249,6 +250,10 @@
+         self.__fullInitSlave()
+         return self.__slavepassword
+     
++    def getClientUserId(self):
++        self.__fullInitClient()
++        return self.__clientuserid
++    
+     def getSmtpServer(self):
+         self.__fullInitSlave()
+         return self.__smtpserver
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-29 11:02:00 UTC (rev 3253)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-29 12:55:04 UTC (rev 3254)
+@@ -358,17 +358,6 @@
+         cursor.close()
+         self.__releaseConnection(conn)
+ 
+-    # a seperate program updates the spec file repositories.
+-    # result: the commands which have to be executed to update all the spec file repositories
+-    # example:  &quot;cd /a/b/c; svn update&quot;
+-    def getSpecRepositoriesUpdateCommands(self):
+-        self.__cat.debug(&quot;start&quot;)
+-        retval = &quot;&quot;
+-        for repo in self.config.specrepositories:
+-            retval = retval + repo.getUpdateCommand() + &quot;\n&quot;
+-        return retval
+-    
+-
+     def reserveCommand(self, buildmachineid):
+         self.__cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
+         conn = self.__getConnection()
+
+Modified: trunk/tools/pydar2/pydar/pydarclient.py
+===================================================================
+--- trunk/tools/pydar2/pydar/pydarclient.py	2005-05-29 11:02:00 UTC (rev 3253)
++++ trunk/tools/pydar2/pydar/pydarclient.py	2005-05-29 12:55:04 UTC (rev 3254)
+@@ -30,14 +30,14 @@
+         self.buildmasterurl = buildmasterurl
+         self.__cat.debug(&quot;initialised, buildmasterurl=&quot; + self.buildmasterurl)
+         
+-    def getSpecRepositoriesUpdateCommands(self,userId):
++    def getSpecRepositoriesUpdateCommands(self,userId,password):
+         myserverclient = Server(self.buildmasterurl)
+-        retval = myserverclient.getSpecRepositoriesUpdateCommands(userId)
++        retval = myserverclient.getSpecRepositoriesUpdateCommands(userId,password)
+         return retval
+ 
+-    def updateAllSpecRepositoriesFileLists(self,userId):
++    def updateAllSpecRepositoriesFileLists(self,userId,password):
+         myserverclient = Server(self.buildmasterurl)
+-        retval = myserverclient.updateAllSpecRepositoriesFileLists(userId)
++        retval = myserverclient.updateAllSpecRepositoriesFileLists(userId,password)
+         return retval
+ 
+     def buildSpecByPath(self,userId,password,specRepoName, specFilePath, toEmail, distroArchTag, priority, target):
+
+Modified: trunk/tools/pydar2/pydar/specrepositorylist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepositorylist.py	2005-05-29 11:02:00 UTC (rev 3253)
++++ trunk/tools/pydar2/pydar/specrepositorylist.py	2005-05-29 12:55:04 UTC (rev 3254)
+@@ -77,3 +77,14 @@
+         for i in self.__specrepositories:
+             i.updateFileList()
+  
++    # a seperate program updates the spec file repositories.
++    # result: the commands which have to be executed to update all the spec file repositories
++    # example:  &quot;cd /a/b/c; svn update&quot;
++    def getSpecRepositoriesUpdateCommands(self):
++        self.__cat.debug(&quot;start&quot;)
++        retval = &quot;&quot;
++        for repo in self.__specrepositories:
++            retval = retval + repo.getUpdateCommand() + &quot;\n&quot;
++        return retval
++    
++
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-29 11:02:00 UTC (rev 3253)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-29 12:55:04 UTC (rev 3254)
+@@ -145,7 +145,7 @@
+     def getSpecRepositoriesUpdateCommands(self,userId, password):
+         self.__cat.debug(&quot;start,userId=&quot; + str(userId))
+         if self.__storage.checkIfValidUserId(userId, password, Rights.GET_SPEC_REPOSITORIES_UPDATE_COMMANDS):
+-            return self.__storage.getSpecRepositoriesUpdateCommands()
++            return self.__config.getSpecRepositoryList().getSpecRepositoriesUpdateCommands()
+         else:
+             raise Exception(&quot;UNKNOWN USERID&quot;)
+ 
+
+Modified: trunk/tools/pydar2/pydar-master-update.py
+===================================================================
+--- trunk/tools/pydar2/pydar-master-update.py	2005-05-29 11:02:00 UTC (rev 3253)
++++ trunk/tools/pydar2/pydar-master-update.py	2005-05-29 12:55:04 UTC (rev 3254)
+@@ -18,6 +18,7 @@
+ # Copyright 2004 Dries Verachtert
+ 
+ import ConfigParser, os, posixpath, sys, commands
++from optparse import OptionParser
+ sys.path.append(&quot;.&quot;)
+ sys.path.append(&quot;pydar&quot;)
+ sys.path.append(&quot;/usr/share/pydar2/pydar&quot;)
+@@ -35,15 +36,23 @@
+ # get  the url of the master and a userId
+ 
+ conf = Config.getInstance()
+-pc = PydarClient(conf.getBuildMasterUrl())
+-commandlines = pc.getSpecRepositoriesUpdateCommands(conf.getUpdateUserId())
++
++parser = OptionParser()
++parser.add_option(&quot;-c&quot;, &quot;--clientconfig&quot;, default=None, dest=&quot;clientconfig&quot;, help=&quot;specify configuration file&quot;, metavar=&quot;FILE&quot;)
++(options, args) = parser.parse_args()
++conf.specifyGetOptOptions(options)
++password = conf.getClientPassword()
++
++pc = PydarClient(conf.getBuildMasterUrlClient())
++commandlines = pc.getSpecRepositoriesUpdateCommands(conf.getClientUserId(), password)
+ lines = commandlines.split(&quot;\n&quot;)
+ for line in lines:
+     print &quot;line: &quot; + line + &quot;\n&quot;
+     (status, output) = commands.getstatusoutput(&quot;/bin/bash -c \&quot;&quot;+line+&quot;\&quot;&quot;)
++    (status, output) = commands.getstatusoutput(&quot;/bin/bash -c \&quot;&quot;+line+&quot;\&quot;&quot;)
+     print &quot;status: &quot; + str(status)
+     print &quot;output: &quot; + output
+     
+ # now ask the master to update the lists about the spec files
+-pc.updateAllSpecRepositoriesFileLists(conf.updateUserId)
++pc.updateAllSpecRepositoriesFileLists(conf.getClientUserId(),password)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002055.html">[svn] r3253 - trunk/tools/pydar2/pydar
+</A></li>
+	<LI>Next message: <A HREF="002057.html">[svn] r3255 - in trunk/tools/pydar2: pydar sql
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2056">[ date ]</a>
+              <a href="thread.html#2056">[ thread ]</a>
+              <a href="subject.html#2056">[ subject ]</a>
+              <a href="author.html#2056">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

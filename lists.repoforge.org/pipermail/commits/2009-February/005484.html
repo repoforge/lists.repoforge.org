@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6685 - trunk/tools/warning
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6685%20-%20trunk/tools/warning&In-Reply-To=%3C200902040116.n141GWYA021430%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005483.html">
+   <LINK REL="Next"  HREF="005485.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6685 - trunk/tools/warning</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6685%20-%20trunk/tools/warning&In-Reply-To=%3C200902040116.n141GWYA021430%40surya.karan.org%3E"
+       TITLE="[svn] r6685 - trunk/tools/warning">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Feb  4 02:16:32 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005483.html">[svn] r6684 - trunk/tools/warning
+</A></li>
+        <LI>Next message: <A HREF="005485.html">[svn] r6686 - trunk/tools/warning
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5484">[ date ]</a>
+              <a href="thread.html#5484">[ thread ]</a>
+              <a href="subject.html#5484">[ subject ]</a>
+              <a href="author.html#5484">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-02-04 01:16:32 +0000 (Wed, 04 Feb 2009)
+New Revision: 6685
+
+Modified:
+   trunk/tools/warning/warning.install
+   trunk/tools/warning/warning.module
+Log:
+Added warning types and configuration of warning type.
+
+Modified: trunk/tools/warning/warning.install
+===================================================================
+--- trunk/tools/warning/warning.install	2009-02-04 00:47:40 UTC (rev 6684)
++++ trunk/tools/warning/warning.install	2009-02-04 01:16:32 UTC (rev 6685)
+@@ -13,7 +13,7 @@
+   variable_set('warning_register_type', t('Warning'));
+   variable_set('warning_register_text', t('Registration is moderated. It is possible that your request will be denied.'));
+   variable_set('warning_comment_type', t('Warning'));
+-  variable_set('warning_comment_text', t('Please refrain from adding URLs to unrelated or commercial websites. This site is &lt;strong&gt;moderated&lt;/strong&gt; and every comment with unrelated links is rejected. Thank you for your understanding.'));
++  variable_set('warning_comment_text', t('Please refrain from adding URLs to unrelated or commercial websites. This site is &lt;strong&gt;moderated&lt;/strong&gt; and comments with &lt;strong&gt;inappropriate links&lt;/strong&gt; are rejected. Thank you for your understanding.'));
+ }
+ 
+ // FIXME: Is this smart ? Does this mean customized messages are gone when
+
+Modified: trunk/tools/warning/warning.module
+===================================================================
+--- trunk/tools/warning/warning.module	2009-02-04 00:47:40 UTC (rev 6684)
++++ trunk/tools/warning/warning.module	2009-02-04 01:16:32 UTC (rev 6685)
+@@ -1,6 +1,9 @@
+ &lt;?php
+ // $Id$
+ 
++global $warning_types;
++$warning_types = array(t('Disabled'), t('Caution'), t('Disclaimer'), t('Important'), t('Note'), t('Tip'), t('Warning') =&gt; t('Warning'));
++
+ // Add a helpful message to the warning configuration page
+ function warning_help($path, $arg) {
+   switch ($path) {
+@@ -32,13 +35,27 @@
+ 
+ // Module configuration page
+ function warning_admin_settings() {
++  global $warning_types;
++  // TODO: Add a description ?
+   // TODO: Take into account whether moderation is enabled
++  $form['warning_register_type'] = array(
++    '#type' =&gt; 'select',
++    '#title' =&gt; t(&quot;Register form warning type&quot;),
++    '#default_value' =&gt; variable_get('warning_register_type', t('Warning')),
++    '#options' =&gt; $warning_types,
++  );
+   $form['warning_register_text'] = array(
+     '#type' =&gt; 'textarea',
+-    '#title' =&gt; t('Register form warning'),
++    '#title' =&gt; t('Register form warning text'),
+     '#default_value' =&gt; variable_get('warning_register_text'),
+     '#rows' =&gt; 3,
+   );
++  $form['warning_comment_type'] = array(
++    '#type' =&gt; 'select',
++    '#title' =&gt; t(&quot;Comment form warning type&quot;),
++    '#default_value' =&gt; variable_get('warning_comment_type', t('Warning')),
++    '#options' =&gt; $warning_types,
++  );
+   $form['warning_comment_text'] = array(
+     '#type' =&gt; 'textarea',
+     '#title' =&gt; t('Comment form warning'),
+@@ -52,18 +69,19 @@
+ function warning_form_alter(&amp;$form, $form_state, $form_id) {
+   // TODO: Take into account whether moderation is enabled
+   // TODO: Allow to set warning_comment_type to Disabled
+-  if (($form_id == 'user_register') &amp;&amp; ! user_access('disable register warning') &amp;&amp; variable_get('warning_register_text')) {
++  global $warning_types;
++  if (($form_id == 'user_register') &amp;&amp; ! user_access('disable register warning') &amp;&amp; variable_get('warning_register_type')) {
+     $form['warning'] = array(
+       '#type' =&gt; 'fieldset',
+-      '#title' =&gt; t(variable_get('warning_register_type')),
+-      '#description' =&gt; t(variable_get('warning_register_text')),
++      '#title' =&gt; $warning_types[variable_get('warning_register_type')],
++      '#description' =&gt; variable_get('warning_register_text'),
+       '#weight' =&gt; -9,
+     );
+-  } elseif (($form_id == 'comment_form') &amp;&amp; ! user_access('disable comment warning') &amp;&amp; variable_get('warning_comment_text')) {
++  } elseif (($form_id == 'comment_form') &amp;&amp; ! user_access('disable comment warning') &amp;&amp; variable_get('warning_comment_type')) {
+     $form['warning'] = array(
+       '#type' =&gt; 'fieldset',
+-      '#title' =&gt; t(variable_get('warning_comment_type')),
+-      '#description' =&gt; t(variable_get('warning_comment_text')),
++      '#title' =&gt; $warning_types[variable_get('warning_comment_type')],
++      '#description' =&gt; variable_get('warning_comment_text'),
+       '#weight' =&gt; -9,
+     );
+   }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005483.html">[svn] r6684 - trunk/tools/warning
+</A></li>
+	<LI>Next message: <A HREF="005485.html">[svn] r6686 - trunk/tools/warning
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5484">[ date ]</a>
+              <a href="thread.html#5484">[ thread ]</a>
+              <a href="subject.html#5484">[ subject ]</a>
+              <a href="author.html#5484">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

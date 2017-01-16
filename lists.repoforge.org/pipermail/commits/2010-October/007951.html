@@ -1,0 +1,451 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9167 - in /trunk/tools/dar: commands.txt dar-build dar-functions dar-perl.py dar.conf scripts/pre-brand.sh scripts/pre-diskspace.sh
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9167%20-%20in%20/trunk/tools/dar%3A%20commands.txt%20dar-build%0A%20dar-functions%0A%20dar-perl.py%20dar.conf%20scripts/pre-brand.sh%20scripts/pre-diskspace.sh&In-Reply-To=%3C201010071412.o97EC24v001715%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007950.html">
+   <LINK REL="Next"  HREF="007952.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9167 - in /trunk/tools/dar: commands.txt dar-build dar-functions dar-perl.py dar.conf scripts/pre-brand.sh scripts/pre-diskspace.sh</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9167%20-%20in%20/trunk/tools/dar%3A%20commands.txt%20dar-build%0A%20dar-functions%0A%20dar-perl.py%20dar.conf%20scripts/pre-brand.sh%20scripts/pre-diskspace.sh&In-Reply-To=%3C201010071412.o97EC24v001715%40surya.karan.org%3E"
+       TITLE="[svn] r9167 - in /trunk/tools/dar: commands.txt dar-build dar-functions dar-perl.py dar.conf scripts/pre-brand.sh scripts/pre-diskspace.sh">dag at wieers.com
+       </A><BR>
+    <I>Thu Oct  7 16:12:02 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007950.html">[svn] r9166 - /trunk/rpms/alpine/alpine-test.spec
+</A></li>
+        <LI>Next message: <A HREF="007952.html">[svn] r9168 - /trunk/rpms/pnp4nagios/pnp4nagios.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7951">[ date ]</a>
+              <a href="thread.html#7951">[ thread ]</a>
+              <a href="subject.html#7951">[ subject ]</a>
+              <a href="author.html#7951">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Thu Oct  7 15:12:02 2010
+New Revision: 9167
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9167&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9167&amp;view=rev</A>
+Log:
+Major improvements
+
+Modified:
+    trunk/tools/dar/commands.txt
+    trunk/tools/dar/dar-build
+    trunk/tools/dar/dar-functions
+    trunk/tools/dar/dar-perl.py
+    trunk/tools/dar/dar.conf
+    trunk/tools/dar/scripts/pre-brand.sh
+    trunk/tools/dar/scripts/pre-diskspace.sh
+
+Modified: trunk/tools/dar/commands.txt
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/commands.txt?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/commands.txt?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dar/commands.txt (original)
++++ trunk/tools/dar/commands.txt Thu Oct  7 15:12:02 2010
+@@ -15,6 +15,10 @@
+ 
+ ### Update perl packages in RPMforge
+ for pkg in $(/dar/tools/dar/dar-list-perl.py --new | cut -d' ' -f1); do /dar/tools/dar/dar-diff-perl.sh $pkg; done
++
++### Resign packages
++touch --date=&quot;2 weeks ago&quot; /dar/pub/rpmforge/persona/dag/state/rpmsign
++dar-surya
+ 
+ 
+ ### INSTALLING
+
+Modified: trunk/tools/dar/dar-build
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar-build?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar-build?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dar/dar-build (original)
++++ trunk/tools/dar/dar-build Thu Oct  7 15:12:02 2010
+@@ -21,6 +21,7 @@
+     SPECDIR=&quot;$(dirname $arg)&quot;
+     app=&quot;$(basename $arg .spec)&quot;
+     SPECFILE=&quot;$PWD/$app.spec&quot;
++    MAKEFLAGS=&quot;%nil&quot;
+ 
+     if [ ! -f &quot;$SPECFILE&quot; ]; then SPECFILE=&quot;$SPECDIR/$app.spec&quot;; fi
+     if [ ! -f &quot;$SPECFILE&quot; ]; then SPECFILE=&quot;$SPECSDIR/$app.spec&quot;; fi
+@@ -48,22 +49,11 @@
+ #       svn -q up &quot;$SPECDIR/&quot;
+ #   fi
+ 
+-    ### Export to rpmconf
+-    export RVERSION=&quot;$(rpmmacro real_version)&quot;
+-    export RRELEASE=&quot;$(rpmmacro real_release)&quot;
+-
+     app=&quot;$(rpmconf Name)&quot;
+-    VERSION=&quot;$(rpmconf Version)&quot;
+-    RELEASE=&quot;$(rpmconf Release)&quot;
+ 
+     if [ -z &quot;$app&quot; ]; then
+         error &quot;Problem with specfile \&quot;$SPECFILE\&quot;. (Name is empty)&quot;
+         continue
+-    fi
+-
+-    if [ -z &quot;$VERSION&quot; ]; then
+-        VERSION=&quot;vs&quot;
+-#       die &quot;Problem with specfile \&quot;$SPECFILE\&quot;. (Version is empty)&quot;
+     fi
+ 
+     mkdir -p &quot;$PACKAGEDIR/$app/_buildlogs/&quot; &quot;$SPECDIR/&quot;
+@@ -82,10 +72,6 @@
+     set_ccache
+     set_distcc
+ 
+-    if ! download_sources; then
+-        continue
+-    fi
+-
+ #   echo &quot;Building $app package for dists: '$DISTS' and archs: '$ARCHS', tagged: '$TAG'&quot;
+     for dist in $DISTS; do
+         RPMBUILDOPTS=&quot;&quot;
+@@ -106,7 +92,6 @@
+ #           ARCHS=&quot;noarch&quot;
+         fi
+ 
+-
+         if [ ! -d &quot;$CHROOTDIR/$DISTNICK&quot; ]; then
+             warning &quot;Distribution $DISTNICK has no build environment ($CHROOTDIR/$DISTNICK). Aborting.&quot;
+             continue
+@@ -161,8 +146,8 @@
+             ### Check if already build (2 version schemes, multiple disttags)
+             for disttag in $DISTNAME $DISTTAG; do
+                 for tag in $TAGS; do
+-                    NEWRPMFILE=&quot;$app-$VERSION-$RELEASE.$disttag.$tag.$arch.rpm&quot;
+-                    OLDRPMFILE=&quot;$app-$VERSION-$RELEASE.$tag.$disttag.$arch.rpm&quot;
++                    NEWRPMFILE=&quot;$app-$VERSION-$RELEASE.$arch.rpm&quot;
++                    OLDRPMFILE=&quot;$app-$VERSION-$RELEASE.$arch.rpm&quot;
+                     for rpmfile in $NEWRPMFILE $OLDRPMFILE; do
+ #                       echo $rpmfile
+                         if [ -z &quot;$FORCE_OVERWRITE&quot; -a -f &quot;$PACKAGEDIR/$app/$rpmfile&quot; ]; then
+@@ -177,6 +162,10 @@
+                     done
+                 done
+             done
++
++            if ! download_sources; then
++                continue
++            fi
+ 
+             cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+ 
+@@ -276,6 +265,7 @@
+             fi
+ 
+             ### Disable ExtUtils::AutoInstall in perl packages
++            export PERL_AUTOINSTALL=&quot;--skipdeps --skip&quot;
+             export PERL_EXTUTILS_AUTOINSTALL=&quot;--skipdeps --skip&quot;
+ 
+             ### Remove buildroot
+@@ -321,7 +311,7 @@
+                 cat &quot;$NEWSPECFILE&quot;
+ 
+                 echo -e &quot;\n----- Expanded spec file -----&quot;
+-                rpmdb -D &quot;dtag $DISTNAME&quot; -D &quot;dist .$DISTNAME.$TAG&quot; -D &quot;$DISTNICK 1&quot; -D &quot;$DISTNAME 1&quot; -D &quot;_smp_mflags $MAKEFLAGS&quot; -E &quot;%{expand:%(cat $SPECFILE)}&quot;
++                expand_specfile $SPECFILE
+ 
+                 echo -e &quot;\n----- Build log -----&quot;
+ 
+@@ -398,7 +388,7 @@
+         done
+     done
+ 
+-    RPMFILE=&quot;$app-$VERSION-$RELEASE.$TAG.src.rpm&quot;
++    RPMFILE=&quot;$app-$VERSION-$RELEASE.src.rpm&quot;
+     ### Only build when there was a succesful binary build
+ #   if [ -z &quot;$NOSOURCE&quot; -a &quot;$DARBUILDRC&quot; -eq 0 -o ! -f &quot;$PACKAGEDIR/$app/$RPMFILE&quot; ]; then
+     if [ -z &quot;$NOSOURCE&quot; -a &quot;$DARBUILDRC&quot; -eq 0 ]; then
+@@ -413,7 +403,7 @@
+                 continue
+             fi
+ 
+-            RPMFILE=&quot;$app-$VERSION-$RELEASE.$TAG.src.rpm&quot;
++            RPMFILE=&quot;$app-$VERSION-$RELEASE.src.rpm&quot;
+ 
+             NEWSPECFILE=&quot;$TEMPDIR/$app.spec&quot;
+             cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+@@ -429,7 +419,7 @@
+                 --define \&quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm\&quot; \
+                 --define \&quot;_srcrpmdir $PACKAGEDIR/$app\&quot; \
+                 --define \&quot;_sourcedir $SPECDIR\&quot; \
+-                --define \&quot;dist \&quot; \
++                --define \&quot;dist .$TAG\&quot; \
+                 \&quot;$NEWSPECFILE\&quot;&quot;
+             echo &quot;$BUILDCMD&quot; | setarch $DISTARCH /usr/sbin/chroot &quot;$CHROOTDIR/$dist&quot; /bin/su -lm $BUILD_USER -c &quot;/bin/bash --login -s&quot; &amp;&gt;/dev/null
+             RC=$?
+
+Modified: trunk/tools/dar/dar-functions
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar-functions?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar-functions?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dar/dar-functions (original)
++++ trunk/tools/dar/dar-functions Thu Oct  7 15:12:02 2010
+@@ -81,6 +81,15 @@
+ 	fi
+ }
+ 
++function expand_specfile {
++	local SPECFILE=&quot;$1&quot;
++	if [ &quot;$DISTNAME&quot; -a &quot;$TAG&quot; -a &quot;$DISTNICK&quot; -a &quot;$MAKEFLAGS&quot; ]; then
++		rpmdb -D &quot;dtag $DISTNAME&quot; -D &quot;dist .$DISTNAME.$TAG&quot; -D &quot;$DISTNICK 1&quot; -D &quot;$DISTNAME 1&quot; -D &quot;_smp_mflags $MAKEFLAGS&quot; -E &quot;%{expand:%(cat $SPECFILE)}&quot;
++	else
++		cat $SPECFILE
++	fi
++}
++
+ function rpmconf {
+ 	local CONFIG=&quot;$1&quot;
+ 
+@@ -92,33 +101,18 @@
+ 		return 1
+ 	fi
+ 
+-	if [ &quot;$3&quot; != &quot;nocheck&quot; ]; then
+-		if [ &quot;$DISTNICK&quot; ]; then
+-			local RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK rpm --version | cut -d' ' -f3)&quot;
+-		fi
++#	if [ &quot;$3&quot; != &quot;nocheck&quot; ]; then
++#		if [ &quot;$DISTNICK&quot; ]; then
++#			local RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK rpm --version | cut -d' ' -f3)&quot;
++#		fi
+ 
+     (
+ #	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su -lm $BUILD_USER -c &quot;rpmdb -D \&quot;dtag $DISTNAME\&quot; -D \&quot;disttag $DISTNAME\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n128 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+-    if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! rpmdb -D &quot;dtag $DISTNAME&quot; -D &quot;dist .$DISTNAME.$TAG&quot; -D &quot;$DISTNICK 1&quot; -D &quot;$DISTNAME 1&quot; -E &quot;%{expand:%(head -n192 $SPECFILE)}&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+-		if ! grep -i &quot;^ *$CONFIG *:&quot; $SPECFILE | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+-			debug &quot;Config $CONFIG not found in $SPECFILE&quot;
+-		fi
+-	fi
+-	) | perl -p -e &quot;
+-                        s|\%{real_version}|$RVERSION|;
+-                        s|\%{real_release}|$RRELEASE|;
+-                        s|\%{kversion}|kv|;
+-                        s|\%{krelease}|kr|;
+-                        s|\%{.*}||g;
+-			s|\s+| |g;
+-			s|^\s+||;
+-			s|\s+$||;
+-                &quot;
+-	else
+-		if ! grep -i &quot;^ *$CONFIG *:&quot; $SPECFILE | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+-			debug &quot;Config $CONFIG not found in $SPECFILE&quot;
+-		fi
+-	fi
++#    if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! expand_specfile $SPECFILE | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
++	if ! expand_specfile $SPECFILE | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
++		debug &quot;Config $CONFIG not found in $SPECFILE&quot;
++	fi
++	) | perl -p -e &quot;s|\s+| |g; s|^\s+||; s|\s+$||;&quot;
+ }
+ 
+ function rpmmacro {
+@@ -192,9 +186,15 @@
+ 	else
+ 		ARCHS=&quot;$(metaconf Archs)&quot;
+ 	fi
+-	if [ -z &quot;$ARCHS&quot; ]; then ARCHS=&quot;$(rpmconf BuildArch)&quot;; fi
+-	if [ -z &quot;$ARCHS&quot; ]; then ARCHS=&quot;$DISTARCH&quot;; fi
+-	if [ -z &quot;$ARCHS&quot; ]; then ARCHS=&quot;$DEFAULT_ARCHS&quot;; fi
++	if [ -z &quot;$ARCHS&quot; ]; then
++		ARCHS=&quot;$(rpmconf BuildArch)&quot;
++	fi
++	if [ -z &quot;$ARCHS&quot; ]; then
++		ARCHS=&quot;$DISTARCH&quot;
++	fi
++	if [ -z &quot;$ARCHS&quot; ]; then
++		ARCHS=&quot;$DEFAULT_ARCHS&quot;
++	fi
+ }
+ 
+ function set_dists {
+@@ -211,7 +211,9 @@
+ 		NODIST=&quot;nodist&quot;
+ 		DISTS=&quot;$(echo $DISTS | cut -f1)&quot;
+ 	fi
+-	if [ -z &quot;$DISTS&quot; ]; then DISTS=&quot;$DEFAULT_DISTS&quot;; fi
++	if [ -z &quot;$DISTS&quot; ]; then
++		DISTS=&quot;$DEFAULT_DISTS&quot;
++	fi
+ }
+ 
+ function set_exclude_dist {
+@@ -240,8 +242,12 @@
+ 	else
+ 		TAG=&quot;$(metaconf Tag)&quot;
+ 	fi
+-	if [ -z &quot;$DEFAULT_TAG&quot; ]; then DEFAULT_TAG=&quot;${DEFAULT_TAGS/ */}&quot;; fi
+-	if [ -z &quot;$TAG&quot; ]; then TAG=&quot;$DEFAULT_TAG&quot;; fi
++	if [ -z &quot;$DEFAULT_TAG&quot; ]; then
++		DEFAULT_TAG=&quot;${DEFAULT_TAGS/ */}&quot;
++	fi
++	if [ -z &quot;$TAG&quot; ]; then
++		TAG=&quot;$DEFAULT_TAG&quot;
++	fi
+ }
+ 
+ function set_soapbox {
+@@ -285,7 +291,7 @@
+ 	local ERC=0
+ 	local i=1
+     ### FIXME: Do not hardcode a distribution here
+-	for url in $(spectool -l -d &quot;dtag el5&quot; &quot;$SPECFILE&quot; 2&gt;/dev/null | cut -f2 -d' '); do
++	for url in $(spectool -l &lt;(expand_specfile $SPECFILE) 2&gt;/dev/null | cut -f2 -d' '); do
+ 		filename=&quot;$SPECDIR/$(basename $url)&quot;
+ 		if [ ! -s &quot;$filename&quot; ]; then
+ 			warning &quot;Source \&quot;$(basename $filename)\&quot; not found, downloading [$url].&quot;
+@@ -293,7 +299,7 @@
+ 			RC=1
+ 			while [ $RC -ne 0 -a $i -lt 4 ]; do
+ #				wget -v -t5 -T2 -O &quot;$filename&quot; &quot;$url&quot;
+-				wget -q -t30 -T2 --user-agent=&quot;Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)&quot; -O &quot;$filename&quot; &quot;$url&quot;
++				wget -q -t30 -T10 -O &quot;$filename&quot; &quot;$url&quot;
+ #				wget -q -T1 -O &quot;$filename&quot; &quot;$url&quot;
+ #				lftpget &quot;$url&quot; -c -o &quot;$filename&quot;
+ #				lftpget &quot;$url&quot; -c -O &quot;$(dirname $filename)&quot; -o &quot;$(basename $filename)&quot;
+@@ -302,6 +308,9 @@
+ 			done
+ 			if [ $RC -ne 0 ]; then
+ 				error &quot;Problems downloading source [$url].&quot;
++				if [ -s &quot;$filename&quot; ]; then
++					rm &quot;$filename&quot;
++				fi
+ 				ERC=1
+ 			fi
+ 		fi
+
+Modified: trunk/tools/dar/dar-perl.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar-perl.py?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar-perl.py?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dar/dar-perl.py (original)
++++ trunk/tools/dar/dar-perl.py Thu Oct  7 15:12:02 2010
+@@ -180,12 +180,14 @@
+ module = package.replace('-', '::')
+ 
+ ### Download latest package list from CPAN
+-if not download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>'):
++#if not download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>'):
++if not download('<A HREF="http://www.cpan.org/modules/02packages.details.txt.gz">http://www.cpan.org/modules/02packages.details.txt.gz</A>'):
+     print &gt;&gt;sys.stderr, &quot;Error: Failed to download 02packages.details.txt.gz&quot;
+     sys.exit(1)
+ 
+ ### Download latest authors list from CPAN
+-if not download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml</A>'):
++#if not download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml</A>'):
++if not download('<A HREF="http://www.cpan.org/authors/00whois.xml">http://www.cpan.org/authors/00whois.xml</A>'):
+     print &gt;&gt;sys.stderr, &quot;Error: Failed to download 00whois.xml&quot;
+     sys.exit(1)
+ 
+@@ -506,7 +508,7 @@
+ print &gt;&gt;out, &quot;Summary: %s&quot; % summary
+ print &gt;&gt;out, &quot;Name: perl-%s&quot; % package
+ print &gt;&gt;out, 'Version:', version
+-print &gt;&gt;out, 'Release: 1'
++print &gt;&gt;out, 'Release: 1%{?dist}'
+ print &gt;&gt;out, 'License: %s' % license
+ print &gt;&gt;out, 'Group: Applications/CPAN'
+ print &gt;&gt;out, &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % package
+
+Modified: trunk/tools/dar/dar.conf
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar.conf?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/dar.conf?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dar/dar.conf (original)
++++ trunk/tools/dar/dar.conf Thu Oct  7 15:12:02 2010
+@@ -12,7 +12,7 @@
+ 
+ #DEFAULT_DISTS=&quot;el4a el4i fc3a fc3i fc2a fc2i fc1i el3a el3i rh9i rh7i el2i&quot;
+ #DEFAULT_DISTS=&quot;el5a el5i el4a el4i el3a el3i rh9i rh7i el2i&quot;
+-DEFAULT_DISTS=&quot;el5a el5i el4a el4i el3a el3i&quot;
++DEFAULT_DISTS=&quot;el5a el5i el4a el4i el3a el3i el2i&quot;
+ DEFAULT_SOURCE_DISTS=&quot;el5i&quot;
+ DEFAULT_ARCHS=&quot;i386&quot;
+ DEFAULT_TAGS=&quot;rf dag&quot;
+@@ -36,6 +36,6 @@
+ RSYNC_OPTIONS=&quot;-avHl --progress --delete-after --exclude /arrfab/ --exclude /bert/ --exclude /dries/ --exclude /redhat/6.2/ --exclude /redhat/8.0/ --include /rpmforge/persona/dag/ --exclude /rpmforge/persona/* --delay-updates&quot;
+ RSYNC_TARGET=&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at rsync.sw.be</A>:dag.wieers.com/pub/&quot;
+ ### Use wondershaper
+-RSYNC_LIMIT=&quot;64&quot;
++RSYNC_LIMIT=&quot;100&quot;
+ GPG_PATH=&quot;/home/dag/.gnupg&quot;
+ GPG_NAME=&quot;Dag Wieers (Dag Apt Repository v1.0)&quot;
+
+Modified: trunk/tools/dar/scripts/pre-brand.sh
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/scripts/pre-brand.sh?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/scripts/pre-brand.sh?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dar/scripts/pre-brand.sh (original)
++++ trunk/tools/dar/scripts/pre-brand.sh Thu Oct  7 15:12:02 2010
+@@ -17,15 +17,19 @@
+ 
+ case &quot;$author&quot; in
+     (dries)
+-        packager=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot; ;;
++        packager=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot;;;
+     (bert)
+-        packager=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot; ;;
++        packager=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot;;;
+     (hadams)
+-        packager=&quot;Heiko Adams &lt;info\@fedora-blog.de&gt;&quot; ;;
++        packager=&quot;Heiko Adams &lt;info\@fedora-blog.de&gt;&quot;;;
+     (cmr)
+-        packager=&quot;Christoph Maser &lt;cmr\@financial.com&gt;&quot; ;;
++        packager=&quot;Christoph Maser &lt;cmr\@financial.com&gt;&quot;;;
++    (shuff)
++        packager=&quot;Steve Huff &lt;shuff\@vecna.org&gt;&quot;;;
++    (yury)
++        packager=&quot;Yury V. Zaytsev &lt;yury\@shurup.com&gt;&quot;;;
+     (dag|thias|matthias|*)
+-        packager=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot; ;;
++        packager=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot;;;
+ esac
+ 
+ ### Removing existing branding and add own branding
+
+Modified: trunk/tools/dar/scripts/pre-diskspace.sh
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/scripts/pre-diskspace.sh?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dar/scripts/pre-diskspace.sh?rev=9167&amp;r1=9166&amp;r2=9167&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dar/scripts/pre-diskspace.sh (original)
++++ trunk/tools/dar/scripts/pre-diskspace.sh Thu Oct  7 15:12:02 2010
+@@ -13,7 +13,7 @@
+ 
+ export free=&quot;$(set -- $(df $chrootdir/$builddir | grep -v 'Filesystem'); echo $4)&quot;
+ 
+-while [ -z &quot;$free&quot; -o $free -lt 20480 ]; do
++while [ -z &quot;$free&quot; -o &quot;$free&quot; -a $free -lt 20480 ]; do
+ 	echo &quot;Disk is almost full ($free kB), please free up space in $builddir and press ENTER.&quot; &gt;&amp;2
+ 	read a
+ 	export free=&quot;$(set -- $(df $chrootdir/$builddir | grep -v 'Filesystem'); echo $4)&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007950.html">[svn] r9166 - /trunk/rpms/alpine/alpine-test.spec
+</A></li>
+	<LI>Next message: <A HREF="007952.html">[svn] r9168 - /trunk/rpms/pnp4nagios/pnp4nagios.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7951">[ date ]</a>
+              <a href="thread.html#7951">[ thread ]</a>
+              <a href="subject.html#7951">[ subject ]</a>
+              <a href="author.html#7951">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,321 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5166 - in trunk/rpms: . dkms-gspca flvtool2 osslsigncode
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5166%20-%20in%20trunk/rpms%3A%20.%20dkms-gspca%20flvtool2%20osslsigncode&In-Reply-To=%3C20070214123256.7D42594CCE3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003964.html">
+   <LINK REL="Next"  HREF="003966.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5166 - in trunk/rpms: . dkms-gspca flvtool2 osslsigncode</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5166%20-%20in%20trunk/rpms%3A%20.%20dkms-gspca%20flvtool2%20osslsigncode&In-Reply-To=%3C20070214123256.7D42594CCE3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5166 - in trunk/rpms: . dkms-gspca flvtool2 osslsigncode">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Feb 14 13:32:56 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003964.html">[svn] r5165 - trunk/rpms/ogmrip
+</A></li>
+        <LI>Next message: <A HREF="003966.html">[svn] r5167 - trunk/rpms/git
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3965">[ date ]</a>
+              <a href="thread.html#3965">[ thread ]</a>
+              <a href="subject.html#3965">[ subject ]</a>
+              <a href="author.html#3965">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-02-14 13:32:54 +0100 (Wed, 14 Feb 2007)
+New Revision: 5166
+
+Added:
+   trunk/rpms/dkms-gspca/
+   trunk/rpms/dkms-gspca/dkms-gspca.spec
+   trunk/rpms/flvtool2/
+   trunk/rpms/flvtool2/flvtool2.spec
+   trunk/rpms/osslsigncode/
+   trunk/rpms/osslsigncode/osslsigncode-1.2-hashfix.patch
+   trunk/rpms/osslsigncode/osslsigncode.spec
+Log:
+Initial imports of dkms-gspca, flvtool2 and osslsigncode.
+
+
+Added: trunk/rpms/dkms-gspca/dkms-gspca.spec
+===================================================================
+--- trunk/rpms/dkms-gspca/dkms-gspca.spec	                        (rev 0)
++++ trunk/rpms/dkms-gspca/dkms-gspca.spec	2007-02-14 12:32:54 UTC (rev 5166)
+@@ -0,0 +1,86 @@
++# $Id$
++# Authority: matthias
++# Dist: nodist
++
++%define date 20070110
++
++Summary: Generic Softwares Package for Camera Adapters kernel module
++Name: dkms-gspca
++Version: 1.0.12
++Release: 1
++License: GPL
++Group: System Environment/Kernel
++URL: <A HREF="http://mxhaard.free.fr/">http://mxhaard.free.fr/</A>
++Source: <A HREF="http://mxhaard.free.fr/spca50x/Download/gspcav1-%{date">http://mxhaard.free.fr/spca50x/Download/gspcav1-%{date</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildArch: noarch
++Requires: gcc, make
++Requires(post): dkms
++Requires(preun): dkms
++
++%description
++Generic Softwares Package for Camera Adapters. Kernel modules which supports
++a wide variety of USB webcams.
++
++
++%prep
++%setup -n gspcav1-%{date}
++
++
++%build
++
++
++%install
++%{__rm} -rf %{buildroot}
++
++%define dkms_name gspca
++%define dkms_vers %{version}-%{release}
++%define quiet -q
++
++# Kernel module sources install for dkms
++%{__mkdir_p} %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++%{__cp} -a * %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++# Configuration for dkms
++%{__cat} &gt; %{buildroot}%{_usrsrc}/%{dkms_name}-%{dkms_vers}/dkms.conf &lt;&lt; 'EOF'
++PACKAGE_NAME=%{dkms_name}
++PACKAGE_VERSION=%{dkms_vers}
++BUILT_MODULE_NAME[0]=gspca
++DEST_MODULE_LOCATION[0]=/kernel/drivers/usb/media
++AUTOINSTALL=&quot;YES&quot;
++EOF
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++# Add to DKMS registry
++dkms add -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++# Rebuild and make available for the currenty running kernel
++dkms build -m %{dkms_name} -v %{dkms_vers} %{?quiet} || :
++dkms install -m %{dkms_name} -v %{dkms_vers} %{?quiet} --force || :
++
++%preun
++# Remove all versions from DKMS registry
++dkms remove -m %{dkms_name} -v %{dkms_vers} %{?quiet} --all || :
++
++
++%files
++%defattr(-, root, root, 0755)
++%{_usrsrc}/%{dkms_name}-%{dkms_vers}/
++
++
++%changelog
++* Wed Jan 24 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.12-1
++- Minor spec file cleanup.
++- Name dkms-gspca to make transition to the future v4l2 module easier.
++- Use a more usual type of version (1.0.12 vs. 01.00.12).
++
++* Mon Jan 12 2007 Jon Nettleton &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 01.00.12-1
++- Updated codebase to the newest release
++
++* Mon Jan 08 2007 Jon Nettleton &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 01.00.10-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/dkms-gspca/dkms-gspca.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/flvtool2/flvtool2.spec
+===================================================================
+--- trunk/rpms/flvtool2/flvtool2.spec	                        (rev 0)
++++ trunk/rpms/flvtool2/flvtool2.spec	2007-02-14 12:32:54 UTC (rev 5166)
+@@ -0,0 +1,61 @@
++# $Id$
++# Authority: matthias
++
++Summary: Manipulation tool for Macromedia Flash Video (FLV) files
++Name: flvtool2
++Version: 1.0.6
++Release: 1
++License: BSD
++Group: Applications/Multimedia
++URL: <A HREF="http://www.inlet-media.de/flvtool2">http://www.inlet-media.de/flvtool2</A>
++Source: <A HREF="http://rubyforge.org/frs/download.php/17497/flvtool2-%{version">http://rubyforge.org/frs/download.php/17497/flvtool2-%{version</A>}.tgz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++Requires: ruby
++BuildRequires: ruby
++BuildArch: noarch
++
++%description
++FLVTool2 is a manipulation tool for Macromedia Flash Video (FLV) files.
++FLVTool2 can calculate a lot of meta data and insert a onMetaData tag. It can
++cut FLV files and add cue Points (onCuePoint). A debug command lets you see
++inside our FLV and the print command gives you meta data information in XML
++or YAML format.
++
++
++%prep
++%setup
++
++
++%build
++ruby setup.rb config
++ruby setup.rb setup
++
++
++%install
++%{__rm} -rf %{buildroot}
++ruby setup.rb install --prefix=%{buildroot}
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc CHANGELOG LICENSE README examples/
++%{_bindir}/flvtool2
++%{_prefix}/lib/ruby/site_ruby/*/flv.rb
++%{_prefix}/lib/ruby/site_ruby/*/flvtool2.rb
++%{_prefix}/lib/ruby/site_ruby/*/mixml.rb
++%{_prefix}/lib/ruby/site_ruby/*/miyaml.rb
++%{_prefix}/lib/ruby/site_ruby/*/flv/
++%{_prefix}/lib/ruby/site_ruby/*/flvtool2/
++
++
++%changelog
++* Wed Feb 14 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.6-1
++- Update to 1.0.6 (final).
++
++* Wed Feb  7 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.5-0.1.rc6
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/flvtool2/flvtool2.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/osslsigncode/osslsigncode-1.2-hashfix.patch
+===================================================================
+--- trunk/rpms/osslsigncode/osslsigncode-1.2-hashfix.patch	                        (rev 0)
++++ trunk/rpms/osslsigncode/osslsigncode-1.2-hashfix.patch	2007-02-14 12:32:54 UTC (rev 5166)
+@@ -0,0 +1,12 @@
++diff -Naupr osslsigncode-1.2.orig/osslsigncode.c osslsigncode-1.2/osslsigncode.c
++--- osslsigncode-1.2.orig/osslsigncode.c	2005-01-21 13:23:44.000000000 +0100
+++++ osslsigncode-1.2/osslsigncode.c	2007-01-30 19:26:44.000000000 +0100
++@@ -612,7 +612,7 @@ int main(int argc, char **argv) 
++ 
++ 	/* pad (with 0's) pe file to 8 byte boundary */
++ 	len = 8 - st.st_size % 8;
++-	if (len &gt; 0) {
+++	if (len &gt; 0 &amp;&amp; len != 8) {
++ 	  memset(buf, 0, len);
++ 	  BIO_write(hash, buf, len);
++ 	  st.st_size += len;
+
+Added: trunk/rpms/osslsigncode/osslsigncode.spec
+===================================================================
+--- trunk/rpms/osslsigncode/osslsigncode.spec	                        (rev 0)
++++ trunk/rpms/osslsigncode/osslsigncode.spec	2007-02-14 12:32:54 UTC (rev 5166)
+@@ -0,0 +1,48 @@
++# $Id$
++# Authority: matthias
++
++Summary: Tool for Authenticode signing of EXE/CAB files
++Name: osslsigncode
++Version: 1.2
++Release: 1
++License: GPL
++Group: Applications/System
++URL: <A HREF="http://sourceforge.net/projects/osslsigncode/">http://sourceforge.net/projects/osslsigncode/</A>
++Source: <A HREF="http://dl.sf.net/osslsigncode/osslsigncode-%{version">http://dl.sf.net/osslsigncode/osslsigncode-%{version</A>}.tar.gz
++Patch0: osslsigncode-1.2-hashfix.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildRequires: openssl-devel, curl-devel
++
++%description
++Tool for Authenticode signing of EXE/CAB files.
++
++
++%prep
++%setup
++%patch0 -p1 -b .hashfix
++
++
++%build
++%configure
++%{__make} %{?_smp_mflags}
++
++
++%install
++%{__rm} -rf %{buildroot}
++%makeinstall
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc CHANGES LICENSE README TODO
++%{_bindir}/osslsigncode
++
++
++%changelog
++* Tue Jan 30 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.2-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/osslsigncode/osslsigncode.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003964.html">[svn] r5165 - trunk/rpms/ogmrip
+</A></li>
+	<LI>Next message: <A HREF="003966.html">[svn] r5167 - trunk/rpms/git
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3965">[ date ]</a>
+              <a href="thread.html#3965">[ thread ]</a>
+              <a href="subject.html#3965">[ subject ]</a>
+              <a href="author.html#3965">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] Shared libraries in RPMforge packages...
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Shared%20libraries%20in%20RPMforge%20packages...&In-Reply-To=%3C4649D155.6030603%40bioxray.dk%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002277.html">
+   <LINK REL="Next"  HREF="002279.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] Shared libraries in RPMforge packages...</H1>
+    <B>Morten Kjeldgaard</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Shared%20libraries%20in%20RPMforge%20packages...&In-Reply-To=%3C4649D155.6030603%40bioxray.dk%3E"
+       TITLE="[packagers] Shared libraries in RPMforge packages...">mok at bioxray.dk
+       </A><BR>
+    <I>Tue May 15 17:27:17 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002277.html">[packagers] Plone Install Fails on Centos 5
+</A></li>
+        <LI>Next message: <A HREF="002279.html">[packagers] Shared libraries in RPMforge packages...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2278">[ date ]</a>
+              <a href="thread.html#2278">[ thread ]</a>
+              <a href="subject.html#2278">[ subject ]</a>
+              <a href="author.html#2278">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi friends,
+
+I want to point you attention to the way shared libraries are being 
+packaged in RPMforge. I think it is necessary to rethink the policy (if 
+there is one ;-) ). The problem is illustrated by the following example:
+
+A few days ago, there was an update to the openexr package, which was 
+version 1.3 before, and is 1.4 now. The new package of course wants to 
+upgrade the older package, since 1.4 &gt; 1.3. The NEW package contains:
+/usr/bin/exrdisplay
+... and more programs...
+/usr/lib/libHalf.so.4
+/usr/lib/libHalf.so.4.0.0
+/usr/lib/libIex.so.4
+... and more shared libraries...
+/usr/share/doc/openexr-1.4.0a
+... etc.
+
+The OLD package contains:
+/usr/bin/exrdisplay
+...
+/usr/lib/libHalf.so.3
+/usr/lib/libHalf.so.3.0.0
+/usr/lib/libIex.so.3
+/usr/lib/libIex.so.3.0.0
+... etc...
+/usr/share/doc/openexr-1.3.0
+
+When the NEW package replaces the OLD package, it wants to remove the 
+shared libraries version 3. However, I have a bunch of (local) packages 
+installed that depend on the OLD shared libraries, and apt-get therefore 
+wants to uninstall those.
+
+This behaviour is not desirable, and is a packaging bug IMHO. The 
+openexr package -- and probably others -- need to split into several 
+subpackages. There is no reason that /usr/lib/libHalf.so.3 and 
+/usr/lib/libHalf.so.4 could not live next to each other (in the old and 
+new packages resp.). But this requires that the files that clash -- (in 
+this case the binaries) must be in their own package.
+
+The solution to the problem is the following:
+When the major number of a shared library changes, it is necessary to 
+change the name of the package. The obvious choice is to append the 
+major .so number to the package name, i.e. openexr4. You need to have 3 
+packages for this to work: one with programs (openexr4), one with shared 
+libraries (openexr4-libs) and one with header files and some of the 
+libraries (openexr4-devel).
+
+The binaries package (openexr4) depends on openexr4-libs, and replaces 
+the binaries in the old package (openexr3). Thus, in the upgrade, 
+openexr4 will pull in openexr4-libs. However,  openexr3-libs will be 
+allowed to remain on the system, like it should if other programs or 
+packages depend on it.
+
+Programs that need to use the openexr4 libraries, need to contain the lines
+BuildRequires: openexr4-devel
+Requires: openexr4-libs
+in the spec file. But openexr4-devel need to be able to coexist with 
+openexr3-devel, so their header files need to be in separate directories 
+(for example /usr/include/openexr3/ etc.). I may still wish to be able 
+to compile programs that need openexr3-devel to compile. And the 
+libraries will still be there, since openexr3-devel depends on 
+openexr3-libs.
+
+We have to assume that people:
+1) Can have locally built binaries that depend on shared libraries. 
+These should not disappear overnight without a warning since it may 
+break the locally compiled software.
+2) Can have locally built RPMs that rely on certain shared libraries.
+3) May still want to develop programs using the old version headers and 
+link to old libraries, so the development environment should coexist 
+with programs using the new version.
+
+This is in fact another variation of the infamous fftw discussion that 
+we have been having ad nauseam (thanks to yours truly ;-)). Fedora and 
+friends like to keep the generic name for the new package and provide a 
+*-compat package containing the old stuff. I intensely dislike that 
+approach; a package with a certain software version should never be 
+renamed. In the fftw case, RPMforge correctly bumped the package number 
+to fftw3 (but Fedora didn't).
+
+I propose that RPMforge et. al. adopt a policy along the lines sketched 
+out in the above, so men and fish can coexist peacefully.
+
+Cheers,
+Morten
+
+-- 
+Morten Kjeldgaard, Asc. professor, Ph.D.
+Department of Molecular Biology, Aarhus University
+Gustav Wieds Vej 10 C, DK-8000 Aarhus C, Denmark
+Lab +45 89425026 * Mobile +45 51860147 * Fax +45 86123178
+Home +45 86188180 * <A HREF="http://www.bioxray.dk/~mok">http://www.bioxray.dk/~mok</A>
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002277.html">[packagers] Plone Install Fails on Centos 5
+</A></li>
+	<LI>Next message: <A HREF="002279.html">[packagers] Shared libraries in RPMforge packages...
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2278">[ date ]</a>
+              <a href="thread.html#2278">[ thread ]</a>
+              <a href="subject.html#2278">[ subject ]</a>
+              <a href="author.html#2278">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

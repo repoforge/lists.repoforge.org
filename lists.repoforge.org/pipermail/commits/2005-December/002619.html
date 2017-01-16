@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3819 - in trunk/rpms: . mplayer vstream-client
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3819%20-%20in%20trunk/rpms%3A%20.%20mplayer%20vstream-client&In-Reply-To=%3C20051219142645.B62A6944D4D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002618.html">
+   <LINK REL="Next"  HREF="002620.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3819 - in trunk/rpms: . mplayer vstream-client</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3819%20-%20in%20trunk/rpms%3A%20.%20mplayer%20vstream-client&In-Reply-To=%3C20051219142645.B62A6944D4D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3819 - in trunk/rpms: . mplayer vstream-client">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Dec 19 15:26:45 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002618.html">[svn] r3818 - in trunk/rpms: ebtables rrdtool
+</A></li>
+        <LI>Next message: <A HREF="002620.html">[svn] r3820 - in trunk/rpms: armagetronad armagetronad-moviepack	flumotion
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2619">[ date ]</a>
+              <a href="thread.html#2619">[ thread ]</a>
+              <a href="subject.html#2619">[ subject ]</a>
+              <a href="author.html#2619">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-12-19 15:26:43 +0100 (Mon, 19 Dec 2005)
+New Revision: 3819
+
+Added:
+   trunk/rpms/vstream-client/
+   trunk/rpms/vstream-client/vstream-client.spec
+Modified:
+   trunk/rpms/mplayer/mplayer-cvs.spec
+Log:
+Initial import of vstream-client, and rebuild of MPlayer CVS to use it.
+
+
+Modified: trunk/rpms/mplayer/mplayer-cvs.spec
+===================================================================
+--- trunk/rpms/mplayer/mplayer-cvs.spec	2005-12-19 11:00:16 UTC (rev 3818)
++++ trunk/rpms/mplayer/mplayer-cvs.spec	2005-12-19 14:26:43 UTC (rev 3819)
+@@ -52,7 +52,7 @@
+ Summary: MPlayer, the Movie Player for Linux
+ Name: mplayer
+ Version: 1.0
+-Release: 0.22%{?rcver:.%{rcver}}%{?date:.%{date}}
++Release: 0.23%{?rcver:.%{rcver}}%{?date:.%{date}}
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://mplayerhq.hu/">http://mplayerhq.hu/</A>
+@@ -106,6 +106,7 @@
+ %{!?_without_dts:BuildRequires: libdca-devel}
+ %{!?_without_faac:BuildRequires: faac-devel}
+ %{!?_without_mpc:BuildRequires: libmpcdec-devel}
++%{!?_without_vstream:BuildRequires: vstream-client-devel}
+ 
+ %description
+ MPlayer is a multimedia player. It plays most video formats as well as DVDs.
+@@ -116,7 +117,7 @@
+ 
+ Available rpmbuild rebuild options :
+ --with : samba dvdread
+---without : aalib lirc cdparanoia arts xvid esd lzo fame caca dvb
++--without : aalib lirc cdparanoia arts xvid esd lzo fame caca dvb vstream
+             theora osdmenu gcccheck fribidi xvmc x264 faac mpc live ladspa
+ 
+ 
+@@ -312,6 +313,9 @@
+ 
+ 
+ %changelog
++* Mon Dec 19 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.23.20051211
++- Enable vstream support (TiVo vserver stream).
++
+ * Tue Dec 13 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.22.20051211
+ - Force _libdir since libdha and vidix modules are now built on x86_64.
+ - Include empty _libdir/real/ for non-x86 archs.
+
+Added: trunk/rpms/vstream-client/vstream-client.spec
+===================================================================
+--- trunk/rpms/vstream-client/vstream-client.spec	2005-12-19 11:00:16 UTC (rev 3818)
++++ trunk/rpms/vstream-client/vstream-client.spec	2005-12-19 14:26:43 UTC (rev 3819)
+@@ -0,0 +1,78 @@
++# $Id$
++# Authority: matthias
++
++Summary: Client library for TiVo vserver stream support
++Name: vstream-client
++Version: 1.2
++Release: 1
++License: GPL
++Group: System Environment/Libraries
++URL: <A HREF="http://armory.nicewarrior.org/projects/vstream-client/">http://armory.nicewarrior.org/projects/vstream-client/</A>
++Source: <A HREF="http://mirror-unt.nicewarrior.org/vstream-client/vstream-client-%{version">http://mirror-unt.nicewarrior.org/vstream-client/vstream-client-%{version</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++%description
++This is a fork off of the vstream library from the tivo-mplayer project. It
++has been stripped down to just the client code. If you have vserver installed
++on your Tivo (which most tivo hackers do), then you can use this simple
++client to stream .ty files from it.
++
++
++%package devel
++Summary: Development files for the vstream-client library
++Group: Development/Libraries
++Requires: %{name} = %{version}
++
++%description devel
++This is a fork off of the vstream library from the tivo-mplayer project. It
++has been stripped down to just the client code. If you have vserver installed
++on your Tivo (which most tivo hackers do), then you can use this simple
++client to stream .ty files from it.
++
++This package contains the required files to develop programs that will use the
++vstream-client library.
++
++
++%prep
++%setup
++
++
++%build
++export CFLAGS=&quot;%{optflags}&quot;
++./configure \
++    --bindir=%{_bindir} \
++    --incdir=%{_includedir} \
++    --libdir=%{_libdir}
++%{__make} %{?_smp_mflags}
++
++
++%install
++%{__rm} -rf %{buildroot} _docs/
++%{__mkdir_p} \
++    %{buildroot}%{_bindir} \
++    %{buildroot}%{_includedir} \
++    %{buildroot}%{_libdir}
++%{__make} install \
++    BINDIR=%{buildroot}%{_bindir} \
++    INCDIR=%{buildroot}%{_includedir} \
++    LIBDIR=%{buildroot}%{_libdir}
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%files
++%defattr(-, root, root, 0755)
++%{_bindir}/vstream-client
++
++%files devel
++%defattr(-, root, root, 0755)
++%{_includedir}/vstream-client.h
++%{_libdir}/libvstream-client.a
++
++
++%changelog
++* Mon Dec 19 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.2-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/vstream-client/vstream-client.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002618.html">[svn] r3818 - in trunk/rpms: ebtables rrdtool
+</A></li>
+	<LI>Next message: <A HREF="002620.html">[svn] r3820 - in trunk/rpms: armagetronad armagetronad-moviepack	flumotion
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2619">[ date ]</a>
+              <a href="thread.html#2619">[ thread ]</a>
+              <a href="subject.html#2619">[ subject ]</a>
+              <a href="author.html#2619">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

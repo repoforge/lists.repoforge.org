@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6354 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6354%20-%20trunk/tools/dar&In-Reply-To=%3C200806112141.m5BLfDgY012753%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005152.html">
+   <LINK REL="Next"  HREF="005154.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6354 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6354%20-%20trunk/tools/dar&In-Reply-To=%3C200806112141.m5BLfDgY012753%40surya.karan.org%3E"
+       TITLE="[svn] r6354 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jun 11 23:41:13 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005152.html">[svn] r6353 - in trunk/rpms: . xbindkeys
+</A></li>
+        <LI>Next message: <A HREF="005154.html">[svn] r6355 - in trunk/tools/unoconv: . tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5153">[ date ]</a>
+              <a href="thread.html#5153">[ thread ]</a>
+              <a href="subject.html#5153">[ subject ]</a>
+              <a href="author.html#5153">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-06-11 22:41:12 +0100 (Wed, 11 Jun 2008)
+New Revision: 6354
+
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-perl.py
+   trunk/tools/dar/dar-prepare
+Log:
+Small improvements.
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2008-06-11 00:53:03 UTC (rev 6353)
++++ trunk/tools/dar/dar-build	2008-06-11 21:41:12 UTC (rev 6354)
+@@ -96,6 +96,10 @@
+             continue
+         fi
+ 
++        if [ &quot;$TAG&quot; ]; then
++            TAGS=&quot;$TAG&quot;
++        fi
++
+         if [ &quot;$NODIST&quot; ]; then
+             DISTTAG=&quot;0&quot;
+             DISTNAME=&quot;nodist&quot;
+@@ -163,11 +167,11 @@
+ #                       echo $rpmfile
+                         if [ -z &quot;$FORCE_OVERWRITE&quot; -a -f &quot;$PACKAGEDIR/$app/$rpmfile&quot; ]; then
+                             warning &quot;Package \&quot;$PACKAGEDIR/$app/$rpmfile\&quot; already exists.&quot;
+-            
++
+ #                           if [ -z &quot;$SOURCE_DISTS&quot; ]; then
+ #                               SOURCE_DISTS=&quot;$DISTNICK&quot;
+ #                           fi
+-            
++
+                             continue 4
+                         fi
+                     done
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2008-06-11 00:53:03 UTC (rev 6353)
++++ trunk/tools/dar/dar-perl.py	2008-06-11 21:41:12 UTC (rev 6354)
+@@ -519,7 +519,7 @@
+ else:
+     print &gt;&gt;out, 'BuildRequires: perl'
+ 
+-if not package_make and package_build:
++if package_build:
+     print &gt;&gt;out, 'BuildRequires: perl(Module::Build)'
+ 
+ if meta.has_key('build_requires'):
+@@ -559,23 +559,34 @@
+ 
+ print &gt;&gt;out, &quot;%build&quot;
+ if noarch:
+-    if not package_make and package_build:
+-        print &gt;&gt;out, '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; destdir=&quot;%{buildroot}&quot;'
++
++    if package_build:
++        print &gt;&gt;out, '#%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
++        print &gt;&gt;out, '#%{__make} %{?_smp_mflags}'
++        print &gt;&gt;out, '%{__perl} Build.PL'
++        print &gt;&gt;out, './Build'
++#        print &gt;&gt;out, '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; destdir=&quot;%{buildroot}&quot;'
+     else:
+         print &gt;&gt;out, '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+-    print &gt;&gt;out, '%{__make} %{?_smp_mflags}'
++        print &gt;&gt;out, '%{__make} %{?_smp_mflags}'
+ else:
+-    if not package_make and package_build:
+-        print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; destdir=&quot;%{buildroot}&quot;'
++    if package_build:
++        print &gt;&gt;out, '#CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
++        print &gt;&gt;out, '#%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;'
++        print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Build.PL'
++        print &gt;&gt;out, './Build'
++#        print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; destdir=&quot;%{buildroot}&quot;'
+     else:
+         print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+-    print &gt;&gt;out, '%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;'
++        print &gt;&gt;out, '%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;'
+ print &gt;&gt;out
+ 
+ print &gt;&gt;out, '%install'
+ print &gt;&gt;out, '%{__rm} -rf %{buildroot}'
+-if not package_make and package_build:
+-    print &gt;&gt;out, '%{__make} install'
++if package_build:
++    print &gt;&gt;out, '#%{__make} pure_install'
++    print &gt;&gt;out, 'PERL_INSTALL_ROOT=&quot;%{buildroot}&quot; ./Build install installdirs=&quot;vendor&quot;'
++#    print &gt;&gt;out, '%{__make} install'
+ else:
+     print &gt;&gt;out, '%{__make} pure_install'
+ print &gt;&gt;out
+
+Modified: trunk/tools/dar/dar-prepare
+===================================================================
+--- trunk/tools/dar/dar-prepare	2008-06-11 00:53:03 UTC (rev 6353)
++++ trunk/tools/dar/dar-prepare	2008-06-11 21:41:12 UTC (rev 6354)
+@@ -15,15 +15,18 @@
+ 		ln -f $CHROOTDIR/${DEFAULT_DISTS// */}/root/.bash_history $CHROOTDIR/$distname/root/.bash_history
+ 	fi
+ 
+-	umount $CHROOTDIR/$distname{/dev/pts,/proc,/tmp,$ROOT/build,$ROOT/} 2&gt;/dev/null
++	umount $CHROOTDIR/$distname{/dev/pts,/proc,/sys,/tmp,$ROOT/build,$ROOT/} 2&gt;/dev/null
+ 
+ #	rm -rf $CHROOTDIR/$distname{$RPMTMPPATH}/*
+-	mkdir -p $CHROOTDIR/$distname$ROOT/
+-	mount -o bind $ROOT $CHROOTDIR/$distname$ROOT/
++	mkdir -p $CHROOTDIR/$distname/$ROOT/
++	mount -o bind $ROOT $CHROOTDIR/$distname/$ROOT/
+ 
+ 	mkdir -p $CHROOTDIR/$distname/proc/
+ 	mount -t proc proc $CHROOTDIR/$distname/proc/
+ 
++	mkdir -p $CHROOTDIR/$distname/sys/
++	mount -t sysfs sys $CHROOTDIR/$distname/sys/
++
+ 	mkdir -p $CHROOTDIR/$distname/dev/pts/
+ 	mount -t devpts devpts $CHROOTDIR/$distname/dev/pts/
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005152.html">[svn] r6353 - in trunk/rpms: . xbindkeys
+</A></li>
+	<LI>Next message: <A HREF="005154.html">[svn] r6355 - in trunk/tools/unoconv: . tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5153">[ date ]</a>
+              <a href="thread.html#5153">[ thread ]</a>
+              <a href="subject.html#5153">[ subject ]</a>
+              <a href="author.html#5153">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

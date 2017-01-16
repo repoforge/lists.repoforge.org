@@ -1,0 +1,299 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5365 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5365%20-%20trunk/tools/dar&In-Reply-To=%3C20070504104746.A486C944A99%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004163.html">
+   <LINK REL="Next"  HREF="004165.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5365 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5365%20-%20trunk/tools/dar&In-Reply-To=%3C20070504104746.A486C944A99%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5365 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri May  4 12:47:46 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004163.html">[svn] r5364 - trunk/tools/dar
+</A></li>
+        <LI>Next message: <A HREF="004165.html">[svn] r5366 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4164">[ date ]</a>
+              <a href="thread.html#4164">[ thread ]</a>
+              <a href="subject.html#4164">[ subject ]</a>
+              <a href="author.html#4164">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-04 12:47:45 +0200 (Fri, 04 May 2007)
+New Revision: 5365
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Parse META.yml, get abstract, license, email, author and requires
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-05-04 01:45:33 UTC (rev 5364)
++++ trunk/tools/dar/dar-perl.py	2007-05-04 10:47:45 UTC (rev 5365)
+@@ -6,28 +6,38 @@
+ ### TODO:
+ ###	- Check that module name is distribution !!
+ ###	- Improve docfiles handling (case-insensitive matching, deflates list)
+-###	- Get License based on availability of files (LICENSE, Artistic)
+-###	- Get dependencies from META.yml if available
+-###	- Get author, license, abstract from META.yml if available
++###	- Get build dependencies from META.yml if available
+ ###	- Compare name and version with META.yml
+ 
+-import sys, os, time, getopt, urllib2, gzip, re
++import sys, os, time, getopt, urllib2, gzip, re, syck
+ import cElementTree as ElementTree
+ import tarfile
+ 
++tmppath = '/dar/tmp'
++
+ args = sys.argv[1:]
+-logname = os.getlogin()
++try:
++	logname = os.getlogin()
++except:
++	logname = 'unknown'
+ debug = False
+ noarch = True
+ realversion = None
++author = ''
++email = ''
+ 
+ docfiles = ('Announce', 'ANNOUNCE', 'Artistic', 'ARTISTIC', 'Artistic.txt', 'AUTHORS', 'Bugs', 'BUGS', 'Changelog', 'ChangeLog', 'CHANGELOG', 'Changes', 'CHANGES', 'Changes.pod', 'CHANGES.TXT', 'Copying', 'COPYING', 'COPYRIGHT', 'Credits', 'CREDITS', 'CREDITS.txt', 'FAQ', 'GNU_GPL.txt', 'GNU_LGPL.txt', 'GNU_LICENSE', 'HACKING', 'HISTORY', 'INFO', 'INSTALL', 'INSTALLING', 'INSTALL.txt', 'LICENCE', 'LICENSE', 'MANIFEST', 'META.yml', 'NEWS', 'NOTES', 'NOTICE', 'PORTING', 'readme', 'README', 'readme.txt', 'README.txt', 'README.TXT', 'RELEASE_NOTES', 'SIGNATURE', 'THANKS', 'TODO', 'UPGRADE', 'VERSION', '.txt')
+ 
+ authorities = {
+ 	'dag': 'Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;',
+ 	'dries': 'Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt;',
++	'unknown': 'Name Unknown &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">name at unknown.foo</A>&gt;',
+ }
+ 
++licenses = {
++	'perl': 'GPL or Artistic',
++}
++
+ def download(url):
+ 	filename = os.path.join('/dar/tmp', os.path.basename(url))
+ 	if not os.path.exists(filename):
+@@ -77,7 +87,7 @@
+ download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml</A>')
+ 
+ ### Find specific package in CPAN package list
+-fd = gzip.open('/dar/tmp/02packages.details.txt.gz', 'r')
++fd = gzip.open(os.path.join(tmppath, '02packages.details.txt.gz'), 'r')
+ for line in fd.readlines():
+ 	pinfo = line.split()
+ 	if len(pinfo) &gt; 2 and pmodule == pinfo[0]:
+@@ -93,7 +103,7 @@
+ mnemo = ppath[2]
+ 
+ ### Find specific author in CPAN authors list
+-tree = ElementTree.ElementTree(file='/dar/tmp/00whois.xml')
++tree = ElementTree.ElementTree(file=os.path.join(tmppath, '00whois.xml'))
+ root = tree.getroot()
+ for elem in root.getiterator('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}cpanid'):
+ 	if mnemo == elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}id').text:
+@@ -109,6 +119,8 @@
+ 		except:
+ 			email = ''
+ 		break
++if email:
++	author = &quot;%s &lt;%s&gt;&quot; % (author, email)
+ 
+ ### Get the correct version from the source distribution
+ sdistname = &quot;%s-%s.tar.gz&quot; % (module, version)
+@@ -122,9 +134,9 @@
+ 		version = l[0]
+ 
+ ### Try to download distribution
+-archive = os.path.join('/dar/tmp', cdistname)
++archive = os.path.join(tmppath, cdistname)
+ if os.path.isfile(archive):
+-	os.remove(archive)
++	 os.remove(archive)
+ source = &quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], cdistname)
+ download(source)
+ if not os.path.isfile(archive):
+@@ -150,6 +162,7 @@
+ l = base.split('.tar.gz')
+ base = l[0]
+ docs = []
++meta = {}
+ for file in distfd.getnames():
+ 	### Remove Name-Version/ from filename
+ 	l = file.split(base+'/')
+@@ -159,35 +172,65 @@
+ 	for docfile in docfiles:
+ 		if shortfile == docfile:
+ 			docs.append(shortfile)
+-	### Parse META.yml
++	### Parse META.yml (<A HREF="http://module-build.sourceforge.net/META-spec-v1.2.html">http://module-build.sourceforge.net/META-spec-v1.2.html</A>)
+ ### Example:
+-#name: IO-Digest
+-#version: 0.10
+-#abstract: Calculate digests while reading or writing
+-#author: Chia-liang Kao &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">clkao at clkao.org</A>&gt;
+-#license: perl
+-#distribution_type: module
+-#requires:
+-#  PerlIO::via::dynamic: 0.10
+-#  Digest: 0.0
+-#no_index:
+-#  directory:
+-#    - inc
+-#generated_by: Module::Install version 0.35
++#name -&gt; SVN-Notify-Mirror
++#license -&gt; perl
++#author -&gt; ['John Peacock &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jpeacock at cpan.org</A>&gt;']
++#meta-spec -&gt; {'url': '<A HREF="http://module-build.sourceforge.net/META-spec-v1.2.html">http://module-build.sourceforge.net/META-spec-v1.2.html</A>', 'version': 1.2}
++#abstract -&gt; Keep a mirrored working copy of a repository path
++#generated_by -&gt; Module::Build version 0.2806
++#version -&gt; 0.036
++#provides -&gt; {'SVN::Notify::Mirror::Rsync': {'version': '', 'file': 'lib/SVN/Notify/Mirror/Rsync.pm'}, 'SVN::Notify::Mirror::SSH': {'version': '', 'file': 'lib/SVN/Notify/Mirror/SSH.pm'}, 'SVN::Notify::Mirror': {'version': 0.035999999999999997, 'file': 'lib/SVN/Notify/Mirror.pm'}}
++#requires -&gt; {'Module::Build': 0.28050000000000003, 'SVN::Notify': 2.6200000000000001}
++#resources -&gt; {'license': '<A HREF="http://dev.perl.org/licenses/">http://dev.perl.org/licenses/</A>'}
+ 
+-#	if shortfile == 'META.yml':
+-#		member = distfd.getmember(file)
+-#		meta = distfd.extractfile(member)
+-#		for line in meta.readlines():
+-#			print &gt;&gt;sys.stderr, line
++	if shortfile == 'META.yml':
++		member = distfd.getmember(file)
++		meta = syck.load(distfd.extractfile(member).read())
++
++		for key in meta.keys():
++		        print &gt;&gt;sys.stderr, key, '-&gt;', meta[key]
++
+ 	### Parse README
+ #	if shortfile == 'README':
+ #		member = distfd.getmember(file)
+ #		meta = distfd.extractfile(member)
+ #		for line in meta.readlines():
+ #			print &gt;&gt;sys.stderr, line
++
+ docs.sort()
+ 
++#if os.path.isfile(archive):
++#	os.remove(archive)
++
++if meta.has_key('author') and not email or not author:
++	author = meta['author']
++
++if meta.has_key('license') and meta['license'] in licenses.keys():
++	license = licenses[meta['license']]
++else:
++	gpl = 'LICENSE' in docs
++	artistic = 'Artistic' in docs
++	if gpl and artistic:
++		license = 'GPL or Artistic'
++	elif gpl:
++		license = 'GPL'
++	elif artistic:
++		license = 'Artistic'
++	else:
++		license = 'Artistic'
++		print &gt;&gt;sys.stderr, 'License could not be determined.'
++
++if meta.has_key('abstract'):
++	meta['abstract'] = meta['abstract'][0].lower() + meta['abstract'][1:]
++	summary = &quot;Perl module to %s&quot; % meta['abstract']
++	description = &quot;perl-%s is a Perl module to %s.&quot; % (module, meta['abstract'])
++else:
++	summary = &quot;Perl module named %s&quot; % module
++	description = &quot;perl-%s is a Perl module.&quot; % module
++	print &gt;&gt;sys.stderr, 'No abstract found.'
++	
+ if debug:
+ 	print &gt;&gt;sys.stderr, module, version, &quot;perl-%s/perl-%s.spec&quot; % (module, module)
+ 	if noarch:
+@@ -207,10 +250,7 @@
+ print '# Authority:', logname
+ 
+ author = author.encode('utf8', 'replace') 
+-if email:
+-	print &quot;# Upstream: %s &lt;%s&gt;&quot; % (author, email)
+-else:
+-	print &quot;# Upstream: %s&quot; % author
++print &quot;# Upstream: %s&quot; % author
+ print
+ print '%define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)'
+ print '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'
+@@ -222,14 +262,12 @@
+ 	
+ print
+ 
+-### FIXME: Get Summary from README in Archive
+-print &quot;Summary: Perl module named %s&quot; % module
++print &quot;Summary: %s&quot; % summary
+ print &quot;Name: perl-%s&quot; % module
+ print 'Version:', version
+ print 'Release: 1'
+ 
+-### FIXME: Get License from Archive
+-print 'License: Artistic'
++print 'License: %s' % license
+ print 'Group: Applications/CPAN'
+ print &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+ print
+@@ -240,13 +278,21 @@
+ if noarch:
+ 	print &quot;BuildArch: noarch&quot;
+ 
++### FIXME: Add BuildRequires from Makefile.PL
+ print &quot;BuildRequires: perl&quot;
+ #print &quot;Requires: perl&quot;
++
++### Requires are extracted by RPM itself
++#if meta.has_key('requires'):
++#	for key in meta['requires']:
++#		if meta['requires'][key]:
++#			print &quot;Requires: perl(%s) &gt;= %s&quot; % (key, meta['requires'][key])
++#		else:
++#			print &quot;Requires: perl(%s)&quot; % key
+ print
+ 
+-### FIXME: Get Description from README in Archive
+ print &quot;%description&quot;
+-print &quot;perl-%s is a Perl module.&quot; % module
++print description
+ print
+ print &quot;%prep&quot;
+ print &quot;%%setup -n %s&quot; % basedir
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004163.html">[svn] r5364 - trunk/tools/dar
+</A></li>
+	<LI>Next message: <A HREF="004165.html">[svn] r5366 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4164">[ date ]</a>
+              <a href="thread.html#4164">[ thread ]</a>
+              <a href="subject.html#4164">[ subject ]</a>
+              <a href="author.html#4164">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

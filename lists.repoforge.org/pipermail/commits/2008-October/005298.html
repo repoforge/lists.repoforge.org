@@ -1,0 +1,2723 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6499 - trunk/tools/mrepo/rhn
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6499%20-%20trunk/tools/mrepo/rhn&In-Reply-To=%3C200810060255.m962tuKR028722%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005297.html">
+   <LINK REL="Next"  HREF="005299.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6499 - trunk/tools/mrepo/rhn</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6499%20-%20trunk/tools/mrepo/rhn&In-Reply-To=%3C200810060255.m962tuKR028722%40surya.karan.org%3E"
+       TITLE="[svn] r6499 - trunk/tools/mrepo/rhn">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Oct  6 04:55:56 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005297.html">[svn] r6498 - in trunk/rpms: . pure-ftpd
+</A></li>
+        <LI>Next message: <A HREF="005299.html">[svn] r6500 - trunk/tools/mrepo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5298">[ date ]</a>
+              <a href="thread.html#5298">[ thread ]</a>
+              <a href="subject.html#5298">[ subject ]</a>
+              <a href="author.html#5298">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-10-06 03:55:55 +0100 (Mon, 06 Oct 2008)
+New Revision: 6499
+
+Added:
+   trunk/tools/mrepo/rhn/_httplib.py
+   trunk/tools/mrepo/rhn/_internal_xmlrpclib.py
+Modified:
+   trunk/tools/mrepo/rhn/SSL.py
+   trunk/tools/mrepo/rhn/__init__.py
+   trunk/tools/mrepo/rhn/connections.py
+   trunk/tools/mrepo/rhn/rpclib.py
+Log:
+Added fixed to rhn code shipped with mrepo.
+
+Modified: trunk/tools/mrepo/rhn/SSL.py
+===================================================================
+--- trunk/tools/mrepo/rhn/SSL.py	2008-10-06 02:10:50 UTC (rev 6498)
++++ trunk/tools/mrepo/rhn/SSL.py	2008-10-06 02:55:55 UTC (rev 6499)
+@@ -1,3 +1,4 @@
++#!/usr/bin/python
+ #
+ # Higher-level SSL objects used by rpclib
+ #
+@@ -5,7 +6,7 @@
+ #
+ # Author: Mihai Ibanescu &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">misa at redhat.com</A>&gt;
+ 
+-# $Id: SSL.py 104814 2006-10-24 15:36:18Z jbowes $
++# $Id: SSL.py 137099 2008-02-19 17:27:26Z pkilambi $
+ 
+ &quot;&quot;&quot;
+ rhn.SSL builds an abstraction on top of the objects provided by pyOpenSSL
+@@ -18,7 +19,7 @@
+ import socket
+ import select
+ 
+-DEFAULT_TIMEOUT = 30
++DEFAULT_TIMEOUT = 120
+ 
+ 
+ class SSLSocket:
+@@ -285,7 +286,7 @@
+     # Nothing by default
+     return ok
+ 
+-class TimeoutException(SSL.Error, socket.timeout):
++class TimeoutException(SSL.Error):
+     
+     def __init__(self, *args):
+         self.args = args
+
+Modified: trunk/tools/mrepo/rhn/__init__.py
+===================================================================
+--- trunk/tools/mrepo/rhn/__init__.py	2008-10-06 02:10:50 UTC (rev 6498)
++++ trunk/tools/mrepo/rhn/__init__.py	2008-10-06 02:55:55 UTC (rev 6499)
+@@ -0,0 +1,14 @@
++#
++# __init__.py
++#
++# Copyright (c) 2005 Red Hat, Inc.
++# 
++# $Id: __init__.py 89042 2005-07-05 22:05:02Z wregglej $
++&quot;&quot;&quot;
++rhn - A collection of modules used by Red Hat Network
++&quot;&quot;&quot;
++
++import rpclib
++xmlrpclib = rpclib.xmlrpclib
++
++__all__ = [&quot;rpclib&quot;, &quot;xmlrpclib&quot;]
+
+Added: trunk/tools/mrepo/rhn/_httplib.py
+===================================================================
+--- trunk/tools/mrepo/rhn/_httplib.py	                        (rev 0)
++++ trunk/tools/mrepo/rhn/_httplib.py	2008-10-06 02:55:55 UTC (rev 6499)
+@@ -0,0 +1,1009 @@
++&quot;&quot;&quot;HTTP/1.1 client library
++
++&lt;intro stuff goes here&gt;
++&lt;other stuff, too&gt;
++
++HTTPConnection go through a number of &quot;states&quot;, which defines when a client
++may legally make another request or fetch the response for a particular
++request. This diagram details these state transitions:
++
++    (null)
++      |
++      | HTTPConnection()
++      v
++    Idle
++      |
++      | putrequest()
++      v
++    Request-started
++      |
++      | ( putheader() )*  endheaders()
++      v
++    Request-sent
++      |
++      | response = getresponse()
++      v
++    Unread-response   [Response-headers-read]
++      |\____________________
++      |                     |
++      | response.read()     | putrequest()
++      v                     v
++    Idle                  Req-started-unread-response
++                     ______/|
++                   /        |
++   response.read() |        | ( putheader() )*  endheaders()
++                   v        v
++       Request-started    Req-sent-unread-response
++                            |
++                            | response.read()
++                            v
++                          Request-sent
++
++This diagram presents the following rules:
++  -- a second request may not be started until {response-headers-read}
++  -- a response [object] cannot be retrieved until {request-sent}
++  -- there is no differentiation between an unread response body and a
++     partially read response body
++
++Note: this enforcement is applied by the HTTPConnection class. The
++      HTTPResponse class does not enforce this state machine, which
++      implies sophisticated clients may accelerate the request/response
++      pipeline. Caution should be taken, though: accelerating the states
++      beyond the above pattern may imply knowledge of the server's
++      connection-close behavior for certain requests. For example, it
++      is impossible to tell whether the server will close the connection
++      UNTIL the response headers have been read; this means that further
++      requests cannot be placed into the pipeline until it is known that
++      the server will NOT be closing the connection.
++
++Logical State                  __state            __response
++-------------                  -------            ----------
++Idle                           _CS_IDLE           None
++Request-started                _CS_REQ_STARTED    None
++Request-sent                   _CS_REQ_SENT       None
++Unread-response                _CS_IDLE           &lt;response_class&gt;
++Req-started-unread-response    _CS_REQ_STARTED    &lt;response_class&gt;
++Req-sent-unread-response       _CS_REQ_SENT       &lt;response_class&gt;
++&quot;&quot;&quot;
++
++import errno
++import mimetools
++import socket
++import string
++
++try:
++    from cStringIO import StringIO
++except ImportError:
++    from StringIO import StringIO
++
++__all__ = [&quot;HTTP&quot;, &quot;HTTPResponse&quot;, &quot;HTTPConnection&quot;, &quot;HTTPSConnection&quot;,
++           &quot;HTTPException&quot;, &quot;NotConnected&quot;, &quot;UnknownProtocol&quot;,
++           &quot;UnknownTransferEncoding&quot;, &quot;IllegalKeywordArgument&quot;,
++           &quot;UnimplementedFileMode&quot;, &quot;IncompleteRead&quot;, &quot;InvalidURL&quot;,
++           &quot;ImproperConnectionState&quot;, &quot;CannotSendRequest&quot;, &quot;CannotSendHeader&quot;,
++           &quot;ResponseNotReady&quot;, &quot;BadStatusLine&quot;, &quot;error&quot;]
++
++HTTP_PORT = 80
++HTTPS_PORT = 443
++
++_UNKNOWN = 'UNKNOWN'
++
++# connection states
++_CS_IDLE = 'Idle'
++_CS_REQ_STARTED = 'Request-started'
++_CS_REQ_SENT = 'Request-sent'
++
++
++class HTTPResponse:
++    def __init__(self, sock, debuglevel=0):
++        self.fp = sock.makefile('rb', 0)
++        self.debuglevel = debuglevel
++
++        self.msg = None
++
++        # from the Status-Line of the response
++        self.version = _UNKNOWN # HTTP-Version
++        self.status = _UNKNOWN  # Status-Code
++        self.reason = _UNKNOWN  # Reason-Phrase
++
++        self.chunked = _UNKNOWN         # is &quot;chunked&quot; being used?
++        self.chunk_left = _UNKNOWN      # bytes left to read in current chunk
++        self.length = _UNKNOWN          # number of bytes left in response
++        self.will_close = _UNKNOWN      # conn will close at end of response
++
++    def begin(self):
++        if self.msg is not None:
++            # we've already started reading the response
++            return
++
++        line = self.fp.readline()
++        if self.debuglevel &gt; 0:
++            print &quot;reply:&quot;, repr(line)
++        try:
++            [version, status, reason] = string.split(line, None, 2)
++        except ValueError:
++            try:
++                [version, status] = string.split(line, None, 1)
++                reason = &quot;&quot;
++            except ValueError:
++                version = &quot;HTTP/0.9&quot;
++                status = &quot;200&quot;
++                reason = &quot;&quot;
++        if version[:5] != 'HTTP/':
++            self.close()
++            raise BadStatusLine(line)
++
++        # The status code is a three-digit number
++        try:
++            self.status = status = int(status)
++            if status &lt; 100 or status &gt; 999:
++                raise BadStatusLine(line)
++        except ValueError:
++            raise BadStatusLine(line)
++        self.reason = string.strip(reason)
++
++        if version == 'HTTP/1.0':
++            self.version = 10
++        elif startswith(version, 'HTTP/1.'):
++            self.version = 11   # use HTTP/1.1 code for HTTP/1.x where x&gt;=1
++        elif version == 'HTTP/0.9':
++            self.version = 9
++        else:
++            raise UnknownProtocol(version)
++
++        if self.version == 9:
++            self.msg = mimetools.Message(StringIO())
++            return
++
++        self.msg = mimetools.Message(self.fp, 0)
++        if self.debuglevel &gt; 0:
++            for hdr in self.msg.headers:
++                print &quot;header:&quot;, hdr,
++
++        # don't let the msg keep an fp
++        self.msg.fp = None
++
++        # are we using the chunked-style of transfer encoding?
++        tr_enc = self.msg.getheader('transfer-encoding')
++        if tr_enc:
++            if string.lower(tr_enc) != 'chunked':
++                raise UnknownTransferEncoding()
++            self.chunked = 1
++            self.chunk_left = None
++        else:
++            self.chunked = 0
++
++        # will the connection close at the end of the response?
++        conn = self.msg.getheader('connection')
++        if conn:
++            conn = string.lower(conn)
++            # a &quot;Connection: close&quot; will always close the connection. if we
++            # don't see that and this is not HTTP/1.1, then the connection will
++            # close unless we see a Keep-Alive header.
++            self.will_close = string.find(conn, 'close') != -1 or \
++                              ( self.version != 11 and \
++                                not self.msg.getheader('keep-alive') )
++        else:
++            # for HTTP/1.1, the connection will always remain open
++            # otherwise, it will remain open IFF we see a Keep-Alive header
++            self.will_close = self.version != 11 and \
++                              not self.msg.getheader('keep-alive')
++
++        # do we have a Content-Length?
++        # NOTE: RFC 2616, S4.4, #3 says we ignore this if tr_enc is &quot;chunked&quot;
++        length = self.msg.getheader('content-length')
++        if length and not self.chunked:
++            try:
++                self.length = int(length)
++            except ValueError:
++                self.length = None
++        else:
++            self.length = None
++
++        # does the body have a fixed length? (of zero)
++        if (status == 204 or            # No Content
++            status == 304 or            # Not Modified
++            100 &lt;= status &lt; 200):       # 1xx codes
++            self.length = 0
++
++        # if the connection remains open, and we aren't using chunked, and
++        # a content-length was not provided, then assume that the connection
++        # WILL close.
++        if not self.will_close and \
++           not self.chunked and \
++           self.length is None:
++            self.will_close = 1
++
++    def close(self):
++        if self.fp:
++            self.fp.close()
++            self.fp = None
++
++    def isclosed(self):
++        # NOTE: it is possible that we will not ever call self.close(). This
++        #       case occurs when will_close is TRUE, length is None, and we
++        #       read up to the last byte, but NOT past it.
++        #
++        # IMPLIES: if will_close is FALSE, then self.close() will ALWAYS be
++        #          called, meaning self.isclosed() is meaningful.
++        return self.fp is None
++
++    def read(self, amt=None):
++        if self.fp is None:
++            return ''
++
++        if self.chunked:
++            return self._read_chunked(amt)
++
++        if amt is None:
++            # unbounded read
++            if self.will_close:
++                s = self.fp.read()
++            else:
++                s = self._safe_read(self.length)
++            self.close()        # we read everything
++            return s
++
++        if self.length is not None:
++            if amt &gt; self.length:
++                # clip the read to the &quot;end of response&quot;
++                amt = self.length
++            self.length = self.length - amt
++
++        # we do not use _safe_read() here because this may be a .will_close
++        # connection, and the user is reading more bytes than will be provided
++        # (for example, reading in 1k chunks)
++        s = self.fp.read(amt)
++
++        return s
++
++    def _read_chunked(self, amt):
++        assert self.chunked != _UNKNOWN
++        chunk_left = self.chunk_left
++        value = ''
++
++        # XXX This accumulates chunks by repeated string concatenation,
++        # which is not efficient as the number or size of chunks gets big.
++        while 1:
++            if chunk_left is None:
++                line = self.fp.readline()
++                i = string.find(line, ';')
++                if i &gt;= 0:
++                    line = line[:i] # strip chunk-extensions
++                chunk_left = string.atoi(line, 16)
++                if chunk_left == 0:
++                    break
++            if amt is None:
++                value = value + self._safe_read(chunk_left)
++            elif amt &lt; chunk_left:
++                value = value + self._safe_read(amt)
++                self.chunk_left = chunk_left - amt
++                return value
++            elif amt == chunk_left:
++                value = value + self._safe_read(amt)
++                self._safe_read(2)  # toss the CRLF at the end of the chunk
++                self.chunk_left = None
++                return value
++            else:
++                value = value + self._safe_read(chunk_left)
++                amt = amt - chunk_left
++
++            # we read the whole chunk, get another
++            self._safe_read(2)      # toss the CRLF at the end of the chunk
++            chunk_left = None
++
++        # read and discard trailer up to the CRLF terminator
++        ### note: we shouldn't have any trailers!
++        while 1:
++            line = self.fp.readline()
++            if line == '\r\n':
++                break
++
++        # we read everything; close the &quot;file&quot;
++        # XXX Shouldn't the client close the file?
++        self.close()
++
++        return value
++
++    def _safe_read(self, amt):
++        &quot;&quot;&quot;Read the number of bytes requested, compensating for partial reads.
++
++        Normally, we have a blocking socket, but a read() can be interrupted
++        by a signal (resulting in a partial read).
++
++        Note that we cannot distinguish between EOF and an interrupt when zero
++        bytes have been read. IncompleteRead() will be raised in this
++        situation.
++
++        This function should be used when &lt;amt&gt; bytes &quot;should&quot; be present for
++        reading. If the bytes are truly not available (due to EOF), then the
++        IncompleteRead exception can be used to detect the problem.
++        &quot;&quot;&quot;
++        s = ''
++        while amt &gt; 0:
++            chunk = self.fp.read(amt)
++            if not chunk:
++                raise IncompleteRead(s)
++            s = s + chunk
++            amt = amt - len(chunk)
++        return s
++
++    def getheader(self, name, default=None):
++        if self.msg is None:
++            raise ResponseNotReady()
++        return self.msg.getheader(name, default)
++
++
++class HTTPConnection:
++
++    _http_vsn = 11
++    _http_vsn_str = 'HTTP/1.1'
++
++    response_class = HTTPResponse
++    default_port = HTTP_PORT
++    auto_open = 1
++    debuglevel = 0
++
++    def __init__(self, host, port=None):
++        self.sock = None
++        self.__response = None
++        self.__state = _CS_IDLE
++
++        self._set_hostport(host, port)
++
++    def _set_hostport(self, host, port):
++        if port is None:
++            i = string.find(host, ':')
++            if i &gt;= 0:
++                try:
++                    port = int(host[i+1:])
++                except ValueError:
++                    raise InvalidURL, &quot;nonnumeric port: '%s'&quot;%host[i+1:]
++                host = host[:i]
++            else:
++                port = self.default_port
++        self.host = host
++        self.port = port
++
++    def set_debuglevel(self, level):
++        self.debuglevel = level
++
++    def connect(self):
++        &quot;&quot;&quot;Connect to the host and port specified in __init__.&quot;&quot;&quot;
++        msg = &quot;getaddrinfo returns an empty list&quot;
++        hostname, aliaslist, ipaddrlist = socket.gethostbyname_ex(self.host)
++        for ipaddr in ipaddrlist:
++            sa = (ipaddr, self.port)
++            try:
++                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
++                if self.debuglevel &gt; 0:
++                    print &quot;connect: (%s, %s)&quot; % (self.host, self.port)
++                self.sock.connect(sa)
++            except socket.error, msg:
++                if self.debuglevel &gt; 0:
++                    print 'connect fail:', (self.host, self.port)
++                if self.sock:
++                    self.sock.close()
++                self.sock = None
++                continue
++            break
++        if not self.sock:
++            raise socket.error, msg
++
++    def close(self):
++        &quot;&quot;&quot;Close the connection to the HTTP server.&quot;&quot;&quot;
++        if self.sock:
++            self.sock.close()   # close it manually... there may be other refs
++            self.sock = None
++        if self.__response:
++            self.__response.close()
++            self.__response = None
++        self.__state = _CS_IDLE
++
++    def send(self, str):
++        &quot;&quot;&quot;Send `str' to the server.&quot;&quot;&quot;
++        if self.sock is None:
++            if self.auto_open:
++                self.connect()
++            else:
++                raise NotConnected()
++
++        # send the data to the server. if we get a broken pipe, then close
++        # the socket. we want to reconnect when somebody tries to send again.
++        #
++        # NOTE: we DO propagate the error, though, because we cannot simply
++        #       ignore the error... the caller will know if they can retry.
++        if self.debuglevel &gt; 0:
++            print &quot;send:&quot;, repr(str)
++        try:
++            self.sock.send(str)
++        except socket.error, v:
++            if v[0] == 32:      # Broken pipe
++                self.close()
++            raise
++
++    def putrequest(self, method, url, skip_host=0):
++        &quot;&quot;&quot;Send a request to the server.
++
++        `method' specifies an HTTP request method, e.g. 'GET'.
++        `url' specifies the object being requested, e.g. '/index.html'.
++        &quot;&quot;&quot;
++
++        # check if a prior response has been completed
++        if self.__response and self.__response.isclosed():
++            self.__response = None
++
++        #
++        # in certain cases, we cannot issue another request on this connection.
++        # this occurs when:
++        #   1) we are in the process of sending a request.   (_CS_REQ_STARTED)
++        #   2) a response to a previous request has signalled that it is going
++        #      to close the connection upon completion.
++        #   3) the headers for the previous response have not been read, thus
++        #      we cannot determine whether point (2) is true.   (_CS_REQ_SENT)
++        #
++        # if there is no prior response, then we can request at will.
++        #
++        # if point (2) is true, then we will have passed the socket to the
++        # response (effectively meaning, &quot;there is no prior response&quot;), and
++        # will open a new one when a new request is made.
++        #
++        # Note: if a prior response exists, then we *can* start a new request.
++        #       We are not allowed to begin fetching the response to this new
++        #       request, however, until that prior response is complete.
++        #
++        if self.__state == _CS_IDLE:
++            self.__state = _CS_REQ_STARTED
++        else:
++            raise CannotSendRequest()
++
++        if not url:
++            url = '/'
++        str = '%s %s %s\r\n' % (method, url, self._http_vsn_str)
++
++        try:
++            self.send(str)
++        except socket.error, v:
++            # trap 'Broken pipe' if we're allowed to automatically reconnect
++            if v[0] != 32 or not self.auto_open:
++                raise
++            # try one more time (the socket was closed; this will reopen)
++            self.send(str)
++
++        if self._http_vsn == 11:
++            # Issue some standard headers for better HTTP/1.1 compliance
++
++            if not skip_host:
++                # this header is issued *only* for HTTP/1.1
++                # connections. more specifically, this means it is
++                # only issued when the client uses the new
++                # HTTPConnection() class. backwards-compat clients
++                # will be using HTTP/1.0 and those clients may be
++                # issuing this header themselves. we should NOT issue
++                # it twice; some web servers (such as Apache) barf
++                # when they see two Host: headers
++
++                # If we need a non-standard port,include it in the
++                # header.  If the request is going through a proxy,
++                # but the host of the actual URL, not the host of the
++                # proxy.
++
++                netloc = ''
++                if startswith(url, 'http'):
++                    nil, netloc, nil, nil, nil = urlsplit(url)
++
++                if netloc:
++                    self.putheader('Host', netloc)
++                elif self.port == HTTP_PORT:
++                    self.putheader('Host', self.host)
++                else:
++                    self.putheader('Host', &quot;%s:%s&quot; % (self.host, self.port))
++
++            # note: we are assuming that clients will not attempt to set these
++            #       headers since *this* library must deal with the
++            #       consequences. this also means that when the supporting
++            #       libraries are updated to recognize other forms, then this
++            #       code should be changed (removed or updated).
++
++            # we only want a Content-Encoding of &quot;identity&quot; since we don't
++            # support encodings such as x-gzip or x-deflate.
++            self.putheader('Accept-Encoding', 'identity')
++
++            # we can accept &quot;chunked&quot; Transfer-Encodings, but no others
++            # NOTE: no TE header implies *only* &quot;chunked&quot;
++            #self.putheader('TE', 'chunked')
++
++            # if TE is supplied in the header, then it must appear in a
++            # Connection header.
++            #self.putheader('Connection', 'TE')
++
++        else:
++            # For HTTP/1.0, the server will assume &quot;not chunked&quot;
++            pass
++
++    def putheader(self, header, value):
++        &quot;&quot;&quot;Send a request header line to the server.
++
++        For example: h.putheader('Accept', 'text/html')
++        &quot;&quot;&quot;
++        if self.__state != _CS_REQ_STARTED:
++            raise CannotSendHeader()
++
++        str = '%s: %s\r\n' % (header, value)
++        self.send(str)
++
++    def endheaders(self):
++        &quot;&quot;&quot;Indicate that the last header line has been sent to the server.&quot;&quot;&quot;
++
++        if self.__state == _CS_REQ_STARTED:
++            self.__state = _CS_REQ_SENT
++        else:
++            raise CannotSendHeader()
++
++        self.send('\r\n')
++
++    def request(self, method, url, body=None, headers={}):
++        &quot;&quot;&quot;Send a complete request to the server.&quot;&quot;&quot;
++
++        try:
++            self._send_request(method, url, body, headers)
++        except socket.error, v:
++            # trap 'Broken pipe' if we're allowed to automatically reconnect
++            if v[0] != 32 or not self.auto_open:
++                raise
++            # try one more time
++            self._send_request(method, url, body, headers)
++
++    def _send_request(self, method, url, body, headers):
++        # If headers already contains a host header, then define the
++        # optional skip_host argument to putrequest().  The check is
++        # harder because field names are case insensitive.
++        if (headers.has_key('Host')
++            or filter(lambda x: string.lower(x) == &quot;host&quot;, headers.keys())):
++            self.putrequest(method, url, skip_host=1)
++        else:
++            self.putrequest(method, url)
++
++        if body:
++            self.putheader('Content-Length', str(len(body)))
++        for hdr, value in headers.items():
++            self.putheader(hdr, value)
++        self.endheaders()
++
++        if body:
++            self.send(body)
++
++    def getresponse(self):
++        &quot;Get the response from the server.&quot;
++
++        # check if a prior response has been completed
++        if self.__response and self.__response.isclosed():
++            self.__response = None
++
++        #
++        # if a prior response exists, then it must be completed (otherwise, we
++        # cannot read this response's header to determine the connection-close
++        # behavior)
++        #
++        # note: if a prior response existed, but was connection-close, then the
++        # socket and response were made independent of this HTTPConnection
++        # object since a new request requires that we open a whole new
++        # connection
++        #
++        # this means the prior response had one of two states:
++        #   1) will_close: this connection was reset and the prior socket and
++        #                  response operate independently
++        #   2) persistent: the response was retained and we await its
++        #                  isclosed() status to become true.
++        #
++        if self.__state != _CS_REQ_SENT or self.__response:
++            raise ResponseNotReady()
++
++        if self.debuglevel &gt; 0:
++            response = self.response_class(self.sock, self.debuglevel)
++        else:
++            response = self.response_class(self.sock)
++
++        response.begin()
++        self.__state = _CS_IDLE
++
++        if response.will_close:
++            # this effectively passes the connection to the response
++            self.close()
++        else:
++            # remember this, so we can tell when it is complete
++            self.__response = response
++
++        return response
++
++
++class FakeSocket:
++    def __init__(self, sock, ssl):
++        self.__sock = sock
++        self.__ssl = ssl
++
++    def makefile(self, mode, bufsize=None):
++        &quot;&quot;&quot;Return a readable file-like object with data from socket.
++
++        This method offers only partial support for the makefile
++        interface of a real socket.  It only supports modes 'r' and
++        'rb' and the bufsize argument is ignored.
++
++        The returned object contains *all* of the file data
++        &quot;&quot;&quot;
++        if mode != 'r' and mode != 'rb':
++            raise UnimplementedFileMode()
++
++        msgbuf = []
++        while 1:
++            try:
++                buf = self.__ssl.read()
++            except socket.sslerror, err:
++                if err[0] == 'EOF':
++                    break
++                raise
++            except socket.error, err:
++                if err[0] == errno.EINTR:
++                    continue
++                raise
++            if buf == '':
++                break
++            msgbuf.append(buf)
++        return StringIO(string.join(msgbuf, &quot;&quot;))
++
++    def send(self, stuff, flags = 0):
++        return self.__ssl.write(stuff)
++
++    def sendall(self, stuff, flags = 0):
++        return self.__ssl.write(stuff)
++
++    def recv(self, len = 1024, flags = 0):
++        return self.__ssl.read(len)
++
++    def __getattr__(self, attr):
++        return getattr(self.__sock, attr)
++
++
++class HTTPSConnection(HTTPConnection):
++    &quot;This class allows communication via SSL.&quot;
++
++    default_port = HTTPS_PORT
++
++    def __init__(self, host, port=None, **x509):
++        keys = x509.keys()
++        try:
++            keys.remove('key_file')
++        except ValueError:
++            pass
++        try:
++            keys.remove('cert_file')
++        except ValueError:
++            pass
++        if keys:
++            raise IllegalKeywordArgument()
++        HTTPConnection.__init__(self, host, port)
++        self.key_file = x509.get('key_file')
++        self.cert_file = x509.get('cert_file')
++
++    def connect(self):
++        &quot;Connect to a host on a given (SSL) port.&quot;
++
++        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
++        sock.connect((self.host, self.port))
++        realsock = sock
++        if hasattr(sock, &quot;_sock&quot;):
++            realsock = sock._sock
++        # misa: XXX x509 client-side is broken in 2.2 anyway
++        ssl = socket.ssl(realsock)
++        self.sock = FakeSocket(sock, ssl)
++
++
++class HTTP:
++    &quot;Compatibility class with httplib.py from 1.5.&quot;
++
++    _http_vsn = 10
++    _http_vsn_str = 'HTTP/1.0'
++
++    debuglevel = 0
++
++    _connection_class = HTTPConnection
++
++    def __init__(self, host='', port=None):
++        &quot;Provide a default host, since the superclass requires one.&quot;
++
++        # some joker passed 0 explicitly, meaning default port
++        if port == 0:
++            port = None
++
++        # Note that we may pass an empty string as the host; this will throw
++        # an error when we attempt to connect. Presumably, the client code
++        # will call connect before then, with a proper host.
++        self._setup(self._connection_class(host, port))
++
++    def _setup(self, conn):
++        self._conn = conn
++
++        # set up delegation to flesh out interface
++        self.send = conn.send
++        self.putrequest = conn.putrequest
++        self.endheaders = conn.endheaders
++        self.set_debuglevel = conn.set_debuglevel
++
++        conn._http_vsn = self._http_vsn
++        conn._http_vsn_str = self._http_vsn_str
++
++        self.file = None
++
++    def connect(self, host=None, port=None):
++        &quot;Accept arguments to set the host/port, since the superclass doesn't.&quot;
++
++        if host is not None:
++            self._conn._set_hostport(host, port)
++        self._conn.connect()
++
++    def getfile(self):
++        &quot;Provide a getfile, since the superclass' does not use this concept.&quot;
++        return self.file
++
++    def putheader(self, header, *values):
++        &quot;The superclass allows only one value argument.&quot;
++        self._conn.putheader(header, string.join(values, '\r\n\t'))
++
++    def getreply(self):
++        &quot;&quot;&quot;Compat definition since superclass does not define it.
++
++        Returns a tuple consisting of:
++        - server status code (e.g. '200' if all goes well)
++        - server &quot;reason&quot; corresponding to status code
++        - any RFC822 headers in the response from the server
++        &quot;&quot;&quot;
++        try:
++            response = self._conn.getresponse()
++        except BadStatusLine, e:
++            ### hmm. if getresponse() ever closes the socket on a bad request,
++            ### then we are going to have problems with self.sock
++
++            ### should we keep this behavior? do people use it?
++            # keep the socket open (as a file), and return it
++            self.file = self._conn.sock.makefile('rb', 0)
++
++            # close our socket -- we want to restart after any protocol error
++            self.close()
++
++            self.headers = None
++            return -1, e.line, None
++
++        self.headers = response.msg
++        self.file = response.fp
++        return response.status, response.reason, response.msg
++
++    def close(self):
++        self._conn.close()
++
++        # note that self.file == response.fp, which gets closed by the
++        # superclass. just clear the object ref here.
++        ### hmm. messy. if status==-1, then self.file is owned by us.
++        ### well... we aren't explicitly closing, but losing this ref will
++        ### do it
++        self.file = None
++
++if hasattr(socket, 'ssl'):
++    class HTTPS(HTTP):
++        &quot;&quot;&quot;Compatibility with 1.5 httplib interface
++
++        Python 1.5.2 did not have an HTTPS class, but it defined an
++        interface for sending http requests that is also useful for
++        https.
++        &quot;&quot;&quot;
++
++        _connection_class = HTTPSConnection
++
++        def __init__(self, host='', port=None, **x509):
++            # provide a default host, pass the X509 cert info
++
++            # urf. compensate for bad input.
++            if port == 0:
++                port = None
++            self._setup(apply(self._connection_class, (host, port), x509))
++
++            # we never actually use these for anything, but we keep them
++            # here for compatibility with post-1.5.2 CVS.
++            self.key_file = x509.get('key_file')
++            self.cert_file = x509.get('cert_file')
++
++
++class HTTPException(Exception):
++    pass
++
++class NotConnected(HTTPException):
++    pass
++
++class InvalidURL(HTTPException):
++    pass
++
++class UnknownProtocol(HTTPException):
++    def __init__(self, version):
++        self.version = version
++
++class UnknownTransferEncoding(HTTPException):
++    pass
++
++class IllegalKeywordArgument(HTTPException):
++    pass
++
++class UnimplementedFileMode(HTTPException):
++    pass
++
++class IncompleteRead(HTTPException):
++    def __init__(self, partial):
++        self.partial = partial
++
++class ImproperConnectionState(HTTPException):
++    pass
++
++class CannotSendRequest(ImproperConnectionState):
++    pass
++
++class CannotSendHeader(ImproperConnectionState):
++    pass
++
++class ResponseNotReady(ImproperConnectionState):
++    pass
++
++class BadStatusLine(HTTPException):
++    def __init__(self, line):
++        self.line = line
++
++# for backwards compatibility
++error = HTTPException
++
++
++#
++# snarfed from httplib.py for now...
++#
++def test():
++    &quot;&quot;&quot;Test this module.
++
++    The test consists of retrieving and displaying the Python
++    home page, along with the error code and error string returned
++    by the www.python.org server.
++    &quot;&quot;&quot;
++
++    import sys
++    import getopt
++    opts, args = getopt.getopt(sys.argv[1:], 'd')
++    dl = 0
++    for o, a in opts:
++        if o == '-d': dl = dl + 1
++    host = 'www.python.org'
++    selector = '/'
++    if args[0:]: host = args[0]
++    if args[1:]: selector = args[1]
++    h = HTTP()
++    h.set_debuglevel(dl)
++    h.connect(host)
++    h.putrequest('GET', selector)
++    h.endheaders()
++    status, reason, headers = h.getreply()
++    print 'status =', status
++    print 'reason =', reason
++    print
++    if headers:
++        for header in headers.headers: print string.strip(header)
++    print
++    print h.getfile().read()
++
++    # minimal test that code to extract host from url works
++    class HTTP11(HTTP):
++        _http_vsn = 11
++        _http_vsn_str = 'HTTP/1.1'
++
++    h = HTTP11('www.python.org')
++    h.putrequest('GET', '<A HREF="http://www.python.org/~jeremy/">http://www.python.org/~jeremy/</A>')
++    h.endheaders()
++    h.getreply()
++    h.close()
++
++    if hasattr(socket, 'ssl'):
++        host = 'sourceforge.net'
++        selector = '/projects/python'
++        hs = HTTPS()
++        hs.connect(host)
++        hs.putrequest('GET', selector)
++        hs.endheaders()
++        status, reason, headers = hs.getreply()
++        print 'status =', status
++        print 'reason =', reason
++        print
++        if headers:
++            for header in headers.headers: print string.strip(header)
++        print
++        print hs.getfile().read()
++
++# Stuff used by urlsplit
++MAX_CACHE_SIZE = 20
++_parse_cache = {}
++
++uses_netloc = ['ftp', 'http', 'gopher', 'nntp', 'telnet', 'wais',
++               'file',
++               'https', 'shttp', 'snews',
++               'prospero', 'rtsp', 'rtspu', '']
++uses_query = ['http', 'wais',
++              'https', 'shttp',
++              'gopher', 'rtsp', 'rtspu', 'sip',
++              '']
++uses_fragment = ['ftp', 'hdl', 'http', 'gopher', 'news', 'nntp', 'wais',
++                 'https', 'shttp', 'snews',
++                 'file', 'prospero', '']
++
++# Characters valid in scheme names
++scheme_chars = ('abcdefghijklmnopqrstuvwxyz'
++                'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
++                '0123456789'
++                '+-.')
++
++
++def clear_cache():
++    &quot;&quot;&quot;Clear the parse cache.&quot;&quot;&quot;
++    global _parse_cache
++    _parse_cache = {}
++
++# urlsplit does not exist in python 1.5
++def urlsplit(url, scheme='', allow_fragments=1):
++    &quot;&quot;&quot;Parse a URL into 5 components:
++    &lt;scheme&gt;://&lt;netloc&gt;/&lt;path&gt;?&lt;query&gt;#&lt;fragment&gt;
++    Return a 5-tuple: (scheme, netloc, path, query, fragment).
++    Note that we don't break the components up in smaller bits
++    (e.g. netloc is a single string) and we don't expand % escapes.&quot;&quot;&quot;
++    key = url, scheme, allow_fragments
++    cached = _parse_cache.get(key, None)
++    if cached:
++        return cached
++    if len(_parse_cache) &gt;= MAX_CACHE_SIZE: # avoid runaway growth
++        clear_cache()
++    netloc = query = fragment = ''
++    i = string.find(url, ':')
++    if i &gt; 0:
++        if url[:i] == 'http': # optimize the common case
++            scheme = string.lower(url[:i])
++            url = url[i+1:]
++            if url[:2] == '//':
++                i = string.find(url, '/', 2)
++                if i &lt; 0:
++                    i = string.find(url, '#')
++                    if i &lt; 0:
++                        i = len(url)
++                netloc = url[2:i]
++                url = url[i:]
++            if allow_fragments and '#' in url:
++                url, fragment = string.split(url, '#', 1)
++            if '?' in url:
++                url, query = string.split(url, '?', 1)
++            tuple = scheme, netloc, url, query, fragment
++            _parse_cache[key] = tuple
++            return tuple
++        for c in url[:i]:
++            if c not in scheme_chars:
++                break
++        else:
++            scheme, url = string.lower(url[:i]), url[i+1:]
++    if scheme in uses_netloc:
++        if url[:2] == '//':
++            i = string.find(url, '/', 2)
++            if i &lt; 0:
++                i = len(url)
++            netloc, url = url[2:i], url[i:]
++    if allow_fragments and scheme in uses_fragment and '#' in url:
++        url, fragment = string.split(url, '#', 1)
++    if scheme in uses_query and '?' in url:
++        url, query = string.split(url, '?', 1)
++    tuple = scheme, netloc, url, query, fragment
++    _parse_cache[key] = tuple
++    return tuple
++
++# startswith not provided by the string module
++def startswith(s, prefix):
++    return s[:len(prefix)] == prefix 
++
++if __name__ == '__main__':
++    test()
+
+Added: trunk/tools/mrepo/rhn/_internal_xmlrpclib.py
+===================================================================
+--- trunk/tools/mrepo/rhn/_internal_xmlrpclib.py	                        (rev 0)
++++ trunk/tools/mrepo/rhn/_internal_xmlrpclib.py	2008-10-06 02:55:55 UTC (rev 6499)
+@@ -0,0 +1,1313 @@
++#
++# XML-RPC CLIENT LIBRARY
++# $Id: _internal_xmlrpclib.py 89051 2005-11-30 23:16:43Z misa $
++#
++# an XML-RPC client interface for Python.
++#
++# the marshalling and response parser code can also be used to
++# implement XML-RPC servers.
++#
++# Notes:
++# this version is designed to work with Python 1.5.2 or newer.
++# unicode encoding support requires at least Python 1.6.
++# experimental HTTPS requires Python 2.0 built with SSL sockets.
++# expat parser support requires Python 2.0 with pyexpat support.
++#
++# History:
++# 1999-01-14 fl  Created
++# 1999-01-15 fl  Changed dateTime to use localtime
++# 1999-01-16 fl  Added Binary/base64 element, default to RPC2 service
++# 1999-01-19 fl  Fixed array data element (from Skip Montanaro)
++# 1999-01-21 fl  Fixed dateTime constructor, etc.
++# 1999-02-02 fl  Added fault handling, handle empty sequences, etc.
++# 1999-02-10 fl  Fixed problem with empty responses (from Skip Montanaro)
++# 1999-06-20 fl  Speed improvements, pluggable parsers/transports (0.9.8)
++# 2000-11-28 fl  Changed boolean to check the truth value of its argument
++# 2001-02-24 fl  Added encoding/Unicode/SafeTransport patches
++# 2001-02-26 fl  Added compare support to wrappers (0.9.9/1.0b1)
++# 2001-03-28 fl  Make sure response tuple is a singleton
++# 2001-03-29 fl  Don't require empty params element (from Nicholas Riley)
++# 2001-06-10 fl  Folded in _xmlrpclib accelerator support (1.0b2)
++# 2001-08-20 fl  Base xmlrpclib.Error on built-in Exception (from Paul Prescod)
++# 2001-09-03 fl  Allow Transport subclass to override getparser
++# 2001-09-10 fl  Lazy import of urllib, cgi, xmllib (20x import speedup)
++# 2001-10-01 fl  Remove containers from memo cache when done with them
++# 2001-10-01 fl  Use faster escape method (80% dumps speedup)
++# 2001-10-02 fl  More dumps microtuning
++# 2001-10-04 fl  Make sure import expat gets a parser (from Guido van Rossum)
++# 2001-10-10 sm  Allow long ints to be passed as ints if they don't overflow
++# 2001-10-17 sm  Test for int and long overflow (allows use on 64-bit systems)
++# 2001-11-12 fl  Use repr() to marshal doubles (from Paul Felix)
++# 2002-03-17 fl  Avoid buffered read when possible (from James Rucker)
++# 2002-04-07 fl  Added pythondoc comments
++# 2002-04-16 fl  Added __str__ methods to datetime/binary wrappers
++# 2002-05-15 fl  Added error constants (from Andrew Kuchling)
++# 2002-06-27 fl  Merged with Python CVS version
++#
++# Copyright (c) 1999-2002 by Secret Labs AB.
++# Copyright (c) 1999-2002 by Fredrik Lundh.
++#
++# <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">info at pythonware.com</A>
++# <A HREF="http://www.pythonware.com">http://www.pythonware.com</A>
++#
++# --------------------------------------------------------------------
++# The XML-RPC client interface is
++#
++# Copyright (c) 1999-2002 by Secret Labs AB
++# Copyright (c) 1999-2002 by Fredrik Lundh
++#
++# By obtaining, using, and/or copying this software and/or its
++# associated documentation, you agree that you have read, understood,
++# and will comply with the following terms and conditions:
++#
++# Permission to use, copy, modify, and distribute this software and
++# its associated documentation for any purpose and without fee is
++# hereby granted, provided that the above copyright notice appears in
++# all copies, and that both that copyright notice and this permission
++# notice appear in supporting documentation, and that the name of
++# Secret Labs AB or the author not be used in advertising or publicity
++# pertaining to distribution of the software without specific, written
++# prior permission.
++#
++# SECRET LABS AB AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD
++# TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANT-
++# ABILITY AND FITNESS.  IN NO EVENT SHALL SECRET LABS AB OR THE AUTHOR
++# BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY
++# DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
++# WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
++# ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
++# OF THIS SOFTWARE.
++# --------------------------------------------------------------------
++
++#
++# things to look into some day:
++
++# TODO: sort out True/False/boolean issues for Python 2.3
++
++&quot;&quot;&quot;
++An XML-RPC client interface for Python.
++
++The marshalling and response parser code can also be used to
++implement XML-RPC servers.
++
++Exported exceptions:
++
++  Error          Base class for client errors
++  ProtocolError  Indicates an HTTP protocol error
++  ResponseError  Indicates a broken response package
++  Fault          Indicates an XML-RPC fault package
++
++Exported classes:
++
++  ServerProxy    Represents a logical connection to an XML-RPC server
++
++  Boolean        boolean wrapper to generate a &quot;boolean&quot; XML-RPC value
++  DateTime       dateTime wrapper for an ISO 8601 string or time tuple or
++                 localtime integer value to generate a &quot;dateTime.iso8601&quot;
++                 XML-RPC value
++  Binary         binary data wrapper
++
++  SlowParser     Slow but safe standard parser (based on xmllib)
++  Marshaller     Generate an XML-RPC params chunk from a Python data structure
++  Unmarshaller   Unmarshal an XML-RPC response from incoming XML event message
++  Transport      Handles an HTTP transaction to an XML-RPC server
++  SafeTransport  Handles an HTTPS transaction to an XML-RPC server
++
++Exported constants:
++
++  True
++  False
++
++Exported functions:
++
++  boolean        Convert any Python value to an XML-RPC boolean
++  getparser      Create instance of the fastest available parser &amp; attach
++                 to an unmarshalling object
++  dumps          Convert an argument tuple or a Fault instance to an XML-RPC
++                 request (or response, if the methodresponse option is used).
++  loads          Convert an XML-RPC packet to unmarshalled data plus a method
++                 name (None if not present).
++&quot;&quot;&quot;
++
++import re, string, time, operator
++
++from types import *
++
++# --------------------------------------------------------------------
++# Internal stuff
++
++try:
++    unicode
++except NameError:
++    unicode = None # unicode support not available
++
++def _decode(data, encoding, is8bit=re.compile(&quot;[\x80-\xff]&quot;).search):
++    # decode non-ascii string (if possible)
++    if unicode and encoding and is8bit(data):
++        data = unicode(data, encoding)
++    return data
++
++def escape(s, replace=string.replace):
++    s = replace(s, &quot;&amp;&quot;, &quot;&amp;amp;&quot;)
++    s = replace(s, &quot;&lt;&quot;, &quot;&amp;lt;&quot;)
++    return replace(s, &quot;&gt;&quot;, &quot;&amp;gt;&quot;,)
++
++if unicode:
++    def _stringify(string):
++        # convert to 7-bit ascii if possible
++        try:
++            return str(string)
++        except UnicodeError:
++            return string
++else:
++    def _stringify(string):
++        return string
++
++__version__ = &quot;1.0.1&quot;
++
++# xmlrpc integer limits
++MAXINT =  2L**31-1
++MININT = -2L**31
++
++# --------------------------------------------------------------------
++# Error constants (from Dan Libby's specification at
++# <A HREF="http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php">http://xmlrpc-epi.sourceforge.net/specs/rfc.fault_codes.php</A>)
++
++# Ranges of errors
++PARSE_ERROR       = -32700
++SERVER_ERROR      = -32600
++APPLICATION_ERROR = -32500
++SYSTEM_ERROR      = -32400
++TRANSPORT_ERROR   = -32300
++
++# Specific errors
++NOT_WELLFORMED_ERROR  = -32700
++UNSUPPORTED_ENCODING  = -32701
++INVALID_ENCODING_CHAR = -32702
++INVALID_XMLRPC        = -32600
++METHOD_NOT_FOUND      = -32601
++INVALID_METHOD_PARAMS = -32602
++INTERNAL_ERROR        = -32603
++
++# --------------------------------------------------------------------
++# Exceptions
++
++##
++# Base class for all kinds of client-side errors.
++
++class Error(Exception):
++    &quot;&quot;&quot;Base class for client errors.&quot;&quot;&quot;
++    def __str__(self):
++        return repr(self)
++
++##
++# Indicates an HTTP-level protocol error.  This is raised by the HTTP
++# transport layer, if the server returns an error code other than 200
++# (OK).
++#
++# @param url The target URL.
++# @param errcode The HTTP error code.
++# @param errmsg The HTTP error message.
++# @param headers The HTTP header dictionary.
++
++class ProtocolError(Error):
++    &quot;&quot;&quot;Indicates an HTTP protocol error.&quot;&quot;&quot;
++    def __init__(self, url, errcode, errmsg, headers):
++        Error.__init__(self)
++        self.url = url
++        self.errcode = errcode
++        self.errmsg = errmsg
++        self.headers = headers
++    def __repr__(self):
++        return (
++            &quot;&lt;ProtocolError for %s: %s %s&gt;&quot; %
++            (self.url, self.errcode, self.errmsg)
++            )
++
++##
++# Indicates a broken XML-RPC response package.  This exception is
++# raised by the unmarshalling layer, if the XML-RPC response is
++# malformed.
++
++class ResponseError(Error):
++    &quot;&quot;&quot;Indicates a broken response package.&quot;&quot;&quot;
++    pass
++
++##
++# Indicates an XML-RPC fault response package.  This exception is
++# raised by the unmarshalling layer, if the XML-RPC response contains
++# a fault string.  This exception can also used as a class, to
++# generate a fault XML-RPC message.
++#
++# @param faultCode The XML-RPC fault code.
++# @param faultString The XML-RPC fault string.
++
++class Fault(Error):
++    &quot;&quot;&quot;Indicates an XML-RPC fault package.&quot;&quot;&quot;
++    def __init__(self, faultCode, faultString, **extra):
++        Error.__init__(self)
++        self.faultCode = faultCode
++        self.faultString = faultString
++    def __repr__(self):
++        return (
++            &quot;&lt;Fault %s: %s&gt;&quot; %
++            (self.faultCode, repr(self.faultString))
++            )
++
++# --------------------------------------------------------------------
++# Special values
++
++##
++# Wrapper for XML-RPC boolean values.  Use the xmlrpclib.True and
++# xmlrpclib.False constants, or the xmlrpclib.boolean() function, to
++# generate boolean XML-RPC values.
++#
++# @param value A boolean value.  Any true value is interpreted as True,
++#              all other values are interpreted as False.
++
++class Boolean:
++    &quot;&quot;&quot;Boolean-value wrapper.
++
++    Use True or False to generate a &quot;boolean&quot; XML-RPC value.
++    &quot;&quot;&quot;
++
++    def __init__(self, value = 0):
++        self.value = operator.truth(value)
++
++    def encode(self, out):
++        out.write(&quot;&lt;value&gt;&lt;boolean&gt;%d&lt;/boolean&gt;&lt;/value&gt;\n&quot; % self.value)
++
++    def __cmp__(self, other):
++        if isinstance(other, Boolean):
++            other = other.value
++        return cmp(self.value, other)
++
++    def __repr__(self):
++        if self.value:
++            return &quot;&lt;Boolean True at %x&gt;&quot; % id(self)
++        else:
++            return &quot;&lt;Boolean False at %x&gt;&quot; % id(self)
++
++    def __int__(self):
++        return self.value
++
++    def __nonzero__(self):
++        return self.value
++
++True, False = Boolean(1), Boolean(0)
++
++##
++# Map true or false value to XML-RPC boolean values.
++#
++# @def boolean(value)
++# @param value A boolean value.  Any true value is mapped to True,
++#              all other values are mapped to False.
++# @return xmlrpclib.True or xmlrpclib.False.
++# @see Boolean
++# @see True
++# @see False
++
++def boolean(value, _truefalse=(False, True)):
++    &quot;&quot;&quot;Convert any Python value to XML-RPC 'boolean'.&quot;&quot;&quot;
++    return _truefalse[operator.truth(value)]
++
++##
++# Wrapper for XML-RPC DateTime values.  This converts a time value to
++# the format used by XML-RPC.
++# &lt;p&gt;
++# The value can be given as a string in the format
++# &quot;yyyymmddThh:mm:ss&quot;, as a 9-item time tuple (as returned by
++# time.localtime()), or an integer value (as returned by time.time()).
++# The wrapper uses time.localtime() to convert an integer to a time
++# tuple.
++#
++# @param value The time, given as an ISO 8601 string, a time
++#              tuple, or a integer time value.
++
++class DateTime:
++    &quot;&quot;&quot;DateTime wrapper for an ISO 8601 string or time tuple or
++    localtime integer value to generate 'dateTime.iso8601' XML-RPC
++    value.
++    &quot;&quot;&quot;
++
++    def __init__(self, value=0):
++        if not isinstance(value, StringType):
++            if not isinstance(value, TupleType):
++                if value == 0:
++                    value = time.time()
++                value = time.localtime(value)
++            value = time.strftime(&quot;%Y%m%dT%H:%M:%S&quot;, value)
++        self.value = value
++
++    def __cmp__(self, other):
++        if isinstance(other, DateTime):
++            other = other.value
++        return cmp(self.value, other)
++
++    ##
++    # Get date/time value.
++    #
++    # @return Date/time value, as an ISO 8601 string.
++
++    def __str__(self):
++        return self.value
++
++    def __repr__(self):
++        return &quot;&lt;DateTime %s at %x&gt;&quot; % (repr(self.value), id(self))
++
++    def decode(self, data):
++        self.value = string.strip(data)
++
++    def encode(self, out):
++        out.write(&quot;&lt;value&gt;&lt;dateTime.iso8601&gt;&quot;)
++        out.write(self.value)
++        out.write(&quot;&lt;/dateTime.iso8601&gt;&lt;/value&gt;\n&quot;)
++
++def _datetime(data):
++    # decode xml element contents into a DateTime structure.
++    value = DateTime()
++    value.decode(data)
++    return value
++
++##
++# Wrapper for binary data.  This can be used to transport any kind
++# of binary data over XML-RPC, using BASE64 encoding.
++#
++# @param data An 8-bit string containing arbitrary data.
++
++class Binary:
++    &quot;&quot;&quot;Wrapper for binary data.&quot;&quot;&quot;
++
++    def __init__(self, data=None):
++        self.data = data
++
++    ##
++    # Get buffer contents.
++    #
++    # @return Buffer contents, as an 8-bit string.
++
++    def __str__(self):
++        return self.data or &quot;&quot;
++
++    def __cmp__(self, other):
++        if isinstance(other, Binary):
++            other = other.data
++        return cmp(self.data, other)
++
++    def decode(self, data):
++        import base64
++        self.data = base64.decodestring(data)
++
++    def encode(self, out):
++        import base64, StringIO
++        out.write(&quot;&lt;value&gt;&lt;base64&gt;\n&quot;)
++        base64.encode(StringIO.StringIO(self.data), out)
++        out.write(&quot;&lt;/base64&gt;&lt;/value&gt;\n&quot;)
++
++def _binary(data):
++    # decode xml element contents into a Binary structure
++    value = Binary()
++    value.decode(data)
++    return value
++
++WRAPPERS = DateTime, Binary, Boolean
++
++# --------------------------------------------------------------------
++# XML parsers
++
++try:
++    # optional xmlrpclib accelerator.  for more information on this
++    # component, contact <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">info at pythonware.com</A>
++    import _xmlrpclib
++    FastParser = _xmlrpclib.Parser
++    FastUnmarshaller = _xmlrpclib.Unmarshaller
++except (AttributeError, ImportError):
++    FastParser = FastUnmarshaller = None
++
++try:
++    import _xmlrpclib
++    FastMarshaller = _xmlrpclib.Marshaller
++except (AttributeError, ImportError):
++    FastMarshaller = None
++
++#
++# the SGMLOP parser is about 15x faster than Python's builtin
++# XML parser.  SGMLOP sources can be downloaded from:
++#
++#     <A HREF="http://www.pythonware.com/products/xml/sgmlop.htm">http://www.pythonware.com/products/xml/sgmlop.htm</A>
++#
++
++try:
++    import sgmlop
++    if not hasattr(sgmlop, &quot;XMLParser&quot;):
++        raise ImportError
++except ImportError:
++    SgmlopParser = None # sgmlop accelerator not available
++else:
++    class SgmlopParser:
++        def __init__(self, target):
++
++            # setup callbacks
++            self.finish_starttag = target.start
++            self.finish_endtag = target.end
++            self.handle_data = target.data
++            self.handle_xml = target.xml
++
++            # activate parser
++            self.parser = sgmlop.XMLParser()
++            self.parser.register(self)
++            self.feed = self.parser.feed
++            self.entity = {
++                &quot;amp&quot;: &quot;&amp;&quot;, &quot;gt&quot;: &quot;&gt;&quot;, &quot;lt&quot;: &quot;&lt;&quot;,
++                &quot;apos&quot;: &quot;'&quot;, &quot;quot&quot;: '&quot;'
++                }
++
++        def close(self):
++            try:
++                self.parser.close()
++            finally:
++                self.parser = self.feed = None # nuke circular reference
++
++        def handle_proc(self, tag, attr):
++            m = re.search(&quot;encoding\s*=\s*['\&quot;]([^\&quot;']+)[\&quot;']&quot;, attr)
++            if m:
++                self.handle_xml(m.group(1), 1)
++
++        def handle_entityref(self, entity):
++            # &lt;string&gt; entity
++            try:
++                self.handle_data(self.entity[entity])
++            except KeyError:
++                self.handle_data(&quot;&amp;%s;&quot; % entity)
++
++try:
++    from xml.parsers import expat
++    if not hasattr(expat, &quot;ParserCreate&quot;):
++        raise ImportError
++except ImportError:
++    ExpatParser = None # expat not available
++else:
++    class ExpatParser:
++        # fast expat parser for Python 2.0 and later.  this is about
++        # 50% slower than sgmlop, on roundtrip testing
++        def __init__(self, target):
++            self._parser = parser = expat.ParserCreate(None, None)
++            self._target = target
++            parser.StartElementHandler = target.start
++            parser.EndElementHandler = target.end
++            parser.CharacterDataHandler = target.data
++            encoding = None
++            if not parser.returns_unicode:
++                encoding = &quot;utf-8&quot;
++            target.xml(encoding, None)
++
++        def feed(self, data):
++            self._parser.Parse(data, 0)
++
++        def close(self):
++            self._parser.Parse(&quot;&quot;, 1) # end of data
++            del self._target, self._parser # get rid of circular references
++
++class SlowParser:
++    &quot;&quot;&quot;Default XML parser (based on xmllib.XMLParser).&quot;&quot;&quot;
++    # this is about 10 times slower than sgmlop, on roundtrip
++    # testing.
++    def __init__(self, target):
++        import xmllib # lazy subclassing (!)
++        if xmllib.XMLParser not in SlowParser.__bases__:
++            SlowParser.__bases__ = (xmllib.XMLParser,)
++        self.handle_xml = target.xml
++        self.unknown_starttag = target.start
++        self.handle_data = target.data
++        self.handle_cdata = target.data
++        self.unknown_endtag = target.end
++        try:
++            xmllib.XMLParser.__init__(self, accept_utf8=1)
++        except TypeError:
++            xmllib.XMLParser.__init__(self) # pre-2.0
++
++# --------------------------------------------------------------------
++# XML-RPC marshalling and unmarshalling code
++
++##
++# XML-RPC marshaller.
++#
++# @param encoding Default encoding for 8-bit strings.  The default
++#     value is None (interpreted as UTF-8).
++# @see dumps
++
++class Marshaller:
++    &quot;&quot;&quot;Generate an XML-RPC params chunk from a Python data structure.
++
++    Create a Marshaller instance for each set of parameters, and use
++    the &quot;dumps&quot; method to convert your data (represented as a tuple)
++    to an XML-RPC params chunk.  To write a fault response, pass a
++    Fault instance instead.  You may prefer to use the &quot;dumps&quot; module
++    function for this purpose.
++    &quot;&quot;&quot;
++
++    # by the way, if you don't understand what's going on in here,
++    # that's perfectly ok.
++
++    def __init__(self, encoding=None):
++        self.memo = {}
++        self.data = None
++        self.encoding = encoding
++
++    dispatch = {}
++
++    def dumps(self, values):
++        out = []
++        write = out.append
++        dump = self.__dump
++        if isinstance(values, Fault):
++            # fault instance
++            write(&quot;&lt;fault&gt;\n&quot;)
++            dump(vars(values), write)
++            write(&quot;&lt;/fault&gt;\n&quot;)
++        else:
++            # parameter block
++            # FIXME: the xml-rpc specification allows us to leave out
++            # the entire &lt;params&gt; block if there are no parameters.
++            # however, changing this may break older code (including
++            # old versions of xmlrpclib.py), so this is better left as
++            # is for now.  See @XMLRPC3 for more information. /F
++            write(&quot;&lt;params&gt;\n&quot;)
++            for v in values:
++                write(&quot;&lt;param&gt;\n&quot;)
++                dump(v, write)
++                write(&quot;&lt;/param&gt;\n&quot;)
++            write(&quot;&lt;/params&gt;\n&quot;)
++        result = string.join(out, &quot;&quot;)
++        return result
++
++    def __dump(self, value, write):
++        try:
++            f = self.dispatch[type(value)]
++        except KeyError:
++            raise TypeError, &quot;cannot marshal %s objects&quot; % type(value)
++        else:
++            f(self, value, write)
++
++    def dump_int(self, value, write):
++        # in case ints are &gt; 32 bits
++        if value &gt; MAXINT or value &lt; MININT:
++            raise OverflowError, &quot;int exceeds XML-RPC limits&quot;
++        write(&quot;&lt;value&gt;&lt;int&gt;&quot;)
++        write(str(value))
++        write(&quot;&lt;/int&gt;&lt;/value&gt;\n&quot;)
++    dispatch[IntType] = dump_int
++
++    def dump_long(self, value, write):
++        if value &gt; MAXINT or value &lt; MININT:
++            raise OverflowError, &quot;long int exceeds XML-RPC limits&quot;
++        write(&quot;&lt;value&gt;&lt;int&gt;&quot;)
++        write(str(int(value)))
++        write(&quot;&lt;/int&gt;&lt;/value&gt;\n&quot;)
++    dispatch[LongType] = dump_long
++
++    def dump_double(self, value, write):
++        write(&quot;&lt;value&gt;&lt;double&gt;&quot;)
++        write(repr(value))
++        write(&quot;&lt;/double&gt;&lt;/value&gt;\n&quot;)
++    dispatch[FloatType] = dump_double
++
++    def dump_string(self, value, write, escape=escape):
++        write(&quot;&lt;value&gt;&lt;string&gt;&quot;)
++        write(escape(value))
++        write(&quot;&lt;/string&gt;&lt;/value&gt;\n&quot;)
++    dispatch[StringType] = dump_string
++
++    if unicode:
++        def dump_unicode(self, value, write, escape=escape):
++            value = value.encode(self.encoding)
++            write(&quot;&lt;value&gt;&lt;string&gt;&quot;)
++            write(escape(value))
++            write(&quot;&lt;/string&gt;&lt;/value&gt;\n&quot;)
++        dispatch[UnicodeType] = dump_unicode
++
++    def dump_array(self, value, write):
++        i = id(value)
++        if self.memo.has_key(i):
++            raise TypeError, &quot;cannot marshal recursive sequences&quot;
++        self.memo[i] = None
++        dump = self.__dump
++        write(&quot;&lt;value&gt;&lt;array&gt;&lt;data&gt;\n&quot;)
++        for v in value:
++            dump(v, write)
++        write(&quot;&lt;/data&gt;&lt;/array&gt;&lt;/value&gt;\n&quot;)
++        del self.memo[i]
++    dispatch[TupleType] = dump_array
++    dispatch[ListType] = dump_array
++
++    def dump_struct(self, value, write, escape=escape):
++        i = id(value)
++        if self.memo.has_key(i):
++            raise TypeError, &quot;cannot marshal recursive dictionaries&quot;
++        self.memo[i] = None
++        dump = self.__dump
++        write(&quot;&lt;value&gt;&lt;struct&gt;\n&quot;)
++        for k in value.keys():
++            write(&quot;&lt;member&gt;\n&quot;)
++            if type(k) is not StringType:
++                raise TypeError, &quot;dictionary key must be string&quot;
++            write(&quot;&lt;name&gt;%s&lt;/name&gt;\n&quot; % escape(k))
++            dump(value[k], write)
++            write(&quot;&lt;/member&gt;\n&quot;)
++        write(&quot;&lt;/struct&gt;&lt;/value&gt;\n&quot;)
++        del self.memo[i]
++    dispatch[DictType] = dump_struct
++
++    def dump_instance(self, value, write):
++        # check for special wrappers
++        if value.__class__ in WRAPPERS:
++            self.write = write
++            value.encode(self)
++            del self.write
++        else:
++            # store instance attributes as a struct (really?)
++            self.dump_struct(value.__dict__, write)
++    dispatch[InstanceType] = dump_instance
++
++##
++# XML-RPC unmarshaller.
++#
++# @see loads
++
++class Unmarshaller:
++    &quot;&quot;&quot;Unmarshal an XML-RPC response, based on incoming XML event
++    messages (start, data, end).  Call close() to get the resulting
++    data structure.
++
++    Note that this reader is fairly tolerant, and gladly accepts bogus
++    XML-RPC data without complaining (but not bogus XML).
++    &quot;&quot;&quot;
++
++    # and again, if you don't understand what's going on in here,
++    # that's perfectly ok.
++
++    def __init__(self):
++        self._type = None
++        self._stack = []
++        self._marks = []
++        self._data = []
++        self._methodname = None
++        self._encoding = &quot;utf-8&quot;
++        self.append = self._stack.append
++
++    def close(self):
++        # return response tuple and target method
++        if self._type is None or self._marks:
++            raise ResponseError()
++        if self._type == &quot;fault&quot;:
++            raise apply(Fault, (), self._stack[0])
++        return tuple(self._stack)
++
++    def getmethodname(self):
++        return self._methodname
++
++    #
++    # event handlers
++
++    def xml(self, encoding, standalone):
++        self._encoding = encoding
++        # FIXME: assert standalone == 1 ???
++
++    def start(self, tag, attrs):
++        # prepare to handle this element
++        if tag == &quot;array&quot; or tag == &quot;struct&quot;:
++            self._marks.append(len(self._stack))
++        self._data = []
++        self._value = (tag == &quot;value&quot;)
++
++    def data(self, text):
++        self._data.append(text)
++
++    def end(self, tag, join=string.join):
++        # call the appropriate end tag handler
++        try:
++            f = self.dispatch[tag]
++        except KeyError:
++            pass # unknown tag ?
++        else:
++            return f(self, join(self._data, &quot;&quot;))
++
++    #
++    # accelerator support
++
++    def end_dispatch(self, tag, data):
++        # dispatch data
++        try:
++            f = self.dispatch[tag]
++        except KeyError:
++            pass # unknown tag ?
++        else:
++            return f(self, data)
++
++    #
++    # element decoders
++
++    dispatch = {}
++
++    def end_boolean(self, data):
++        if data == &quot;0&quot;:
++            self.append(False)
++        elif data == &quot;1&quot;:
++            self.append(True)
++        else:
++            raise TypeError, &quot;bad boolean value&quot;
++        self._value = 0
++    dispatch[&quot;boolean&quot;] = end_boolean
++
++    def end_int(self, data):
++        self.append(int(data))
++        self._value = 0
++    dispatch[&quot;i4&quot;] = end_int
++    dispatch[&quot;int&quot;] = end_int
++
++    def end_double(self, data):
++        self.append(float(data))
++        self._value = 0
++    dispatch[&quot;double&quot;] = end_double
++
++    def end_string(self, data):
++        if self._encoding:
++            data = _decode(data, self._encoding)
++        self.append(_stringify(data))
++        self._value = 0
++    dispatch[&quot;string&quot;] = end_string
++    dispatch[&quot;name&quot;] = end_string # struct keys are always strings
++
++    def end_array(self, data):
++        mark = self._marks.pop()
++        # map arrays to Python lists
++        self._stack[mark:] = [self._stack[mark:]]
++        self._value = 0
++    dispatch[&quot;array&quot;] = end_array
++
++    def end_struct(self, data):
++        mark = self._marks.pop()
++        # map structs to Python dictionaries
++        dict = {}
++        items = self._stack[mark:]
++        for i in range(0, len(items), 2):
++            dict[_stringify(items[i])] = items[i+1]
++        self._stack[mark:] = [dict]
++        self._value = 0
++    dispatch[&quot;struct&quot;] = end_struct
++
++    def end_base64(self, data):
++        value = Binary()
++        value.decode(data)
++        self.append(value)
++        self._value = 0
++    dispatch[&quot;base64&quot;] = end_base64
++
++    def end_dateTime(self, data):
++        value = DateTime()
++        value.decode(data)
++        self.append(value)
++    dispatch[&quot;dateTime.iso8601&quot;] = end_dateTime
++
++    def end_value(self, data):
++        # if we stumble upon a value element with no internal
++        # elements, treat it as a string element
++        if self._value:
++            self.end_string(data)
++    dispatch[&quot;value&quot;] = end_value
++
++    def end_params(self, data):
++        self._type = &quot;params&quot;
++    dispatch[&quot;params&quot;] = end_params
++
++    def end_fault(self, data):
++        self._type = &quot;fault&quot;
++    dispatch[&quot;fault&quot;] = end_fault
++
++    def end_methodName(self, data):
++        if self._encoding:
++            data = _decode(data, self._encoding)
++        self._methodname = data
++        self._type = &quot;methodName&quot; # no params
++    dispatch[&quot;methodName&quot;] = end_methodName
++
++
++# --------------------------------------------------------------------
++# convenience functions
++
++##
++# Create a parser object, and connect it to an unmarshalling instance.
++# This function picks the fastest available XML parser.
++#
++# return A (parser, unmarshaller) tuple.
++
++def getparser():
++    &quot;&quot;&quot;getparser() -&gt; parser, unmarshaller
++
++    Create an instance of the fastest available parser, and attach it
++    to an unmarshalling object.  Return both objects.
++    &quot;&quot;&quot;
++    if FastParser and FastUnmarshaller:
++        target = FastUnmarshaller(True, False, _binary, _datetime, Fault)
++        parser = FastParser(target)
++    else:
++        target = Unmarshaller()
++        if FastParser:
++            parser = FastParser(target)
++        elif SgmlopParser:
++            parser = SgmlopParser(target)
++        elif ExpatParser:
++            parser = ExpatParser(target)
++        else:
++            parser = SlowParser(target)
++    return parser, target
++
++##
++# Convert a Python tuple or a Fault instance to an XML-RPC packet.
++#
++# @def dumps(params, **options)
++# @param params A tuple or Fault instance.
++# @keyparam methodname If given, create a methodCall request for
++#     this method name.
++# @keyparam methodresponse If given, create a methodResponse packet.
++#     If used with a tuple, the tuple must be a singleton (that is,
++#     it must contain exactly one element).
++# @keyparam encoding The packet encoding.
++# @return A string containing marshalled data.
++
++def dumps(params, methodname=None, methodresponse=None, encoding=None):
++    &quot;&quot;&quot;data [,options] -&gt; marshalled data
++
++    Convert an argument tuple or a Fault instance to an XML-RPC
++    request (or response, if the methodresponse option is used).
++
++    In addition to the data object, the following options can be given
++    as keyword arguments:
++
++        methodname: the method name for a methodCall packet
++
++        methodresponse: true to create a methodResponse packet.
++        If this option is used with a tuple, the tuple must be
++        a singleton (i.e. it can contain only one element).
++
++        encoding: the packet encoding (default is UTF-8)
++
++    All 8-bit strings in the data structure are assumed to use the
++    packet encoding.  Unicode strings are automatically converted,
++    where necessary.
++    &quot;&quot;&quot;
++
++    assert isinstance(params, TupleType) or isinstance(params, Fault),\
++           &quot;argument must be tuple or Fault instance&quot;
++
++    if isinstance(params, Fault):
++        methodresponse = 1
++    elif methodresponse and isinstance(params, TupleType):
++        assert len(params) == 1, &quot;response tuple must be a singleton&quot;
++
++    if not encoding:
++        encoding = &quot;utf-8&quot;
++
++    if FastMarshaller:
++        m = FastMarshaller(encoding)
++    else:
++        m = Marshaller(encoding)
++
++    data = m.dumps(params)
++
++    if encoding != &quot;utf-8&quot;:
++        xmlheader = &quot;&lt;?xml version='1.0' encoding='%s'?&gt;\n&quot; % str(encoding)
++    else:
++        xmlheader = &quot;&lt;?xml version='1.0'?&gt;\n&quot; # utf-8 is default
++
++    # standard XML-RPC wrappings
++    if methodname:
++        # a method call
++        if not isinstance(methodname, StringType):
++            methodname = methodname.encode(encoding)
++        data = (
++            xmlheader,
++            &quot;&lt;methodCall&gt;\n&quot;
++            &quot;&lt;methodName&gt;&quot;, methodname, &quot;&lt;/methodName&gt;\n&quot;,
++            data,
++            &quot;&lt;/methodCall&gt;\n&quot;
++            )
++    elif methodresponse:
++        # a method response, or a fault structure
++        data = (
++            xmlheader,
++            &quot;&lt;methodResponse&gt;\n&quot;,
++            data,
++            &quot;&lt;/methodResponse&gt;\n&quot;
++            )
++    else:
++        return data # return as is
++    return string.join(data, &quot;&quot;)
++
++##
++# Convert an XML-RPC packet to a Python object.  If the XML-RPC packet
++# represents a fault condition, this function raises a Fault exception.
++#
++# @param data An XML-RPC packet, given as an 8-bit string.
++# @return A tuple containing the the unpacked data, and the method name
++#     (None if not present).
++# @see Fault
++
++def loads(data):
++    &quot;&quot;&quot;data -&gt; unmarshalled data, method name
++
++    Convert an XML-RPC packet to unmarshalled data plus a method
++    name (None if not present).
++
++    If the XML-RPC packet represents a fault condition, this function
++    raises a Fault exception.
++    &quot;&quot;&quot;
++    p, u = getparser()
++    p.feed(data)
++    p.close()
++    return u.close(), u.getmethodname()
++
++
++# --------------------------------------------------------------------
++# request dispatcher
++
++class _Method:
++    # some magic to bind an XML-RPC method to an RPC server.
++    # supports &quot;nested&quot; methods (e.g. examples.getStateName)
++    def __init__(self, send, name):
++        self.__send = send
++        self.__name = name
++    def __getattr__(self, name):
++        return _Method(self.__send, &quot;%s.%s&quot; % (self.__name, name))
++    def __call__(self, *args):
++        return self.__send(self.__name, args)
++
++##
++# Standard transport class for XML-RPC over HTTP.
++# &lt;p&gt;
++# You can create custom transports by subclassing this method, and
++# overriding selected methods.
++
++class Transport:
++    &quot;&quot;&quot;Handles an HTTP transaction to an XML-RPC server.&quot;&quot;&quot;
++
++    # client identifier (may be overridden)
++    user_agent = &quot;xmlrpclib.py/%s (by www.pythonware.com)&quot; % __version__
++
++    ##
++    # Send a complete request, and parse the response.
++    #
++    # @param host Target host.
++    # @param handler Target PRC handler.
++    # @param request_body XML-RPC request body.
++    # @param verbose Debugging flag.
++    # @return Parsed response.
++
++    def request(self, host, handler, request_body, verbose=0):
++        # issue XML-RPC request
++
++        h = self.make_connection(host)
++        if verbose:
++            h.set_debuglevel(1)
++
++        self.send_request(h, handler, request_body)
++        self.send_host(h, host)
++        self.send_user_agent(h)
++        self.send_content(h, request_body)
++
++        errcode, errmsg, headers = h.getreply()
++
++        if errcode != 200:
++            raise ProtocolError(
++                host + handler,
++                errcode, errmsg,
++                headers
++                )
++
++        self.verbose = verbose
++
++        try:
++            sock = h._conn.sock
++        except AttributeError:
++            sock = None
++
++        return self._parse_response(h.getfile(), sock)
++
++    ##
++    # Create parser.
++    #
++    # @return A 2-tuple containing a parser and a unmarshaller.
++
++    def getparser(self):
++        # get parser and unmarshaller
++        return getparser()
++
++    ##
++    # Get authorization info from host parameter
++    # Host may be a string, or a (host, x509-dict) tuple; if a string,
++    # it is checked for a &quot;user:<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pw at host</A>&quot; format, and a &quot;Basic
++    # Authentication&quot; header is added if appropriate.
++    #
++    # @param host Host descriptor (URL or (URL, x509 info) tuple).
++    # @return A 3-tuple containing (actual host, extra headers,
++    #     x509 info).  The header and x509 fields may be None.
++
++    def get_host_info(self, host):
++
++        x509 = {}
++        if isinstance(host, TupleType):
++            host, x509 = host
++
++        import urllib
++        auth, host = urllib.splituser(host)
++
++        if auth:
++            import base64
++            auth = base64.encodestring(urllib.unquote(auth))
++            auth = string.join(string.split(auth), &quot;&quot;) # get rid of whitespace
++            extra_headers = [
++                (&quot;Authorization&quot;, &quot;Basic &quot; + auth)
++                ]
++        else:
++            extra_headers = None
++
++        return host, extra_headers, x509
++
++    ##
++    # Connect to server.
++    #
++    # @param host Target host.
++    # @return A connection handle.
++
++    def make_connection(self, host):
++        # create a HTTP connection object from a host descriptor
++        import httplib
++        host, extra_headers, x509 = self.get_host_info(host)
++        return httplib.HTTP(host)
++
++    ##
++    # Send request header.
++    #
++    # @param connection Connection handle.
++    # @param handler Target RPC handler.
++    # @param request_body XML-RPC body.
++
++    def send_request(self, connection, handler, request_body):
++        connection.putrequest(&quot;POST&quot;, handler)
++
++    ##
++    # Send host name.
++    #
++    # @param connection Connection handle.
++    # @param host Host name.
++
++    def send_host(self, connection, host):
++        host, extra_headers, x509 = self.get_host_info(host)
++        connection.putheader(&quot;Host&quot;, host)
++        if extra_headers:
++            if isinstance(extra_headers, DictType):
++                extra_headers = extra_headers.items()
++            for key, value in extra_headers:
++                connection.putheader(key, value)
++
++    ##
++    # Send user-agent identifier.
++    #
++    # @param connection Connection handle.
++
++    def send_user_agent(self, connection):
++        connection.putheader(&quot;User-Agent&quot;, self.user_agent)
++
++    ##
++    # Send request body.
++    #
++    # @param connection Connection handle.
++    # @param request_body XML-RPC request body.
++
++    def send_content(self, connection, request_body):
++        connection.putheader(&quot;Content-Type&quot;, &quot;text/xml&quot;)
++        connection.putheader(&quot;Content-Length&quot;, str(len(request_body)))
++        connection.endheaders()
++        if request_body:
++            connection.send(request_body)
++
++    ##
++    # Parse response.
++    #
++    # @param file Stream.
++    # @return Response tuple and target method.
++
++    def parse_response(self, file):
++        # compatibility interface
++        return self._parse_response(file, None)
++
++    ##
++    # Parse response (alternate interface).  This is similar to the
++    # parse_response method, but also provides direct access to the
++    # underlying socket object (where available).
++    #
++    # @param file Stream.
++    # @param sock Socket handle (or None, if the socket object
++    #    could not be accessed).
++    # @return Response tuple and target method.
++
++    def _parse_response(self, file, sock):
++        # read response from input file/socket, and parse it
++
++        p, u = self.getparser()
++
++        while 1:
++            if sock:
++                response = sock.recv(1024)
++            else:
++                response = file.read(1024)
++            if not response:
++                break
++            if self.verbose:
++                print &quot;body:&quot;, repr(response)
++            p.feed(response)
++
++        file.close()
++        p.close()
++
++        return u.close()
++
++##
++# Standard transport class for XML-RPC over HTTPS.
++
++class SafeTransport(Transport):
++    &quot;&quot;&quot;Handles an HTTPS transaction to an XML-RPC server.&quot;&quot;&quot;
++
++    # FIXME: mostly untested
++
++    def make_connection(self, host):
++        # create a HTTPS connection object from a host descriptor
++        # host may be a string, or a (host, x509-dict) tuple
++        import httplib
++        host, extra_headers, x509 = self.get_host_info(host)
++        try:
++            HTTPS = httplib.HTTPS
++        except AttributeError:
++            raise NotImplementedError,\
++                  &quot;your version of httplib doesn't support HTTPS&quot;
++        else:
++            return apply(HTTPS, (host, None), x509 or {})
++
++    def send_host(self, connection, host):
++        if isinstance(host, TupleType):
++            host, x509 = host
++        connection.putheader(&quot;Host&quot;, host)
++
++##
++# Standard server proxy.  This class establishes a virtual connection
++# to an XML-RPC server.
++# &lt;p&gt;
++# This class is available as ServerProxy and Server.  New code should
++# use ServerProxy, to avoid confusion.
++#
++# @def ServerProxy(uri, **options)
++# @param uri The connection point on the server.
++# @keyparam transport A transport factory, compatible with the
++#    standard transport class.
++# @keyparam encoding The default encoding used for 8-bit strings
++#    (default is UTF-8).
++# @keyparam verbose Use a true value to enable debugging output.
++#    (printed to standard output).
++# @see Transport
++
++class ServerProxy:
++    &quot;&quot;&quot;uri [,options] -&gt; a logical connection to an XML-RPC server
++
++    uri is the connection point on the server, given as
++    <A HREF="scheme://host/target.">scheme://host/target.</A>
++
++    The standard implementation always supports the &quot;http&quot; scheme.  If
++    SSL socket support is available (Python 2.0), it also supports
++    &quot;https&quot;.
++
++    If the target part and the slash preceding it are both omitted,
++    &quot;/RPC2&quot; is assumed.
++
++    The following options can be given as keyword arguments:
++
++        transport: a transport factory
++        encoding: the request encoding (default is UTF-8)
++
++    All 8-bit strings passed to the server proxy are assumed to use
++    the given encoding.
++    &quot;&quot;&quot;
++
++    def __init__(self, uri, transport=None, encoding=None, verbose=0):
++        # establish a &quot;logical&quot; server connection
++
++        # get the url
++        import urllib
++        type, uri = urllib.splittype(uri)
++        if type not in (&quot;http&quot;, &quot;https&quot;):
++            raise IOError, &quot;unsupported XML-RPC protocol&quot;
++        self.__host, self.__handler = urllib.splithost(uri)
++        if not self.__handler:
++            self.__handler = &quot;/RPC2&quot;
++
++        if transport is None:
++            if type == &quot;https&quot;:
++                transport = SafeTransport()
++            else:
++                transport = Transport()
++        self.__transport = transport
++
++        self.__encoding = encoding
++        self.__verbose = verbose
++
++    def __request(self, methodname, params):
++        # call a method on the remote server
++
++        request = dumps(params, methodname, encoding=self.__encoding)
++
++        response = self.__transport.request(
++            self.__host,
++            self.__handler,
++            request,
++            verbose=self.__verbose
++            )
++
++        if len(response) == 1:
++            response = response[0]
++
++        return response
++
++    def __repr__(self):
++        return (
++            &quot;&lt;ServerProxy for %s%s&gt;&quot; %
++            (self.__host, self.__handler)
++            )
++
++    __str__ = __repr__
++
++    def __getattr__(self, name):
++        # magic method dispatcher
++        return _Method(self.__request, name)
++
++    # note: to call a remote object with an non-standard name, use
++    # result getattr(server, &quot;strange-python-name&quot;)(args)
++
++# compatibility
++
++Server = ServerProxy
++
++# --------------------------------------------------------------------
++# test code
++
++if __name__ == &quot;__main__&quot;:
++
++    # simple test program (from the XML-RPC specification)
++
++    # server = ServerProxy(&quot;<A HREF="http://localhost:8000">http://localhost:8000</A>&quot;) # local server
++    server = ServerProxy(&quot;<A HREF="http://betty.userland.com">http://betty.userland.com</A>&quot;)
++
++    print server
++
++    try:
++        print server.examples.getStateName(41)
++    except Error, v:
++        print &quot;ERROR&quot;, v
+
+Modified: trunk/tools/mrepo/rhn/connections.py
+===================================================================
+--- trunk/tools/mrepo/rhn/connections.py	2008-10-06 02:10:50 UTC (rev 6498)
++++ trunk/tools/mrepo/rhn/connections.py	2008-10-06 02:55:55 UTC (rev 6499)
+@@ -1,3 +1,4 @@
++#/usr/bin/env python
+ #
+ # Connection objects
+ #
+@@ -5,14 +6,32 @@
+ #
+ # Author: Mihai Ibanescu &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">misa at redhat.com</A>&gt;
+ 
+-# $Id: connections.py 104795 2006-10-23 21:20:28Z jbowes $
++# $Id: connections.py 116568 2007-05-21 23:30:08Z pkilambi $
+ 
+ 
++import sys
++import string
+ import SSL
+ import nonblocking
+-import httplib
+-import xmlrpclib
+ 
++# Testing which version of python we run
++if hasattr(sys, &quot;version_info&quot;):
++    # python 2.2 or newer
++    import httplib
++else:
++    # Older version, with incompatible httplib; import the patched one
++    import _httplib
++    httplib = _httplib
++
++# Testing which version of python we run
++if hasattr(sys, &quot;version_info&quot;):
++    # python 2.2 or newer
++    import xmlrpclib
++else:
++    # Older version, with incompatible httplib; import the patched one
++    import _internal_xmlrpclib
++    xmlrpclib = _internal_xmlrpclib
++
+ # Import into the local namespace some httplib-related names
+ _CS_REQ_SENT = httplib._CS_REQ_SENT
+ _CS_IDLE = httplib._CS_IDLE
+@@ -70,7 +89,7 @@
+         self._cb_ex = []
+         self._cb_user_data = None
+         self._cb_callback = None
+-        self._user_agent = &quot;rhn.connections $Revision: 104795 $ (python)&quot;
++        self._user_agent = &quot;rhn.connections $Revision: 116568 $ (python)&quot;
+ 
+     def set_callback(self, rs, ws, ex, user_data, callback):
+         # XXX check the params
+@@ -173,7 +192,7 @@
+         # Authenticated proxy
+         import base64
+         userpass = &quot;%s:%s&quot; % (self.__username, self.__password)
+-        enc_userpass = base64.encodestring(userpass).replace(&quot;\n&quot;, &quot;&quot;)
++        enc_userpass = string.replace(base64.encodestring(userpass), &quot;\n&quot;, &quot;&quot;)
+         self.putheader(&quot;Proxy-Authorization&quot;, &quot;Basic %s&quot; % enc_userpass)
+         
+ class HTTPSConnection(HTTPConnection):
+@@ -189,7 +208,6 @@
+         &quot;Connect to a host on a given (SSL) port&quot;
+         import socket
+         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+-        sock.settimeout(SSL.DEFAULT_TIMEOUT)
+         sock.connect((self.host, self.port))
+         self.sock = SSL.SSLSocket(sock, self.trusted_certs)
+         self.sock.init_ssl()
+@@ -233,7 +251,6 @@
+             self.close()
+             raise xmlrpclib.ProtocolError(host,
+                 response.status, response.reason, response.msg)
+-        self.sock.settimeout(SSL.DEFAULT_TIMEOUT)
+         self.sock = SSL.SSLSocket(self.sock, self.trusted_certs)
+         self.sock.init_ssl()
+ 
+
+Modified: trunk/tools/mrepo/rhn/rpclib.py
+===================================================================
+--- trunk/tools/mrepo/rhn/rpclib.py	2008-10-06 02:10:50 UTC (rev 6498)
++++ trunk/tools/mrepo/rhn/rpclib.py	2008-10-06 02:55:55 UTC (rev 6499)
+@@ -1,3 +1,4 @@
++#/usr/bin/env python
+ #
+ # This module contains all the RPC-related functions the RHN code uses
+ #
+@@ -5,10 +6,11 @@
+ #
+ # Author: Mihai Ibanescu &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">misa at redhat.com</A>&gt;
+ 
+-# $Id: rpclib.py 102540 2006-09-18 20:19:31Z jbowes $
++# $Id: rpclib.py 118741 2007-07-31 21:23:02Z pkilambi $
+ 
+-__version__ = &quot;$Revision: 102540 $&quot;
++__version__ = &quot;$Revision: 118741 $&quot;
+ 
++import string
+ import transports
+ import urllib
+ 
+@@ -16,11 +18,20 @@
+ 
+ from UserDictCase import UserDictCase
+ 
+-import xmlrpclib
+-from xmlrpclib import Fault, ResponseError, ProtocolError, getparser
++# We may have an internalized version of xmlrpclib, we determine that in
++# transports
++xmlrpclib = transports.xmlrpclib
++File = transports.File
+ 
+-from transports import File
++# Wrappers around xmlrpclib objects
++Fault = xmlrpclib.Fault
+ 
++# XXX Do we want to do it this way, or are we going to use __init__ for this?
++ResponseError = xmlrpclib.ResponseError
++ProtocolError = xmlrpclib.ProtocolError
++
++getparser = xmlrpclib.getparser
++
+ # Redirection handling
+ 
+ MAX_REDIRECTIONS = 5
+@@ -35,7 +46,7 @@
+ # TODO: check IPv6 numerical IPs it may break
+ #
+ def split_host(hoststring):
+-    l = hoststring.split('@', 1)
++    l = string.split(hoststring, '@', 1)
+     host = None
+     port = None
+     user = None
+@@ -44,7 +55,7 @@
+     if len(l) == 2:
+         hostport = l[1]
+         # userinfo present
+-        userinfo = l[0].split(':', 1)
++        userinfo = string.split(l[0], ':', 1)
+         user = userinfo[0]
+         if len(userinfo) == 2:
+             passwd = userinfo[1]
+@@ -52,7 +63,7 @@
+         hostport = l[0]
+ 
+     # Now parse hostport
+-    arr = hostport.split(':', 1)
++    arr = string.split(hostport, ':', 1)
+     host = arr[0]
+     if len(arr) == 2:
+         port = arr[1]
+@@ -63,18 +74,13 @@
+     if proxy == None:
+         raise ValueError, &quot;Host string cannot be null&quot;
+ 
+-    arr = proxy.split('://', 1)
++    arr = string.split(proxy, '://', 1)
+     if len(arr) == 2:
+         # scheme found, strip it
+         proxy = arr[1]
+     
+     return split_host(proxy)
+         
+-
+-class MalformedURIError(IOError):
+-    pass
+-
+-
+ # This is a cut-and-paste of xmlrpclib.ServerProxy, with the data members made
+ # protected instead of private
+ # It also adds support for changing the way the request is made (XMLRPC or
+@@ -144,13 +150,7 @@
+ 
+         # get the url
+         type, uri = urllib.splittype(uri)
+-        if type is None:
+-            raise MalformedURIError, &quot;missing protocol in uri&quot;
+-        # with a real uri passed in, uri will now contain &quot;//hostname...&quot; so we 
+-        # need at least 3 chars for it to maybe be ok...
+-        if len(uri) &lt; 3 or uri[0:2] != &quot;//&quot;: 
+-            raise MalformedURIError
+-        type = type.lower()
++        type = (string.lower(type)).strip()
+         self._type = type
+         if type not in (&quot;http&quot;, &quot;https&quot;):
+             raise IOError, &quot;unsupported XML-RPC protocol&quot;
+@@ -249,10 +249,10 @@
+         content_range = headers.get('Content-Range')
+         if not content_range:
+             return None
+-        arr = filter(None, content_range.split())
++        arr = filter(None, string.split(content_range))
+         assert arr[0] == &quot;bytes&quot;
+         assert len(arr) == 2
+-        arr = arr[1].split('/')
++        arr = string.split(arr[1], '/')
+         assert len(arr) == 2
+ 
+         brange, total_len = arr
+@@ -263,7 +263,7 @@
+         else:
+             total_len = int(total_len)
+ 
+-        start, end = brange.split('-')
++        start, end = string.split(brange, '-')
+         result = {
+             'length'            : total_len,
+             'first_byte_pos'    : int(start),
+@@ -297,7 +297,7 @@
+             
+             self._transport.add_header(&quot;X-Info&quot;,
+                 'RPC Processor (C) Red Hat, Inc (version %s)' % 
+-                __version__.split()[1])
++                string.split(__version__)[1])
+             # identify the capability set of this client to the server
+             self._transport.set_header(&quot;X-Client-Version&quot;, 1)
+             
+@@ -342,7 +342,7 @@
+             typ, uri = urllib.splittype(self._redirected)
+             
+             if typ != None:
+-                typ = typ.lower()
++                typ = string.lower(typ)
+             if typ not in (&quot;http&quot;, &quot;https&quot;):
+                 raise InvalidRedirectionError(
+                     &quot;Redirected to unsupported protocol %s&quot; % typ)
+@@ -495,10 +495,10 @@
+         if not params or len(params) &lt; 1:
+             raise Exception(&quot;Required parameter channel not found&quot;)
+         # Strip the multiple / from the handler
+-        h_comps = filter(lambda x: x != '', self._orig_handler.split('/'))
++        h_comps = filter(lambda x: x != '', string.split(self._orig_handler, '/'))
+         # Set the handler we are going to request
+         hndl = h_comps + [&quot;$RHN&quot;, params[0], methodname] + list(params[1:])
+-        self._handler = '/' + '/'.join(hndl)
++        self._handler = '/' + string.join(hndl, '/')
+ 
+         #save the constructed handler in case of redirect
+         send_handler = self._handler
+@@ -578,7 +578,7 @@
+             return [headers[name]]
+         return []
+ 
+-    return map(lambda x: x.split(':', 1)[1].strip(), 
++    return map(lambda x: string.strip(string.split(x, ':', 1)[1]), 
+             headers.getallmatchingheaders(name))
+ 
+ class _Method:
+@@ -641,7 +641,7 @@
+     if headers.has_key(s):
+         _sList = getHeaderValues(headers, s)
+         if _sList:
+-            _s = ''.join(_sList)
++            _s = string.join(_sList, '')
+             import base64
+             errmsg = &quot;%s&quot; % base64.decodestring(_s)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005297.html">[svn] r6498 - in trunk/rpms: . pure-ftpd
+</A></li>
+	<LI>Next message: <A HREF="005299.html">[svn] r6500 - trunk/tools/mrepo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5298">[ date ]</a>
+              <a href="thread.html#5298">[ thread ]</a>
+              <a href="subject.html#5298">[ subject ]</a>
+              <a href="author.html#5298">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

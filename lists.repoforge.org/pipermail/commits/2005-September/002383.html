@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3582 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3582%20-%20trunk/tools/yam&In-Reply-To=%3C20050914231121.978AE318079%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002382.html">
+   <LINK REL="Next"  HREF="002384.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3582 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3582%20-%20trunk/tools/yam&In-Reply-To=%3C20050914231121.978AE318079%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3582 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Sep 15 01:11:21 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002382.html">[svn] r3581 - in trunk/web/rpmforge.net: . user/community user/faq
+</A></li>
+        <LI>Next message: <A HREF="002384.html">[svn] r3583 - in trunk/rpms: . lmbench mplayerplug-in	perl-Date-Pcalc pydsh pytone
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2383">[ date ]</a>
+              <a href="thread.html#2383">[ thread ]</a>
+              <a href="subject.html#2383">[ subject ]</a>
+              <a href="author.html#2383">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-09-15 01:11:19 +0200 (Thu, 15 Sep 2005)
+New Revision: 3582
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.httpd
+Log:
+Small changes
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2005-09-14 19:14:25 UTC (rev 3581)
++++ trunk/tools/yam/ChangeLog	2005-09-14 23:11:19 UTC (rev 3582)
+@@ -10,6 +10,7 @@
+ - Options lftpoptions and rsyncoptions now overwrite the defaults
+ - Added architectures ppc64pseries and ppc64iseries to ppc (Tim Verhoeven)
+ - Added lftp-mirror-options config option
++- Fixed a bug with the metadata config option (Alain Rykaert)
+ 
+ * 0.7.3 - released 25/03/2005
+ - Added ia64 support (Gareth Armstrong)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2005-09-14 19:14:25 UTC (rev 3581)
++++ trunk/tools/yam/TODO	2005-09-14 23:11:19 UTC (rev 3582)
+@@ -16,7 +16,12 @@
+ + Create anaconda-style metadata for booting an updated installation
+ + Create group information (createrepo -g comps.xml RPMS.os)   
+ + Complain when a required tool is not available
+++ Make createrepo use md5sum caching
+++ Check directory inode's mtime to force metadata generation
+ 
++### Reporting utility
+++ Add option to generate a report of recent additions
++
+ ### Configuration
+ + Allow to specify rsync/lftp options on a per distribution basis
+ + Get rid of iso= and allow each repo to include ISOs (eg. <A HREF="file:///mnt/iso/*.iso">file:///mnt/iso/*.iso</A>)
+@@ -55,8 +60,7 @@
+ ### Bugs
+ + basegendir stumbles on broken symlinks (Apt already fixed upstream, thx to Panu)
+ + yum-arch stumbles on broken symlinks (<A HREF="https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280">https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280</A>)
+-+ rsync synchronizes userids, most people don't want that
+-+ Correct file permissions/ownerships of packages in /var/yam
+++ Correct file permissions/ownerships of packages in /var/yam (add umask option)
+ 
+ ### Yamenu tool / remote installation
+ + Create small curses tool to manage systems / MAC-addresses / profiles (kickstart)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2005-09-14 19:14:25 UTC (rev 3581)
++++ trunk/tools/yam/yam	2005-09-14 23:11:19 UTC (rev 3582)
+@@ -140,7 +140,7 @@
+ 		self.wwwdir = self.getoption('main', 'wwwdir', '/var/www/yam')
+ 
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+-		self.metadata = self.getoption('main', 'metadata', ('apt', 'yum', 'createrepo'))
++		self.metadata = self.getoption('main', 'metadata', 'apt yum createrepo'))
+ 
+ 		self.quiet = not self.getoption('main', 'quiet', 'no') in disable
+ 		if op.verbose == 1 and self.quiet:
+@@ -165,7 +165,7 @@
+ 		self.lftpexcldebug = not self.getoption('main', 'lftp-exclude-debug', 'yes') in disable
+ 		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in disable
+ 		self.lftpoptions = self.getoption('main', 'lftp-options', '')
+-		self.lftpmirroroptions = self.getoption('main', 'lftp-mirror-options', '-a -P')
++		self.lftpmirroroptions = self.getoption('main', 'lftp-mirror-options', '-c -P')
+ 		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+
+Modified: trunk/tools/yam/yam.httpd
+===================================================================
+--- trunk/tools/yam/yam.httpd	2005-09-14 19:14:25 UTC (rev 3581)
++++ trunk/tools/yam/yam.httpd	2005-09-14 23:11:19 UTC (rev 3582)
+@@ -39,33 +39,50 @@
+ 	AddDescription &quot;CentOS 2 for x86&quot; centos2-i386
+ 	AddDescription &quot;CentOS 3 for x86&quot; centos3-i386
+ 	AddDescription &quot;CentOS 4 for x86&quot; centos4-i386
++	AddDescription &quot;CentOS 4 for x86_64&quot; centos4-x86_64
++	AddDescription &quot;CentOS 5 for x86&quot; centos5-i386
++	AddDescription &quot;CentOS 5 for x86_64&quot; centos5-x86_64
+ 	AddDescription &quot;Fedora Core 1 for x86&quot; fc1-i386
+ 	AddDescription &quot;Fedora Core 1 for x86_64&quot; fc1-x86_64
+ 	AddDescription &quot;Fedora Core 2 for x86&quot; fc2-i386
+ 	AddDescription &quot;Fedora Core 2 for x86_64&quot; fc2-x86_64
+ 	AddDescription &quot;Fedora Core 3 for x86&quot; fc3-i386
+ 	AddDescription &quot;Fedora Core 3 for x86_64&quot; fc3-x86_64
++	AddDescription &quot;Fedora Core 4 for x86&quot; fc4-i386
++	AddDescription &quot;Fedora Core 4 for x86_64&quot; fc4-x86_64
++	AddDescription &quot;Fedora Core 5 for x86&quot; fc5-i386
++	AddDescription &quot;Fedora Core 5 for x86_64&quot; fc5-x86_64
++	AddDescription &quot;Fedora Core 6 for x86&quot; fc6-i386
++	AddDescription &quot;Fedora Core 6 for x86_64&quot; fc6-x86_64
+ 	AddDescription &quot;Red Hat Linux 6.2 for x86&quot; rh62-i386
+ 	AddDescription &quot;Red Hat Linux 7.3 for x86&quot; rh73-i386
+ 	AddDescription &quot;Red Hat Linux 8.0 for x86&quot; rh80-i386
+ 	AddDescription &quot;Red Hat Linux 9 for x86&quot; rh9-i386
+-	AddDescription &quot;Red Hat Advanced Server 2 for x86&quot; rhas21-i386
+-	AddDescription &quot;Red Hat Advanced Server 3 for x86&quot; rhas3-i386
+-	AddDescription &quot;Red Hat Advanced Server 3 for x86_64&quot; rhas3-x86_64
+-	AddDescription &quot;Red Hat Advanced Server 3 for PPC&quot; rhas3-ppc
+-	AddDescription &quot;Red Hat Advanced Server 3 for s/390&quot; rhas3-s390
+-	AddDescription &quot;Red Hat Advanced Server 4 for x86&quot; rhas4-i386
+-	AddDescription &quot;Red Hat Advanced Server 4 for x86_64&quot; rhas4-x86_64
+-	AddDescription &quot;Red Hat Advanced Server 4 for PPC&quot; rhas4-ppc
+-	AddDescription &quot;Red Hat Advanced Server 4 for s/390&quot; rhas4-s390
+-	AddDescription &quot;Red Hat Enterprise Server 3 for x86&quot; rhes3-i386
+-	AddDescription &quot;Red Hat Enterprise Server 3 for x86_64&quot; rhes3-x86_64
+-	AddDescription &quot;Red Hat Enterprise Server 4 for x86&quot; rhes4-i386
+-	AddDescription &quot;Red Hat Enterprise Server 4 for x86_64&quot; rhes4-x86_64
+-	AddDescription &quot;Red Hat Workstation 3 for x86&quot; rhws3-i386
+-	AddDescription &quot;Red Hat Workstation 3 for x86&quot; rhws3-i386
+-	AddDescription &quot;Red Hat Workstation 4 for x86_64&quot; rhws4-x86_64
+-	AddDescription &quot;Red Hat Workstation 4 for x86_64&quot; rhws4-x86_64
++	AddDescription &quot;Red Hat Advanced Server 2 for x86&quot; rhel21as-i386
++	AddDescription &quot;Red Hat Advanced Server 3 for x86&quot; rhel3as-i386
++	AddDescription &quot;Red Hat Advanced Server 3 for x86_64&quot; rhel3as-x86_64
++	AddDescription &quot;Red Hat Advanced Server 3 for PPC&quot; rhel3as-ppc
++	AddDescription &quot;Red Hat Advanced Server 3 for s/390&quot; rhel3as-s390
++	AddDescription &quot;Red Hat Advanced Server 4 for x86&quot; rhel4as-i386
++	AddDescription &quot;Red Hat Advanced Server 4 for x86_64&quot; rhel4as-x86_64
++	AddDescription &quot;Red Hat Advanced Server 4 for PPC&quot; rhel4as-ppc
++	AddDescription &quot;Red Hat Advanced Server 4 for s/390&quot; rhel4as-s390
++	AddDescription &quot;Red Hat Advanced Server 5 for x86&quot; rhel5as-i386
++	AddDescription &quot;Red Hat Advanced Server 5 for x86_64&quot; rhel5as-x86_64
++	AddDescription &quot;Red Hat Advanced Server 5 for PPC&quot; rhel5as-ppc
++	AddDescription &quot;Red Hat Advanced Server 5 for s/390&quot; rhel5as-s390
++	AddDescription &quot;Red Hat Enterprise Server 3 for x86&quot; rhel3es-i386
++	AddDescription &quot;Red Hat Enterprise Server 3 for x86_64&quot; rhel3es-x86_64
++	AddDescription &quot;Red Hat Enterprise Server 4 for x86&quot; rhel4es-i386
++	AddDescription &quot;Red Hat Enterprise Server 4 for x86_64&quot; rhel4es-x86_64
++	AddDescription &quot;Red Hat Enterprise Server 5 for x86&quot; rhel5es-i386
++	AddDescription &quot;Red Hat Enterprise Server 5 for x86_64&quot; rhel5es-x86_64
++	AddDescription &quot;Red Hat Workstation 3 for x86&quot; rhel3ws-i386
++	AddDescription &quot;Red Hat Workstation 3 for x86_64&quot; rhel3ws-x86_64
++	AddDescription &quot;Red Hat Workstation 4 for x86&quot; rhel4ws-i386
++	AddDescription &quot;Red Hat Workstation 4 for x86_64&quot; rhel4ws-x86_64
++	AddDescription &quot;Red Hat Workstation 5 for x86&quot; rhel5ws-i386
++	AddDescription &quot;Red Hat Workstation 5 for x86_64&quot; rhel5ws-x86_64
+ 	AddDescription &quot;SuSE Enterprise Server 8 for i386&quot; sles8-i386
+ 	AddDescription &quot;SuSE Enterprise Server 9 for i386&quot; sles9-i386
+ 	AddDescription &quot;Tao Linux 1 for i386&quot; tao1-i386
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002382.html">[svn] r3581 - in trunk/web/rpmforge.net: . user/community user/faq
+</A></li>
+	<LI>Next message: <A HREF="002384.html">[svn] r3583 - in trunk/rpms: . lmbench mplayerplug-in	perl-Date-Pcalc pydsh pytone
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2383">[ date ]</a>
+              <a href="thread.html#2383">[ thread ]</a>
+              <a href="subject.html#2383">[ subject ]</a>
+              <a href="author.html#2383">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,861 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8032 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8032%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911202215.nAKMFGZO030156%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006826.html">
+   <LINK REL="Next"  HREF="006828.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8032 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8032%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C200911202215.nAKMFGZO030156%40surya.karan.org%3E"
+       TITLE="[svn] r8032 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Nov 20 23:15:16 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006826.html">[svn] r8031 - in trunk/rpms: gossip loudmouth
+</A></li>
+        <LI>Next message: <A HREF="006828.html">[svn] r8033 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6827">[ date ]</a>
+              <a href="thread.html#6827">[ thread ]</a>
+              <a href="subject.html#6827">[ subject ]</a>
+              <a href="author.html#6827">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-11-20 22:15:15 +0000 (Fri, 20 Nov 2009)
+New Revision: 8032
+
+Added:
+   trunk/tools/dstat/plugins/dstat_diskutil.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_cpufreq.py
+   trunk/tools/dstat/plugins/dstat_gpfs.py
+   trunk/tools/dstat/plugins/dstat_gpfsop.py
+   trunk/tools/dstat/plugins/dstat_innodb_buffer.py
+   trunk/tools/dstat/plugins/dstat_innodb_io.py
+   trunk/tools/dstat/plugins/dstat_innodb_ops.py
+   trunk/tools/dstat/plugins/dstat_lustre.py
+   trunk/tools/dstat/plugins/dstat_mysql5_com.py
+   trunk/tools/dstat/plugins/dstat_mysql5_conn.py
+   trunk/tools/dstat/plugins/dstat_mysql5_io.py
+   trunk/tools/dstat/plugins/dstat_mysql5_keys.py
+   trunk/tools/dstat/plugins/dstat_mysql_io.py
+   trunk/tools/dstat/plugins/dstat_mysql_keys.py
+   trunk/tools/dstat/plugins/dstat_net_packets.py
+   trunk/tools/dstat/plugins/dstat_nfs3.py
+   trunk/tools/dstat/plugins/dstat_nfs3op.py
+   trunk/tools/dstat/plugins/dstat_nfsd3.py
+   trunk/tools/dstat/plugins/dstat_nfsd3op.py
+   trunk/tools/dstat/plugins/dstat_power.py
+   trunk/tools/dstat/plugins/dstat_rpc.py
+   trunk/tools/dstat/plugins/dstat_rpcd.py
+   trunk/tools/dstat/plugins/dstat_topavgcputime.py
+   trunk/tools/dstat/plugins/dstat_topavglatency.py
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topcpu.py
+   trunk/tools/dstat/plugins/dstat_topcputime.py
+   trunk/tools/dstat/plugins/dstat_topio.py
+   trunk/tools/dstat/plugins/dstat_toplatency.py
+   trunk/tools/dstat/plugins/dstat_vmkhba.py
+   trunk/tools/dstat/plugins/dstat_vmkint.py
+   trunk/tools/dstat/plugins/dstat_vmknic.py
+   trunk/tools/dstat/plugins/dstat_vzio.py
+   trunk/tools/dstat/plugins/dstat_vzubc.py
+Log:
+- Added external dstat_diskutil to show per disk utilization rates in percentage
+
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/ChangeLog	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -27,6 +27,7 @@
+ - Added external dstat_topcputime plugin to show process with top total cpu in milliseconds
+ - Added external dstat_topavgcputime plugin to show process with top average timeslice in milliseconds
+ - Improvements to timing when writing to screen so that it feels nicer
++- Added external dstat_diskutil to show per disk utilization rates in percentage
+ - This release was 'sponsored' by the Linux Foundation during the Japan Linux Symposium
+ 
+ * 0.6.9 - Locarno - release 02/12/2008
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/dstat	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -704,8 +704,8 @@
+                             self.set2[diskset] = ( self.set2[diskset][0] + long(l[5]), self.set2[diskset][1] + long(l[9]) )
+         for name in self.set2.keys():
+             self.val[name] = (
+-                (self.set2[name][0] - self.set1[name][0]) * 512.0 / tick,
+-                (self.set2[name][1] - self.set1[name][1]) * 512.0 / tick,
++                (self.set2[name][0] - self.set1[name][0]) * 512.0 / elapsed,
++                (self.set2[name][1] - self.set1[name][1]) * 512.0 / elapsed,
+             )
+         if step == op.delay:
+             self.set1.update(self.set2)
+@@ -768,8 +768,8 @@
+                             self.set2[diskset] = ( self.set2[diskset][0] + long(l[6]), self.set2[diskset][1] + long(l[10]) )
+         for name in self.set2.keys():
+             self.val[name] = (
+-                (self.set2[name][0] - self.set1[name][0]) * 512.0 / tick,
+-                (self.set2[name][1] - self.set1[name][1]) * 512.0 / tick,
++                (self.set2[name][0] - self.set1[name][0]) * 512.0 / elapsed,
++                (self.set2[name][1] - self.set1[name][1]) * 512.0 / elapsed,
+             )
+         if step == op.delay:
+             self.set1.update(self.set2)
+@@ -848,8 +848,8 @@
+             break
+         for name in self.set2.keys():
+             self.val[name] = (
+-                (self.set2[name][0] - self.set1[name][0]) * 512.0 / tick,
+-                (self.set2[name][1] - self.set1[name][1]) * 512.0 / tick,
++                (self.set2[name][0] - self.set1[name][0]) * 512.0 / elapsed,
++                (self.set2[name][1] - self.set1[name][1]) * 512.0 / elapsed,
+             )
+         if step == op.delay:
+             self.set1.update(self.set2)
+@@ -951,7 +951,7 @@
+                     self.set2[name] = long(l[int(name) + 2])
+             self.set2['total'] = long(l[1])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+@@ -1021,7 +1021,7 @@
+ #                   for mod in l[2+cpunr:]:
+ #                       self.set2[mod] = long(l[1])
+         for name in self.set2.keys():
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+@@ -1088,8 +1088,8 @@
+                             self.set2[diskset] = ( self.set2[diskset][0] + long(l[3]), self.set2[diskset][1] + long(l[7]) )
+         for name in self.set2.keys():
+             self.val[name] = (
+-                (self.set2[name][0] - self.set1[name][0]) * 1.0 / tick,
+-                (self.set2[name][1] - self.set1[name][1]) * 1.0 / tick,
++                (self.set2[name][0] - self.set1[name][0]) * 1.0 / elapsed,
++                (self.set2[name][1] - self.set1[name][1]) * 1.0 / elapsed,
+             )
+         if step == op.delay:
+             self.set1.update(self.set2)
+@@ -1214,8 +1214,8 @@
+         if update:
+             for name in self.set2.keys():
+                 self.val[name] = (
+-                    (self.set2[name][0] - self.set1[name][0]) * 1.0 / tick,
+-                    (self.set2[name][1] - self.set1[name][1]) * 1.0 / tick,
++                    (self.set2[name][0] - self.set1[name][0]) * 1.0 / elapsed,
++                    (self.set2[name][1] - self.set1[name][1]) * 1.0 / elapsed,
+                  )
+         if step == op.delay:
+             self.set1.update(self.set2)
+@@ -1234,7 +1234,7 @@
+             if name in self.vars:
+                 self.set2[name] = long(l[1])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * pagesize * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * pagesize * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+@@ -1254,7 +1254,7 @@
+             self.set2['pswpout'] = long(l[2])
+             break
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * pagesize * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * pagesize * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+@@ -1279,9 +1279,9 @@
+                 self.set2[name] = self.set2[name] + long(l[1]) - 1
+             elif name == 'procs_blocked':
+                 self.set2[name] = self.set2[name] + long(l[1])
+-        self.val['processes'] = (self.set2['processes'] - self.set1['processes']) * 1.0 / tick
++        self.val['processes'] = (self.set2['processes'] - self.set1['processes']) * 1.0 / elapsed
+         for name in ('procs_running', 'procs_blocked'):
+-            self.val[name] = self.set2[name] * 1.0 / tick
++            self.val[name] = self.set2[name] * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+             for name in ('procs_running', 'procs_blocked'):
+@@ -1403,7 +1403,7 @@
+             if name in self.vars:
+                 self.set2[name] = long(l[1])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+@@ -1505,7 +1505,7 @@
+             if l[0] not in self.vars: continue
+             self.set2[l[0]] = long(l[1])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+@@ -2099,12 +2099,13 @@
+         print mod
+ 
+ def main():
+-    global pagesize, cpunr, ansi, theme, outputfile
++    global pagesize, cpunr, hz, ansi, theme, outputfile
+     global totlist, inittime
+     global update, missed
+ 
+     pagesize = resource.getpagesize()
+     cpunr = getcpunr()
++    hz = os.sysconf('SC_CLK_TCK')
+     interval = 1
+ 
+     user = getpass.getuser()
+@@ -2257,7 +2258,7 @@
+ 
+ def perform(update):
+         global totlist, oldvislist, vislist, showheader, rows, cols
+-        global tick, totaltime, starttime
++        global elapsed, totaltime, starttime
+         global loop, step, missed
+ 
+         starttime = time.time()
+@@ -2281,13 +2282,13 @@
+ 
+         ### Initialise certain variables
+         if loop == 0:
+-            tick = ticks()
++            elapsed = ticks()
+             rows, cols = 0, 0
+             vislist = []
+             oldvislist = []
+             showheader = True
+         else:
+-            tick = step
++            elapsed = step
+ 
+         ### FIXME: Make this part smarter
+         if sys.stdout.isatty():
+
+Modified: trunk/tools/dstat/plugins/dstat_cpufreq.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_cpufreq.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_cpufreq.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -42,7 +42,7 @@
+             self.set1[cpu] = self.set1[cpu] + cur * 100.0 / max
+ 
+             if op.update:
+-                self.val[cpu] = self.set1[cpu] / tick
++                self.val[cpu] = self.set1[cpu] / elapsed
+             else:
+                 self.val[cpu] = self.set1[cpu]
+ 
+
+Added: trunk/tools/dstat/plugins/dstat_diskutil.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_diskutil.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_diskutil.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -0,0 +1,64 @@
++class dstat_diskutil(dstat):
++    &quot;&quot;&quot;
++    Percentage of CPU time during which I/O requests were issued to the device
++    (bandwidth utilization for the device). Device saturation occurs when
++    this value is close to 100%.
++    &quot;&quot;&quot;
++
++    def __init__(self):
++        self.type = 'f'
++        self.width = 4
++        self.scale = 34
++        self.diskfilter = re.compile('^(dm-[0-9]+|md[0-9]+|[hs]d[a-z]+[0-9]+)$')
++        self.open('/proc/diskstats')
++        self.nick = ('util', )
++        self.cols = 1
++
++    def discover(self, *objlist):
++        ret = []
++        for l in self.splitlines():
++            if len(l) &lt; 13: continue
++            if l[3:] == ['0',] * 11: continue
++            name = l[2]
++            ret.append(name)
++        for item in objlist: ret.append(item)
++        if not ret: 
++            raise Exception, &quot;No suitable block devices found to monitor&quot;
++        return ret
++
++    def vars(self):
++        ret = []
++        if op.disklist:
++            varlist = op.disklist
++        else:
++            varlist = []
++            blockdevices = [os.path.basename(filename) for filename in glob.glob('/sys/block/*')]
++            for name in self.discover:
++                if self.diskfilter.match(name): continue
++                if name not in blockdevices: continue
++                varlist.append(name)
++#           if len(varlist) &gt; 2: varlist = varlist[0:2]
++            varlist.sort()
++        for name in varlist:
++            if name in self.discover:
++                ret.append(name)
++        return ret
++
++    def name(self):
++        return self.vars
++
++    def extract(self):
++        for name in self.vars: self.set2[name] = (0, )
++        for l in self.splitlines():
++            if len(l) &lt; 13: continue
++            if l[5] == '0' and l[9] == '0': continue
++            name = l[2]
++            if l[3:] == ['0',] * 11: continue
++            if name in self.vars:
++                self.set2[name] = ( self.set2[name][0] + long(l[12]), )
++        for name in self.set2.keys():
++            self.val[name] = (
++                (self.set2[name][0] - self.set1[name][0]) * 1.0 * hz / elapsed / 1000,
++            )
++        if step == op.delay:
++            self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_gpfs.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_gpfs.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_gpfs.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -25,7 +25,7 @@
+                 for name in self.vars:
+                     self.set2[name] = long(l[l.index(name)+1])
+             for name in self.vars:
+-                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         except IOError, e:
+             for name in self.vars: self.val[name] = -1
+ #           print 'dstat_gpfs: lost pipe to mmpmon,', e
+
+Modified: trunk/tools/dstat/plugins/dstat_gpfsop.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_gpfsop.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_gpfsop.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -28,7 +28,7 @@
+                 for name in self.vars:
+                     self.set2[name] = long(l[l.index(name)+1])
+             for name in self.vars:
+-                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         except IOError, e:
+             for name in self.vars: self.val[name] = -1
+ #           print 'dstat_gpfs: lost pipe to mmpmon,', e
+
+Modified: trunk/tools/dstat/plugins/dstat_innodb_buffer.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_innodb_buffer.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_innodb_buffer.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -30,7 +30,7 @@
+                 self.set2['written'] = int(l[6])
+ 
+             for name in self.vars:
+-                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_innodb_io.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_innodb_io.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_innodb_io.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -31,7 +31,7 @@
+                 self.set2['sync'] = l[8]
+ 
+             for name in self.vars:
+-                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_innodb_ops.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_innodb_ops.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_innodb_ops.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -32,7 +32,7 @@
+                 self.set2['read'] = l[10]
+ 
+             for name in self.vars:
+-                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_lustre.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_lustre.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_lustre.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -35,8 +35,8 @@
+                 if not l or l[0] != 'write_bytes': continue
+                 write = long(l[6])
+             self.set2[name] = (read, write)
+-            self.val[name] = ( (self.set2[name][0] - self.set1[name][0]) * 1.0 / tick,\
+-                               (self.set2[name][1] - self.set1[name][1]) * 1.0 / tick ) 
++            self.val[name] = ( (self.set2[name][0] - self.set1[name][0]) * 1.0 / elapsed,
++                               (self.set2[name][1] - self.set1[name][1]) * 1.0 / elapsed )
+             if step == op.delay:
+                 self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_mysql5_com.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_mysql5_com.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_mysql5_com.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -33,7 +33,7 @@
+                     self.set2[line[0]] = int(line[1])
+ 
+             for name in self.vars:
+-                self.val[name] = self.set2[name] * 1.0 / tick
++                self.val[name] = self.set2[name] * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_mysql5_conn.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_mysql5_conn.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_mysql5_conn.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -35,7 +35,7 @@
+                     self.set2['Threads'] = (float(thread[1]) / float(max[1]) * float(100)) 
+ 
+             for name in self.vars:
+-                self.val[name] = self.set2[name] * 1.0 / tick
++                self.val[name] = self.set2[name] * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_mysql5_io.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_mysql5_io.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_mysql5_io.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -31,7 +31,7 @@
+                     self.set2[line[0]] = float(line[1])
+ 
+             for name in self.vars:
+-                self.val[name] = self.set2[name] * 1.0 / tick
++                self.val[name] = self.set2[name] * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_mysql5_keys.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_mysql5_keys.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_mysql5_keys.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -34,7 +34,7 @@
+                     self.set2[line[0]] = float(line[1])
+ 
+             for name in self.vars:
+-                self.val[name] = self.set2[name] * 1.0 / tick
++                self.val[name] = self.set2[name] * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_mysql_io.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_mysql_io.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_mysql_io.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -25,7 +25,7 @@
+                     self.set2[l[0]] = float(l[1])
+ 
+             for name in self.vars:
+-                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_mysql_keys.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_mysql_keys.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_mysql_keys.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -28,7 +28,7 @@
+                     self.set2[l[0]] = float(l[1])
+ 
+             for name in self.vars:
+-                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++                self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+ 
+             if step == op.delay:
+                 self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_net_packets.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_net_packets.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_net_packets.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -53,8 +53,8 @@
+         if update:
+             for name in self.set2.keys():
+                 self.val[name] = (
+-                    (self.set2[name][0] - self.set1[name][0]) * 1.0 / tick,
+-                    (self.set2[name][1] - self.set1[name][1]) * 1.0 / tick,
++                    (self.set2[name][0] - self.set1[name][0]) * 1.0 / elapsed,
++                    (self.set2[name][1] - self.set1[name][1]) * 1.0 / elapsed,
+                  )
+         if step == op.delay:
+             self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_nfs3.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfs3.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_nfs3.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -19,7 +19,7 @@
+             self.set2['filesystem'] = long(l[19]) + long(l[20]) + long(l[21])
+             self.set2['commit'] = long(l[22])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_nfs3op.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfs3op.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_nfs3op.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -15,7 +15,7 @@
+             for i, name in enumerate(self.vars):
+                 self.set2[name] = long(l[i+2])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_nfsd3.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfsd3.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_nfsd3.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -19,7 +19,7 @@
+             self.set2['filesystem'] = long(l[20]) + long(l[21]) + long(l[22])
+             self.set2['commit'] = long(l[23])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_nfsd3op.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfsd3op.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_nfsd3op.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -15,7 +15,7 @@
+             for i, name in enumerate(self.vars):
+                 self.set2[name] = long(l[i+2])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_power.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_power.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_power.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -50,7 +50,7 @@
+             self.rate = -1
+ 
+         if op.update:
+-            self.val['rate'] = self.rate / tick
++            self.val['rate'] = self.rate / elapsed
+         else:
+             self.val['rate'] = self.rate
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_rpc.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_rpc.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_rpc.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -14,7 +14,7 @@
+             for i, name in enumerate(self.vars):
+                 self.set2[name] = long(l[i+1])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_rpcd.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_rpcd.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_rpcd.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -14,7 +14,7 @@
+             for i, name in enumerate(self.vars):
+                 self.set2[name] = long(l[i+1])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topavgcputime.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topavgcputime.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_topavgcputime.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -52,7 +52,7 @@
+             self.pidset2[pid] = {'run_ticks': long(l[0]), 'ran': long(l[2])}
+ 
+             if self.pidset2[pid]['ran'] - self.pidset1[pid]['ran'] &gt; 0:
+-                avgrun = (self.pidset2[pid]['run_ticks'] - self.pidset1[pid]['run_ticks']) * 1.0 / (self.pidset2[pid]['ran'] - self.pidset1[pid]['ran']) / tick
++                avgrun = (self.pidset2[pid]['run_ticks'] - self.pidset1[pid]['run_ticks']) * 1.0 / (self.pidset2[pid]['ran'] - self.pidset1[pid]['ran']) / elapsed
+             else:
+                 avgrun = 0
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topavglatency.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topavglatency.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_topavglatency.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -52,7 +52,7 @@
+             self.pidset2[pid] = {'wait_ticks': long(l[1]), 'ran': long(l[2])}
+ 
+             if self.pidset2[pid]['ran'] - self.pidset1[pid]['ran'] &gt; 0:
+-                avgwait = (self.pidset2[pid]['wait_ticks'] - self.pidset1[pid]['wait_ticks']) * 1.0 / (self.pidset2[pid]['ran'] - self.pidset1[pid]['ran']) / tick
++                avgwait = (self.pidset2[pid]['wait_ticks'] - self.pidset1[pid]['wait_ticks']) * 1.0 / (self.pidset2[pid]['ran'] - self.pidset1[pid]['ran']) / elapsed
+             else:
+                 avgwait = 0
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -49,8 +49,8 @@
+             except IOError:
+                 continue
+ 
+-            read_usage = (self.pidset2[pid]['read_bytes:'] - self.pidset1[pid]['read_bytes:']) * 1.0 / tick
+-            write_usage = (self.pidset2[pid]['write_bytes:'] - self.pidset1[pid]['write_bytes:']) * 1.0 / tick
++            read_usage = (self.pidset2[pid]['read_bytes:'] - self.pidset1[pid]['read_bytes:']) * 1.0 / elapsed
++            write_usage = (self.pidset2[pid]['write_bytes:'] - self.pidset1[pid]['write_bytes:']) * 1.0 / elapsed
+             usage = read_usage + write_usage
+ 
+             ### Get the process that spends the most jiffies
+
+Modified: trunk/tools/dstat/plugins/dstat_topcpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topcpu.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_topcpu.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -41,7 +41,7 @@
+                 self.pidset1[pid] = 0
+ 
+             self.pidset2[pid] = int(l[13]) + int(l[14])
+-            usage = (self.pidset2[pid] - self.pidset1[pid]) * 1.0 / tick / cpunr
++            usage = (self.pidset2[pid] - self.pidset1[pid]) * 1.0 / elapsed / cpunr
+ 
+             ### Is it a new topper ?
+             if usage &lt; self.val['max']: continue
+
+Modified: trunk/tools/dstat/plugins/dstat_topcputime.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topcputime.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_topcputime.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -1,12 +1,14 @@
+-### Dstat most expensive I/O process plugin
+-### Displays the name of the most expensive I/O process
+-###
+ ### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
+ 
+ ### For more information, see:
+ ###     <A HREF="http://eaglet.rain.com/rick/linux/schedstat/">http://eaglet.rain.com/rick/linux/schedstat/</A>
+ 
+ class dstat_topcputime(dstat):
++    &quot;&quot;&quot;
++    Name and total amount of CPU time consumed in milliseconds of the process
++    that has the highest total amount of cputime for the measured timeframe.
++    &quot;&quot;&quot;
++
+     def __init__(self):
+         self.name = 'highest total'
+         self.type = 's'
+@@ -51,7 +53,7 @@
+ 
+             self.pidset2[pid] = {'run_ticks': long(l[0])}
+ 
+-            totrun = (self.pidset2[pid]['run_ticks'] - self.pidset1[pid]['run_ticks']) * 1.0 / tick
++            totrun = (self.pidset2[pid]['run_ticks'] - self.pidset1[pid]['run_ticks']) * 1.0 / elapsed
+ 
+             ### Get the process that spends the most jiffies
+             if totrun &gt; self.val['result']:
+
+Modified: trunk/tools/dstat/plugins/dstat_topio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topio.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_topio.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -48,8 +48,8 @@
+             except IOError:
+                 continue
+ 
+-            read_usage = (self.pidset2[pid]['rchar:'] - self.pidset1[pid]['rchar:']) * 1.0 / tick
+-            write_usage = (self.pidset2[pid]['wchar:'] - self.pidset1[pid]['wchar:']) * 1.0 / tick
++            read_usage = (self.pidset2[pid]['rchar:'] - self.pidset1[pid]['rchar:']) * 1.0 / elapsed
++            write_usage = (self.pidset2[pid]['wchar:'] - self.pidset1[pid]['wchar:']) * 1.0 / elapsed
+             usage = read_usage + write_usage
+ #            if usage &gt; 0.0:
+ #                print '%s %s:%s' % (pid, read_usage, write_usage)
+
+Modified: trunk/tools/dstat/plugins/dstat_toplatency.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_toplatency.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_toplatency.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -1,12 +1,14 @@
+-### Dstat most expensive I/O process plugin
+-### Displays the name of the most expensive I/O process
+-###
+ ### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
+ 
+ ### For more information, see:
+ ###     <A HREF="http://eaglet.rain.com/rick/linux/schedstat/">http://eaglet.rain.com/rick/linux/schedstat/</A>
+ 
+ class dstat_toplatency(dstat):
++    &quot;&quot;&quot;
++    Name and total amount of CPU time waited in milliseconds of the process
++    that has the highest total amount waited for the measured timeframe.
++    &quot;&quot;&quot;
++
+     def __init__(self):
+         self.name = 'highest total'
+         self.type = 's'
+@@ -51,7 +53,7 @@
+ 
+             self.pidset2[pid] = {'wait_ticks': long(l[1])}
+ 
+-            totwait = (self.pidset2[pid]['wait_ticks'] - self.pidset1[pid]['wait_ticks']) * 1.0 / tick
++            totwait = (self.pidset2[pid]['wait_ticks'] - self.pidset1[pid]['wait_ticks']) * 1.0 / elapsed
+ 
+             ### Get the process that spends the most jiffies
+             if totwait &gt; self.val['result']:
+
+Modified: trunk/tools/dstat/plugins/dstat_vmkhba.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vmkhba.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_vmkhba.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -74,8 +74,8 @@
+                     self.set2[name] = ( long(l[2]), long(l[4]) )
+             for name in self.set2.keys():
+                 self.val[name] = (
+-                    (self.set2[name][0] - self.set1[name][0]) * 1024.0 / tick,
+-                    (self.set2[name][1] - self.set1[name][1]) * 1024.0 / tick
++                    (self.set2[name][0] - self.set1[name][0]) * 1024.0 / elapsed,
++                    (self.set2[name][1] - self.set1[name][1]) * 1024.0 / elapsed,
+                 )
+         if step == op.delay:
+             self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_vmkint.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vmkint.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_vmkint.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -90,7 +90,7 @@
+                 for i in l[1:1+self.vmkcpunr()]:
+                     self.set2[name] = self.set2[name] + long(i)
+         for name in self.set2.keys():
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_vmknic.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vmknic.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_vmknic.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -69,8 +69,8 @@
+         if update:
+             for name in self.set2.keys():
+                 self.val[name] = (
+-                    (self.set2[name][0] - self.set1[name][0]) * 1.0 / tick,
+-                    (self.set2[name][1] - self.set1[name][1]) * 1.0 / tick,
++                    (self.set2[name][0] - self.set1[name][0]) * 1.0 / elapsed,
++                    (self.set2[name][1] - self.set1[name][1]) * 1.0 / elapsed,
+                 )
+         if step == op.delay:
+             self.set1.update(self.set2)
+
+Modified: trunk/tools/dstat/plugins/dstat_vzio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vzio.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_vzio.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -59,7 +59,7 @@
+ #            print veid, self.val[veid], self.set2[veid][0], self.set2[veid][1]
+ #            print veid, self.val[veid], self.set1[veid][0], self.set1[veid][1]
+             for i in range(len(self.nick)):
+-                self.val[veid][i] = (self.set2[veid][i] - self.set1[veid][i]) / tick
++                self.val[veid][i] = (self.set2[veid][i] - self.set1[veid][i]) / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+Modified: trunk/tools/dstat/plugins/dstat_vzubc.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_vzubc.py	2009-11-20 20:04:27 UTC (rev 8031)
++++ trunk/tools/dstat/plugins/dstat_vzubc.py	2009-11-20 22:15:15 UTC (rev 8032)
+@@ -55,7 +55,7 @@
+                     self.set2[name] = self.set2[name] + long(l[5])
+                 self.set2['total'] = self.set2['total'] + long(l[5])
+         for name in self.vars:
+-            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / tick
++            self.val[name] = (self.set2[name] - self.set1[name]) * 1.0 / elapsed
+         if step == op.delay:
+             self.set1.update(self.set2)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006826.html">[svn] r8031 - in trunk/rpms: gossip loudmouth
+</A></li>
+	<LI>Next message: <A HREF="006828.html">[svn] r8033 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6827">[ date ]</a>
+              <a href="thread.html#6827">[ thread ]</a>
+              <a href="subject.html#6827">[ subject ]</a>
+              <a href="author.html#6827">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

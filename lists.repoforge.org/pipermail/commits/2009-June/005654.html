@@ -1,0 +1,206 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6855 - trunk/rpms/smart
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6855%20-%20trunk/rpms/smart&In-Reply-To=%3C200906081408.n58E8RJS003599%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005653.html">
+   <LINK REL="Next"  HREF="005655.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6855 - trunk/rpms/smart</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6855%20-%20trunk/rpms/smart&In-Reply-To=%3C200906081408.n58E8RJS003599%40surya.karan.org%3E"
+       TITLE="[svn] r6855 - trunk/rpms/smart">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jun  8 16:08:27 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005653.html">[svn] r6854 - trunk/rpms/perl-WWW-TV
+</A></li>
+        <LI>Next message: <A HREF="005655.html">[svn] r6856 - trunk/rpms/perl-WWW-Shorten-0rz
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5654">[ date ]</a>
+              <a href="thread.html#5654">[ thread ]</a>
+              <a href="subject.html#5654">[ subject ]</a>
+              <a href="author.html#5654">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: 2009-06-08 15:08:26 +0100 (Mon, 08 Jun 2009)
+New Revision: 6855
+
+Modified:
+   trunk/rpms/smart/smart.spec
+Log:
+Patch from Anders F Bjorklund &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">afb at users.sf.net</A>&gt;
+- Updated to release 1.2.
+- fix hardcoded pam paths
+- multiversion kernel-xen
+- add --without ksmarttray
+- add --without rpmhelper
+
+
+
+Modified: trunk/rpms/smart/smart.spec
+===================================================================
+--- trunk/rpms/smart/smart.spec	2009-06-08 14:06:27 UTC (rev 6854)
++++ trunk/rpms/smart/smart.spec	2009-06-08 14:08:26 UTC (rev 6855)
+@@ -10,7 +10,15 @@
+ %{?el4:%define _without_channels 1}
+ %{?el3:%define _without_channels 1}
+ %{?el3:%define _without_gui 1}
++%{?el3:%define _without_ksmarttray 1}
+ 
++%ifarch x86_64
++%define _without_rpmhelper 0
++%else
++%define _without_rpmhelper 1
++%endif
++%{?el5:%define _without_rpmhelper 1}
++
+ %define desktop_vendor rpmforge
+ 
+ %define python_sitearch %(%{__python} -c 'from distutils import sysconfig; print sysconfig.get_python_lib(1)')
+@@ -20,8 +28,8 @@
+ 
+ Summary: Next generation package handling tool
+ Name: smart
+-Version: 0.52
+-Release: 1
++Version: 1.2
++Release: 0
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://www.smartpm.org/">http://www.smartpm.org/</A>
+@@ -29,8 +37,9 @@
+ Source: <A HREF="http://labix.org/download/smart/smart-%{version">http://labix.org/download/smart/smart-%{version</A>}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-BuildRequires: popt, rpm-devel &gt;= 4.2.1, python-devel, rpm-python
+-%{!?_without_gui:BuildRequires: gcc-c++, kdelibs-devel, qt-devel, pygtk2-devel &gt;= 2.3.94}
++BuildRequires: popt, rpm-devel &gt;= 4.2.1, python-devel, rpm-python, gettext
++%{!?_without_gui:BuildRequires: pygtk2-devel &gt;= 2.3.94}
++%{!?_without_ksmarttray:BuildRequires: gcc-c++, kdelibs-devel, qt-devel}
+ # *** KDE requires autoconf 2.52, 2.53 or 2.54
+ # *** KDE requires automake 1.6.1 or newer
+ BuildRequires: autoconf, automake
+@@ -76,6 +85,7 @@
+ if not sysconf.getReadOnly():
+        pkgconf.setFlag(&quot;multi-version&quot;, &quot;kernel&quot;)
+        pkgconf.setFlag(&quot;multi-version&quot;, &quot;kernel-smp&quot;)
++       pkgconf.setFlag(&quot;multi-version&quot;, &quot;kernel-xen&quot;)
+ EOF
+ 
+ %{__cat} &lt;&lt;EOF &gt;smart-gui.sh
+@@ -128,19 +138,19 @@
+ 
+ %{__cat} &lt;&lt;EOF &gt;smart-gui.pam
+ #%PAM-1.0
+-auth       sufficient	/lib/security/pam_rootok.so
+-auth       sufficient	/lib/security/pam_timestamp.so
+-auth       required	/lib/security/pam_stack.so service=system-auth
+-session    required	/lib/security/pam_permit.so
+-session    optional	/lib/security/pam_timestamp.so
+-session    optional	/lib/security/pam_xauth.so
+-account    required	/lib/security/pam_permit.so
++auth       sufficient	pam_rootok.so
++auth       sufficient	pam_timestamp.so
++auth       required	pam_stack.so service=system-auth
++session    required	pam_permit.so
++session    optional	pam_timestamp.so
++session    optional	pam_xauth.so
++account    required	pam_permit.so
+ EOF
+ 
+ %build
+ env CFLAGS=&quot;%{optflags}&quot; %{__python} setup.py build
+ 
+-%if %{!?_without_gui:1}0
++%if %{!?_without_ksmarttray:1}0
+ cd contrib/ksmarttray
+ %{__make} -f admin/Makefile.common
+ %configure
+@@ -150,7 +160,7 @@
+ 
+ %{__make} -C contrib/smart-update
+ 
+-%ifarch x86_64
++%if %{!?_without_rpmhelper:1}0
+ cd contrib/rpmhelper/
+ %{__python} setup.py build
+ cd -
+@@ -161,9 +171,9 @@
+ 
+ %{__python} setup.py install --root=&quot;%{buildroot}&quot;
+ 
+-%{!?_without_gui:%{__make} install -C contrib/ksmarttray DESTDIR=&quot;%{buildroot}&quot;}
++%{!?_without_ksmarttray:%{__make} install -C contrib/ksmarttray DESTDIR=&quot;%{buildroot}&quot; iconsdir=%{_datadir}/icons/hicolor/48x48/apps}
+ 
+-%ifarch x86_64
++%if %{!?_without_rpmhelper:1}0
+ cd contrib/rpmhelper/
+ %{__python} setup.py install --root=&quot;%{buildroot}&quot;
+ cd -
+@@ -215,7 +225,7 @@
+ %{python_sitearch}/smart/
+ %exclude %{python_sitearch}/smart/interfaces/gtk/
+ %{_localstatedir}/lib/smart/
+-%ifarch x86_64
++%if %{!?_without_rpmhelper:1}0
+ %{python_sitearch}/rpmhelper.so
+ %endif
+ 
+@@ -238,14 +248,22 @@
+ %defattr(4755, root, root, 0755)
+ %{_bindir}/smart-update
+ 
+-%if %{!?_without_gui:1}0
++%if %{!?_without_ksmarttray:1}0
+ %files -n ksmarttray
+ %defattr(-, root, root, 0755)
+ %{_bindir}/ksmarttray
+ %{_datadir}/apps/ksmarttray/
++%{_datadir}/icons/hicolor/48x48/apps/ksmarttray.png
+ %endif
+ 
+ %changelog
++* Tue May 19 2009 Anders F Bjorklund &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">afb at users.sf.net</A>&gt;
++- Updated to release 1.2.
++- fix hardcoded pam paths
++- multiversion kernel-xen
++- add --without ksmarttray
++- add --without rpmhelper
++
+ * Fri Nov 23 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.52-1
+ - Updated to release 0.52.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005653.html">[svn] r6854 - trunk/rpms/perl-WWW-TV
+</A></li>
+	<LI>Next message: <A HREF="005655.html">[svn] r6856 - trunk/rpms/perl-WWW-Shorten-0rz
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5654">[ date ]</a>
+              <a href="thread.html#5654">[ thread ]</a>
+              <a href="subject.html#5654">[ subject ]</a>
+              <a href="author.html#5654">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

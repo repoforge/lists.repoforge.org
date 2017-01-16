@@ -1,0 +1,675 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3170 - in trunk/tools/pydar2: . pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3170%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar&In-Reply-To=%3C20050501202933.3998794CB7E%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001971.html">
+   <LINK REL="Next"  HREF="001973.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3170 - in trunk/tools/pydar2: . pydar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3170%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar&In-Reply-To=%3C20050501202933.3998794CB7E%40lists.rpmforge.net%3E"
+       TITLE="[svn] r3170 - in trunk/tools/pydar2: . pydar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May  1 22:29:33 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001971.html">[svn] r3169 - in trunk/rpms: . perl-AI-Perceptron	perl-Apache-Session-SharedMem perl-Array-Compare	perl-Class-ReturnValue perl-Class-Trigger perl-Class-Virtual	perl-Crypt-Mimetic perl-DBIx-TextIndex perl-Data-HexDump	perl-Exception-Class-DBI perl-GraphViz-DBI	perl-GraphViz-Data-Structure perl-GraphViz-ISA	perl-GraphViz-Zone perl-IPC-Cache perl-IPC-SharedCache	perl-Log-Detect perl-Math-Fleximal perl-Module-Info	perl-News-Newsrc perl-RADIUS-UserFile perl-Test-Prereq	perl-Test-SimpleUnit perl-Test-Unit perl-Test-Warn	perl-Tie-TransactHash perl-XML-SAX-Writer perl-accessors
+</A></li>
+        <LI>Next message: <A HREF="001973.html">[svn] r3171 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1972">[ date ]</a>
+              <a href="thread.html#1972">[ thread ]</a>
+              <a href="subject.html#1972">[ subject ]</a>
+              <a href="author.html#1972">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-05-01 22:29:32 +0200 (Sun, 01 May 2005)
+New Revision: 3170
+
+Added:
+   trunk/tools/pydar2/pydar/mastercommand.py
+   trunk/tools/pydar2/pydar/slavecommand.py
+Modified:
+   trunk/tools/pydar2/log4py.conf
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar/command.py
+   trunk/tools/pydar2/pydar/commandlist.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/preparespecfilescript.py
+   trunk/tools/pydar2/pydar/preparespecfilescriptlist.py
+   trunk/tools/pydar2/pydar/rpmforgedriesrepo.py
+   trunk/tools/pydar2/pydar/rpmforgegetsources.py
+   trunk/tools/pydar2/pydar/specrepository.py
+Log:
+update
+
+Modified: trunk/tools/pydar2/log4py.conf
+===================================================================
+--- trunk/tools/pydar2/log4py.conf	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/log4py.conf	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -88,9 +88,14 @@
+ SpecRepository: Debug
+ SpecRepositorySpecFile: Debug
+ StorageFactory: Debug
++PostgresqlStorage: Debug
+ Storage: Debug
+ SvnBasedSpecRepository:  Debug
+ SvnCheck: Debug
+ SvnWrapper: Debug
+ TagsFile: Debug
+ YumBasedBuildRoot: Debug
++CommandList: Debug
++PrepareSpecFileScriptList: Debug
++PrepareSpecFileScript: Debug
++CallableScript: Debug
+
+Modified: trunk/tools/pydar2/pydar/command.py
+===================================================================
+--- trunk/tools/pydar2/pydar/command.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/command.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -17,76 +17,47 @@
+ # Copyright 2004 Dries Verachtert
+ 
+ import config
++from log4py import Logger
+ 
+ class Command:
+-    def __init__(self, commandName,userId,specRepoId,specFileId,toEmail,distroArchTag,priority,targetId):
+-        self.__commandName=commandName
+-        self.__userId=userId
+-        self.__specRepoId = specRepoId
+-        self.__specFileId = specFileId
+-        self.__toEmail = toEmail
+-        self.__distroArchTag = distroArchTag
+-        self.__priority = priority
+-        self.__targetId = targetId
+-        self.__specRepo = None
+-        self.__specRepositorySpecFile = None
++    def __init__(self):
++        raise Exception(&quot;Command::__init__&quot;)
+         
+-    # should only be used within the master!
+-    def getSpecRepository(self):
+-        if self.__specRepo == None:
+-            myConfig = config.Config.getInstance()
+-            self.__specRepo = myConfig.getSpecRepositoryList().getSpecRepositoryById(self.__specRepoId)
+-        return self.__specRepo
+-        
+-    def getSpecRepositorySpecFile(self):
+-        if self.__specRepositorySpecFile == None:
+-            specRepo = self.getSpecRepository()
+-            self.__specRepositorySpecFile = specRepo.getSpecRepositorySpecFileById(self.__specRepoId)
+-        return self.__specRepositorySpecFile
+-    
+-    def getTarget(self):
+-        if self.__target == None:
+-            myConfig = config.Config.getInstance()
+-            self.__target = myConfig.getTargetList().getTargetById(self.__targetId)
+-        return self.__target
+-
+     def getDefines(self):
+-        todo
+-        #if self.__
++        raise Exception(&quot;Command::getDefines&quot;)
+     
+-    def setCommandId(self,id):
+-        self.__commandId = id
+-        
+-    
+     def getCommandName(self):
+-        return self.__commandName
++        raise Exception(&quot;Command::getCommandName&quot;)
+         
+     def getUserId(self):
+-        return self.__userId
++        raise Exception(&quot;Command::getUserId&quot;)
+         
+     def getSpecRepoId(self):
+-        return self.__specRepoId
++        raise Exception(&quot;Command::getSpecRepoId&quot;)
+         
+     def getSpecFileId(self):
+-        return self.__specFileId
++        raise Exception(&quot;Command::getSpecFileId&quot;)
+         
+     def getToEmail(self):
+-        return self.__toEmail
++        raise Exception(&quot;Command::getToEmail&quot;)
+         
+     def getDistroArchTag(self):
+-        return self.__distroArchTag
++        raise Exception(&quot;Command::getDistroArchTag&quot;)
+     
+     def getPriority(self):
+-        return self.__priority
++        raise Exception(&quot;Command::getPriority&quot;)
+         
+     def getTargetId(self):
+-        return self.__targetId
+-    
+-    def toString(self):
+-        return &quot;commandName=&quot; + self.__commandName + &quot;,userId=&quot; + self.__userId + &quot;,specRepoId=&quot; + self.__specRepoId + &quot;,toEmail=&quot; + self.__toEmail + &quot;,specFileId=&quot; + self.__specFileId + &quot;,distroArchTag=&quot; + self.__distroArchTag + &quot;,commandId=&quot; + self.__commandId + &quot;,priority=&quot; + self.__priority
+-
++        raise Exception(&quot;Command::getTargetId&quot;)
++        
+     def getId(self):
+-        return self.__commandId
++        raise Exception(&quot;Command::getId&quot;)
+     
+-    def setId(self,id):
+-        self.__commandId = id
++    def getSpecRepositoryName(self):
++        raise Exception(&quot;Command::getSpecRepositoryName&quot;)
++    
++    def getSpecFileFullName(self):
++        raise Exception(&quot;Command::getSpecFileFullName&quot;)
++    
++    def toString(self):
++        return &quot;commandName=&quot; + self.getCommandName()  + &quot;,userId=&quot; + self.getUserId() + &quot;,specRepoId=&quot; + self.getSpecRepoId()  + &quot;,toEmail=&quot; + self.getToEmail()  + &quot;,specFileId=&quot; + self.getSpecFileId() + &quot;,distroArchTag=&quot; + self.getDistroArchTag()  +  &quot;,commandId=&quot; + self.getId() + &quot;,priority=&quot; + self.getPriority()
+
+Modified: trunk/tools/pydar2/pydar/commandlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/commandlist.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/commandlist.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -18,7 +18,7 @@
+ 
+ import config, os, shutil
+ import storagefactory
+-from command import Command
++from mastercommand import MasterCommand
+ from log4py import Logger
+ 
+ class CommandList:
+@@ -28,9 +28,11 @@
+         self.__cat = Logger().get_instance(self)
+ 
+     def addCommand(self, commandName,userId,specRepoName,specFilePath,toEmail,distroArchTag,priority,targetName):
++        self.__cat.debug(&quot;start&quot;)
+         aCommand = self.__checkAndCreateCommand(commandName,userId,specRepoName,specFilePath,toEmail,distroArchTag,priority,targetName)
+         self.__cat.debug(&quot;command created&quot;)
+         self.__createCommandDir(aCommand)
++        self.__cat.debug(&quot;end&quot;)
+         return aCommand
+         
+         
+@@ -58,6 +60,7 @@
+         if target == None:
+             raise Exception(&quot;unknown target&quot;)
+         self.__cat.debug(&quot;command looks ok&quot;)
+-        aCommand = Command(commandName,userId,specRepo.getId(),specRepoSpecFile.getId(),toEmail,distroArchTag,priority,target.getId())
++        aCommand = MasterCommand(commandName,userId,specRepo.getId(),specRepoSpecFile.getId(),toEmail,distroArchTag,priority,target.getId())
+         self.__storage.createCommand(aCommand)
++        self.__cat.debug(&quot;end&quot;)
+         return aCommand
+
+Added: trunk/tools/pydar2/pydar/mastercommand.py
+===================================================================
+--- trunk/tools/pydar2/pydar/mastercommand.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/mastercommand.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -0,0 +1,127 @@
++
++&quot;&quot;&quot; This class represents one command given by an rpc client on the master: can use access to the database &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import config
++from command import Command
++from log4py import Logger
++
++class MasterCommand(Command):
++
++    # from Command.py start
++
++    def __init__(self, commandName,userId,specRepoId,specFileId,toEmail,distroArchTag,priority,targetId):
++        self.__cat = Logger().get_instance(self)
++        self.__cat.debug(&quot;start&quot;)
++        self.__commandName=commandName
++        self.__userId=userId
++        self.__specRepoId = specRepoId
++        self.__specFileId = specFileId
++        self.__toEmail = toEmail
++        self.__distroArchTag = distroArchTag
++        self.__priority = priority
++        self.__targetId = targetId
++        self.__specRepo = None
++        self.__specRepositorySpecFile = None
++        self.__target = None
++        self.__cat.debug(&quot;end&quot;)
++    
++    def getDefines(self):
++        return &quot;todo&quot;
++        #@todo
++        #if self.__
++    
++    def getCommandName(self):
++        return self.__commandName
++        
++    def getUserId(self):
++        return self.__userId
++        
++    def getSpecRepoId(self):
++        return self.__specRepoId
++        
++    def getSpecFileId(self):
++        return self.__specFileId
++        
++    def getToEmail(self):
++        return self.__toEmail
++        
++    def getDistroArchTag(self):
++        return self.__distroArchTag
++    
++    def getPriority(self):
++        return self.__priority
++        
++    def getTargetId(self):
++        return self.__targetId
++    
++    def getId(self):
++        return self.__commandId
++    
++    def getSpecRepositoryName(self):
++        return self.getSpecRepository().getName()
++    
++    def getSpecFileFullName(self):
++        return self.getSpecRepositorySpecFile().getFullName()
++    
++    # from Command.py end
++    
++    # create an object which can be used on SlaveCommand to create a new SlaveCommand object
++    def toXmlRpcPersistantObject(self):
++        retval = Object()
++        retval.defines = self.getDefines()
++        retval.commandName = self.__commandName
++        retval.userId = self.__userId
++        retval.specRepoId = self.__specRepoId
++        retval.specFileId = self.__specFileId
++        retval.toEmail = self.__toEmail
++        retval.distroArchTag = self.__distroArchTag
++        retval.priority = self.__priority
++        retval.targetId = self.__targetId
++        retval.commandId = self.getCommandId()
++        retval.specRepoName = self.getSpecRepository().getName()
++        retval.specFileFullName = self.getSpecRepositorySpecFile().getFullName()
++        
++    
++    # should only be used within the master!
++    def getSpecRepository(self):
++        if self.__specRepo == None:
++            myConfig = config.Config.getInstance()
++            self.__specRepo = myConfig.getSpecRepositoryList().getSpecRepositoryById(self.__specRepoId)
++            self.__cat.debug(&quot;specRepo set to &quot; + str(self.__specRepo))
++        return self.__specRepo
++        
++    def getSpecRepositorySpecFile(self):
++        if self.__specRepositorySpecFile == None:
++            specRepo = self.getSpecRepository()
++            self.__specRepositorySpecFile = specRepo.getSpecRepositorySpecFileById(self.__specFileId)
++            self.__cat.debug(&quot;specRepositorySpecFile set to &quot; + str(self.__specRepositorySpecFile))
++        return self.__specRepositorySpecFile
++    
++    def getTarget(self):
++        self.__cat.debug(&quot;start&quot;)
++        if self.__target == None:
++            myConfig = config.Config.getInstance()
++            self.__target = myConfig.getTargetList().getTargetById(self.__targetId)
++            self.__cat.debug(&quot;target set to &quot; + str(self.__target))
++        return self.__target
++
++    def setCommandId(self,id):
++        self.__commandId = id
++  
++    def setId(self,id):
++        self.__commandId = id
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -22,7 +22,7 @@
+ import sys
+ sys.path.append(&quot;pydar&quot;)
+ sys.path.append(&quot;.&quot;)
+-from command import Command
++from mastercommand import MasterCommand
+ from log4py import Logger
+ import config
+ from storage import Storage
+@@ -222,12 +222,19 @@
+         self.__releaseConnection(conn)
+         return retval
+         
++    # returns the command, but with the id set
+     def createCommand(self,aCommand):
+         self.__cat.debug(&quot;start&quot;)
+         conn = self.__getConnection()
+         cursor = conn.cursor()
++        cursor.execute(&quot;select nextval('pydar2_commands_id_seq')&quot;)
++        id = -1
++        temparr = cursor.fetchall()
++        for row in temparr:
++            id = row[0]
+         #commandName,userId,specrepoid,specfileid,toEmail,distroArchTag,priority,targetid
+-        cursor.execute(&quot;insert into pydar2_commands (commandname,userid,specrepoid,specfileid,toemail,distroarchtag,priority,targetid) values ('&quot;
++        cursor.execute(&quot;insert into pydar2_commands (id,commandname,userid,specrepoid,specfileid,toemail,distroarchtag,priority,targetid) values (&quot;
++        + str(id) + &quot;,'&quot;
+         + aCommand.getCommandName() + &quot;','&quot;
+         + str(aCommand.getUserId()) + &quot;',&quot;
+         + str(aCommand.getSpecRepoId()) + &quot;,&quot;
+@@ -239,6 +246,8 @@
+         conn.commit()
+         cursor.close()
+         self.__releaseConnection(conn)
++        aCommand.setId(id)
++        return aCommand
+ 
+     def checkIfValidUserId(self, userId):
+         self.__cat.debug(&quot;start, userId=&quot; + str(userId))
+@@ -318,7 +327,9 @@
+         self.__cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
+         conn = self.__getConnection()
+         cursor = conn.cursor()
+-        cursor.execute(&quot;select pc.id, pc.specfileid, pc.specrepoid, pc.toemail, pc.distroarchtag, pc.targetid, pc.commandname, pc.userid, pc.priority from pydar2_commands pc where pc.commandname='BUILD' and not pc.handled and not pc.inprogress and pc.distroarchtag in (select distroarchtag from pydar2_buildmachine_distroarchtags where buildmachineid='&quot; + buildmachineid + &quot;')  order by pc.priority desc, pc.distroarchtag desc, pc.id asc&quot;)
++        sql = &quot;select pc.id, pc.specfileid, pc.specrepoid, pc.toemail, pc.distroarchtag, pc.targetid, pc.commandname, pc.userid, pc.priority from pydar2_commands pc where pc.commandname like 'BUILD%' and not pc.handled and not pc.inprogress and pc.distroarchtag in (select distroarchtag from pydar2_buildmachine_distroarchtags where buildmachineid='&quot; + buildmachineid + &quot;')  order by pc.priority desc, pc.distroarchtag desc, pc.id asc&quot;
++        self.__cat.debug(&quot;sql 1: &quot; + sql)
++        cursor.execute(sql)
+         retval = &quot;&quot;
+         if cursor.rowcount &gt; 0:
+             rs = cursor.fetchone()
+@@ -332,12 +343,12 @@
+             commandName = rs[6]
+             userId = rs[7]
+             priority = rs[8]
+-            aCommand = Command(commandName,userId,specRepoId,specFileId,toEmail,distroArchTag,priority,targetId)
+-            self.__cat.debug(&quot;command id: &quot; + rs[0])
++            aCommand = MasterCommand(commandName,userId,specRepoId,specFileId,toEmail,distroArchTag,priority,targetId)
++            self.__cat.debug(&quot;command id: &quot; + str(rs[0]))
+             aCommand.setCommandId(rs[0])
+-            self.__cat.debug(&quot;id according to command object: &quot; + aCommand.getId())
+-            cursor.execute(&quot;update pydar2_commands set inprogress=true where id=&quot; + str(aCommand.commandId))
+-            cursor.execute(&quot;insert into pydar2_actions (commandid, statusid, buildmachineid) values (&quot; + str(aCommand.commandId) + &quot;,0,'&quot; + buildmachineid + &quot;')&quot;)
++            self.__cat.debug(&quot;id according to command object: &quot; + str(aCommand.getId()))
++            cursor.execute(&quot;update pydar2_commands set inprogress=true where id=&quot; + str(aCommand.getId()))
++            cursor.execute(&quot;insert into pydar2_actions (commandid, statusid, buildmachineid) values (&quot; + str(aCommand.getId()) + &quot;,0,'&quot; + str(buildmachineid) + &quot;')&quot;)
+             retval = aCommand
+         else:
+             self.__cat.debug(&quot;nothing to do for buildmachineid=&quot; + buildmachineid)
+
+Modified: trunk/tools/pydar2/pydar/preparespecfilescript.py
+===================================================================
+--- trunk/tools/pydar2/pydar/preparespecfilescript.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/preparespecfilescript.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -22,5 +22,5 @@
+ from callablescript import CallableScript
+ 
+ class PrepareSpecFileScript(CallableScript):
+-    def runScript(self,value):
+-        return self._getMethod().__call__(value)
++    def runScript(self,aCommand, commanddir):
++        return self._getMethod().__call__(aCommand, commanddir)
+
+Modified: trunk/tools/pydar2/pydar/preparespecfilescriptlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/preparespecfilescriptlist.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/preparespecfilescriptlist.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -25,9 +25,11 @@
+         self.__scriptsList = []
+             
+     def appendScript(self, newScript):
++        self.__cat.debug(&quot;new script added&quot;)
+         self.__scriptsList.append(newScript)
+         
+     def runScripts(self,aCommand,commanddir):
+         for f in self.__scriptsList:
++            self.__cat.debug(&quot;going to run a script&quot;)
+             f.runScript(aCommand,commanddir)
+         return True
+
+Modified: trunk/tools/pydar2/pydar/rpmforgedriesrepo.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmforgedriesrepo.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/rpmforgedriesrepo.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -31,28 +31,35 @@
+     # first read the contents of the spec file
+     # then modify the contents in memory
+     # then write it back
++    print &quot;get the contents&quot;
+     contents = __getContents(fullSpecPath)
++    print &quot;modify the contents&quot;
+     contents = __modifyContents(contents)
++    print &quot;write the contents&quot;
+     __writeContents(fullSpecPath,contents)
++    print &quot;done&quot;
++    return None
+     
++    
+ def __modifyContents(contents):
+     # @TODO correctly change release tag and also add packager and vendor tag
+-    contents = re.sub(&quot;^Release: (.*)?\n&quot;, &quot;Release: \1.testrf\n&quot;, contents)
++    contents = re.sub(re.compile('^Release: (.*?)\n',re.MULTILINE), r'Release: \1.testrf\n',contents) 
++    #'Release: \1.testrf\n', contents)
+     return contents
+     
+ def __getContents(path):
+-    fd = os.open(path,os.O_RDONLY)
++    fd = open(path, &quot;r&quot;)
+     contents = &quot;&quot;
+     line = fd.readline()
+     while line != &quot;&quot;:
+         contents = contents + line
+         line = fd.readline()
+-    os.close(fd)
++    fd.close()
+     return contents
+     
+ def __writeContents(path,contents):
+-    fd = os.open(path,os._WRONLY)
++    fd = open(path,&quot;w&quot;)
+     fd.write(contents)
+-    os.close(fd)
++    fd.close()
+     
+     
+
+Modified: trunk/tools/pydar2/pydar/rpmforgegetsources.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmforgegetsources.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/rpmforgegetsources.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -19,7 +19,7 @@
+ 
+ # the rpmforge subversion contains the patches and sometimes some sources
+ 
+-import os, commands
++import os, commands, string, shutil
+ 
+ def RpmforgeGetSources(command, commanddir):
+     print &quot;RpmforgeGetSources start&quot;
+@@ -31,16 +31,19 @@
+     dirlist = os.listdir(dir)
+     for entry in dirlist:
+         # make sure its not a spec file &amp;&amp; regular file
+-        rindex = string.rfind(file,'.spec')
+-        if os.path.isfile(os.path.join(dir,entry)) and not (rindex &gt; 0 and rindex == len(file) - len('.spec')):
++        rindex = string.rfind(entry,'.spec')
++        if os.path.isfile(os.path.join(dir,entry)) and not (rindex &gt; 0 and rindex == len(entry) - len('.spec')):
+             print &quot;lets copy: &quot; + entry
+             shutil.copy(os.path.join(dir,entry), commanddir)
++        else:
++            print &quot;wont copy: &quot; + entry
+     # now download the other files with spectool or get them from a cache
+     spectoolcommand = &quot;spectool -gf &quot; + fname
+     # @TODO add --defines of distroarch to spectool command
++    print &quot;spectoolcommand: &quot; + spectoolcommand
+     (status,output) = commands.getstatusoutput(&quot;/bin/bash \&quot;cd &quot; + commanddir + &quot;; &quot; + spectoolcommand + &quot;\&quot;&quot;)
+-    print &quot;status: &quot; + status
+-    print &quot;output: &quot; + output
++    print &quot;status: &quot; + str(status)
++    print &quot;output: &quot; + (output)
+     
+     
+     
+
+Added: trunk/tools/pydar2/pydar/slavecommand.py
+===================================================================
+--- trunk/tools/pydar2/pydar/slavecommand.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/slavecommand.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -0,0 +1,74 @@
++
++&quot;&quot;&quot; This class represents one command given by an rpc client for the slave: only contains variables and can be passed by xmlrpc &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import config
++from log4py import Logger
++from command import Command
++
++class SlaveCommand(Command):
++
++    # from Comand.py start
++    
++    def __init__(self,tempObj):
++        self.__tempObj = tempObj
++    
++    def getDefines(self):
++        return self.__tempObj.defines
++    
++    def getCommandName(self):
++        return self.__tempObj.commandName
++        
++    def getUserId(self):
++        return self.__tempObj.userId
++    
++    def getSpecRepoId(self):
++        return self.__tempObj.specRepoId
++        
++    def getSpecFileId(self):
++        return self.__tempObj.specFileId
++        
++    def getToEmail(self):
++        return self.__tempObj.toEmail
++        
++    def getDistroArchTag(self):
++        return self.__tempObj.distroArchTag
++        
++    def getPriority(self):
++        return self.__tempObj.priority
++        
++    def getTargetId(self):
++        return self.__tempObj.targetId
++    
++    def getId(self):
++        return self.__tempObj.commandId
++    
++    def getSpecRepositoryName(self):
++        return self.__tempObj.specRepoName
++    
++    def getSpecFileFullName(self):
++        return self.__tempObj.specFileFullName
++    
++    # from Command.py end
++    
++    def fromXmlRpcPersistantObject(tempObj):
++        return SlaveCommand(tempObj)
++    fromXmlRpcPersistantObject = staticmethod(fromXmlRpcPersistantObject)
++        
++    
++    
++    
+
+Modified: trunk/tools/pydar2/pydar/specrepository.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepository.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar/specrepository.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -56,7 +56,9 @@
+         return None
+     
+     def getSpecRepositorySpecFileById(self,id):
++        self.__cat.debug(&quot;id=&quot; + str(id))
+         for i in self.__specFiles:
++            #self.__cat.debug(&quot;comparing with &quot; + str(i.getId()))
+             if i.getId() == id:
+                 return i
+         return None
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-01 20:27:19 UTC (rev 3169)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-01 20:29:32 UTC (rev 3170)
+@@ -25,7 +25,7 @@
+ from SimpleXMLRPCServer import SimpleXMLRPCServer
+ from config import Config
+ from thread import start_new_thread
+-from command import Command
++from mastercommand import MasterCommand
+ from storagefactory import StorageFactory
+ from specrepositoryfactory import SpecRepositoryFactory
+ import time
+@@ -96,7 +96,8 @@
+         self.__cat.debug(&quot;start, buildmachineId=&quot; + buildmachineId)
+         if self.__storage.checkIfValidBuildMachineId(buildmachineId):
+             aCommand = self.__storage.reserveCommand(buildmachineId)
+-            return aCommand
++            self.__cat.debug(&quot;end, going to return a command&quot;)
++            return aCommand.toXmlRpcPersistantObject()
+         else:
+             return &quot;UNKNOWN BUILDMACHINEID&quot;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001971.html">[svn] r3169 - in trunk/rpms: . perl-AI-Perceptron	perl-Apache-Session-SharedMem perl-Array-Compare	perl-Class-ReturnValue perl-Class-Trigger perl-Class-Virtual	perl-Crypt-Mimetic perl-DBIx-TextIndex perl-Data-HexDump	perl-Exception-Class-DBI perl-GraphViz-DBI	perl-GraphViz-Data-Structure perl-GraphViz-ISA	perl-GraphViz-Zone perl-IPC-Cache perl-IPC-SharedCache	perl-Log-Detect perl-Math-Fleximal perl-Module-Info	perl-News-Newsrc perl-RADIUS-UserFile perl-Test-Prereq	perl-Test-SimpleUnit perl-Test-Unit perl-Test-Warn	perl-Tie-TransactHash perl-XML-SAX-Writer perl-accessors
+</A></li>
+	<LI>Next message: <A HREF="001973.html">[svn] r3171 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1972">[ date ]</a>
+              <a href="thread.html#1972">[ thread ]</a>
+              <a href="subject.html#1972">[ subject ]</a>
+              <a href="author.html#1972">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

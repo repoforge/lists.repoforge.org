@@ -1,0 +1,183 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5295 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5295%20-%20trunk/tools/dstat&In-Reply-To=%3C20070418160333.3659B944AD0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004093.html">
+   <LINK REL="Next"  HREF="004095.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5295 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5295%20-%20trunk/tools/dstat&In-Reply-To=%3C20070418160333.3659B944AD0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5295 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Apr 18 18:03:33 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004093.html">[svn] r5294 - in trunk/rpms: libnxml wsdlpull
+</A></li>
+        <LI>Next message: <A HREF="004095.html">[svn] r5296 - in trunk/rpms: jigdo nagios-plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4094">[ date ]</a>
+              <a href="thread.html#4094">[ thread ]</a>
+              <a href="subject.html#4094">[ subject ]</a>
+              <a href="author.html#4094">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-04-18 18:03:32 +0200 (Wed, 18 Apr 2007)
+New Revision: 5295
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Fixed a file descriptor problem on kernel 2.4. (Liviu Daia)
+Install manpage as part of the make install phase. (Scott Baker)
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2007-04-18 14:34:22 UTC (rev 5294)
++++ trunk/tools/dstat/ChangeLog	2007-04-18 16:03:32 UTC (rev 5295)
+@@ -1,5 +1,7 @@
+-* 0.6.6 - ... - released 18/04/2007
++* 0.6.5svn - ... - released 18/04/2007
+ - Removed SwapCached from the Cached counter. (Peter Rabbitson)
++- Fixed a file descriptor problem on kernel 2.4. (Liviu Daia)
++- Install manpage as part of the make install phase. (Scott Baker)
+ 
+ * 0.6.5 - Torrox - released 17/04/2007
+ - Added VMware ESX plugins (Bert de Bruijn)
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2007-04-18 14:34:22 UTC (rev 5294)
++++ trunk/tools/dstat/Makefile	2007-04-18 16:03:32 UTC (rev 5295)
+@@ -22,6 +22,7 @@
+ 	install -Dp -m0755 plugins/dstat_*.py $(DESTDIR)$(datadir)/dstat/
+ #	install -d -m0755 $(DESTDIR)$(datadir)/dstat/examples/
+ #	install -Dp -m0755 examples/*.py $(DESTDIR)$(datadir)/dstat/examples/
++	install -Dp -m0644 docs/dstat.1 $(DESTDIR)$(manbdir)/man1/dstat.1
+ 
+ docs-install:
+ 	$(MAKE) -C docs install
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2007-04-18 14:34:22 UTC (rev 5294)
++++ trunk/tools/dstat/dstat	2007-04-18 16:03:32 UTC (rev 5295)
+@@ -16,7 +16,7 @@
+ 
+ from __future__ import generators
+ 
+-VERSION = '0.6.5'
++VERSION = '0.6.5svn'
+ 
+ def inspath(path):
+ 	if os.path.isdir(path) and path not in sys.path:
+@@ -290,10 +290,12 @@
+ 		self.file = []
+ 		self.fd = []
+ 		for file in files:
+-			self.file.append(file)
+-			self.fd.append(dopen(file))
+-		if not self.fd:
+-			raise Exception, 'Cannot open file %s.' % file
++			fd = dopen(file)
++			if fd:
++				self.file.append(file)
++				self.fd.append(fd)
++			else:
++				raise Exception, 'Cannot open file %s.' % file
+ 
+ 	def readlines(self):
+ 		for fd in self.fd:
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2007-04-18 14:34:22 UTC (rev 5294)
++++ trunk/tools/dstat/dstat.spec	2007-04-18 16:03:32 UTC (rev 5295)
+@@ -9,7 +9,7 @@
+ 
+ Summary: Versatile resource statistics tool
+ Name: dstat
+-Version: 0.6.5
++Version: 0.6.5svn
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -60,6 +60,9 @@
+ %{_datadir}/dstat/
+ 
+ %changelog
++* Tue Apr 17 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.5svn-1
++- Updated to release 0.6.5svn.
++
+ * Tue Apr 17 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.5-1
+ - Updated to release 0.6.5.
+ 
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2007-04-18 14:34:22 UTC (rev 5294)
++++ trunk/tools/dstat/dstat15	2007-04-18 16:03:32 UTC (rev 5295)
+@@ -16,7 +16,7 @@
+ 
+ #from __future__ import generators
+ 
+-VERSION = '0.6.5'
++VERSION = '0.6.5svn'
+ 
+ def inspath(path):
+ 	if os.path.isdir(path) and path not in sys.path:
+@@ -282,10 +282,12 @@
+ 		self.file = []
+ 		self.fd = []
+ 		for file in files:
+-			self.file.append(file)
+-			self.fd.append(dopen(file))
+-		if not self.fd:
+-			raise Exception, 'Cannot open file %s.' % file
++			fd = dopen(file)
++			if fd:
++				self.file.append(file)
++				self.fd.append(fd)
++			else:
++				raise Exception, 'Cannot open file %s.' % file
+ 
+ 	def readlines(self):
+ 		ret = []
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004093.html">[svn] r5294 - in trunk/rpms: libnxml wsdlpull
+</A></li>
+	<LI>Next message: <A HREF="004095.html">[svn] r5296 - in trunk/rpms: jigdo nagios-plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4094">[ date ]</a>
+              <a href="thread.html#4094">[ thread ]</a>
+              <a href="subject.html#4094">[ subject ]</a>
+              <a href="author.html#4094">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,224 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2167 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2167%20-%20trunk/tools/yam&In-Reply-To=%3C20040912152548.CF2E517F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000972.html">
+   <LINK REL="Next"  HREF="000974.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2167 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2167%20-%20trunk/tools/yam&In-Reply-To=%3C20040912152548.CF2E517F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2167 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Sep 12 17:25:48 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000972.html">[SVN] r2166 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="000974.html">[SVN] r2168 - in trunk/rpms: dirac gnubiff poedit wesnoth
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#973">[ date ]</a>
+              <a href="thread.html#973">[ thread ]</a>
+              <a href="subject.html#973">[ subject ]</a>
+              <a href="author.html#973">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-09-12 17:25:47 +0200 (Sun, 12 Sep 2004)
+New Revision: 2167
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-dag.conf
+   trunk/tools/yam/yam-example.conf
+   trunk/tools/yam/yam.conf
+Log:
+Another feature added.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-09-10 22:35:23 UTC (rev 2166)
++++ trunk/tools/yam/ChangeLog	2004-09-12 15:25:47 UTC (rev 2167)
+@@ -4,6 +4,7 @@
+ - Added support for hardlinking duplicate RPMs (disabled by default)
+ - Added documentation about chaining Yam servers
+ - Added lftp-bandwidth-limit and lftp-cleanup config options
++- Added lftp-timeout and rsync-timeout config options
+ - Look for commands in the PATH environment now, if default is wrong
+ - Added lftp parallel mirroring for fish, ftp, http, https and sftp
+ - Added support for <A HREF="yam://">yam://</A> URLs
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-09-10 22:35:23 UTC (rev 2166)
++++ trunk/tools/yam/yam	2004-09-12 15:25:47 UTC (rev 2167)
+@@ -139,11 +139,13 @@
+ 		self.lftpcleanup = not self.getoption('main', 'lftp-cleanup', 'yes') in ('no', 'off', 'false')
+ 		self.lftpexcldebug = not self.getoption('main', 'lftp-exclude-debug', 'yes') in ('no', 'off', 'false')
+ 		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in ('no', 'off', 'false')
++		self.lftptimeout = self.getoption('main', 'lftp-timeout', None)
+ 
+ 		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+ 		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in ('no', 'off', 'false')
+ 		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in ('no', 'off', 'false')
+ 		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in ('no', 'off', 'false')
++		self.rsynctimeout = self.getoption('main', 'rsync-timeout', None)
+ 
+ 		self.shareiso = not self.getoption('main', 'shareiso', 'yes') in ('no', 'off', 'false')
+ 
+@@ -460,10 +462,11 @@
+ 		return
+ 	mkdir(path)
+ 
+-	opts = '-aHL --timeout=30'
++	opts = '-aHL'
+ 	if op.verbose &lt;= 1: opts = opts + ' -q'
+ 	elif op.verbose == 3: opts = opts + ' -v'
+ 	elif op.verbose &gt;= 4: opts = opts + ' -v --progress'
++	if cf.rsynctimeout: opts = opts + ' --timeout=%d' % cf.rsynctimeout
+ 	if cf.rsynccleanup: opts = opts + ' --delete-after --delete-excluded'
+ 	if cf.rsyncbwlimit: opts = opts + ' --bwlimit=%s' % cf.rsyncbwlimit
+ 
+@@ -481,8 +484,9 @@
+ 		return
+ 	mkdir(path)
+ 
+-	sets = 'set dns:fatal-timeout 4; set net:timeout 15;'
+-	if cf.lftpbwlimit: sets = '%s set net:limit-total-rate=%s:0;' % (sets, cf.lftpbwlimit)
++	sets = 'set dns:fatal-timeout 5;'
++	if cf.lftptimeout: sets = sets + ' set net:timeout %d;' % cf.lftptimeout
++	if cf.lftpbwlimit: sets = sets + ' set net:limit-total-rate=%d:0;' % cf.lftpbwlimit
+ 
+ 	opts = 'mirror -a -P'
+ 	if op.verbose &lt;= 1: opts = opts + ' --verbose=0'
+@@ -678,10 +682,14 @@
+ 			tftpdir = os.path.join(cf.tftpdir, dist.nick)
+ 			info(1, '%s: Symlink pxe boot files to %s ' % (dist.nick, tftpdir))
+ 			mkdir(os.path.join(tftpdir, 'pxelinux.cfg'))
+-			for file in glob.glob(dist.dir + '/disc?/images/pxeboot/vmlinuz'):
++			for file in glob.glob(dist.dir + '/disc1/images/pxeboot/vmlinuz'):
+ 				copy(file, tftpdir)
+-			for file in glob.glob(dist.dir + '/disc?/images/pxeboot/initrd*.img'):
++			for file in glob.glob(dist.dir + '/disc1/images/pxeboot/initrd*.img'):
+ 				copy(file, tftpdir)
++			for file in glob.glob(dist.dir + '/CD1/boot/loader/linux'):
++				copy(file, tftpdir)
++			for file in glob.glob(dist.dir + '/CD1/boot/loader/initrd'):
++				copy(file, tftpdir)
+ 			if cf.pxelinux:
+ 				copy(cf.pxelinux, tftpdir)
+ 
+
+Modified: trunk/tools/yam/yam-dag.conf
+===================================================================
+--- trunk/tools/yam/yam-dag.conf	2004-09-10 22:35:23 UTC (rev 2166)
++++ trunk/tools/yam/yam-dag.conf	2004-09-12 15:25:47 UTC (rev 2167)
+@@ -24,6 +24,8 @@
+ release=1.0
+ iso=mooch-$arch-disc?.iso
+ updates=<A HREF="rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/</A>
++contrib=<A HREF="rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/</A>
++kernel-el=<A HREF="rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://gd.tuwien.ac.at/opsys/linux/taolinux/tao-$release-$arch/RPMS.$repo/</A>
+ #dag=<A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
+ 
+ [rhas3]
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2004-09-10 22:35:23 UTC (rev 2166)
++++ trunk/tools/yam/yam-example.conf	2004-09-12 15:25:47 UTC (rev 2167)
+@@ -55,7 +55,10 @@
+ lftp-exclude-debug = yes
+ lftp-exclude-srpm = yes
+ 
+-## Limit the bandwidth used by rsync (in kB/secs)
++## Set the I/O timeout in seconds
++lftp-timeout = None
++
++## Limit the bandwidth used by rsync in kilobytes per seconds
+ rsync-bandwidth-limit = None
+ 
+ ## Clean up packages that are not on the sending side ?
+@@ -65,6 +68,9 @@
+ rsync-exclude-debug = yes
+ rsync-exclude-srpm = yes
+ 
++## Set the I/O timeout in seconds
++rsync-timeout = None
++
+ ### The [repos] section allows for defining global repositories
+ ### ie. repositories that have packages for multiple distributions
+ ### BEWARE: packages need to be tagged to work with this and you
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-09-10 22:35:23 UTC (rev 2166)
++++ trunk/tools/yam/yam.conf	2004-09-12 15:25:47 UTC (rev 2167)
+@@ -25,7 +25,7 @@
+ #[rhes3]
+ #name=Red Hat Enterprise Server $release U3 ($arch)
+ #release=3
+-#iso=rhel-3-U3-$arch-es-disc?.iso
++#iso=rhel-$release-U3-$arch-es-disc?.iso
+ #updates=<A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+@@ -33,11 +33,11 @@
+ #name=Tao Linux $release ($arch)
+ #release=1.0
+ #arch=i386 ia64 s390 s390x x86_64
+-#iso=mooch-i386-disc?.iso
+-#os=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
+-#updates=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
+-#contrib=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
+-#kernel-el=<A HREF="http://dist.taolinux.org/tao-$release/RPMS.$repo/">http://dist.taolinux.org/tao-$release/RPMS.$repo/</A>
++#iso=mooch-$arch-disc?.iso
++#os=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
++#updates=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
++#contrib=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
++#kernel-el=<A HREF="http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/">http://dist.taolinux.org/tao-$release-$arch/RPMS.$repo/</A>
+ #dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el3/en/$arch/RPMS.$repo/</A>
+ 
+ #[centos3]
+@@ -64,7 +64,7 @@
+ #release=2.1
+ #iso=RHEL2.1AS-U5-re0810.RC.0-$arch-disc?.iso
+ #updates=<A HREF="file:///var/spool/up2date/">file:///var/spool/up2date/</A>
+-#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2.1/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el2.1/en/$arch/RPMS.$repo/</A>
++#dag=<A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ ### SuSE is not yet supported for remote booting
+ ### Experience and insight is welcome
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000972.html">[SVN] r2166 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="000974.html">[SVN] r2168 - in trunk/rpms: dirac gnubiff poedit wesnoth
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#973">[ date ]</a>
+              <a href="thread.html#973">[ thread ]</a>
+              <a href="subject.html#973">[ subject ]</a>
+              <a href="author.html#973">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

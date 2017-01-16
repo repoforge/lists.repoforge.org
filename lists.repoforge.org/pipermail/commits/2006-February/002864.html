@@ -1,0 +1,367 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4064 - in trunk/rpms: nagios nagios-nrpe nagios-nsca
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4064%20-%20in%20trunk/rpms%3A%20nagios%20nagios-nrpe%20nagios-nsca&In-Reply-To=%3C20060208125157.31A2F3180D3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002863.html">
+   <LINK REL="Next"  HREF="002865.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4064 - in trunk/rpms: nagios nagios-nrpe nagios-nsca</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4064%20-%20in%20trunk/rpms%3A%20nagios%20nagios-nrpe%20nagios-nsca&In-Reply-To=%3C20060208125157.31A2F3180D3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4064 - in trunk/rpms: nagios nagios-nrpe nagios-nsca">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Feb  8 13:51:57 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002863.html">[svn] r4063 - in trunk/rpms: bsc exiv2 kchmviewer luola	luola-levels msort python-checker smb4k svnmailer wsdlpull yoltia
+</A></li>
+        <LI>Next message: <A HREF="002865.html">[svn] r4065 - in trunk/rpms: . mirrordir nagios nagios-nrpe	nagios-nsca python-inotify
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2864">[ date ]</a>
+              <a href="thread.html#2864">[ thread ]</a>
+              <a href="subject.html#2864">[ subject ]</a>
+              <a href="author.html#2864">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-02-08 13:51:55 +0100 (Wed, 08 Feb 2006)
+New Revision: 4064
+
+Modified:
+   trunk/rpms/nagios-nrpe/nagios-nrpe.spec
+   trunk/rpms/nagios-nsca/nagios-nsca.spec
+   trunk/rpms/nagios/nagios.spec
+Log:
+Updates
+
+Modified: trunk/rpms/nagios/nagios.spec
+===================================================================
+--- trunk/rpms/nagios/nagios.spec	2006-02-08 05:51:45 UTC (rev 4063)
++++ trunk/rpms/nagios/nagios.spec	2006-02-08 12:51:55 UTC (rev 4064)
+@@ -2,26 +2,26 @@
+ # Authority: dag
+ # Upstream: Ethan Galstad &lt;nagios$nagios,org&gt;
+ 
+-# Tag: test
++%{?rh7:%define _without_embedperl 1}
++%{?el2:%define _without_embedperl 1}
+ 
+ ### FIXME: TODO: Add sysv script based on template. (remove cmd-file on start-up)
+ %define logmsg logger -t %{name}/rpm
+ 
+ Summary: Open Source host, service and network monitoring program
+ Name: nagios
+-%define real_version 2.0rc2
+ Version: 2.0
+-Release: 0.rc2
++Release: 1
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://www.nagios.org/">http://www.nagios.org/</A>
+ 
+-Source: <A HREF="http://dl.sf.net/nagios/nagios-%{real_version">http://dl.sf.net/nagios/nagios-%{real_version</A>}.tar.gz
++Source: <A HREF="http://dl.sf.net/nagios/nagios-%{version">http://dl.sf.net/nagios/nagios-%{version</A>}.tar.gz
+ Source1: <A HREF="http://dl.sf.net/nagios/imagepak-base.tar.gz">http://dl.sf.net/nagios/imagepak-base.tar.gz</A>
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: gd-devel &gt; 1.8, zlib-devel, libpng-devel, libjpeg-devel
+-Obsoletes: %{name}-www
++Obsoletes: nagios-www &lt;= %{version}
+ 
+ %description
+ Nagios is an application, system and network monitoring application.
+@@ -46,7 +46,7 @@
+ you will need to install %{name}-devel.
+ 
+ %prep
+-%setup -n %{name}-%{real_version}
++%setup
+ 
+ %build
+ %configure \
+@@ -66,7 +66,7 @@
+ 	--with-mail=&quot;/bin/mail&quot; \
+ 	--with-nagios-user=&quot;nagios&quot; \
+ 	--with-nagios-group=&quot;nagios&quot; \
+-	--enable-embedded-perl \
++%{!?_without_embedperl:--enable-embedded-perl} \
+ 	--with-perlcache \
+ 	--with-template-objects \
+ 	--with-template-extinfo \
+@@ -106,13 +106,14 @@
+ 	/usr/sbin/useradd -r -d %{_localstatedir}/log/nagios -s /bin/sh -c &quot;nagios&quot; nagios || \
+ 		%logmsg &quot;Unexpected error adding user \&quot;nagios\&quot;. Aborting installation.&quot;
+ fi
++/usr/sbin/groupadd nagiocmd &amp;&gt;/dev/null
+ 
+ %post
+ /sbin/chkconfig --add nagios
+ 
+ if /usr/bin/id apache &amp;&gt;/dev/null; then
+ 	if ! /usr/bin/id -Gn apache 2&gt;/dev/null | grep -q nagios ; then 
+-		/usr/sbin/usermod -G nagios apache &amp;&gt;/dev/null
++		/usr/sbin/usermod -G nagios,nagiocmd apache &amp;&gt;/dev/null
+ 	fi
+ else
+ 	%logmsg &quot;User \&quot;apache\&quot; does not exist and is not added to group \&quot;nagios\&quot;. Sending commands to Nagios from the command CGI is not possible.&quot;
+@@ -148,7 +149,12 @@
+ %config(noreplace) %{_sysconfdir}/nagios/*.cfg
+ %config(noreplace) %{_sysconfdir}/httpd/conf.d/nagios.conf
+ %config %{_initrddir}/nagios
+-%{_bindir}/*
++%{_bindir}/convertcfg
++%{_bindir}/nagios
++%{_bindir}/nagiostats
++%{_bindir}/p1.pl
++%{_bindir}/mini_epn
++%{_bindir}/new_mini_epn
+ %{_libdir}/nagios/
+ %{_datadir}/nagios/
+ 
+@@ -157,17 +163,20 @@
+ 
+ %defattr(-, nagios, nagios, 0755)
+ %{_localstatedir}/log/nagios/
+-#%dir %{_localstatedir}/run/nagios/
+ 
+ %defattr(-, nagios, apache, 2755)
+ %{_localstatedir}/log/nagios/rw/
+-#%dir %{_localstatedir}/log/nagios/rw/
++### FIXME: Start using /var/spool/nagios instead of /var/log/nagios/rw ??
++#%{_localstatedir}/spool/nagios/
+ 
+ %files devel
+ %defattr(-, root, root, 0755)
+ %{_includedir}/nagios/
+ 
+ %changelog
++* Wed Feb 08 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.0-1
++- Updated to release 2.0.
++
+ * Thu Jan 12 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.0-0.rc2
+ - Updated to release 2.0rc2.
+ 
+
+Modified: trunk/rpms/nagios-nrpe/nagios-nrpe.spec
+===================================================================
+--- trunk/rpms/nagios-nrpe/nagios-nrpe.spec	2006-02-08 05:51:45 UTC (rev 4063)
++++ trunk/rpms/nagios-nrpe/nagios-nrpe.spec	2006-02-08 12:51:55 UTC (rev 4064)
+@@ -2,12 +2,14 @@
+ # Authority: dag
+ # Upstream: Ethan Galstad &lt;nagios$nagios,org&gt;
+ 
++%define logmsg logger -t %{name}/rpm
++
+ %define real_name nrpe
+ 
+ Summary: Nagios Remote Plug-ins Execution daemon
+ Name: nagios-nrpe
+-Version: 2.0
+-Release: 4
++Version: 2.3
++Release: 1
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.nagios.org/">http://www.nagios.org/</A>
+@@ -18,7 +20,7 @@
+ BuildRequires: openssl-devel, krb5-devel
+ Provides: nrpe
+ Obsoletes: nrpe, netsaint-nrpe
+-Requires: nagios-plugins
++Requires: bash, grep, nagios-plugins
+ Conflicts: nagios
+ 
+ %description
+@@ -34,6 +36,7 @@
+ Summary: Nagios plug-in for NRPE
+ Group: Applications/Internet
+ Requires: nagios, nagios-plugins
++Obsoletes: nrpe-plugins
+ 
+ %description -n nagios-plugins-nrpe
+ Plug-in for Nagios monitoring system. With this plug-in you can send check
+@@ -91,7 +94,7 @@
+ 
+ start() {
+ 	echo -n $&quot;Starting $desc ($prog): &quot;
+-	daemon $prog -c &quot;$CONFIG&quot; -d
++	daemon $prog -s -c &quot;$CONFIG&quot; -d
+ 	RETVAL=$?
+ 	echo
+ 	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
+@@ -151,19 +154,25 @@
+ 
+ %build
+ %configure \
++	--datadir=&quot;%{_datadir}/nagios&quot; \
+ 	--libexecdir=&quot;%{_libdir}/nagios/plugins&quot; \
++	--localstatedir=&quot;%{_localstatedir}/log/nagios&quot; \
++	--sbindir=&quot;%{_libdir}/nagios/cgi&quot; \
++	--sysconfdir=&quot;%{_sysconfdir}/nagios&quot; \
+ 	--enable-command-args \
++	--with-init-dir=&quot;%{_initrddir}&quot; \
+ 	--with-nrpe-user=&quot;nagios&quot; \
+-	--with-nrpe-grp=&quot;nagios&quot; \
++	--with-nrpe-group=&quot;nagios&quot; \
+ 	--with-nrpe-port=&quot;5666&quot;
+-%{__make} %{?_smp_mflags}
++%{__make} %{?_smp_mflags} all
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+ %{__install} -Dp -m0711 src/nrpe %{buildroot}%{_sbindir}/nrpe
+ %{__install} -Dp -m0711 src/check_nrpe %{buildroot}%{_libdir}/nagios/plugins/check_nrpe
+-%{__install} -Dp -m0644 nrpe.cfg %{buildroot}%{_sysconfdir}/nagios/nrpe.cfg
++%{__install} -Dp -m0644 sample-config/nrpe.cfg %{buildroot}%{_sysconfdir}/nagios/nrpe.cfg
+ %{__install} -Dp -m0755 nrpe.sysv %{buildroot}%{_initrddir}/nrpe
++#%{__install} -Dp -m0755 init-script %{buildroot}%{_initrddir}/nrpe
+ %{__install} -Dp -m0644 nrpe.xinetd.dag %{buildroot}%{_sysconfdir}/xinetd.d/nrpe
+ 
+ %pre
+@@ -208,6 +217,9 @@
+ %{_libdir}/nagios/plugins/
+ 
+ %changelog
++* Wed Feb 08 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.3-1
++- Updated to release 2.3.
++
+ * Sat Aug 06 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.0-4
+ - Added nagios user-creation. (Jamie Wilkinson)
+ - Conflicts nagios-nrpe with nagios. (Jesse Keating)
+
+Modified: trunk/rpms/nagios-nsca/nagios-nsca.spec
+===================================================================
+--- trunk/rpms/nagios-nsca/nagios-nsca.spec	2006-02-08 05:51:45 UTC (rev 4063)
++++ trunk/rpms/nagios-nsca/nagios-nsca.spec	2006-02-08 12:51:55 UTC (rev 4064)
+@@ -1,15 +1,16 @@
+ # $Id$
+-
+ # Authority: dag
+ 
+ ### FIXME: usermod -G nagios apache removes other groups.
+ 
++%define logmsg logger -t %{name}/rpm
++
+ %define real_name nsca
+ 
+ Summary: Nagios Service Check Acceptor
+ Name: nagios-nsca
+-Version: 2.4
+-Release: 2
++Version: 2.5
++Release: 1
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.nagios.org/">http://www.nagios.org/</A>
+@@ -17,10 +18,10 @@
+ Source: <A HREF="http://dl.sf.net/nagios/nsca-%{version">http://dl.sf.net/nagios/nsca-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-
+ %{?!rh62:BuildRequires: libmcrypt-devel}
+ Provides: nsca
+ Obsoletes: nsca, netsaint-nsca
++Requires: bash, nagios, libmcrypt, xinetd
+ 
+ %description
+ The purpose of this addon is to allow you to execute NetSaint/Nagios
+@@ -29,10 +30,10 @@
+ %prep
+ %setup -n %{real_name}-%{version} 
+ 
+-%{__perl} -pi.orig -e '
+-		s|^(command_file)=\@localstatedir\@/rw/nagios.cmd|$1=%{_localstatedir}/spool/nagios/nagios.cmd|;
+-		s|^(alternate_dump_file)=\@localstatedir\@/rw/nsca.dump|$1=%{_localstatedir}/spool/nagios/nsca.dump|;
+-	' nsca.cfg.in
++#%{__perl} -pi.orig -e '
++#		s|^(command_file)=\@localstatedir\@/rw/nagios.cmd|$1=%{_localstatedir}/spool/nagios/nagios.cmd|;
++#		s|^(alternate_dump_file)=\@localstatedir\@/rw/nsca.dump|$1=%{_localstatedir}/spool/nagios/nsca.dump|;
++#	' nsca.cfg.in
+ 
+ %{__cat} &lt;&lt;EOF &gt;nsca.xinetd.dag
+ # default: off
+@@ -82,7 +83,7 @@
+ 
+ start() {
+ 	echo -n $&quot;Starting $desc ($prog): &quot;
+-	daemon $prog -c &quot;$CONFIG&quot; -d
++	daemon $prog -s -c &quot;$CONFIG&quot; -d
+ 	RETVAL=$?
+ 	echo
+ 	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
+@@ -142,6 +143,8 @@
+ 
+ %build
+ %configure \
++	--sysconfdir=&quot;%{_sysconfdir}/nagios&quot; \
++	--localstatedir=&quot;%{_localstatedir}/log/nagios&quot; \
+ 	--with-nsca-user=&quot;nagios&quot; \
+         --with-nsca-grp=&quot;nagios&quot; \
+         --with-nsca-port=&quot;5667&quot;
+@@ -152,12 +155,14 @@
+ %{__rm} -rf %{buildroot}
+ %{__install} -Dp -m0755 src/nsca %{buildroot}%{_sbindir}/nsca
+ %{__install} -Dp -m0755 src/send_nsca %{buildroot}%{_sbindir}/send_nsca
+-%{__install} -Dp -m0644 nsca.cfg %{buildroot}%{_sysconfdir}/nagios/nsca.cfg
+-%{__install} -Dp -m0644 send_nsca.cfg %{buildroot}%{_sysconfdir}/nagios/send_nsca.cfg
++%{__install} -Dp -m0644 sample-config/nsca.cfg %{buildroot}%{_sysconfdir}/nagios/nsca.cfg
++%{__install} -Dp -m0644 sample-config/send_nsca.cfg %{buildroot}%{_sysconfdir}/nagios/send_nsca.cfg
+ %{__install} -Dp -m0755 nsca.sysv %{buildroot}%{_initrddir}/nsca
+ %{__install} -Dp -m0644 nsca.xinetd.dag %{buildroot}%{_sysconfdir}/xinetd.d/nsca
++#%{__install} -Dp -m0644 sample-config/nsca.xinetd %{buildroot}%{_sysconfdir}/xinetd.d/nsca
+ 
+-%{__install} -d -m0755 %{buildroot}%{_localstatedir}/spool/nagios/
++#%{__install} -d -m0755 %{buildroot}%{_localstatedir}/spool/nagios/
++%{__install} -d -m0755 %{buildroot}%{_localstatedir}/log/nagios/rw/
+ 
+ %post
+ /sbin/chkconfig --add nsca
+@@ -180,11 +185,15 @@
+ %config(noreplace) %{_sysconfdir}/nagios/
+ %config(noreplace) %{_sysconfdir}/xinetd.d/nsca
+ %config %{_initrddir}/nsca
+-%dir %{_localstatedir}/spool/nagios/
++#%dir %{_localstatedir}/spool/nagios/
++%dir %{_localstatedir}/log/nagios/rw/
+ %{_sbindir}/nsca
+ %{_sbindir}/send_nsca
+ 
+ %changelog
++* Wed Feb 08 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.5-1
++- Updated to release 2.5.
++
+ * Tue Nov 11 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.4-2
+ - Fixed command_file and alternate_dump_file in nsca.cfg. (Johan Krisar)
+ - Removed the nagios dependency. (Johan Krisar)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002863.html">[svn] r4063 - in trunk/rpms: bsc exiv2 kchmviewer luola	luola-levels msort python-checker smb4k svnmailer wsdlpull yoltia
+</A></li>
+	<LI>Next message: <A HREF="002865.html">[svn] r4065 - in trunk/rpms: . mirrordir nagios nagios-nrpe	nagios-nsca python-inotify
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2864">[ date ]</a>
+              <a href="thread.html#2864">[ thread ]</a>
+              <a href="subject.html#2864">[ subject ]</a>
+              <a href="author.html#2864">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

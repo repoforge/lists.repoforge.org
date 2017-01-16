@@ -1,0 +1,165 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5838 - trunk/rpms/ati-x11-drv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5838%20-%20trunk/rpms/ati-x11-drv&In-Reply-To=%3C20070913094945.906B3944B57%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004636.html">
+   <LINK REL="Next"  HREF="004638.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5838 - trunk/rpms/ati-x11-drv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5838%20-%20trunk/rpms/ati-x11-drv&In-Reply-To=%3C20070913094945.906B3944B57%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5838 - trunk/rpms/ati-x11-drv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Sep 13 11:49:45 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004636.html">[svn] r5837 - in trunk/rpms: cppunit libxml++ perl-Filesys-SmbClient
+</A></li>
+        <LI>Next message: <A HREF="004638.html">[svn] r5839 - in trunk/rpms: . fuse-curlftpfs	perl-Filesys-SmbClient perl-Mail-Box re2c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4637">[ date ]</a>
+              <a href="thread.html#4637">[ thread ]</a>
+              <a href="subject.html#4637">[ subject ]</a>
+              <a href="author.html#4637">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-09-13 11:49:43 +0200 (Thu, 13 Sep 2007)
+New Revision: 5838
+
+Added:
+   trunk/rpms/ati-x11-drv/README-rpm
+Modified:
+   trunk/rpms/ati-x11-drv/ati-x11-drv.spec
+Log:
+Update ATI driver to 8.41.7, WHICH IS NOT COMPATIBLE WITH MANY OLDER CARDS!!!
+
+
+Added: trunk/rpms/ati-x11-drv/README-rpm
+===================================================================
+--- trunk/rpms/ati-x11-drv/README-rpm	                        (rev 0)
++++ trunk/rpms/ati-x11-drv/README-rpm	2007-09-13 09:49:43 UTC (rev 5838)
+@@ -0,0 +1,12 @@
++# To fix the &quot;glrx_dri.so: undefined symbol:...&quot; message, add this section to
++# your /etc/X11/xorg.conf
++
++Section &quot;ServerFlags&quot;
++	Option &quot;AIGLX&quot; &quot;off&quot;
++EndSection
++
++# To fix the &quot;&quot;cannot restore segment prot after reloc&quot; message
++# on glesx.so when running selinux en enforcing mode, run this once :
++
++chcon -t texrel_shlib_t /usr/lib*/xorg/modules/glesx.so
++
+
+Modified: trunk/rpms/ati-x11-drv/ati-x11-drv.spec
+===================================================================
+--- trunk/rpms/ati-x11-drv/ati-x11-drv.spec	2007-09-12 12:09:07 UTC (rev 5837)
++++ trunk/rpms/ati-x11-drv/ati-x11-drv.spec	2007-09-13 09:49:43 UTC (rev 5838)
+@@ -16,13 +16,14 @@
+ 
+ Summary: Proprietary ATI hardware accelerated OpenGL display driver
+ Name: ati-x11-drv
+-Version: 8.40.4
++Version: 8.41.7
+ Release: 1
+ License: Proprietary
+ Group: User Interface/X Hardware Support
+ URL: <A HREF="http://ati.amd.com/support/drivers/linux/linux-radeon.html">http://ati.amd.com/support/drivers/linux/linux-radeon.html</A>
+ Source0: <A HREF="http://www2.ati.com/drivers/linux/ati-driver-installer-%{version">http://www2.ati.com/drivers/linux/ati-driver-installer-%{version</A>}-x86.x86_64.run
+ Source1: Makefile.fglrx
++Source2: README-rpm
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ # Required for proper dkms operation
+ Requires: gcc
+@@ -62,6 +63,8 @@
+ # Fix for FC6 kernels
+ %{__perl} -pi -e 's|#include &lt;linux/config.h&gt;||g' \
+     common/lib/modules/fglrx/build_mod/*.{c,h}
++# Our quick README to be included as %%doc
++%{__install} -p -m 0644 %{SOURCE2} README-rpm
+ 
+ 
+ %build
+@@ -106,8 +109,8 @@
+     %{buildroot}%{_sysconfdir}/rc.d/init.d/atieventsd
+ %{__install} -D -p -m 0755 packages/Fedora/authatieventsd.sh \
+     %{buildroot}%{_sysconfdir}/ati/authatieventsd.sh
+-%{__install} -D -p -m 0644 common/usr/share/man/man8/atieventsd.8.gz \
+-    %{buildroot}%{_mandir}/man8/atieventsd.8.gz
++%{__install} -D -p -m 0644 common/usr/share/man/man8/atieventsd.8 \
++    %{buildroot}%{_mandir}/man8/atieventsd.8
+ 
+ # Install libaries
+ %{__mkdir_p} %{buildroot}%{fglrxlibdir}
+@@ -171,8 +174,11 @@
+     packages/Debian/dists/experimental/amdcccle.desktop
+ 
+ # Install the control file (new in 8.39.4, &quot;AMD testing&quot; watermark without)
++# As well as the signature file
+ %{__install} -D -p -m 0644 common/etc/ati/control \
+     %{buildroot}%{_sysconfdir}/ati/control
++%{__install} -D -p -m 0644 common/etc/ati/signature \
++    %{buildroot}%{_sysconfdir}/ati/signature
+ 
+ # Install ld.so.conf.d file
+ %{__mkdir_p} %{buildroot}%{_sysconfdir}/ld.so.conf.d/
+@@ -219,8 +225,8 @@
+ 
+ %files
+ %defattr(-,root,root,-)
+-%doc _doc/*
+-# Init script and control file
++%doc _doc/* README-rpm
++# Init script and control/signature files
+ %{_sysconfdir}/ati/
+ %{_sysconfdir}/rc.d/init.d/atieventsd
+ # ACPI stuff
+@@ -264,6 +270,14 @@
+ 
+ 
+ %changelog
++* Thu Sep 13 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 8.41.7-1
++- Update to 8.41.7.
++- The atieventsd.8 man page is no longer provided gzipped, go figure.
++
++* Wed Aug 15 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 8.40.4-2
++- Include signature file to fix AMD testing watermark.
++- Include quick README-rpm file with tips for typical gotchas.
++
+ * Tue Aug 14 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 8.40.4-1
+ - Update to 8.40.4.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004636.html">[svn] r5837 - in trunk/rpms: cppunit libxml++ perl-Filesys-SmbClient
+</A></li>
+	<LI>Next message: <A HREF="004638.html">[svn] r5839 - in trunk/rpms: . fuse-curlftpfs	perl-Filesys-SmbClient perl-Mail-Box re2c
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4637">[ date ]</a>
+              <a href="thread.html#4637">[ thread ]</a>
+              <a href="subject.html#4637">[ subject ]</a>
+              <a href="author.html#4637">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

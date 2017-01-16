@@ -1,0 +1,658 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5463 - trunk/rpms/transcode
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5463%20-%20trunk/rpms/transcode&In-Reply-To=%3C20070531125814.69D77944B53%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004261.html">
+   <LINK REL="Next"  HREF="004263.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5463 - trunk/rpms/transcode</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5463%20-%20trunk/rpms/transcode&In-Reply-To=%3C20070531125814.69D77944B53%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5463 - trunk/rpms/transcode">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu May 31 14:58:14 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004261.html">[svn] r5462 - trunk/rpms/ogmrip
+</A></li>
+        <LI>Next message: <A HREF="004263.html">[svn] r5464 - trunk/rpms/amule
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4262">[ date ]</a>
+              <a href="thread.html#4262">[ thread ]</a>
+              <a href="subject.html#4262">[ subject ]</a>
+              <a href="author.html#4262">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-05-31 14:58:12 +0200 (Thu, 31 May 2007)
+New Revision: 5463
+
+Added:
+   trunk/rpms/transcode/transcode-1.0.3-lzo2.patch
+Removed:
+   trunk/rpms/transcode/transcode-1.0.2-filter_compare-fixes-try1.patch
+   trunk/rpms/transcode/transcode-1.0.2-filter_logo-hangup-try1.patch
+   trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch
+   trunk/rpms/transcode/transcode-1.0.2-lzo2.patch
+   trunk/rpms/transcode/transcode-1.0.x-filter-patch.txt
+Modified:
+   trunk/rpms/transcode/transcode.spec
+Log:
+Update transcode to 1.0.3.
+
+
+Deleted: trunk/rpms/transcode/transcode-1.0.2-filter_compare-fixes-try1.patch
+===================================================================
+--- trunk/rpms/transcode/transcode-1.0.2-filter_compare-fixes-try1.patch	2007-05-31 12:11:34 UTC (rev 5462)
++++ trunk/rpms/transcode/transcode-1.0.2-filter_compare-fixes-try1.patch	2007-05-31 12:58:12 UTC (rev 5463)
+@@ -1,144 +0,0 @@
+---- filter/filter_compare.c.old	2006-01-24 17:25:53.000000000 +0100
+-+++ filter/filter_compare.c	2006-01-24 17:46:39.000000000 +0100
+-@@ -23,7 +23,7 @@
+-  */
+- 
+- #define MOD_NAME    &quot;filter_compare.so&quot;
+--#define MOD_VERSION &quot;v0.1.2 (2003-08-29)&quot;
+-+#define MOD_VERSION &quot;v0.1.3 (2006-01-24)&quot;
+- #define MOD_CAP     &quot;compare with other image to find a pattern&quot;
+- #define MOD_AUTHOR  &quot;Antonio Beamud&quot;
+- 
+-@@ -97,6 +97,8 @@
+- 	
+- }
+- 
+-+#define RESULTS_FILE    &quot;/tmp/compare.dat&quot;
+-+#define PATTERN_FILE    &quot;/dev/null&quot;
+- 
+- int tc_filter(vframe_list_t *ptr, char *options)
+- {
+-@@ -114,9 +116,9 @@
+- 		optstr_filter_desc(options, MOD_NAME, MOD_CAP, MOD_VERSION,
+- 				   MOD_AUTHOR, &quot;VRYMO&quot;, &quot;1&quot;);
+- 		
+--		snprintf(buf, 128, &quot;/dev/null&quot;);
+-+        snprintf(buf, 128, PATTERN_FILE);
+- 		optstr_param(options, &quot;pattern&quot;, &quot;Pattern image file path&quot;, &quot;%s&quot;, buf);
+--		snprintf(buf, 128, &quot;results.dat&quot;);
+-+        snprintf(buf, 128, RESULTS_FILE);
+- 		optstr_param(options, &quot;results&quot;, &quot;Results file path&quot; , &quot;%s&quot;, buf);
+- 		snprintf(buf, 128, &quot;%f&quot;, compare[instance]-&gt;delta);
+- 		optstr_param(options, &quot;delta&quot;, &quot;Delta error&quot;, &quot;%f&quot;,buf,&quot;0.0&quot;, &quot;100.0&quot;);
+-@@ -132,16 +134,20 @@
+- 
+- 	if(ptr-&gt;tag &amp; TC_FILTER_INIT) 
+- 	{
+--
+-+        char pattern_name[PATH_MAX];
+-+        char results_name[PATH_MAX];
+- 		unsigned int t,r,index;
+- 		pixelsMask *temp;
+- 
+--		if((compare[instance] = (compareData *)malloc(sizeof(compareData))) == NULL)
+-+        /* defaults */
+-+        strlcpy(results_name, RESULTS_FILE, sizeof(results_name));
+-+        strlcpy(pattern_name, PATTERN_FILE, sizeof(pattern_name));
+-+        
+-+        if((compare[instance] = malloc(sizeof(compareData))) == NULL)
+- 			return (-1);
+- 		
+- 		if((compare[instance]-&gt;vob = tc_get_vob())==NULL) return(-1);
+- 		
+--
+- 		compare[instance]-&gt;delta=DELTA_COLOR;
+- 		compare[instance]-&gt;step=1;
+- 		compare[instance]-&gt;width=0;
+-@@ -154,13 +160,13 @@
+- 		compare[instance]-&gt;height = compare[instance]-&gt;vob-&gt;ex_v_height;
+- 
+- 		if (options != NULL) {
+--			char pattern_name[PATH_MAX];
+--			char results_name[PATH_MAX];
+--			memset(pattern_name,0,PATH_MAX);
+--			memset(results_name,0,PATH_MAX);
+--
+- 			if(verbose) printf(&quot;[%s] options=%s\n&quot;, MOD_NAME, options);
+- 	
+-+            if (optstr_lookup (options, &quot;help&quot;)) {
+-+                help_optstr();
+-+                return(0);
+-+            }
+-+            
+- 			optstr_get(options, &quot;pattern&quot;, &quot;%[^:]&quot;, &amp;pattern_name);
+- 			optstr_get(options, &quot;results&quot;, &quot;%[^:]&quot;, &amp;results_name);
+- 			optstr_get(options, &quot;delta&quot;, &quot;%f&quot;, &amp;compare[instance]-&gt;delta);
+-@@ -172,47 +178,45 @@
+- 			printf(&quot;        delta = %f\n&quot;, compare[instance]-&gt;delta);
+- 			}		
+- 			
+--			if (strlen(results_name) == 0) {
+--				// Ponemos el nombre del fichero al original con extension dat
+--				strlcpy(results_name, &quot;/tmp/compare.dat&quot;, sizeof(results_name));
+--				
+-+            if (!pattern_name || !strlen(pattern_name)) {
+-+                /* restore default */
+-+                fprintf(stderr, &quot;[%s] missing image file, using fake &quot;
+-+                                &quot;source\n&quot;, MOD_NAME);
+-+                strlcpy(pattern_name, PATTERN_FILE, sizeof(pattern_name));
+- 			}
+--			if (!(compare[instance]-&gt;results = fopen(results_name, &quot;w&quot;)))
+--			{
+-+            if (!results_name || !strlen(results_name)) {
+-+                /* restore default */
+-+                fprintf(stderr, &quot;[%s] using default results file '%s'\n&quot;,
+-+                                MOD_NAME, RESULTS_FILE);
+-+                strlcpy(results_name, RESULTS_FILE, sizeof(results_name));
+-+            }
+-+        }
+-+            
+-+        if (!(compare[instance]-&gt;results = fopen(results_name, &quot;w&quot;))) {
+- 				perror(&quot;could not open file for writing&quot;);
+-+            return(-1);
+- 			}
+- 			
+- 			InitializeMagick(&quot;&quot;);
+- 			if (verbose &gt; 1) printf(&quot;[%s] Magick Initialized successfully\n&quot;, MOD_NAME);
+- 				
+- 			GetExceptionInfo(&amp;exception_info);
+--			image_info = CloneImageInfo ((ImageInfo *) NULL);
+-+        image_info = CloneImageInfo(NULL);
+- 			strlcpy(image_info-&gt;filename, pattern_name, MaxTextExtent);
+- 			if (verbose &gt; 1)
+- 			     printf(&quot;Trying to open image\n&quot;);
+--			orig = ReadImage(image_info,
+--					 &amp;exception_info);
+-+        orig = ReadImage(image_info, &amp;exception_info);
+- 			
+--			if (orig == (Image *) NULL) {
+-+        if (!orig) {
+- 				MagickWarning(exception_info.severity,
+- 					      exception_info.reason,
+- 					      exception_info.description);
+--				strlcpy(pattern_name, &quot;/dev/null&quot;, sizeof(pattern_name));
+--			}else{
+-+                fprintf(stderr, &quot;[%s] Can't open image\n&quot;, MOD_NAME);
+-+                return(-1);
+-+        } else {
+- 			       if (verbose &gt; 1)
+- 			       		printf(&quot;[%s] Image loaded successfully\n&quot;, MOD_NAME);
+- 			     }
+--		}
+--		
+--		else{
+--			perror(&quot;Not image provided&quot;);
+--		}
+-- 		
+--		if (options != NULL)
+--			if (optstr_lookup (options, &quot;help&quot;)) {
+--				help_optstr();
+--			}
+--		
+- 		
+- 		fprintf(compare[instance]-&gt;results,&quot;#fps:%f\n&quot;,compare[instance]-&gt;vob-&gt;fps);
+- 		
+
+Deleted: trunk/rpms/transcode/transcode-1.0.2-filter_logo-hangup-try1.patch
+===================================================================
+--- trunk/rpms/transcode/transcode-1.0.2-filter_logo-hangup-try1.patch	2007-05-31 12:11:34 UTC (rev 5462)
++++ trunk/rpms/transcode/transcode-1.0.2-filter_logo-hangup-try1.patch	2007-05-31 12:58:12 UTC (rev 5463)
+@@ -1,32 +0,0 @@
+---- filter/filter_logo.c.old	2006-03-28 14:08:26.000000000 +0200
+-+++ filter/filter_logo.c	2006-03-28 14:15:43.000000000 +0200
+-@@ -146,6 +146,7 @@
+-   }
+- 
+-   if(ptr-&gt;tag &amp; TC_FILTER_INIT) {
+-+    int dry_run = 0;
+- 
+-     if((vob = tc_get_vob())==NULL) return(-1);
+- 
+-@@ -181,8 +182,10 @@
+- 	if (optstr_get (options, &quot;rgbswap&quot;, &quot;&quot;) &gt;= 0) mfd-&gt;rgbswap=!mfd-&gt;rgbswap;
+- 	if (optstr_get (options, &quot;grayout&quot;, &quot;&quot;) &gt;= 0) mfd-&gt;grayout=!mfd-&gt;grayout;
+- 
+--	if (optstr_get (options, &quot;help&quot;, &quot;&quot;) &gt;= 0)
+-+	if (optstr_get (options, &quot;help&quot;, &quot;&quot;) &gt;= 0) {
+- 	    help_optstr();
+-+	    dry_run = 1;
+-+	}
+-     }
+- 
+-     if (verbose &gt; 1) {
+-@@ -195,6 +198,9 @@
+- 	printf (&quot;       ignoredelay = %d\n&quot;, mfd-&gt;ignoredelay);
+- 	printf (&quot;           rgbswap = %d\n&quot;, mfd-&gt;rgbswap);
+-     }
+-+    if (dry_run) {
+-+	return(0);
+-+    }
+- 
+-     InitializeMagick(&quot;&quot;);
+- 
+
+Deleted: trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch
+===================================================================
+--- trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch	2007-05-31 12:11:34 UTC (rev 5462)
++++ trunk/rpms/transcode/transcode-1.0.2-libavcodec.patch	2007-05-31 12:58:12 UTC (rev 5463)
+@@ -1,30 +0,0 @@
+---- transcode-1.0.2.orig/configure	2005-11-06 07:04:59.000000000 +0100
+-+++ transcode-1.0.2/configure	2005-11-06 07:04:59.000000000 +0100
+-@@ -28107,7 +28107,12 @@ main()
+-     printf(&quot;install ffmpeg 0.4.9-pre1 or newer, or a cvs version after 20040703&quot;);
+-     return(1);
+-   }
+-+  /* 3344640 == ((51&lt;&lt;16)+(9&lt;&lt;8)+0) == 51.9.0 */
+-+#ifdef LIBAVCODEC_BUILD &gt;= 3344640
+-+  printf(&quot;VER=%s\n&quot;, AV_STRINGIFY(LIBAVCODEC_VERSION));
+-+#else
+-   printf(&quot;VER=%s\n&quot;, FFMPEG_VERSION);
+-+#endif /* LIBAVCODEC_BUILD &gt;= 51.9.0 check */
+-   printf(&quot;BUILD=%d\n&quot;, LIBAVCODEC_BUILD);
+-   return(0);
+- }
+---- transcode-1.0.2.orig/configure.in	2005-10-30 05:57:45.000000000 +0100
+-+++ transcode-1.0.2/configure.in	2005-10-30 05:57:45.000000000 +0100
+-@@ -628,7 +628,12 @@ main()
+-     printf(&quot;install ffmpeg 0.4.9-pre1 or newer, or a cvs version after 20040703&quot;);
+-     return(1);
+-   }
+-+  /* 3344640 == ((51&lt;&lt;16)+(9&lt;&lt;8)+0) == 51.9.0 */
+-+#ifdef LIBAVCODEC_BUILD &gt;= 3344640
+-+  printf(&quot;VER=%s\n&quot;, AV_STRINGIFY(LIBAVCODEC_VERSION));
+-+#else
+-   printf(&quot;VER=%s\n&quot;, FFMPEG_VERSION);
+-+#endif /* LIBAVCODEC_BUILD &gt;= 51.9.0 check */
+-   printf(&quot;BUILD=%d\n&quot;, LIBAVCODEC_BUILD);
+-   return(0);
+- }
+
+Deleted: trunk/rpms/transcode/transcode-1.0.2-lzo2.patch
+===================================================================
+--- trunk/rpms/transcode/transcode-1.0.2-lzo2.patch	2007-05-31 12:11:34 UTC (rev 5462)
++++ trunk/rpms/transcode/transcode-1.0.2-lzo2.patch	2007-05-31 12:58:12 UTC (rev 5463)
+@@ -1,116 +0,0 @@
+-diff -Naupr transcode-1.0.2.orig/configure transcode-1.0.2/configure
+---- transcode-1.0.2.orig/configure	2005-11-06 07:04:59.000000000 +0100
+-+++ transcode-1.0.2/configure	2006-07-31 13:16:19.000000000 +0200
+-@@ -38069,7 +38069,7 @@ echo &quot;${ECHO_T}default&quot; &gt;&amp;6
+-   for l in $lzo_ll ; do
+-     case $l in
+-       -L*) lpaths=&quot;$lpaths $l&quot; ;;
+--      -l*) test x&quot;$l&quot; != x&quot;-llzo&quot; &amp;&amp; xlibs=&quot;$xlibs $l&quot; ;;
+-+      -l*) test x&quot;$l&quot; != x&quot;-llzo2&quot; &amp;&amp; xlibs=&quot;$xlibs $l&quot; ;;
+-         *) xlf=&quot;$xlf $l&quot; ;;
+-     esac
+-   done
+-@@ -38085,13 +38085,13 @@ echo &quot;${ECHO_T}default&quot; &gt;&amp;6
+-   if test x&quot;lzo&quot; != x&quot;none&quot; ; then
+-     save_LDFLAGS=&quot;$LDFLAGS&quot;
+-     LDFLAGS=&quot;$LDFLAGS $lzo_ll&quot;
+--    echo &quot;$as_me:$LINENO: checking for lzo_version in -llzo&quot; &gt;&amp;5
+--echo $ECHO_N &quot;checking for lzo_version in -llzo... $ECHO_C&quot; &gt;&amp;6
+-+    echo &quot;$as_me:$LINENO: checking for lzo_version in -llzo2&quot; &gt;&amp;5
+-+echo $ECHO_N &quot;checking for lzo_version in -llzo2... $ECHO_C&quot; &gt;&amp;6
+- if test &quot;${ac_cv_lib_lzo_lzo_version+set}&quot; = set; then
+-   echo $ECHO_N &quot;(cached) $ECHO_C&quot; &gt;&amp;6
+- else
+-   ac_check_lib_save_LIBS=$LIBS
+--LIBS=&quot;-llzo $LZO_EXTRA_LIBS $LIBS&quot;
+-+LIBS=&quot;-llzo2 $LZO_EXTRA_LIBS $LIBS&quot;
+- cat &gt;conftest.$ac_ext &lt;&lt;_ACEOF
+- /* confdefs.h.  */
+- _ACEOF
+-@@ -38150,7 +38150,7 @@ fi
+- echo &quot;$as_me:$LINENO: result: $ac_cv_lib_lzo_lzo_version&quot; &gt;&amp;5
+- echo &quot;${ECHO_T}$ac_cv_lib_lzo_lzo_version&quot; &gt;&amp;6
+- if test $ac_cv_lib_lzo_lzo_version = yes; then
+--  LZO_LIBS=&quot;$lzo_ll -llzo $LZO_EXTRA_LIBS&quot;
+-+  LZO_LIBS=&quot;$lzo_ll -llzo2 $LZO_EXTRA_LIBS&quot;
+- else
+- 
+- tc_pkg_err=&quot;yes&quot;
+-diff -Naupr transcode-1.0.2.orig/configure.in transcode-1.0.2/configure.in
+---- transcode-1.0.2.orig/configure.in	2005-10-30 05:57:45.000000000 +0100
+-+++ transcode-1.0.2/configure.in	2006-07-31 13:14:12.000000000 +0200
+-@@ -1018,7 +1018,7 @@ TC_PKG_HAVE(libquicktime, LIBQUICKTIME)
+- dnl
+- dnl LZO
+- dnl
+--TC_PKG_CHECK(lzo, no, LZO, no, [lzo1x.h], lzo, lzo_version, lzo,
+-+TC_PKG_CHECK(lzo, no, LZO, no, [lzo1x.h], lzo2, lzo_version, lzo2,
+-  [<A HREF="http://www.oberhumer.com/opensource/lzo/">http://www.oberhumer.com/opensource/lzo/</A>])
+- TC_PKG_HAVE(lzo, LZO)
+- 
+-diff -Naupr transcode-1.0.2.orig/export/export_lzo.c transcode-1.0.2/export/export_lzo.c
+---- transcode-1.0.2.orig/export/export_lzo.c	2005-07-04 09:09:31.000000000 +0200
+-+++ transcode-1.0.2/export/export_lzo.c	2006-07-31 13:14:12.000000000 +0200
+-@@ -84,8 +84,8 @@ MOD_init
+- 	return(TC_EXPORT_ERROR); 
+-       }
+- 
+--      wrkmem = (lzo_bytep) lzo_malloc(LZO1X_1_MEM_COMPRESS);
+--      out = (lzo_bytep) lzo_malloc(vob-&gt;ex_v_height*vob-&gt;ex_v_width*3*2);
+-+      wrkmem = (lzo_bytep) malloc(LZO1X_1_MEM_COMPRESS);
+-+      out = (lzo_bytep) malloc(vob-&gt;ex_v_height*vob-&gt;ex_v_width*3*2);
+- 
+-       if (wrkmem == NULL || out == NULL) {
+- 	printf(&quot;[%s] out of memory\n&quot;, MOD_NAME);
+-@@ -270,8 +270,8 @@ MOD_stop 
+-   
+-   if(param-&gt;flag == TC_VIDEO) {
+- 
+--    lzo_free(wrkmem);
+--    lzo_free(out);
+-+    free(wrkmem);
+-+    free(out);
+-     
+-     return(0);
+-   }
+-diff -Naupr transcode-1.0.2.orig/import/decode_lzo.c transcode-1.0.2/import/decode_lzo.c
+---- transcode-1.0.2.orig/import/decode_lzo.c	2005-07-04 09:09:33.000000000 +0200
+-+++ transcode-1.0.2/import/decode_lzo.c	2006-07-31 13:14:12.000000000 +0200
+-@@ -65,9 +65,9 @@ void decode_lzo(decode_t *decode)
+-       goto decoder_error;
+-     }
+- 
+--    wrkmem = (lzo_bytep) lzo_malloc(LZO1X_1_MEM_COMPRESS);
+--    out = (lzo_bytep) lzo_malloc(BUFFER_SIZE);
+--    inbuf = (lzo_bytep) lzo_malloc(BUFFER_SIZE);
+-+    wrkmem = (lzo_bytep) malloc(LZO1X_1_MEM_COMPRESS);
+-+    out = (lzo_bytep) malloc(BUFFER_SIZE);
+-+    inbuf = (lzo_bytep) malloc(BUFFER_SIZE);
+-     
+-     if (wrkmem == NULL || out == NULL) {
+-       fprintf(stderr, &quot;[%s] out of memory\n&quot;, MOD_NAME);
+-diff -Naupr transcode-1.0.2.orig/import/import_lzo.c transcode-1.0.2/import/import_lzo.c
+---- transcode-1.0.2.orig/import/import_lzo.c	2005-07-04 09:09:33.000000000 +0200
+-+++ transcode-1.0.2/import/import_lzo.c	2006-07-31 13:14:12.000000000 +0200
+-@@ -117,8 +117,8 @@ MOD_open
+-       return(TC_IMPORT_ERROR); 
+-     }
+- 
+--    wrkmem = (lzo_bytep) lzo_malloc(LZO1X_1_MEM_COMPRESS);
+--    out = (lzo_bytep) lzo_malloc(BUFFER_SIZE);
+-+    wrkmem = (lzo_bytep) malloc(LZO1X_1_MEM_COMPRESS);
+-+    out = (lzo_bytep) malloc(BUFFER_SIZE);
+- 
+-     if (wrkmem == NULL || out == NULL) {
+-       printf(&quot;[%s] out of memory\n&quot;, MOD_NAME);
+-@@ -236,8 +236,8 @@ MOD_close
+- 
+-   if(param-&gt;flag == TC_VIDEO) {
+- 
+--    lzo_free(wrkmem);
+--    lzo_free(out);
+-+    free(wrkmem);
+-+    free(out);
+- 
+-     if(avifile2!=NULL) {
+-       AVI_close(avifile2);
+
+Added: trunk/rpms/transcode/transcode-1.0.3-lzo2.patch
+===================================================================
+--- trunk/rpms/transcode/transcode-1.0.3-lzo2.patch	                        (rev 0)
++++ trunk/rpms/transcode/transcode-1.0.3-lzo2.patch	2007-05-31 12:58:12 UTC (rev 5463)
+@@ -0,0 +1,116 @@
++diff -Naupr transcode-1.0.3.orig/configure transcode-1.0.3/configure
++--- transcode-1.0.3.orig/configure	2007-04-16 20:08:01.000000000 +0200
+++++ transcode-1.0.3/configure	2007-05-31 14:13:17.000000000 +0200
++@@ -37043,7 +37043,7 @@ echo &quot;${ECHO_T}default&quot; &gt;&amp;6; }
++   for l in $lzo_ll ; do
++     case $l in
++       -L*) lpaths=&quot;$lpaths $l&quot; ;;
++-      -l*) test x&quot;$l&quot; != x&quot;-llzo&quot; &amp;&amp; xlibs=&quot;$xlibs $l&quot; ;;
+++      -l*) test x&quot;$l&quot; != x&quot;-llzo2&quot; &amp;&amp; xlibs=&quot;$xlibs $l&quot; ;;
++         *) xlf=&quot;$xlf $l&quot; ;;
++     esac
++   done
++@@ -37059,13 +37059,13 @@ echo &quot;${ECHO_T}default&quot; &gt;&amp;6; }
++   if test x&quot;lzo&quot; != x&quot;none&quot; ; then
++     save_LDFLAGS=&quot;$LDFLAGS&quot;
++     LDFLAGS=&quot;$LDFLAGS $lzo_ll&quot;
++-    { echo &quot;$as_me:$LINENO: checking for lzo_version in -llzo&quot; &gt;&amp;5
++-echo $ECHO_N &quot;checking for lzo_version in -llzo... $ECHO_C&quot; &gt;&amp;6; }
+++    { echo &quot;$as_me:$LINENO: checking for lzo_version in -llzo2&quot; &gt;&amp;5
+++echo $ECHO_N &quot;checking for lzo_version in -llzo2... $ECHO_C&quot; &gt;&amp;6; }
++ if test &quot;${ac_cv_lib_lzo_lzo_version+set}&quot; = set; then
++   echo $ECHO_N &quot;(cached) $ECHO_C&quot; &gt;&amp;6
++ else
++   ac_check_lib_save_LIBS=$LIBS
++-LIBS=&quot;-llzo $LZO_EXTRA_LIBS $LIBS&quot;
+++LIBS=&quot;-llzo2 $LZO_EXTRA_LIBS $LIBS&quot;
++ cat &gt;conftest.$ac_ext &lt;&lt;_ACEOF
++ /* confdefs.h.  */
++ _ACEOF
++@@ -37121,7 +37121,7 @@ fi
++ { echo &quot;$as_me:$LINENO: result: $ac_cv_lib_lzo_lzo_version&quot; &gt;&amp;5
++ echo &quot;${ECHO_T}$ac_cv_lib_lzo_lzo_version&quot; &gt;&amp;6; }
++ if test $ac_cv_lib_lzo_lzo_version = yes; then
++-  LZO_LIBS=&quot;$lzo_ll -llzo $LZO_EXTRA_LIBS&quot;
+++  LZO_LIBS=&quot;$lzo_ll -llzo2 $LZO_EXTRA_LIBS&quot;
++ else
++ 
++ tc_pkg_err=&quot;yes&quot;
++diff -Naupr transcode-1.0.3.orig/configure.in transcode-1.0.3/configure.in
++--- transcode-1.0.3.orig/configure.in	2007-04-16 19:51:08.000000000 +0200
+++++ transcode-1.0.3/configure.in	2007-05-31 14:13:49.000000000 +0200
++@@ -1018,7 +1018,7 @@ TC_PKG_HAVE(libquicktime, LIBQUICKTIME)
++ dnl
++ dnl LZO
++ dnl
++-TC_PKG_CHECK(lzo, no, LZO, no, [lzo1x.h], lzo, lzo_version, lzo,
+++TC_PKG_CHECK(lzo, no, LZO, no, [lzo1x.h], lzo2, lzo_version, lzo2,
++  [<A HREF="http://www.oberhumer.com/opensource/lzo/">http://www.oberhumer.com/opensource/lzo/</A>])
++ TC_PKG_HAVE(lzo, LZO)
++ 
++diff -Naupr transcode-1.0.3.orig/export/export_lzo.c transcode-1.0.3/export/export_lzo.c
++--- transcode-1.0.3.orig/export/export_lzo.c	2005-07-04 09:23:00.000000000 +0200
+++++ transcode-1.0.3/export/export_lzo.c	2007-05-31 14:14:24.000000000 +0200
++@@ -84,8 +84,8 @@ MOD_init
++ 	return(TC_EXPORT_ERROR); 
++       }
++ 
++-      wrkmem = (lzo_bytep) lzo_malloc(LZO1X_1_MEM_COMPRESS);
++-      out = (lzo_bytep) lzo_malloc(vob-&gt;ex_v_height*vob-&gt;ex_v_width*3*2);
+++      wrkmem = (lzo_bytep) malloc(LZO1X_1_MEM_COMPRESS);
+++      out = (lzo_bytep) malloc(vob-&gt;ex_v_height*vob-&gt;ex_v_width*3*2);
++ 
++       if (wrkmem == NULL || out == NULL) {
++ 	printf(&quot;[%s] out of memory\n&quot;, MOD_NAME);
++@@ -270,8 +270,8 @@ MOD_stop 
++   
++   if(param-&gt;flag == TC_VIDEO) {
++ 
++-    lzo_free(wrkmem);
++-    lzo_free(out);
+++    free(wrkmem);
+++    free(out);
++     
++     return(0);
++   }
++diff -Naupr transcode-1.0.3.orig/import/decode_lzo.c transcode-1.0.3/import/decode_lzo.c
++--- transcode-1.0.3.orig/import/decode_lzo.c	2005-07-04 09:23:01.000000000 +0200
+++++ transcode-1.0.3/import/decode_lzo.c	2007-05-31 14:14:59.000000000 +0200
++@@ -65,9 +65,9 @@ void decode_lzo(decode_t *decode)
++       goto decoder_error;
++     }
++ 
++-    wrkmem = (lzo_bytep) lzo_malloc(LZO1X_1_MEM_COMPRESS);
++-    out = (lzo_bytep) lzo_malloc(BUFFER_SIZE);
++-    inbuf = (lzo_bytep) lzo_malloc(BUFFER_SIZE);
+++    wrkmem = (lzo_bytep) malloc(LZO1X_1_MEM_COMPRESS);
+++    out = (lzo_bytep) malloc(BUFFER_SIZE);
+++    inbuf = (lzo_bytep) malloc(BUFFER_SIZE);
++     
++     if (wrkmem == NULL || out == NULL) {
++       fprintf(stderr, &quot;[%s] out of memory\n&quot;, MOD_NAME);
++diff -Naupr transcode-1.0.3.orig/import/import_lzo.c transcode-1.0.3/import/import_lzo.c
++--- transcode-1.0.3.orig/import/import_lzo.c	2005-07-04 09:23:01.000000000 +0200
+++++ transcode-1.0.3/import/import_lzo.c	2007-05-31 14:16:17.000000000 +0200
++@@ -117,8 +117,8 @@ MOD_open
++       return(TC_IMPORT_ERROR); 
++     }
++ 
++-    wrkmem = (lzo_bytep) lzo_malloc(LZO1X_1_MEM_COMPRESS);
++-    out = (lzo_bytep) lzo_malloc(BUFFER_SIZE);
+++    wrkmem = (lzo_bytep) malloc(LZO1X_1_MEM_COMPRESS);
+++    out = (lzo_bytep) malloc(BUFFER_SIZE);
++ 
++     if (wrkmem == NULL || out == NULL) {
++       printf(&quot;[%s] out of memory\n&quot;, MOD_NAME);
++@@ -236,8 +236,8 @@ MOD_close
++ 
++   if(param-&gt;flag == TC_VIDEO) {
++ 
++-    lzo_free(wrkmem);
++-    lzo_free(out);
+++    free(wrkmem);
+++    free(out);
++ 
++     if(avifile2!=NULL) {
++       AVI_close(avifile2);
+
+Deleted: trunk/rpms/transcode/transcode-1.0.x-filter-patch.txt
+===================================================================
+--- trunk/rpms/transcode/transcode-1.0.x-filter-patch.txt	2007-05-31 12:11:34 UTC (rev 5462)
++++ trunk/rpms/transcode/transcode-1.0.x-filter-patch.txt	2007-05-31 12:58:12 UTC (rev 5463)
+@@ -1,37 +0,0 @@
+-*** src/filter.c.orig	2006-05-28 11:18:22.000000000 +0200
+---- src/filter.c	2006-05-28 11:18:51.000000000 +0200
+-***************
+-*** 150,153 ****
+---- 150,156 ----
+-      }
+-    }
+-+   if (strlen(filter[id].name) &gt; MAX_FILTER_NAME_LEN) {
+-+     return -1;
+-+   }
+-  
+-    filter_unquote_options(filter[id].options);
+-***************
+-*** 346,357 ****
+-    int id = filter_next_free_id()+1;
+-    vob_t *vob = tc_get_vob();
+--   long sret;
+-  
+-    fprintf(stderr, &quot;[%s] Loading (%s) ..\n&quot;, __FILE__, mfilter_string);
+-  
+-    filter[id].namelen = strlen(mfilter_string);
+-!   filter[id].name    = (char *) malloc (filter[id].namelen+1);
+-!   sret = strlcpy(filter[id].name, mfilter_string, MAX_FILTER_NAME_LEN);
+-!   if (tc_test_string(__FILE__, __LINE__, MAX_FILTER_NAME_LEN, sret, errno))
+-      return(1);
+-  
+---- 349,358 ----
+-    int id = filter_next_free_id()+1;
+-    vob_t *vob = tc_get_vob();
+-  
+-    fprintf(stderr, &quot;[%s] Loading (%s) ..\n&quot;, __FILE__, mfilter_string);
+-  
+-    filter[id].namelen = strlen(mfilter_string);
+-!   filter[id].name    = strdup(mfilter_string);
+-!   if (!filter[id].name)
+-      return(1);
+-  
+
+Modified: trunk/rpms/transcode/transcode.spec
+===================================================================
+--- trunk/rpms/transcode/transcode.spec	2007-05-31 12:11:34 UTC (rev 5462)
++++ trunk/rpms/transcode/transcode.spec	2007-05-31 12:58:12 UTC (rev 5463)
+@@ -2,13 +2,12 @@
+ # Authority: matthias
+ # Upstream: &lt;transcode-users$exit1.org&gt;
+ 
+-#define prever rc1
+-
+ %{?dist: %{expand: %%define %dist 1}}
+ %{?fedora: %{expand: %%define fc%{fedora} 1}}
+ 
+ %{!?dist:%define _with_modxorg 1}
+ %{?el5:  %define _with_modxorg 1}
++%{?fc7:  %define _with_modxorg 1}
+ %{?fc6:  %define _with_modxorg 1}
+ %{?fc5:  %define _with_modxorg 1}
+ 
+@@ -29,18 +28,14 @@
+ 
+ Summary: Linux video stream processing utility
+ Name: transcode
+-Version: 1.0.2
+-Release: 12%{?prever:.%{prever}}
++Version: 1.0.3
++Release: 1
+ License: GPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://www.transcoding.org/">http://www.transcoding.org/</A>
+-Source: <A HREF="http://www.kraymer.mynetcologne.de/transcode-%{version">http://www.kraymer.mynetcologne.de/transcode-%{version</A>}%{?prever}.tar.gz
+-Patch0: transcode-1.0.2-filter_compare-fixes-try1.patch
+-Patch1: transcode-1.0.2-filter_logo-hangup-try1.patch
+-Patch2: transcode-1.0.x-filter-patch.txt
+-Patch3: transcode-1.0.2-lzo2.patch
+-Patch4: transcode-1.0.2-libmpeg3.patch
+-Patch5: transcode-1.0.2-libavcodec.patch
++Source: <A HREF="http://fromani.exit1.org/transcode-%{version">http://fromani.exit1.org/transcode-%{version</A>}.tar.bz2
++Patch0: transcode-1.0.3-lzo2.patch
++Patch1: transcode-1.0.2-libmpeg3.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: gcc-c++, gtk+-devel, SDL-devel, libxml2-devel, libjpeg-devel
+ BuildRequires: freetype-devel &gt;= 2.0, libogg-devel, libvorbis-devel
+@@ -79,13 +74,9 @@
+ 
+ 
+ %prep
+-%setup -n %{name}-%{version}%{?prever}
+-%patch0 -p0 -b .filter_compare-fixes-try1
+-%patch1 -p0 -b .filter_logo-hangup-try1
+-%patch2 -p0 -b .filter-patch
+-%patch3 -p1 -b .lzo2
+-%patch4 -p1 -b .libmpeg3
+-%patch5 -p1 -b .libavcodec
++%setup
++%patch0 -p1 -b .lzo2
++%patch1 -p1 -b .libmpeg3
+ 
+ 
+ %build
+@@ -144,6 +135,11 @@
+ 
+ 
+ %changelog
++* Fri Apr 20 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.3-1
++- Update to 1.0.3.
++- Update lzo2 patch.
++- Remove all now unneeded patches.
++
+ * Thu Jan 11 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 1.0.2-12
+ - Rebuild against newer ffmpeg and mjpegtools.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004261.html">[svn] r5462 - trunk/rpms/ogmrip
+</A></li>
+	<LI>Next message: <A HREF="004263.html">[svn] r5464 - trunk/rpms/amule
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4262">[ date ]</a>
+              <a href="thread.html#4262">[ thread ]</a>
+              <a href="subject.html#4262">[ subject ]</a>
+              <a href="author.html#4262">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,261 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r7608 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7608%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200908181644.n7IGi91n029024%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="006403.html">
+   <LINK REL="Next"  HREF="006405.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r7608 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r7608%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200908181644.n7IGi91n029024%40surya.karan.org%3E"
+       TITLE="[svn] r7608 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Aug 18 18:44:09 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="006403.html">[svn] r7607 - in trunk/tools/wiipresent: . docs
+</A></li>
+        <LI>Next message: <A HREF="006405.html">[svn] r7609 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6404">[ date ]</a>
+              <a href="thread.html#6404">[ thread ]</a>
+              <a href="subject.html#6404">[ subject ]</a>
+              <a href="author.html#6404">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-08-18 17:44:08 +0100 (Tue, 18 Aug 2009)
+New Revision: 7608
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Scan for Nintendo RVL-CNT-01 devices (Geerd-Dietger Hoffman)
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-08-14 17:31:25 UTC (rev 7607)
++++ trunk/tools/wiipresent/ChangeLog	2009-08-18 16:44:08 UTC (rev 7608)
+@@ -2,6 +2,7 @@
+ - Added support for kpdf
+ - Added example xinit script
+ - Allow for more than one bluetooth address
++- Scan for Nintendo RVL-CNT-01 devices (Geerd-Dietger Hoffman)
+ 
+ * 0.7.2 - release 17/04/2009
+ - Added -r/--reconnect option to wait for reconnect on disconnect
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-08-14 17:31:25 UTC (rev 7607)
++++ trunk/tools/wiipresent/TODO	2009-08-18 16:44:08 UTC (rev 7608)
+@@ -7,8 +7,6 @@
+   (should probably go into libwiimote, not wiipresent)
+ - Scan for wiimotes and pick the closest (&lt; rssi) nearby if more than one
+   (should probably go into libwiimote, not wiipresent)
+-- Check if bluetooth device is in fact a wiimote
+-  (bluetooth name should be 'Nintendo RVL-CNT-01')
+ - Put keycode configuration in seperate config-files that are activated
+   when mouseover application
+ 
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-08-14 17:31:25 UTC (rev 7607)
++++ trunk/tools/wiipresent/wiipresent.c	2009-08-18 16:44:08 UTC (rev 7608)
+@@ -27,6 +27,10 @@
+ #include &lt;time.h&gt;
+ #include &lt;unistd.h&gt;
+ 
++#include &lt;bluetooth/bluetooth.h&gt;
++#include &lt;bluetooth/hci.h&gt;
++#include &lt;bluetooth/hci_lib.h&gt;
++
+ #include &lt;X11/Xatom.h&gt;
+ #include &lt;X11/Xutil.h&gt;
+ #include &lt;X11/extensions/XTest.h&gt;
+@@ -268,6 +272,52 @@
+     wmote-&gt;rumble = 0;
+ }
+ 
++int wii_scan(char *wiimotes[18]) {
++    char addr[18] = { 0 };
++
++    int dev_id = hci_get_route(NULL);
++
++    int sock = hci_open_dev( dev_id );
++    if (dev_id &lt; 0 || sock &lt; 0) {
++        fprintf(stderr, &quot;Failed to open socket.\n&quot;);
++        return -1;
++    }
++
++    int timeout = 4;
++    int max_rsp = 128;
++    int flags = IREQ_CACHE_FLUSH;
++
++    inquiry_info scan_info_arr[max_rsp];
++    inquiry_info* scan_info = scan_info_arr;
++    memset(&amp;scan_info_arr, 0, sizeof(scan_info_arr));
++
++//    printf(&quot;Scanning for wiimotes...\n&quot;);
++
++    int num_rsp = hci_inquiry(dev_id, timeout, max_rsp, NULL, &amp;scan_info, flags);
++    if( num_rsp &lt; 0 ) {
++        fprintf(stderr, &quot;Scanning for wiimotes failed.\n&quot;);
++        return -1;
++    }
++
++    int num_wiimotes = 0;
++    int i;
++    for (i = 0; i &lt; num_rsp; i++) {
++        ba2str(&amp;scan_info[i].bdaddr, addr); 
++
++        // Check if this is a wiimote
++        if ((scan_info[i].dev_class[0] == 0x04) &amp;&amp;
++            (scan_info[i].dev_class[1] == 0x25) &amp;&amp;
++            (scan_info[i].dev_class[2] == 0x00)) {
++//            printf(&quot;%s [%hhd] (wiimote)\n&quot;, addr, wii_rssi(dev_id, scan_info[i].bdaddr));
++            fprintf(stderr, &quot;%s [%hhd] (wiimote)\n&quot;, addr, 0);
++            wiimotes[num_wiimotes++] = strndup(addr, sizeof(addr));
++//        } else {
++//            printf(&quot;%s (skipped)\n&quot;, addr);
++        }
++    }
++    return num_wiimotes;
++}
++
+ int main(int argc, char **argv) {
+     int length = 0;
+     int totaddr = 20;
+@@ -279,7 +329,7 @@
+     wmote = (wiimote_t) WIIMOTE_INIT;
+ 
+     int c;
+-    int i = 0;
++    int i = 0, j = 0;
+ 
+     // Make stdout unbuffered
+     setvbuf(stdout, NULL, _IONBF, 0);
+@@ -368,13 +418,7 @@
+         }
+     }
+ 
+-    // Check bluetooth address
+-    // FIXME: Allow for wiimote scanning
+-    if (numaddr == 0) {
+-        fprintf(stderr, &quot;%s: One bluetooth address (-b/--bluetooth) is mandatory.\n&quot;, NAME);
+-        return 1;
+-    }
+-
++    // Check bluetooth addresses
+     for(i=0; i&lt;numaddr; i++) {
+         if (strlen(btaddresses[i]) != 17) {
+             fprintf(stderr, &quot;%s: Bluetooth address %s has incorrect length.\n&quot;, NAME, btaddresses[i]);
+@@ -389,6 +433,10 @@
+     if (displayname == NULL)
+         displayname = &quot;:0.0&quot;;
+ 
++    int num_wiimotes = 0;
++    char *wiimotes[18];
++    char *wiimote_address = NULL;
++
+     // Reconnect loop
+     do {
+         display = XOpenDisplay(displayname);
+@@ -398,17 +446,36 @@
+         }
+         XSetErrorHandler(IgnoreDeadWindow);
+ 
+-        // Wait for 1+2
+-        if (numaddr == 0) {
+-    //        printf(&quot;Please press 1+2 on a wiimote in the viscinity...&quot;);
+-            fprintf(stderr, &quot;%s: Sorry, you need to provide at least one  bluetooth address using -b/--bluetooth.\n&quot;, NAME);
+-            exit(1);
+-        } else {
+-            printf(&quot;Please press 1+2 on the wiimote with address %s...&quot;, btaddresses[0]);
+-            wiimote_connect(&amp;wmote, btaddresses[0]);
+-            printf(&quot;\n&quot;);
++        num_wiimotes = 0;
++        wiimote_address = NULL;
++
++        printf(&quot;Please press 1+2 on your wiimote...&quot;);
++
++        while (wiimote_address == NULL) {
++            num_wiimotes = wii_scan(&amp;wiimotes);
++
++            if (num_wiimotes &lt;= 0) continue;
++
++            if (numaddr == 0) {
++                wiimote_address = wiimotes[0];
++            } else {
++                for (i = 0; i &lt; num_wiimotes; i++) {
++                    for (j = 0; j &lt; numaddr; j++) {
++//                        fprintf(stderr, &quot;Comparing %s and %s\n&quot;, wiimotes[i], btaddresses[j]);
++                        if (strncmp(wiimotes[i], btaddresses[j], 18)) {
++                            wiimote_address = wiimotes[i];
++                            break;
++                        }
++                    }
++                    if (wiimote_address != NULL) break;
++                }
++            }
+         }
++        printf(&quot;\n&quot;);
+ 
++        fprintf(stderr, &quot;Found %d wiimotes, choosing wiimote %s !\n&quot;, num_wiimotes, wiimote_address);
++        wiimote_connect(&amp;wmote, wiimote_address);
++
+         signal(SIGINT, exit_clean);
+         signal(SIGHUP, exit_clean);
+         signal(SIGQUIT, exit_clean);
+@@ -595,13 +662,13 @@
+                     }
+                 }
+ 
+-                // FIXME: We have to keep Alt pressed if we want to browse between apps
++                // FIXME: We have to keep Alt pressed if we want to switch between applications
+                 if (wmote.keys.left) {
+-                    XKeycode(XK_Tab, Mod1Mask | ShiftMask);
++                    XKeycode(XK_Tab, Mod1Mask);
+                 }
+ 
+                 if (wmote.keys.right) {
+-                    XKeycode(XK_Tab, Mod1Mask);
++                    XKeycode(XK_Tab, Mod1Mask | ShiftMask);
+                 }
+ 
+                 // Previous workspace
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="006403.html">[svn] r7607 - in trunk/tools/wiipresent: . docs
+</A></li>
+	<LI>Next message: <A HREF="006405.html">[svn] r7609 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#6404">[ date ]</a>
+              <a href="thread.html#6404">[ thread ]</a>
+              <a href="subject.html#6404">[ subject ]</a>
+              <a href="author.html#6404">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

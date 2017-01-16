@@ -1,0 +1,490 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3547 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3547%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20050904202848.2E6F1318040%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002347.html">
+   <LINK REL="Next"  HREF="002349.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3547 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3547%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20050904202848.2E6F1318040%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3547 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Sep  4 22:28:48 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002347.html">[svn] r3546 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="002349.html">[svn] r3548 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2348">[ date ]</a>
+              <a href="thread.html#2348">[ thread ]</a>
+              <a href="subject.html#2348">[ subject ]</a>
+              <a href="author.html#2348">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-09-04 22:28:47 +0200 (Sun, 04 Sep 2005)
+New Revision: 3547
+
+Added:
+   trunk/tools/dstat/plugins/dstat_nfs3.py
+   trunk/tools/dstat/plugins/dstat_nfs3op.py
+   trunk/tools/dstat/plugins/dstat_nfsd3.py
+   trunk/tools/dstat/plugins/dstat_nfsd3op.py
+   trunk/tools/dstat/plugins/dstat_rpc.py
+   trunk/tools/dstat/plugins/dstat_rpcd.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/README.plugins
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1.txt
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/plugins/dstat_cpufreq.py
+   trunk/tools/dstat/plugins/dstat_dbus.py
+   trunk/tools/dstat/plugins/dstat_postfix.py
+   trunk/tools/dstat/plugins/dstat_sendmail.py
+   trunk/tools/dstat/plugins/dstat_utmp.py
+Log:
+Updates
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/ChangeLog	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -8,6 +8,12 @@
+ - Now accept 'total' keyword with -C (like -D and -N)
+ - Rewrote the path-inserting code
+ - Added asciidoc based manual page
++- Added external plugin dstat_rpc
++- Added external plugin dstat_rpcd
++- Added external plugin dstat_nfs3
++- Added external plugin dstat_nfs3op
++- Added external plugin dstat_nfsd3
++- Added external plugin dstat_nfsd3op
+ 
+ * 0.6.0 - Bettiesbaai - released 29/05/2005
+ - Removed keyboard input prevention patch. (Dbt 304673, Marc Lehmann)
+
+Modified: trunk/tools/dstat/README.plugins
+===================================================================
+--- trunk/tools/dstat/README.plugins	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/README.plugins	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -10,7 +10,13 @@
+ 	dstat_freespace		- disk usage on per filesystems
+ 	dstat_gpfs		- GPFS read/write I/O (needs mmpmon)
+ 	dstat_gpfsop		- GPFS filesystem operations (needs mmpmon)
++	dstat_nfs3		- NFS v3 client operations
++	dstat_nfs3op		- Extended NFS v3 client operations
++	dstat_nfsd3		- NFS v3 server operations
++	dstat_nfsd3op		- Extended NFS v3 server operations
+ 	dstat_postfix		- postfix queue size (needs postfix)
++	dstat_rpc		- RPC client calls
++	dstat_rpcd		- RPC server calls
+ 	dstat_sendmail		- sendmail queue size (needs sendmail)
+ 	dstat_thermal		- system temperature sesnors
+ 	dstat_utmp		- utmp connections (needs python-utmp)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/dstat	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -359,12 +359,12 @@
+ 	def check(self):
+ 		&quot;Check if stat is applicable&quot;
+ 		if hasattr(self, 'fd') and not self.fd:
+-			return False
++			raise Exception, 'File %s does not exist' % self.file
+ 		if not self.vars:
+-			return False
++			raise Exception, 'No variables defined'
+ 		if self.discover() and self.width():
+ 			return True
+-		return False
++		raise Exception, 'Unknown problem, please report'
+ 
+ 	def discover(self):
+ 		return True
+@@ -1653,10 +1653,12 @@
+ 				exec 'o = dstat_%s()' % mod
+ 
+ 				### Remove defect stat objects and calculate line length
+-				if o.check():
+-					linewidth = linewidth + o.statwidth() + 1
+-					totlist.append(o)
+-					break
++				if not o.check():
++					raise Exception, 'Unknown problem, please report'
++					
++				linewidth = linewidth + o.statwidth() + 1
++				totlist.append(o)
++				break
+ 
+ 			except Exception, e:
+ 				info(1, 'Module dstat_%s has problems. (%s)' % (mod, e))
+
+Modified: trunk/tools/dstat/dstat.1.txt
+===================================================================
+--- trunk/tools/dstat/dstat.1.txt	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/dstat.1.txt	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -1,7 +1,7 @@
+ dstat(1)
+ ========
+ Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-v0.6.0, April 2005
++v0.6.1, September 2005
+ 
+ NAME
+ ----
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/dstat.spec	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -15,13 +15,11 @@
+ Group: System Environment/Base
+ URL: <A HREF="http://dag.wieers.com/home-made/dstat/">http://dag.wieers.com/home-made/dstat/</A>
+ 
+-Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+-
+ Source: <A HREF="http://dag.wieers.com/home-made/dstat/dstat-%{version">http://dag.wieers.com/home-made/dstat/dstat-%{version</A>}.tar.bz2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildArch: noarch
++BuildRequires: python
+ Requires: python
+ 
+ %description
+@@ -39,20 +37,6 @@
+ indicates in what magnitude and unit the output is displayed. Less
+ confusion, less mistakes.
+ 
+-Dstat is unique in letting you aggregate block device throughput for
+-a certain diskset or networkset, ie. you can see the throughput for
+-all the block devices that make up a single filesystem or storage
+-system.
+-
+-You can write your own dstat plugins to monitor whatever you like in
+-just a few minutes based on provided examples and a little bit of
+-Python knowledge.
+-
+-Dstat's output by default is designed for being interpreted by humans
+-in real-time, however the new CSV output allows you to store CSV
+-output in detail to a file to be imported later into Gnumeric or Excel
+-to generate graphs.
+-
+ %prep
+ %setup
+ 
+@@ -76,7 +60,7 @@
+ %{_datadir}/dstat/
+ 
+ %changelog
+-* Tue May 31 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.1-1
++* Sun Sep 04 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.1-1
+ - Updated to release 0.6.1.
+ 
+ * Sun May 29 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.0-1
+
+Modified: trunk/tools/dstat/plugins/dstat_cpufreq.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_cpufreq.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_cpufreq.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -17,9 +17,8 @@
+ 			for cpu in self.vars:
+ 				if not os.access('/sys/devices/system/cpu/'+cpu+'/cpufreq/cpuinfo_cur_freq', os.R_OK):
+ 					raise Exception, 'Module cannot access acpi cpu frequency information'
+-					return False
+ 			return True
+-		return false
++		raise Exception, 'No variables defined'
+ 
+ 	def extract(self):
+ 		for cpu in self.vars:
+
+Modified: trunk/tools/dstat/plugins/dstat_dbus.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_dbus.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_dbus.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -19,11 +19,9 @@
+ 					self.sesbus = None
+ 			except:
+ 				raise Exception, 'Module is unable to connect to dbus message bus.'
+-				return False
+ 			return True
+ 		except:
+ 			raise Exception, 'Module needs the python-dbus module.'
+-			return False
+ 
+ 	def extract(self):
+ 		self.val['system'] = len(self.sysbus.ListServices()) - 1
+
+Added: trunk/tools/dstat/plugins/dstat_nfs3.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfs3.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_nfs3.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -0,0 +1,30 @@
++global string
++import string
++
++class dstat_nfs3(dstat):
++	def __init__(self):
++		self.name = 'nfs3 client'
++		self.format = ('d', 4, 1000)
++		self.open('/proc/net/rpc/nfs')
++		self.vars = ('read', 'write', 'readdir', 'inode', 'filesystem', 'commit')
++		self.nick = ('read', 'writ', 'rdir', 'inod', 'fs', 'cmmt')
++		self.init(self.vars, 1)
++		dstat.info(1, 'Module dstat_nfs3 is still experimental.')
++
++	def extract(self):
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split()
++			if not l or l[0] != 'proc3': continue
++			self.cn2['read'] = long(l[8])
++			self.cn2['write'] = long(l[9])
++			self.cn2['readdir'] = long(l[17]) + long(l[18])
++			self.cn2['inode'] = long(l[3]) + long(l[4]) + long(l[5]) + long(l[6]) + long(l[7]) + long(l[10]) + long(l[11]) + long(l[12]) + long(l[13]) + long(l[14]) + long(l[15]) + long(l[16])
++			self.cn2['filesystem'] = long(l[19]) + long(l[20]) + long(l[21])
++			self.cn2['commit'] = long(l[22])
++		for name in self.vars:
++			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+Added: trunk/tools/dstat/plugins/dstat_nfs3op.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfs3op.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_nfs3op.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -0,0 +1,26 @@
++global string
++import string
++
++class dstat_nfs3op(dstat):
++	def __init__(self):
++		self.name = 'extended nfs3 client operations'
++		self.format = ('d', 4, 1000)
++		self.open('/proc/net/rpc/nfs')
++		self.vars = ('null', 'getattr', 'setattr', 'lookup', 'access', 'readlink', 'read', 'write', 'create', 'mkdir', 'symlink', 'mknod', 'remove', 'rmdir', 'rename', 'link', 'readdir', 'readdirplus', 'fsstat', 'fsinfo', 'pathconf', 'commit')
++		self.nick = ('null', 'gatr', 'satr', 'look', 'aces', 'rdln', 'read', 'writ', 'crea', 'mkdr', 'syml', 'mknd', 'rm', 'rmdr', 'ren', 'link', 'rdir', 'rdr+', 'fstt', 'fsnf', 'path', 'cmmt')
++		self.init(self.vars, 1)
++		print &quot;Module dstat_nfs3op is still experimental.&quot;
++
++	def extract(self):
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split()
++			if not l or l[0] != 'proc3': continue
++			for i, name in enumerate(self.vars):
++				self.cn2[name] = long(l[i+2])
++		for name in self.vars:
++			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+Added: trunk/tools/dstat/plugins/dstat_nfsd3.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfsd3.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_nfsd3.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -0,0 +1,30 @@
++global string
++import string
++
++class dstat_nfsd3(dstat):
++	def __init__(self):
++		self.name = 'nfs3 server'
++		self.format = ('d', 4, 1000)
++		self.open('/proc/net/rpc/nfsd')
++		self.vars = ('read', 'write', 'readdir', 'inode', 'filesystem', 'commit')
++		self.nick = ('read', 'writ', 'rdir', 'inod', 'fs', 'cmmt')
++		self.init(self.vars, 1)
++		print &quot;Module dstat_nfs3 is still experimental.&quot;
++
++	def extract(self):
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split()
++			if not l or l[0] != 'proc3': continue
++			self.cn2['read'] = long(l[8])
++			self.cn2['write'] = long(l[9])
++			self.cn2['readdir'] = long(l[18]) + long(l[19])
++			self.cn2['inode'] = long(l[3]) + long(l[4]) + long(l[5]) + long(l[6]) + long(l[7]) + long(l[10]) + long(l[11]) + long(l[12]) + long(l[13]) + long(l[14]) + long(l[15]) + long(l[16]) + long(l[17])
++			self.cn2['filesystem'] = long(l[20]) + long(l[21]) + long(l[22])
++			self.cn2['commit'] = long(l[23])
++		for name in self.vars:
++			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+Added: trunk/tools/dstat/plugins/dstat_nfsd3op.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_nfsd3op.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_nfsd3op.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -0,0 +1,26 @@
++global string
++import string
++
++class dstat_nfsd3op(dstat):
++	def __init__(self):
++		self.name = 'extended nfs3 server operations'
++		self.format = ('d', 4, 1000)
++		self.open('/proc/net/rpc/nfsd')
++		self.vars = ('null', 'getattr', 'setattr', 'lookup', 'access', 'readlink', 'read', 'write', 'create', 'mkdir', 'symlink', 'mknod', 'remove', 'rmdir', 'rename', 'link', 'readdir', 'readdirplus', 'fsstat', 'fsinfo', 'pathconf', 'commit')
++		self.nick = ('null', 'gatr', 'satr', 'look', 'aces', 'rdln', 'read', 'writ', 'crea', 'mkdr', 'syml', 'mknd', 'rm', 'rmdr', 'ren', 'link', 'rdir', 'rdr+', 'fstt', 'fsnf', 'path', 'cmmt')
++		self.init(self.vars, 1)
++		print &quot;Module dstat_nfs3op is still experimental.&quot;
++
++	def extract(self):
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split()
++			if not l or l[0] != 'proc3': continue
++			for i, name in enumerate(self.vars):
++				self.cn2[name] = long(l[i+2])
++		for name in self.vars:
++			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/plugins/dstat_postfix.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_postfix.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_postfix.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -12,7 +12,6 @@
+ 	def check(self): 
+ 		if not os.access('/var/spool/postfix/active', os.R_OK):
+ 			raise Exception, 'Module cannot access postfix queues'
+-			return False
+ 		return True
+ 
+ 	def extract(self):
+
+Added: trunk/tools/dstat/plugins/dstat_rpc.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_rpc.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_rpc.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -0,0 +1,25 @@
++global string
++import string
++
++class dstat_rpc(dstat):
++	def __init__(self):
++		self.name = 'rpc client'
++		self.format = ('d', 4, 1000)
++		self.open('/proc/net/rpc/nfs')
++		self.vars = ('calls', 'retransmits', 'autorefreshes')
++		self.nick = ('call', 'retr', 'refr')
++		self.init(self.vars, 1)
++
++	def extract(self):
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split()
++			if not l or l[0] != 'rpc': continue
++			for i, name in enumerate(self.vars):
++				self.cn2[name] = long(l[i+1])
++		for name in self.vars:
++			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+Added: trunk/tools/dstat/plugins/dstat_rpcd.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_rpcd.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_rpcd.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -0,0 +1,25 @@
++global string
++import string
++
++class dstat_rpcd(dstat):
++	def __init__(self):
++		self.name = 'rpc server'
++		self.format = ('d', 4, 1000)
++		self.open('/proc/net/rpc/nfsd')
++		self.vars = ('calls', 'badcalls', 'badauth', 'badclnt', 'xdrcall')
++		self.nick = ('call', 'erca', 'erau', 'ercl', 'xdrc')
++		self.init(self.vars, 1)
++
++	def extract(self):
++		self.fd.seek(0)
++		for line in self.fd.readlines():
++			l = line.split()
++			if not l or l[0] != 'rpc': continue
++			for i, name in enumerate(self.vars):
++				self.cn2[name] = long(l[i+1])
++		for name in self.vars:
++			self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/plugins/dstat_sendmail.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_sendmail.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_sendmail.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -13,7 +13,6 @@
+ 	def check(self):
+ 		if not os.access('/var/spool/mqueue', os.R_OK):
+ 			raise Exception, 'Module cannot access sendmail queue'
+-			return False
+ 		return True
+ 
+ 	def extract(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_utmp.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_utmp.py	2005-09-02 16:47:46 UTC (rev 3546)
++++ trunk/tools/dstat/plugins/dstat_utmp.py	2005-09-04 20:28:47 UTC (rev 3547)
+@@ -13,7 +13,6 @@
+ 			return True
+ 		except:
+ 			raise Exception, 'Module needs the python-utmp module.'
+-			return False
+ 
+ 	def extract(self):
+ 		for name in self.vars: self.val[name] = 0
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002347.html">[svn] r3546 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="002349.html">[svn] r3548 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2348">[ date ]</a>
+              <a href="thread.html#2348">[ thread ]</a>
+              <a href="subject.html#2348">[ subject ]</a>
+              <a href="author.html#2348">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

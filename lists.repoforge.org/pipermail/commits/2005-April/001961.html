@@ -1,0 +1,702 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3159 - in trunk/tools/pydar2: pydar sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3159%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20050425192155.CE0C35C4385%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001960.html">
+   <LINK REL="Next"  HREF="001962.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3159 - in trunk/tools/pydar2: pydar sql</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3159%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20050425192155.CE0C35C4385%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3159 - in trunk/tools/pydar2: pydar sql">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Apr 25 21:21:55 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001960.html">[svn] r3158 - in trunk/tools/pydar2: . pydar sql
+</A></li>
+        <LI>Next message: <A HREF="001962.html">[svn] r3160 - in trunk/rpms: perl-Audio-ESD perl-CGI-WML	perl-Compress-Bzip2 perl-Compress-LZO	perl-Crypt-OpenSSL-Random perl-Crypt-PassGen perl-DBD-Chart	perl-DBD-SQLite perl-DBIx-Recordset perl-Guile perl-Tk-HTML	perl-XML-SimpleObject
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1961">[ date ]</a>
+              <a href="thread.html#1961">[ thread ]</a>
+              <a href="subject.html#1961">[ subject ]</a>
+              <a href="author.html#1961">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-04-25 21:21:54 +0200 (Mon, 25 Apr 2005)
+New Revision: 3159
+
+Added:
+   trunk/tools/pydar2/pydar/callablescript.py
+   trunk/tools/pydar2/pydar/preparespecfilescript.py
+   trunk/tools/pydar2/pydar/preparespecfilescriptlist.py
+   trunk/tools/pydar2/pydar/rpmforgedriesrepo.py
+   trunk/tools/pydar2/pydar/rpmforgegetsources.py
+Modified:
+   trunk/tools/pydar2/pydar/command.py
+   trunk/tools/pydar2/pydar/commandlist.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/filter.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/specrepository.py
+   trunk/tools/pydar2/pydar/specrepositorylist.py
+   trunk/tools/pydar2/pydar/specrepositoryspecfile.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/pydar/targetlist.py
+   trunk/tools/pydar2/sql/svncheck.sql
+Log:
+update
+
+Added: trunk/tools/pydar2/pydar/callablescript.py
+===================================================================
+--- trunk/tools/pydar2/pydar/callablescript.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/callablescript.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -0,0 +1,36 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; wrapper around a userdefined script which can be called in pydar &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import sys
++from log4py import Logger
++
++class CallableScript:
++    def __init__(self, modulePath, functionName):
++        self.__cat = Logger().get_instance(self)
++        # immediately try to create the callable object
++        sys.path.append(&quot;.&quot;)
++        # @todo: add some nice exception catching so we can show decent errormessages
++        myModule = __import__(modulePath)
++        myMethod = getattr(myModule,functionName)
++        if not callable(myMethod):
++            raise Exception(&quot;method &quot; + functionName + &quot; in module &quot; + modulePath + &quot; is not callable!&quot;)
++        self.__myMethod = myMethod
++        
++    def _getMethod(self):
++        return self.__myMethod
+
+Modified: trunk/tools/pydar2/pydar/command.py
+===================================================================
+--- trunk/tools/pydar2/pydar/command.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/command.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -16,6 +16,8 @@
+ # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ # Copyright 2004 Dries Verachtert
+ 
++import config
++
+ class Command:
+     def __init__(self, commandName,userId,specRepoId,specFileId,toEmail,distroArchTag,priority,targetId):
+         self.__commandName=commandName
+@@ -26,9 +28,35 @@
+         self.__distroArchTag = distroArchTag
+         self.__priority = priority
+         self.__targetId = targetId
++        self.__specRepo = None
++        self.__specRepositorySpecFile = None
+         
++    # should only be used within the master!
++    def getSpecRepository(self):
++        if self.__specRepo == None:
++            myConfig = config.Config.getInstance()
++            self.__specRepo = myConfig.getSpecRepositoryList().getSpecRepositoryById(self.__specRepoId)
++        return self.__specRepo
++        
++    def getSpecRepositorySpecFile(self):
++        if self.__specRepositorySpecFile == None:
++            specRepo = self.getSpecRepository()
++            self.__specRepositorySpecFile = specRepo.getSpecRepositorySpecFileById(self.__specRepoId)
++        return self.__specRepositorySpecFile
++    
++    def getTarget(self):
++        if self.__target == None:
++            myConfig = config.Config.getInstance()
++            self.__target = myConfig.getTargetList().getTargetById(self.__targetId)
++        return self.__target
++
++    def getDefines(self):
++        todo
++        #if self.__
++    
+     def setCommandId(self,id):
+         self.__commandId = id
++        
+     
+     def getCommandName(self):
+         return self.__commandName
+@@ -57,4 +85,8 @@
+     def toString(self):
+         return &quot;commandName=&quot; + self.__commandName + &quot;,userId=&quot; + self.__userId + &quot;,specRepoId=&quot; + self.__specRepoId + &quot;,toEmail=&quot; + self.__toEmail + &quot;,specFileId=&quot; + self.__specFileId + &quot;,distroArchTag=&quot; + self.__distroArchTag + &quot;,commandId=&quot; + self.__commandId + &quot;,priority=&quot; + self.__priority
+ 
+-
++    def getId(self):
++        return self.__commandId
++    
++    def setId(self,id):
++        self.__commandId = id
+
+Modified: trunk/tools/pydar2/pydar/commandlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/commandlist.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/commandlist.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -16,7 +16,7 @@
+ # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ # Copyright 2004 Dries Verachtert
+ 
+-import config
++import config, os, shutil
+ import storagefactory
+ from command import Command
+ from log4py import Logger
+@@ -28,6 +28,23 @@
+         self.__cat = Logger().get_instance(self)
+ 
+     def addCommand(self, commandName,userId,specRepoName,specFilePath,toEmail,distroArchTag,priority,targetName):
++        aCommand = self.__checkAndCreateCommand(commandName,userId,specRepoName,specFilePath,toEmail,distroArchTag,priority,targetName)
++        self.__cat.debug(&quot;command created&quot;)
++        self.__createCommandDir(aCommand)
++        return aCommand
++        
++        
++    def __createCommandDir(self,aCommand):
++        commanddir = self.__config.getMasterWebRoot() + &quot;/&quot; + str(aCommand.getId())
++        self.__cat.debug(&quot;command dir=&quot; + commanddir)
++        os.mkdir(commanddir)
++        shutil.copy(aCommand.getSpecRepositorySpecFile().getFullPath(), commanddir + &quot;/&quot;)
++        # now we run some user defined scripts which may download sources, alter the spec file and so on
++        # first the scripts defined by the specrepository, then the scripts defined by the target
++        aCommand.getSpecRepository().runPrepareSpecFileScripts(aCommand,commanddir)
++        aCommand.getTarget().runPrepareSpecFileScripts(aCommand,commanddir)
++        
++    def __checkAndCreateCommand(self,commandName,userId,specRepoName,specFilePath,toEmail,distroArchTag,priority,targetName):
+         if commandName != &quot;BUILDSPECBYPATH&quot;:
+             raise Exception(&quot;unknown command name&quot;)
+         # the userId is already checked, now check some other values
+@@ -43,3 +60,4 @@
+         self.__cat.debug(&quot;command looks ok&quot;)
+         aCommand = Command(commandName,userId,specRepo.getId(),specRepoSpecFile.getId(),toEmail,distroArchTag,priority,target.getId())
+         self.__storage.createCommand(aCommand)
++        return aCommand
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/config.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -28,6 +28,7 @@
+ from log4py import Logger
+ from targetlist import TargetList
+ from target import Target
++from preparespecfilescript import PrepareSpecFileScript
+ 
+ class Config:
+     __myInstance = None
+@@ -95,7 +96,7 @@
+         self.dirtestbuilds = myParser.get('slave','dirtestbuilds')
+ 
+         self.__savespecrepositoryspecfiletags = True
+-        #self.__
++        self.__masterwebroot = '/var/lib/pydar2/masterwebroot'
+         
+         self.__sleeptime = 5
+ 
+@@ -116,6 +117,7 @@
+         sr = srf.createSpecRepository(&quot;rpmforge&quot;,SpecRepository.TYPE_SVN,self.__specreposrootdir + &quot;/rpmforge/rpms&quot;)
+         # we add a filter so the spec templates used by rpmforge are not stored in the database
+         sr.appendSpecRepositorySpecFileFilter(Filter(&quot;pydar/norpmforgetemplatesfilter&quot;,&quot;NoRpmforgeTemplatesFilter&quot;))
++        sr.appendPrepareSpecFileScript(PrepareSpecFileScript(&quot;pydar/rpmforgegetsources&quot;,&quot;RpmforgeGetSources&quot;))
+         self.getSpecRepositoryList().add(sr)
+         #sr = SpecRepository(&quot;pld&quot;,SpecRepository.TYPE_CVS,self.specreposrootdir + &quot;/pld/SPECS&quot;)
+         #sr = srf.createSpecRepository(&quot;pld&quot;,SpecRepository.TYPE_CVS,self.__specreposrootdir + &quot;/pld/SPECS&quot;)
+@@ -125,9 +127,10 @@
+         #sr = SpecRepository(&quot;local&quot;,SpecRepositoryFactory.TYPE_FILES,self.specreposrootdir + &quot;/local&quot;)
+         #sr = srf.createSpecRepository(&quot;local&quot;,SpecRepository.TYPE_FILES,self.__specreposrootdir + &quot;/local&quot;)
+         #self.getSpecRepositoryList().add(sr)
+-        self.getTargetList().addTarget(Target(&quot;dries&quot;))
+- 
+- 
++        t = Target(&quot;dries&quot;)
++        t.setId(0)
++        t.appendPrepareSpecFileScript(PrepareSpecFileScript(&quot;pydar/rpmforgedriesrepo&quot;,&quot;RpmforgeAlterSpecFile&quot;))
++        self.getTargetList().addTarget(t)
+         __withinFullInit = False
+         __fullInitDone = True
+         self.__cat.debug('end')
+@@ -174,3 +177,6 @@
+         self.__fullInit()
+         return self.__sleeptime
+         
++    def getMasterWebRoot(self):
++        self.__fullInit()
++        return self.__masterwebroot
+
+Modified: trunk/tools/pydar2/pydar/filter.py
+===================================================================
+--- trunk/tools/pydar2/pydar/filter.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/filter.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -19,19 +19,8 @@
+ 
+ import sys
+ from log4py import Logger
++from callablescript import CallableScript
+ 
+-class Filter:
+-    def __init__(self, modulePath, functionName):
+-        self.__cat = Logger().get_instance(self)
+-        # immediately try to create the callable object
+-        sys.path.append(&quot;.&quot;)
+-        # @todo: add some nice exception catching so we can show decent errormessages
+-        myModule = __import__(modulePath)
+-        myMethod = getattr(myModule,functionName)
+-        if not callable(myMethod):
+-            raise Exception(&quot;method &quot; + functionName + &quot; in module &quot; + modulePath + &quot; is not callable!&quot;)
+-        self.__myMethod = myMethod
+-        
+-        
++class Filter(CallableScript):
+     def accepts(self,value):
+-        return self.__myMethod.__call__(value)
++        return self._getMethod().__call__(value)
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -333,7 +333,9 @@
+             userId = rs[7]
+             priority = rs[8]
+             aCommand = Command(commandName,userId,specRepoId,specFileId,toEmail,distroArchTag,priority,targetId)
++            self.__cat.debug(&quot;command id: &quot; + rs[0])
+             aCommand.setCommandId(rs[0])
++            self.__cat.debug(&quot;id according to command object: &quot; + aCommand.getId())
+             cursor.execute(&quot;update pydar2_commands set inprogress=true where id=&quot; + str(aCommand.commandId))
+             cursor.execute(&quot;insert into pydar2_actions (commandid, statusid, buildmachineid) values (&quot; + str(aCommand.commandId) + &quot;,0,'&quot; + buildmachineid + &quot;')&quot;)
+             retval = aCommand
+
+Added: trunk/tools/pydar2/pydar/preparespecfilescript.py
+===================================================================
+--- trunk/tools/pydar2/pydar/preparespecfilescript.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/preparespecfilescript.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -0,0 +1,26 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; A wrapper around a user defined function/script in a seperate .py file which prepares/alters a spec file &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import sys
++from log4py import Logger
++from callablescript import CallableScript
++
++class PrepareSpecFileScript(CallableScript):
++    def runScript(self,value):
++        return self._getMethod().__call__(value)
+
+Added: trunk/tools/pydar2/pydar/preparespecfilescriptlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/preparespecfilescriptlist.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/preparespecfilescriptlist.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -0,0 +1,33 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; contains a list of scripts &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++from log4py import Logger
++
++class PrepareSpecFileScriptList:
++    def __init__(self):
++        self.__cat = Logger().get_instance(self)
++        self.__scriptsList = []
++            
++    def appendScript(self, newScript):
++        self.__scriptsList.append(newScript)
++        
++    def runScripts(self,aCommand,commanddir):
++        for f in self.__scriptsList:
++            f.runScript(aCommand,commanddir)
++        return True
+
+Added: trunk/tools/pydar2/pydar/rpmforgedriesrepo.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmforgedriesrepo.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/rpmforgedriesrepo.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -0,0 +1,58 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; Small example userdefined script for a target: modify release tag and add packager and vendor tag &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# the rpmforge subversion contains the patches and sometimes some sources
++
++import os, re
++
++def RpmforgeAlterSpecFile(command, commanddir):
++    print &quot;RpmforgeAlterSpecFile start&quot;
++    # get the directory of the svn checkout
++    fullpath = command.getSpecRepositorySpecFile().getFullPath()
++    (dir,fname) = os.path.split(fullpath)
++    print &quot;dir: &quot; + dir
++    fullSpecPath = os.path.join(commanddir, fname)
++    # first read the contents of the spec file
++    # then modify the contents in memory
++    # then write it back
++    contents = __getContents(fullSpecPath)
++    contents = __modifyContents(contents)
++    __writeContents(fullSpecPath,contents)
++    
++def __modifyContents(contents):
++    # @TODO correctly change release tag and also add packager and vendor tag
++    contents = re.sub(&quot;^Release: (.*)?\n&quot;, &quot;Release: \1.testrf\n&quot;, contents)
++    return contents
++    
++def __getContents(path):
++    fd = os.open(path,os.O_RDONLY)
++    contents = &quot;&quot;
++    line = fd.readline()
++    while line != &quot;&quot;:
++        contents = contents + line
++        line = fd.readline()
++    os.close(fd)
++    return contents
++    
++def __writeContents(path,contents):
++    fd = os.open(path,os._WRONLY)
++    fd.write(contents)
++    os.close(fd)
++    
++    
+
+Added: trunk/tools/pydar2/pydar/rpmforgegetsources.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmforgegetsources.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/rpmforgegetsources.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -0,0 +1,47 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; Small example userdefined script for a specrepository: get the sources &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# the rpmforge subversion contains the patches and sometimes some sources
++
++import os, commands
++
++def RpmforgeGetSources(command, commanddir):
++    print &quot;RpmforgeGetSources start&quot;
++    # get the directory of the svn checkout
++    fullpath = command.getSpecRepositorySpecFile().getFullPath()
++    (dir,fname) = os.path.split(fullpath)
++    print &quot;dir: &quot; + dir
++    # copy every file except the spec file
++    dirlist = os.listdir(dir)
++    for entry in dirlist:
++        # make sure its not a spec file &amp;&amp; regular file
++        rindex = string.rfind(file,'.spec')
++        if os.path.isfile(os.path.join(dir,entry)) and not (rindex &gt; 0 and rindex == len(file) - len('.spec')):
++            print &quot;lets copy: &quot; + entry
++            shutil.copy(os.path.join(dir,entry), commanddir)
++    # now download the other files with spectool or get them from a cache
++    spectoolcommand = &quot;spectool -gf &quot; + fname
++    # @TODO add --defines of distroarch to spectool command
++    (status,output) = commands.getstatusoutput(&quot;/bin/bash \&quot;cd &quot; + commanddir + &quot;; &quot; + spectoolcommand + &quot;\&quot;&quot;)
++    print &quot;status: &quot; + status
++    print &quot;output: &quot; + output
++    
++    
++    
++    
+
+Modified: trunk/tools/pydar2/pydar/specrepository.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepository.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/specrepository.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -21,6 +21,7 @@
+ from storagefactory import StorageFactory
+ from specrepositoryspecfile import SpecRepositorySpecFile
+ from filterchain import FilterChain
++from preparespecfilescriptlist import PrepareSpecFileScriptList
+ import posixpath, posix, string
+ 
+ # A specrepository has some attributes (a name, the root directory)
+@@ -46,6 +47,7 @@
+         self.__storage = StorageFactory.getStorage()
+         self.__id = None
+         self.__filterChain = FilterChain()
++        self.__prepareSpecFileScriptList = PrepareSpecFileScriptList()
+ 
+     def getSpecRepositorySpecFileByFilePath(self,filePath):
+         for i in self.__specFiles:
+@@ -53,6 +55,12 @@
+                 return i
+         return None
+     
++    def getSpecRepositorySpecFileById(self,id):
++        for i in self.__specFiles:
++            if i.getId() == id:
++                return i
++        return None
++    
+     # get a unique identifier for the current version of this file
+     # has to be implemented by a subclass
+     def getSpecFileVersion(self,specRepoSpecFile):
+@@ -61,6 +69,12 @@
+     def appendSpecRepositorySpecFileFilter(self,newFilter):
+         self.__filterChain.appendFilter(newFilter)
+         
++    def appendPrepareSpecFileScript(self,newScript):
++        self.__prepareSpecFileScriptList.appendScript(newScript)
++        
++    def runPrepareSpecFileScripts(self,aCommand,commanddir):
++        self.__prepareSpecFileScriptList.runScripts(aCommand,commanddir)
++    
+     def getUpdateCommand(self):
+         return &quot;&quot;
+     
+
+Modified: trunk/tools/pydar2/pydar/specrepositorylist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepositorylist.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/specrepositorylist.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -46,6 +46,13 @@
+         self.cat.warn(&quot;no SpecRepository found with name: &quot; + name)
+         return None
+ 
++    def getSpecRepositoryById(self,id):
++        for sr in self.__specrepositories:
++            if sr.getId() == id:
++                return sr
++        self.cat.warn(&quot;no SpecRepository found with id: &quot; + str(id))
++        return None
++        
+     def getSpecRepoStats(self, sreponame):
+         repo = self.getSpecRepositoryByName(sreponame)
+         retval = repo.getName() + &quot; (&quot; + repo.getType() + &quot;): &quot; + str(len(self.specRepoFileListBySpecRepoName[sreponame])) + &quot;\n&quot;
+
+Modified: trunk/tools/pydar2/pydar/specrepositoryspecfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepositoryspecfile.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/specrepositoryspecfile.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -44,11 +44,11 @@
+     # construct an object which contains all the tags within this spec file
+     # definetags is something like   --define el4 1        or   --define fc2 1 --define au1.92 1
+     def getSpecFileTags(self, definetags):
+-        return SpecFileTags(self.getSpecRepository().getRootDirectory() + &quot;/&quot; + self.getPathFromRoot(), definetags)
++        return SpecFileTags(self.getFullPath(), definetags)
+         
+     def __calculateCheckSum(self):
+         s = sha.new()
+-        fullFileName = self.__specRepository.getRootDirectory() + &quot;/&quot; + self.__subDir + &quot;/&quot; + self.__fileName
++        fullFileName = self.getFullPath()
+         f = open(fullFileName, 'r')
+         line = f.readline()
+         while line != '':
+@@ -70,6 +70,9 @@
+     def getPathFromRoot(self):
+         return self.__subDir + '/' + self.__fileName
+ 
++    def getFullPath(self):
++        return self.__specRepository.getRootDirectory() + &quot;/&quot; + self.getPathFromRoot()
++        
+     def setId(self, newId):
+         self.__id = newId
+         
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/target.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -19,12 +19,14 @@
+ import config
+ import storagefactory
+ from log4py import Logger
++from preparespecfilescriptlist import PrepareSpecFileScriptList
+ 
+ class Target:
+     def __init__(self, name):
+         self.__cat = Logger().get_instance(self)
+         self.__name = name
+         self.__id = -1
++        self.__prepareSpecFileScriptList = PrepareSpecFileScriptList()
+         
+     def getName(self):
+         return self.__name
+@@ -32,3 +34,13 @@
+     def getId(self):
+         return self.__id
+         
++    def setId(self,id):
++        self.__id = id
++
++    def appendPrepareSpecFileScript(self,newScript):
++        self.__prepareSpecFileScriptList.appendScript(newScript)
++        
++    def runPrepareSpecFileScripts(self,aCommand,commanddir):
++        self.__prepareSpecFileScriptList.runScripts(aCommand,commanddir)
++
++        
+
+Modified: trunk/tools/pydar2/pydar/targetlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/targetlist.py	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/pydar/targetlist.py	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -32,6 +32,12 @@
+             if i.getName() == name:
+                 return i
+         return None
++    
++    def getTargetById(self,id):
++        for i in self.__targets:
++            if i.getId() == id:
++                return i
++        return None
+         
+     def addTarget(self, newTarget):
+         self.__targets.append(newTarget)
+
+Modified: trunk/tools/pydar2/sql/svncheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/svncheck.sql	2005-04-24 13:34:16 UTC (rev 3158)
++++ trunk/tools/pydar2/sql/svncheck.sql	2005-04-25 19:21:54 UTC (rev 3159)
+@@ -45,26 +45,27 @@
+ create index pydar2_specfile_v__both on pydar2_specfile_version(specfileid,version);
+ 
+ 
+-create table pydar2_distro (
+-    id          integer unique not null default nextval('pydar2_specfile_idseq'),
++create table pydar2_distroarch (
++    id          integer unique not null default nextval('pydar2_distroarch_idseq'),
+     name        varchar(512) unique not null,
+-    code        varchar(10) unique not null,
++    distroarchtag        varchar(200) unique not null,
+     defines     varchar(512) not null,
+     disabled    boolean not null default '0'
+ );  
+ 
+-insert into pydar2_distro (name,code,defines) values ('Fedora Core 3','fc3',' --define &quot;fc3 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Fedora Core 2','fc2',' --define &quot;fc2 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Fedora Core 1','fc1',' --define &quot;fc1 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat 9','rh9',' --define &quot;rh9 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat 8','rh8',' --define &quot;rh8 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat 7','rh7',' --define &quot;rh7 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat 6','rh6',' --define &quot;rh6 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat 6.2','rh62',' --define &quot;rh62 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat Enterprise Linux 4','el4',' --define &quot;el4 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat Enterprise Linux 3','el3',' --define &quot;el3 1&quot;');
+-insert into pydar2_distro (name,code,defines) values ('Red Hat Enterprise Linux 2','el2',' --define &quot;el2 1&quot;');
++create sequence pydar2_distroarch_idseq;
+ 
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('fc3-i386','Fedora Core 3 i386',' --define &quot;fc3 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('fc2-i386','Fedora Core 2 i386',' --define &quot;fc2 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('fc1-i386','Fedora Core 1 i386',' --define &quot;fc1 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('rh9-i386','Red Hat 9 i386',' --define &quot;rh9 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('rh8-i386','Red Hat 8 i386',' --define &quot;rh8 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('rh7-i386','Red Hat 7 i386',' --define &quot;rh7 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('rh6-i386','Red Hat 6 i386',' --define &quot;rh6 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('el4-i386','Red Hat Enterprise Linux 4',' --define &quot;el4 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('el3-i386','Red Hat Enterprise Linux 3',' --define &quot;el3 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('el2-i386','Red Hat Enterprise Linux 2',' --define &quot;el2 1&quot;');
++
+ create table pydar2_specfile_tags (
+ 	specfileid	integer not null,
+ 	version	integer not null,
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001960.html">[svn] r3158 - in trunk/tools/pydar2: . pydar sql
+</A></li>
+	<LI>Next message: <A HREF="001962.html">[svn] r3160 - in trunk/rpms: perl-Audio-ESD perl-CGI-WML	perl-Compress-Bzip2 perl-Compress-LZO	perl-Crypt-OpenSSL-Random perl-Crypt-PassGen perl-DBD-Chart	perl-DBD-SQLite perl-DBIx-Recordset perl-Guile perl-Tk-HTML	perl-XML-SimpleObject
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1961">[ date ]</a>
+              <a href="thread.html#1961">[ thread ]</a>
+              <a href="subject.html#1961">[ subject ]</a>
+              <a href="author.html#1961">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

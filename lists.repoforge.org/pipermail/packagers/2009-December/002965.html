@@ -1,0 +1,130 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] autobuilding assumptions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20autobuilding%20assumptions&In-Reply-To=%3C4B2F6151.8010506%40karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002957.html">
+   <LINK REL="Next"  HREF="002967.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] autobuilding assumptions</H1>
+    <B>Karanbir Singh</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20autobuilding%20assumptions&In-Reply-To=%3C4B2F6151.8010506%40karan.org%3E"
+       TITLE="[packagers] autobuilding assumptions">mail-lists at karan.org
+       </A><BR>
+    <I>Mon Dec 21 12:51:45 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002957.html">[packagers] conceptualisation around the idea of a repository
+</A></li>
+        <LI>Next message: <A HREF="002967.html">[packagers] autobuilding assumptions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2965">[ date ]</a>
+              <a href="thread.html#2965">[ thread ]</a>
+              <a href="subject.html#2965">[ subject ]</a>
+              <a href="author.html#2965">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>hi guys,
+
+I've done some of the work required to have auto-builds work. There are 
+a couple of assumptions ( or rules ? ) that we would need to work with here.
+
+a) all packages are built from svn. So there is a svn-watch script that 
+I've got running, that checks for new commits and triggers builds from 
+there. Initially I did this a sa svn-post-commit hook, but that causes 
+some other interesting problems like ownership and acls so its better 
+for this setup to just use a watcher script
+
+b) all files checked into that package dir in svn are put in the 
+SOURCES: dir
+
+c) all missing sources and patches are retrieved, using the url 
+specified in the spec, and added to a local 'cache'. I will make this 
+cache available over http from the machine as well.
+
+d) everyone who dies a commit is required to have an email address where 
+they want build-reports emailed.
+
+e) buildreports are also archieved locally into a tarball that contains 
+the mock log, yum log, build stdout, build stderr.
+
+f) there will be a 'rolling repo' setup, which basically means that you 
+can submit something to build, wait for it to get done, and then build 
+something else that Requires: the first build. Becuase there are more 
+than 1 builder threads, you need to wait for the first one to finish 
+before firing off the second one.
+
+g) There are 4 builder threads at the moment, should we need more I will 
+also add in the 2 threads I use for my own builds, taking it to 6 
+builds. The buildroots are built in tmpfs, so they are *really* quick.
+
+h) The configs used for the builds are identical to whats used for 
+CentOS--3, 4 and 5. The flip side is that hey have not been 'rpmforgeised'.
+
+So, there are a few things over and above this that also need 
+addressing. We can have multiple spec files in a single commit, the 
+'watcher' script will just fire off each of them to build - however, its 
+no longer possible then to identify a build and associate that with a 
+commit id. To me, thats a big deal since it means thats one bit of 
+metadata that comes for free. Not sure what / how other people feel 
+about this - but it might be worth agreeing to something as 'best practice'.
+
+Another thing is that buildroots are restricted to 1 GB each, are there 
+many pkgs built in rpmforge that need a larger buildroot allocation ? 
+are we building OOo (!) :)
+
+We need a mechanism to ensure that sources got over the wire are what we 
+expect them to be ( so perhaps store the sha1sum in a text file parallel 
+to the .spec ? perhaps use the same name as the &lt;name&gt;.spec but name it 
+&lt;name&gt;.sources ( what I do for myself at the moment ) or something similar ?
+
+Because of this work done, its also not a big deal to have some level of 
+private repo's: that work from src.rpm's over rsync. Basically allowing 
+people to rsync a src.rpm over to the buildsys and have it run its 
+build. This might be ok to use as a one-off or a test-thing, but as a 
+regular run I would much prefer if all builds came via the svn route.
+
+Finally, the whole stack runs over ipv6. The builder threads have no 
+internet access, and the Xen instances that host them are rebuilt every 
+12 hrs ( not tested as yet, but I'm working on it - as time permits - 
+through this week )
+
+I'll also be documenting the whole setup, so as to not become a single 
+point of failure. Fabian has already, perhaps unknowingly, volunteered 
+to help in case things break and I am not around.
+
+-- 
+Karanbir Singh
+London, UK        | <A HREF="http://www.karan.org/">http://www.karan.org/</A> | twitter.com/kbsingh
+ICQ: 2522219      | Yahoo IM: z00dax      | Gtalk: z00dax
+GnuPG Key : <A HREF="http://www.karan.org/publickey.asc">http://www.karan.org/publickey.asc</A>
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002957.html">[packagers] conceptualisation around the idea of a repository
+</A></li>
+	<LI>Next message: <A HREF="002967.html">[packagers] autobuilding assumptions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2965">[ date ]</a>
+              <a href="thread.html#2965">[ thread ]</a>
+              <a href="subject.html#2965">[ subject ]</a>
+              <a href="author.html#2965">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

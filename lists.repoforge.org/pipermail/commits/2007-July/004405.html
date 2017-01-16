@@ -1,0 +1,302 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5606 - in trunk/tools: . wascii
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5606%20-%20in%20trunk/tools%3A%20.%20wascii&In-Reply-To=%3C20070713070427.B1AD0944BCF%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004404.html">
+   <LINK REL="Next"  HREF="004406.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5606 - in trunk/tools: . wascii</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5606%20-%20in%20trunk/tools%3A%20.%20wascii&In-Reply-To=%3C20070713070427.B1AD0944BCF%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5606 - in trunk/tools: . wascii">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jul 13 09:04:27 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004404.html">[svn] r5605 - in trunk/rpms: . phpMyAdmin
+</A></li>
+        <LI>Next message: <A HREF="004406.html">[svn] r5607 - trunk/tools/wascii
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4405">[ date ]</a>
+              <a href="thread.html#4405">[ thread ]</a>
+              <a href="subject.html#4405">[ subject ]</a>
+              <a href="author.html#4405">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-07-13 09:04:26 +0200 (Fri, 13 Jul 2007)
+New Revision: 5606
+
+Added:
+   trunk/tools/wascii/
+   trunk/tools/wascii/AUTHORS
+   trunk/tools/wascii/ChangeLog
+   trunk/tools/wascii/README
+   trunk/tools/wascii/TODO
+   trunk/tools/wascii/wascii.php
+Log:
+Initial import of wascii.
+
+Added: trunk/tools/wascii/AUTHORS
+===================================================================
+
+Added: trunk/tools/wascii/ChangeLog
+===================================================================
+--- trunk/tools/wascii/ChangeLog	                        (rev 0)
++++ trunk/tools/wascii/ChangeLog	2007-07-13 07:04:26 UTC (rev 5606)
+@@ -0,0 +1,8 @@
++* Thu Jul 12 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++- Added Content-Disposition header.
++- Replaced hardcoded /wascii/ by dynamic $apache_alias.
++- Don't use dirname for $apache_alias so it works with /wascii.php.
++
++* Wed Jul 11 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++- Create .subversion on the fly.
++- Initial public release.
+
+Added: trunk/tools/wascii/README
+===================================================================
+--- trunk/tools/wascii/README	                        (rev 0)
++++ trunk/tools/wascii/README	2007-07-13 07:04:26 UTC (rev 5606)
+@@ -0,0 +1,7 @@
++wascii - Web frontend for AsciiDoc documentation repository
++
++WAscii is a web frontend intended to display an AsciiDoc documentation
++repository. It allows to search and browse your documentation files and
++automatically converts AsciiDoc to HTML, PDF and ODF documents. It is
++intended to work directly from a subversion repository containing your
++AsciiDoc files.
+
+Added: trunk/tools/wascii/TODO
+===================================================================
+--- trunk/tools/wascii/TODO	                        (rev 0)
++++ trunk/tools/wascii/TODO	2007-07-13 07:04:26 UTC (rev 5606)
+@@ -0,0 +1,12 @@
++### Backend support
+++ Allow for other backends like filesystem, git, mercurial, cvs
++
++### Repositories
+++ Allow to configure more than one repository (much like viewvc)
++
++### Document support
+++ Add support for converting other documents (eg. doc, tex, xls)
+++ Add XSL support to change document look to corporate standards
++
++### Main features
+++ Search capabilities
+
+Added: trunk/tools/wascii/wascii.php
+===================================================================
+--- trunk/tools/wascii/wascii.php	                        (rev 0)
++++ trunk/tools/wascii/wascii.php	2007-07-13 07:04:26 UTC (rev 5606)
+@@ -0,0 +1,178 @@
++&lt;?php
++### WAscii is a Web frontend for an AsciiDoc documentation repository
++
++### You can define your subversion repository locally, over http or over ssh
++$svn = &quot;<A HREF="file:///srv/svn/shelf/documentation">file:///srv/svn/shelf/documentation</A>&quot;;
++#$svn = &quot;<A HREF="http://protput/shelf/documentation">http://protput/shelf/documentation</A>&quot;;
++
++### Author information
++$author = &quot;IT Operations&quot;;
++$email = &quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">eit at punchtelematix</A>&quot;;
++
++ini_set(&quot;display_errors&quot;, &quot;1&quot;);
++#ini_set(&quot;display_startup_errors&quot;, &quot;1&quot;);
++ini_set(&quot;html_errors&quot;, &quot;0&quot;);
++#ini_set(&quot;track_errors&quot;, &quot;1&quot;);
++ini_set(&quot;log_errors&quot;, &quot;0&quot;);
++ini_set(&quot;error_reporting&quot;, &quot;E_ALL|E_PARSE|E_STRICT&quot;);
++error_reporting(E_ALL|E_PARSE|E_STRICT|E_COMPILE_ERROR|E_ERROR|E_CORE_ERROR);
++
++### Apache alias
++$script_name = $_SERVER['SCRIPT_NAME'];
++if (basename($script_name) == &quot;index.php&quot;)
++    $script_name = dirname($_SERVER['SCRIPT_NAME']);
++$script_dir = dirname($_SERVER['SCRIPT_NAME']);
++
++### Get information from svn
++function svn_info($svnpath) {
++    $cwd = getcwd();
++    $svninfo = Array();
++    exec(&quot;svn --config-dir $cwd/.subversion info $svnpath&quot;, $lines);
++    foreach ($lines as $line) {
++        $l = explode(':', $line, 2);
++        if (count($l) &gt;= 2)
++            $svninfo[$l[0]] = $l[1];
++    }
++    return $svninfo;
++}
++
++### Create temporary directory name
++function tempdir($dir, $prefix='', $mode=0700) {
++    if (substr($dir, -1) != '/') $dir .= '/';
++
++    do $path = $dir.$prefix.mt_rand(0, 9999999);
++    while (!mkdir($path, $mode));
++
++    return $path;
++  }
++
++if (empty($_REQUEST['path'])) $_REQUEST['path'] = '';
++if (empty($_REQUEST['to'])) $_REQUEST['to'] = 'html';
++
++### Convert local paths
++$cwd = getcwd();
++$svnbase = strtr($svn, &quot;:/&quot;, &quot;--&quot;);
++$svnpath = &quot;$cwd/$svnbase&quot;;
++
++#mkdir(&quot;$cwd/.subversion&quot;);
++
++$path = &quot;$svnpath/$_REQUEST[path]&quot;;
++
++### Check out from SVN if required
++if (!is_dir($svnpath))
++	system(&quot;svn -q --config-dir $cwd/.subversion co $svn $svnpath 2&gt;&amp;1&quot;);
++
++if (!is_dir($svnpath))
++    print &quot;&lt;b&gt;Error checking out subversion.&lt;/b&gt;&lt;br&gt;&quot;;
++
++### Update from SVN always
++system(&quot;svn -q --config-dir $cwd/.subversion up $path 2&gt;&amp;1&quot;);
++
++### Show directory index if directory
++if (is_dir($path)) {
++    $svninfo = svn_info($svnpath);
++?&gt;
++&lt;!DOCTYPE html PUBLIC &quot;-//W3C//DTD XHTML 1.1//EN&quot;
++    &quot;<A HREF="http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd</A>&quot;&gt;
++&lt;html xmlns=&quot;<A HREF="http://www.w3.org/1999/xhtml">http://www.w3.org/1999/xhtml</A>&quot; xml:lang=&quot;en&quot;&gt;
++&lt;head&gt;
++&lt;meta http-equiv=&quot;Content-Type&quot; content=&quot;text/html; charset=UTF-8&quot; /&gt;
++&lt;meta name=&quot;generator&quot; content=&quot;AsciiDoc 8.2.1&quot; /&gt;
++&lt;style type=&quot;text/css&quot;&gt;
++&lt;?php readfile('/usr/share/asciidoc/stylesheets/xhtml11.css')?&gt;
++&lt;/style&gt;
++&lt;title&gt;Punch Telematix: Documentation Index&lt;/title&gt;
++&lt;/head&gt;
++&lt;body&gt;
++&lt;div id=&quot;header&quot;&gt;
++&lt;h1&gt;Punch Telematix: Documentation Index&lt;/h1&gt;
++&lt;span id=&quot;author&quot;&gt;&lt;?php echo $author?&gt;&lt;/span&gt;&lt;br /&gt;
++&lt;span id=&quot;email&quot;&gt;&lt;tt&gt;&amp;lt;&lt;a href=&quot;&lt;?php echo $email?&gt;&quot;&gt;&lt;?php echo $email?&gt;&lt;/a&gt;&amp;gt;&lt;/tt&gt;&lt;/span&gt;&lt;br /&gt;
++
++&lt;?php
++	print &quot;&lt;div id=\&quot;toc\&quot;&gt;\n&quot;;
++	print &quot;&lt;div id=\&quot;toctitle\&quot;&gt;Table Of Contents ($_REQUEST[path]/)&lt;/div&gt;\n&quot;;
++	$files = scandir(&quot;$path/&quot;);
++	foreach ($files as $filename)
++		if ($filename == '.' or $filename == '..' or $filename == '.svn')
++			continue;
++		elseif (is_dir(&quot;$path/$filename&quot;))
++			print &quot;&lt;b&gt;&lt;a href=\&quot;$script_name?path=$_REQUEST[path]/$filename\&quot;&gt;$filename/&lt;/a&gt;&lt;/b&gt;&lt;br&gt;\n&quot;;
++        elseif (is_file(&quot;$path/$filename&quot;) and preg_match('/\.txt$/', &quot;$path/$filename&quot;)) {
++			print &quot;&lt;a href=\&quot;$script_name?path=$_REQUEST[path]/$filename\&quot;&gt;$filename&lt;/a&gt;\n&quot;;
++			print &quot; &lt;small&gt;(&lt;a href=\&quot;$script_name?path=$_REQUEST[path]/$filename&amp;to=pdf\&quot;&gt;PDF&lt;/a&gt;)&lt;/small&gt;\n&quot;;
++			print &quot; &lt;small&gt;(&lt;a href=\&quot;$script_name?path=$_REQUEST[path]/$filename&amp;to=odt\&quot;&gt;ODF&lt;/a&gt;)&lt;/small&gt;\n&quot;;
++            if ($filename != $files[count($files)-1])
++                print &quot;&lt;br&gt;\n&quot;;
++        } elseif (is_file(&quot;$path/$filename&quot;) and preg_match('/\.(htm|html|pdf|odt)$/', &quot;$path/$filename&quot;)) {
++			print &quot;&lt;a href=\&quot;$script_name?path=$_REQUEST[path]/$filename\&quot;&gt;$filename&lt;/a&gt;&lt;br&gt;\n&quot;;
++        }
++#		else
++#			print &quot;$filename&lt;br&gt;\n&quot;;
++	print &quot;&lt;/div&gt;\n&quot;;
++	print &quot;&lt;/div&gt;\n&quot;;
++?&gt;
++&lt;div id=&quot;preamble&quot;&gt;
++&lt;div class=&quot;sectionbody&quot;&gt;
++&lt;p&gt;This is an overview of the documentation that currently resides in the subversion repository located at &lt;a href=&quot;&lt;?php echo $svn?&gt;&quot;&gt;&lt;?php echo $svn?&gt;&lt;/a&gt; currently at &lt;b&gt;revision &lt;?php echo $svninfo[&quot;Revision&quot;]?&gt;&lt;/b&gt;.&lt;/p&gt;
++&lt;/div&gt;
++&lt;/div&gt;
++&lt;div id=&quot;footer&quot;&gt;
++&lt;div id=&quot;footer-text&quot;&gt;
++Last updated &lt;?php echo $svninfo['Last Changed Date']?&gt;
++&lt;/div&gt;
++&lt;/div&gt;
++&lt;/body&gt;
++&lt;/html&gt;
++&lt;?php
++} elseif (is_file($path) and preg_match('/\.txt$/', $path)) {
++    if ($_REQUEST['to'] == 'pdf') {
++        $tempdir = tempdir('/tmp', 'phpdoc');
++        $output = shell_exec(&quot;/usr/bin/a2x -f pdf --icons --icons-dir=../icons/ -d article -D $tempdir/ $path 2&gt;&amp;1&quot;);
++        $tempbase = basename($path, &quot;.txt&quot;).&quot;.pdf&quot;;
++        $tempfile = &quot;$tempdir/$tempbase&quot;;
++        if (is_file($tempfile)) {
++            header(&quot;Content-type: application/pdf&quot;);
++            header(&quot;Content-Disposition: attachment; filename=\&quot;$tempbase\&quot;&quot;);
++            readfile($tempfile);
++        } else {
++            print &quot;Error: File could not be converted. Possibly syntax error.&lt;br&gt;\n&quot;;
++            print &quot;&lt;pre&gt;$output&lt;/pre&gt;&quot;;
++        }
++    } elseif ($_REQUEST['to'] == 'odt') {
++        $tempdir = tempdir('/tmp', 'phpdoc');
++        $output = system(&quot;/usr/bin/a2x -f odt --icons --icons-dir=../icons/ -d article -D $tempdir/ $path 2&gt;&amp;1&quot;);
++        $tempbase = basename($path, &quot;.txt&quot;).&quot;.odt&quot;;
++        $tempfile = &quot;$tempdir/$tempbase&quot;;
++        if (is_file($tempfile)) {
++            header(&quot;Content-type: application/vnd.oasis.opendocument.text&quot;);
++            header(&quot;Content-Disposition: attachment; filename=\&quot;$tempbase\&quot;&quot;);
++            readfile($tempfile);
++        } else {
++            print &quot;Error: File could not be converted. Possibly syntax error.&lt;br&gt;\n&quot;;
++            print &quot;&lt;pre&gt;$output&lt;/pre&gt;&quot;;
++        }
++    } else {
++    	passthru(&quot;asciidoc -b xhtml11 -a toc -a toclevels=2 -a icons -a iconsdir=$script_dir/icons/ -d article -o- $path&quot;);
++    }
++} elseif (is_file($path) and preg_match('/\.(htm|html)$/', $path)) {
++	readfile($path);
++} elseif (is_file($path) and preg_match('/\.pdf$/', $path)) {
++    $tempbase = basename($path);
++    header(&quot;Content-type: application/pdf&quot;);
++    header(&quot;Content-Disposition: attachment; filename=\&quot;$tempbase\&quot;&quot;);
++    readfile($path);
++} elseif (is_file($path) and preg_match('/\.odt$/', $path)) {
++    $tempbase = basename($path);
++    header(&quot;Content-type: application/vnd.oasis.opendocument.text&quot;);
++    header(&quot;Content-Disposition: attachment; filename=\&quot;$tempbase\&quot;&quot;);
++    readfile($path);
++} elseif (is_file($path)) {
++	print &quot;File '$_REQUEST[path]' can not be displayed.&quot;;
++} elseif (is_dir($path)) {
++	print &quot;Directory '$_REQUEST[path]/' is missing.&quot;;
++} else {
++    print &quot;Unknown error.&quot;;
++}
++
++?&gt;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004404.html">[svn] r5605 - in trunk/rpms: . phpMyAdmin
+</A></li>
+	<LI>Next message: <A HREF="004406.html">[svn] r5607 - trunk/tools/wascii
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4405">[ date ]</a>
+              <a href="thread.html#4405">[ thread ]</a>
+              <a href="subject.html#4405">[ subject ]</a>
+              <a href="author.html#4405">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

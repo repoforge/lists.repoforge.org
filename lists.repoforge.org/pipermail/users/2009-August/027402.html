@@ -1,0 +1,254 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] Re: users Digest, Vol 52, Issue 9
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Re%3A%20users%20Digest%2C%20Vol%2052%2C%20Issue%209&In-Reply-To=%3C7ed6b0aa0908142139v26a2954tb6b33cacc8712c6e%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="027403.html">
+   <LINK REL="Next"  HREF="027404.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] Re: users Digest, Vol 52, Issue 9</H1>
+    <B>Indunil Jayasooriya</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Re%3A%20users%20Digest%2C%20Vol%2052%2C%20Issue%209&In-Reply-To=%3C7ed6b0aa0908142139v26a2954tb6b33cacc8712c6e%40mail.gmail.com%3E"
+       TITLE="[users] Re: users Digest, Vol 52, Issue 9">indunil75 at gmail.com
+       </A><BR>
+    <I>Sat Aug 15 06:39:56 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="027403.html">[users] Re: Seg faults with rpmforge sarg.
+</A></li>
+        <LI>Next message: <A HREF="027404.html">[users] Infiltration of perl-Test-Mock-LWP
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27402">[ date ]</a>
+              <a href="thread.html#27402">[ thread ]</a>
+              <a href="subject.html#27402">[ subject ]</a>
+              <a href="author.html#27402">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>&gt;&gt;&gt;<i> I get below output, when I try to generate sarg reports. &#160;I seache a
+</I>&gt;&gt;&gt;<i> lot in the web. many people have come acroos it. But, I still NOT be
+</I>&gt;&gt;&gt;<i> able to find the answer to it.
+</I>&gt;&gt;&gt;<i>
+</I>&gt;&gt;&gt;<i> I hope u will help
+</I>
+
+I also once submitted this issue. But, I also got no any answer. I
+finally myself solved it by rewriting scripts and modifying sarg.conf
+files.
+
+
+here are steps I DID. It worked perfectly well in a production Server.
+
+
+here are my sarg crontabs with permissions.
+
+# ls -al /etc/cron.d/sarg
+-rw-r--r-- 1 root root 114 Mar 23 11:27 /etc/cron.d/sarg
+
+# ls -al /etc/cron.daily/sarg
+-rwxr-xr-x 1 root root 200 Jul 18 12:15 /etc/cron.daily/sarg
+
+# ls -al /etc/cron.weekly/sarg
+-rwxr-xr-x 1 root root 807 Jul 18 11:48 /etc/cron.weekly/sarg
+
+# ls -al /etc/cron.monthly/sarg
+-rwxr-xr-x 1 root root 982 Jul 18 11:10 /etc/cron.monthly/sarg
+
+
+
+here are contents of crontab named /etc/cron.d/sarg
+
+# cat /etc/cron.d/sarg
+0 10 * * * root /var/www/sarg/sarg.cron &gt; /dev/null 2&gt;&amp;1
+0 15 * * * root /var/www/sarg/sarg.cron &gt; /dev/null 2&gt;&amp;1
+
+
+
+pls see contents of /var/www/sarg/sarg.cron
+
+
+
+# cat /var/www/sarg/sarg.cron
+
+#!/bin/bash
+cd /var/www/sarg/web-reports
+rm -rf *
+/usr/bin/sarg -z -x -f /etc/sarg/sarg.conf
+
+
+here are contents of  /etc/cron.daily/sarg
+
+# cat /etc/cron.daily/sarg
+#!/bin/bash
+
+# Get yesterday's date
+YESTERDAY=$(date --date &quot;1 days ago&quot; +%d/%m/%Y)
+
+exec /usr/bin/sarg -z -x -f /etc/sarg/sargdaily.conf \
+       -o /var/www/sarg/daily \
+       -d $YESTERDAY &amp;&gt;/dev/null
+exit 0
+
+here are contents of /etc/cron.weekly/sarg
+
+# cat /etc/cron.weekly/sarg
+#!/bin/bash
+#
+#Pls change to the below DIR
+cd /var/log/squid/
+#Then, copy log files as follows
+/bin/cp access.log.1.gz access.log squidweekly/
+#Pls change to Manually generated DIR
+cd squidweekly/
+#Pls gunzip log files
+/bin/gunzip access.log.1.gz
+#Here, I copy as follows
+/bin/cp access.log.1 accessweekly.log
+#Pls change permisions
+/bin/chown squid:squid access.log*
+/bin/chown squid:squid accessweekly.log
+/bin/chmod 640 access.log*
+/bin/chmod 640 accessweekly.log
+#Pls append
+/bin/cat access.log &gt;&gt; accessweekly.log
+#Now, It's time to remove below files.
+/bin/rm -f access.log.1 access.log
+#Pls change back
+cd
+#Here I execute to generate reports
+/usr/bin/sarg -z -x -f /etc/sarg/sargweekly.conf
+#Finally remove , accessweekly.log  as follows
+/bin/rm -f /var/log/squid/squidweekly/accessweekly.log
+
+
+Here are contents of  /etc/cron.monthly/sarg
+
+# cat /etc/cron.monthly/sarg
+#!/bin/bash
+#
+#Pls change to the below DIR
+cd /var/log/squid/
+#Then, copy log files as follows
+/bin/cp access.log* squidmonthly/
+#Pls change to Manually generated DIR
+cd squidmonthly/
+#Pls gunzip log files
+/bin/gunzip access.log.*
+#Here, I copy as follows
+/bin/cp access.log.4 accessmonthly.log
+#Pls change permisions
+/bin/chown squid:squid access.log*
+/bin/chown squid:squid accessmonthly.log
+/bin/chmod 640 access.log*
+/bin/chmod 640 accessmonthly.log
+#Pls append
+/bin/cat access.log.3 &gt;&gt; accessmonthly.log
+/bin/cat access.log.2 &gt;&gt; accessmonthly.log
+/bin/cat access.log.1 &gt;&gt; accessmonthly.log
+/bin/cat access.log &gt;&gt; accessmonthly.log
+#Now, It's time to remove below files.
+/bin/rm -f access.log.5 access.log.4 access.log.3 access.log.2
+access.log.1 access.log
+#Pls change back
+cd
+#Here I execute to generate reports
+/usr/bin/sarg -z -x -f /etc/sarg/sargmonthly.conf
+#Finally remove , accessmonthly.log  as follows
+/bin/rm -f /var/log/squid/squidmonthly/accessmonthly.log
+
+
+
+I have changed bleow 3 lines of  /etc/sarg/sarg.conf files
+
+
+access_log /var/log/squid/access.log
+output_dir /var/www/sarg/web-reports
+report_type topusers topsites sites_users users_sites date_time
+site_user_time_date downloads
+
+I created /etc/sarg/sargdaily.conf (copy of sarg.conf) and changed bleow 3 lines
+
+access_log /var/log/squid/access.log
+output_dir /var/www/sarg/daily
+report_type topusers topsites sites_users users_sites date_time
+site_user_time_date downloads
+
+
+I created /etc/sarg/sargweekly.conf (copy of sarg.conf) and changed
+bleow 3 lines
+
+
+access_log /var/log/squid/squidweekly/accessweekly.log
+output_dir /var/www/sarg/weekly
+report_type topusers topsites sites_users users_sites date_time
+site_user_time_date downloads
+
+
+I created /etc/sarg/sargmonthly.conf (copy of sarg.conf) and changed
+bleow 3 lines
+
+
+access_log /var/log/squid/squidmonthly/accessmonthly.log
+output_dir /var/www/sarg/monthly
+report_type topusers topsites sites_users users_sites date_time
+site_user_time_date downloads
+
+Now, create 2 directries under /var/log/squid where accessweekly.log
+and accessmonthly.log will be kept
+
+
+mkdir /var/log/squid/squidweekly
+mkdir /var/log/squid/squidmonthly
+
+
+Now, execute all scripts one after another as below.
+
+
+# /etc/cron.d/sarg
+
+# /etc/cron.daily/sarg
+
+# /etc/cron.weekly/sarg
+
+# /etc/cron.monthly/sarg
+
+
+
+N-JOY!!!!!!
+
+That's it
+
+
+
+-- 
+Thank you
+Indunil Jayasooriya
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="027403.html">[users] Re: Seg faults with rpmforge sarg.
+</A></li>
+	<LI>Next message: <A HREF="027404.html">[users] Infiltration of perl-Test-Mock-LWP
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27402">[ date ]</a>
+              <a href="thread.html#27402">[ thread ]</a>
+              <a href="subject.html#27402">[ subject ]</a>
+              <a href="author.html#27402">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

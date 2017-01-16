@@ -1,0 +1,275 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9207 - in /trunk/rpms: amavisd-new/amavisd-new.spec perl-NetAddr-IP/perl-NetAddr-IP.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9207%20-%20in%20/trunk/rpms%3A%20amavisd-new/amavisd-new.spec%0A%20perl-NetAddr-IP/perl-NetAddr-IP.spec&In-Reply-To=%3C201010290943.o9T9hkVJ031643%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007990.html">
+   <LINK REL="Next"  HREF="007992.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9207 - in /trunk/rpms: amavisd-new/amavisd-new.spec perl-NetAddr-IP/perl-NetAddr-IP.spec</H1>
+    <B>David Hrbac</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9207%20-%20in%20/trunk/rpms%3A%20amavisd-new/amavisd-new.spec%0A%20perl-NetAddr-IP/perl-NetAddr-IP.spec&In-Reply-To=%3C201010290943.o9T9hkVJ031643%40surya.karan.org%3E"
+       TITLE="[svn] r9207 - in /trunk/rpms: amavisd-new/amavisd-new.spec perl-NetAddr-IP/perl-NetAddr-IP.spec">hrbac.conf at seznam.cz
+       </A><BR>
+    <I>Fri Oct 29 11:43:46 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007990.html">[svn] r9206 - in /trunk/rpms/xenwebmanager: ./ xenwebmanager.spec
+</A></li>
+        <LI>Next message: <A HREF="007992.html">[svn] r9208 -	/trunk/rpms/perl-SQL-Translator/perl-SQL-Translator.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7991">[ date ]</a>
+              <a href="thread.html#7991">[ thread ]</a>
+              <a href="subject.html#7991">[ subject ]</a>
+              <a href="author.html#7991">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: david
+Date: Fri Oct 29 10:43:45 2010
+New Revision: 9207
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9207&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9207&amp;view=rev</A>
+Log:
+perl-NetAddr-IP-4.035
+
+Modified:
+    trunk/rpms/amavisd-new/amavisd-new.spec
+    trunk/rpms/perl-NetAddr-IP/perl-NetAddr-IP.spec
+
+Modified: trunk/rpms/amavisd-new/amavisd-new.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/amavisd-new/amavisd-new.spec?rev=9207&amp;r1=9206&amp;r2=9207&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/amavisd-new/amavisd-new.spec?rev=9207&amp;r1=9206&amp;r2=9207&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/amavisd-new/amavisd-new.spec (original)
++++ trunk/rpms/amavisd-new/amavisd-new.spec Fri Oct 29 10:43:45 2010
+@@ -86,8 +86,29 @@
+ %description milter
+ The Amavisd-new sendmail-milter Daemon
+ 
++%package snmp
++Group:          Applications/System
++Summary:        Exports amavisd SNMP data
++Requires:       %{name} = %{version}-%{release}
++Requires(post): /sbin/chkconfig
++Requires(post): /sbin/service
++Requires(preun): /sbin/chkconfig
++Requires(preun): /sbin/service
++
++%description snmp
++This package contains the program amavisd-snmp-subagent, which can be
++used as a SNMP AgentX, exporting amavisd statistical counters database
++(snmp.db) as well as a child process status database (nanny.db) to a
++SNMP daemon supporting the AgentX protocol (RFC 2741), such as NET-SNMP.
++
++It is similar to combined existing utility programs amavisd-agent and
++amavisd-nanny, but instead of writing results as text to stdout, it
++exports data to a SNMP server running on a host (same or remote), making
++them available to SNMP clients (such a Cacti or mrtg) for monitoring or
++alerting purposes.
++
+ %prep
+-%setup -n amavisd-new-%{version}
++%setup -q -n amavisd-new-%{version}
+ 
+ ### FIXME: Some versions of install fail to change permissions when failing to change ownership. (Please fix upstream)
+ %{__perl} -pi.orig -e 's| -o root | |g' helper-progs/Makefile.in
+@@ -244,6 +265,88 @@
+ exit $RETVAL
+ EOF
+ 
++%{__cat} &lt;&lt;'EOF' &gt;amavisd-snmp.sysv
++#!/bin/bash
++#
++# Init script for amavisd-snmp-subagent
++#
++# Written by David Hrb&#195;&#161;&#196;&#141; &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">david at hrbac.cz</A>&gt;.
++#
++# chkconfig: 2345 79 31
++# description: Exports amavisd SNMP data
++#
++# processname: amavisd-snmp-subagent
++# pidfile: %{_localstatedir}/run/amavisd-snmp-subagent.pid
++
++source %{_initrddir}/functions
++
++[ -x %{_sbindir}/amavisd-snmp-subagent ] || exit 1
++
++### Default variables
++AMAVIS_USER=&quot;amavis&quot;
++SYSCONFIG=&quot;%{_sysconfdir}/sysconfig/amavisd&quot;
++
++### Read configuration
++[ -r &quot;$SYSCONFIG&quot; ] &amp;&amp; source &quot;$SYSCONFIG&quot;
++
++### Backward compatibility
++[ &quot;$AMAVIS_ACCOUNT&quot; ] &amp;&amp; AMAVIS_USER=&quot;$AMAVIS_ACCOUNT&quot;
++
++RETVAL=0
++prog=&quot;amavisd-snmp-subagent&quot;
++
++start() {
++    echo -n $&quot;Starting $prog: &quot;
++    daemon --user &quot;$AMAVIS_USER&quot; %{_sbindir}/$prog
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
++    return $RETVAL
++}
++
++stop() {
++    echo -n $&quot;Shutting down $prog: &quot;
++    killproc $prog
++    RETVAL=$?
++    echo
++    [ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
++    return $RETVAL
++}
++
++restart() {
++    stop
++    start
++}
++
++case &quot;$1&quot; in
++  start)
++    start
++    ;;
++  stop)
++    stop
++    ;;
++  restart)
++    restart
++    ;;
++  reload)
++    restart
++    ;;
++  condrestart)
++    [ -e %{_localstatedir}/lock/subsys/$prog ] &amp;&amp; restart
++    RETVAL=$?
++    ;;
++  status)
++    status $prog
++    RETVAL=$?
++    ;;
++  *)
++    echo $&quot;Usage: $0 {start|stop|restart|reload|condrestart|status}&quot;
++    RETVAL=1
++esac
++
++exit $RETVAL
++EOF
++
+ %build
+ cd helper-progs
+ %configure \
+@@ -275,8 +378,11 @@
+ %{__install} -Dp -m0755 amavisd-agent %{buildroot}%{_sbindir}/amavisd-agent
+ %{__install} -Dp -m0755 amavisd-nanny %{buildroot}%{_sbindir}/amavisd-nanny
+ %{__install} -Dp -m0755 amavisd-release %{buildroot}%{_sbindir}/amavisd-release
++%{__install} -Dp -m0755 amavisd-snmp-subagent %{buildroot}%{_sbindir}/amavisd-snmp-subagent
+ %{__install} -Dp -m0755 p0f-analyzer.pl %{buildroot}%{_sbindir}/p0f-analyzer
+ %{__install} -Dp -m0755 amavisd.sysv %{buildroot}%{_initrddir}/amavisd
++%{__install} -Dp -m0755 amavisd-snmp.sysv %{buildroot}%{_initrddir}/amavisd-snmp
++
+ %{__install} -Dp -m0700 amavisd.conf %{buildroot}%{_sysconfdir}/amavisd.conf
+ %{__install} -Dp -m0644 LDAP.schema %{buildroot}%{_sysconfdir}/openldap/schema/amavisd-new.schema
+ %{__install} -Dp -m0644 amavisd.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/amavisd
+@@ -326,6 +432,12 @@
+     /sbin/chkconfig --del amavisd
+ fi
+ 
++%preun snmp
++if [ &quot;$1&quot; = 0 ]; then
++    /sbin/service amavisd-snmp stop 2&gt;/dev/null || :
++    /sbin/chkconfig --del amavisd-snmp || :
++fi
++
+ %postun
+ if [ $1 -eq 0 ]; then
+     /usr/sbin/userdel amavis || %logmsg &quot;User \&quot;amavis\&quot; could not be deleted.&quot;
+@@ -333,6 +445,10 @@
+ else
+     /sbin/service amavisd condrestart &amp;&gt;/dev/null || :
+ fi
++
++%post snmp
++/sbin/chkconfig --add amavisd-snmp || :
++/sbin/service amavisd-snmp condrestart || :
+ 
+ %files
+ %defattr(-, root, root, 0755)
+@@ -365,10 +481,18 @@
+ %{_sbindir}/amavis
+ %{_sbindir}/amavis-milter
+ 
++%files snmp
++%defattr(-,root,root)
++%attr(755,root,root) %{_initrddir}/amavisd-snmp
++%{_sbindir}/amavisd-snmp-subagent
++
+ %changelog
++* Wed Oct 27 2010 David Hrb&#195;&#161;&#196;&#141; &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">david at hrbac.cz</A>&gt; - 2.6.4-3
++- added snmp sub-package for amavisd-snmp-subagent
++
+ * Sun Jul 19 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.6.4-2
+ - Added p7zip, perl(Digest::SHA), perl(Mail::DKIM) and
+-  perl(Crypt::OpenSSL::RSA) dependencies (Ned Slider, David Hrb&#195;&#161;))
++  perl(Crypt::OpenSSL::RSA) dependencies (Ned Slider, David Hrb&#195;&#161;&#196;&#141;)
+ 
+ * Sun Jul 12 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.6.4-1
+ - Updated to release 2.6.4.
+
+Modified: trunk/rpms/perl-NetAddr-IP/perl-NetAddr-IP.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/perl-NetAddr-IP/perl-NetAddr-IP.spec?rev=9207&amp;r1=9206&amp;r2=9207&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/perl-NetAddr-IP/perl-NetAddr-IP.spec?rev=9207&amp;r1=9206&amp;r2=9207&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/perl-NetAddr-IP/perl-NetAddr-IP.spec (original)
++++ trunk/rpms/perl-NetAddr-IP/perl-NetAddr-IP.spec Fri Oct 29 10:43:45 2010
+@@ -9,7 +9,7 @@
+ 
+ Summary: Manages IPv4 and IPv6 addresses and subnets
+ Name: perl-NetAddr-IP
+-Version: 4.034
++Version: 4.035
+ Release: 1%{?dist}
+ License: Artistic/GPL
+ Group: Applications/CPAN
+@@ -56,6 +56,9 @@
+ %{perl_vendorarch}/auto/NetAddr/IP/
+ 
+ %changelog
++* Fri Oct 29 2010 David Hrb&#195;&#161;&#196;&#141; &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">david at hrbac.cz</A>&gt; - 4.035-1
++- new upstream release
++
+ * Tue Oct 26 2010 David Hrb&#195;&#161;&#196;&#141; &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">david at hrbac.cz</A>&gt; - 4.034-1
+ - new upstream release
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007990.html">[svn] r9206 - in /trunk/rpms/xenwebmanager: ./ xenwebmanager.spec
+</A></li>
+	<LI>Next message: <A HREF="007992.html">[svn] r9208 -	/trunk/rpms/perl-SQL-Translator/perl-SQL-Translator.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7991">[ date ]</a>
+              <a href="thread.html#7991">[ thread ]</a>
+              <a href="subject.html#7991">[ subject ]</a>
+              <a href="author.html#7991">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

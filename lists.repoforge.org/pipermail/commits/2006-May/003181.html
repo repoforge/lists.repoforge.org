@@ -1,0 +1,155 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4381 - in trunk/rpms: lame xvidcore
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4381%20-%20in%20trunk/rpms%3A%20lame%20xvidcore&In-Reply-To=%3C20060517095835.928B8318111%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003180.html">
+   <LINK REL="Next"  HREF="003182.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4381 - in trunk/rpms: lame xvidcore</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4381%20-%20in%20trunk/rpms%3A%20lame%20xvidcore&In-Reply-To=%3C20060517095835.928B8318111%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4381 - in trunk/rpms: lame xvidcore">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed May 17 11:58:35 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003180.html">[svn] r4380 - trunk/rpms/monit
+</A></li>
+        <LI>Next message: <A HREF="003182.html">[svn] r4382 - trunk/web/freshrpms.net/docs/oracle
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3181">[ date ]</a>
+              <a href="thread.html#3181">[ thread ]</a>
+              <a href="subject.html#3181">[ subject ]</a>
+              <a href="author.html#3181">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-05-17 11:58:34 +0200 (Wed, 17 May 2006)
+New Revision: 4381
+
+Modified:
+   trunk/rpms/lame/lame.spec
+   trunk/rpms/xvidcore/xvidcore.spec
+Log:
+Clear executable stack flag bit on lame and xvidcore libraries so that they work with selinux enabled.
+
+
+Modified: trunk/rpms/lame/lame.spec
+===================================================================
+--- trunk/rpms/lame/lame.spec	2006-05-17 00:33:08 UTC (rev 4380)
++++ trunk/rpms/lame/lame.spec	2006-05-17 09:58:34 UTC (rev 4381)
+@@ -5,13 +5,13 @@
+ Summary: LAME Ain't an MP3 Encoder... but it's the best of all
+ Name: lame
+ Version: 3.96.1
+-Release: 4
++Release: 5
+ License: LGPL
+ Group: Applications/Multimedia
+ URL: <A HREF="http://lame.sourceforge.net/">http://lame.sourceforge.net/</A>
+ Source: <A HREF="http://dl.sf.net/lame/lame-%{version">http://dl.sf.net/lame/lame-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-BuildRequires: ncurses-devel, gcc-c++
++BuildRequires: ncurses-devel, gcc-c++, prelink
+ %ifarch %{ix86} x86_64
+ BuildRequires: nasm
+ %endif
+@@ -64,10 +64,14 @@
+ ### Some apps still expect to find &lt;lame.h&gt;
+ %{__ln_s} -f lame/lame.h %{buildroot}%{_includedir}/lame.h
+ 
++### Clean up documentation to be included
+ find doc/html -name &quot;Makefile*&quot; | xargs rm -f
+ %{__rm} -rf %{buildroot}%{_docdir}/lame/
+ 
++### Clear not needed executable stack flag bit
++execstack -c %{buildroot}%{_libdir}/*.so.*.*.* || :
+ 
++
+ %post -p /sbin/ldconfig
+ 
+ %postun -p /sbin/ldconfig
+@@ -93,6 +97,10 @@
+ 
+ 
+ %changelog
++* Wed May 17 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 3.96.1-5
++- Clear not needed executable stack flag bit from the library to make it work
++  with selinux, add prelink build requirement (need to remove for old distros).
++
+ * Fri Mar 17 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 3.96.1-4
+ - Release bump to drop the disttag number in FC5 build.
+ - Disable/remove static lib.
+
+Modified: trunk/rpms/xvidcore/xvidcore.spec
+===================================================================
+--- trunk/rpms/xvidcore/xvidcore.spec	2006-05-17 00:33:08 UTC (rev 4380)
++++ trunk/rpms/xvidcore/xvidcore.spec	2006-05-17 09:58:34 UTC (rev 4381)
+@@ -14,7 +14,7 @@
+ Summary: Free reimplementation of the OpenDivX video codec
+ Name: xvidcore
+ Version: 1.1.0
+-Release: 2%{?prever:.%{prever}}
++Release: 3%{?prever:.%{prever}}
+ License: XviD
+ Group: System Environment/Libraries
+ URL: <A HREF="http://www.xvid.org/">http://www.xvid.org/</A>
+@@ -22,6 +22,7 @@
+ Patch0: xvidcore-1.1.0-verbose-build.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: yasm
++%{!?_without_selinux:BuildRequires: prelink}
+ Provides: lib%{name} = %{version}-%{release}
+ 
+ %description
+@@ -81,6 +82,8 @@
+ popd
+ # Remove unwanted files from the docs
+ %{__rm} -f doc/Makefile
++# Clear executable stack flag bit (should not be needed)
++execstack -c %{buildroot}%{_libdir}/*.so.*.* || :
+ 
+ 
+ %clean
+@@ -107,6 +110,9 @@
+ 
+ 
+ %changelog
++* Wed May 17 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.1.0-3
++- Clear executable stack flag bit from the library (should not be needed).
++
+ * Fri Mar 17 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.1.0-2
+ - Release bump to drop the disttag number in FC5 build.
+ - Note that the execshield/selinux seems to still not be fixed. Help welcome.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003180.html">[svn] r4380 - trunk/rpms/monit
+</A></li>
+	<LI>Next message: <A HREF="003182.html">[svn] r4382 - trunk/web/freshrpms.net/docs/oracle
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3181">[ date ]</a>
+              <a href="thread.html#3181">[ thread ]</a>
+              <a href="subject.html#3181">[ subject ]</a>
+              <a href="author.html#3181">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,233 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6227 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6227%20-%20trunk/tools/dstat&In-Reply-To=%3C200803220942.m2M9gNnH017243%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005025.html">
+   <LINK REL="Next"  HREF="005027.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6227 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6227%20-%20trunk/tools/dstat&In-Reply-To=%3C200803220942.m2M9gNnH017243%40surya.karan.org%3E"
+       TITLE="[svn] r6227 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Mar 22 10:42:23 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005025.html">[svn] r6226 - in trunk/rpms: aria2 ffe kbibtex mathomatic radlib	segatex
+</A></li>
+        <LI>Next message: <A HREF="005027.html">[svn] r6228 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5026">[ date ]</a>
+              <a href="thread.html#5026">[ thread ]</a>
+              <a href="subject.html#5026">[ subject ]</a>
+              <a href="author.html#5026">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-03-22 09:42:23 +0000 (Sat, 22 Mar 2008)
+New Revision: 6227
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Changes in time reporting. Fix division by zero. Warn when loosing ticks.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-03-19 16:52:52 UTC (rev 6226)
++++ trunk/tools/dstat/ChangeLog	2008-03-22 09:42:23 UTC (rev 6227)
+@@ -7,6 +7,10 @@
+ - Added external dstat_snooze plugin (Kelly Long)
+ - Improved dstat_time to accept format string from DSTAT_TIMEFMT (Kelly Long)
+ - Added --pidfile option to write out a pidfile (Kelly Long)
++- dstat_epoch and dstat_time now display starttime, not execution time of plugin
++- Fix division by zero problem
++- Warn when loosing ticks (buffering problems or vmware time sync errors)
++- 
+ 
+ * 0.6.7 - Cambridge overdue - released 26/02/2008
+ - Only rewrite xterm title when XTERM_SHELL is set to bash
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-03-19 16:52:52 UTC (rev 6226)
++++ trunk/tools/dstat/dstat	2008-03-22 09:42:23 UTC (rev 6227)
+@@ -516,7 +516,10 @@
+                     self.cn2[name] = ( long(l[1]) + long(l[2]), long(l[3]), long(l[4]), long(l[5]), long(l[6]), long(l[7]) )
+         for name in self.vars:
+             for i in range(6):
+-                self.val[name][i] = 100.0 * (self.cn2[name][i] - self.cn1[name][i]) / (sum(self.cn2[name]) - sum(self.cn1[name]))
++                if sum(self.cn2[name]) &gt; sum(self.cn1[name]):
++                    self.val[name][i] = 100.0 * (self.cn2[name][i] - self.cn1[name][i]) / (sum(self.cn2[name]) - sum(self.cn1[name]))
++                else:
++                    print &gt;&gt;sys.stderr, &quot;Error: tick problem detected, this should never happen !&quot;
+         if step == op.delay:
+             self.cn1.update(self.cn2)
+ 
+@@ -795,8 +798,10 @@
+         self.vars = self.nick
+         self.init(self.vars, 1)
+ 
++    ### We are now using the starttime instead of the execution time of this plugin
+     def extract(self):
+-        self.val['epoch'] = time.time()
++#        self.val['epoch'] = time.time()
++        self.val['epoch'] = starttime
+ 
+ #   def show(self):
+ #       return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
+@@ -1291,13 +1296,14 @@
+         self.vars = ('time',)
+         self.init(self.vars, 1)
+ 
++    ### We are now using the starttime for this plugin, not the execution time of this plugin
+     def extract(self):
+         if self.timefmt:
+-            self.val['time'] = time.strftime(self.timefmt, time.localtime())
++            self.val['time'] = time.strftime(self.timefmt, time.localtime(starttime))
+         elif op.debug:
+-            self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime()) + &quot;.%03d&quot; % (time.time() * 1000 % 1000 )
++            self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime(starttime)) + &quot;.%03d&quot; % (round(starttime * 1000 % 1000 ))
+         else:
+-            self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime())
++            self.val['time'] = time.strftime('%d-%m %H:%M:%S', time.localtime(starttime))
+ 
+     def show(self):
+         if step == op.delay:
+@@ -1790,12 +1796,10 @@
+         print
+ 
+ def main():
+-    global update, loop, step, pagesize, cpunr, ansi, interval, outputfile
++    global pagesize, cpunr, ansi, outputfile
+     global totlist, tickbefore, now
++    global interval, update, missed
+ 
+-    loop = update = 0
+-    step = op.delay
+-
+     pagesize = resource.getpagesize()
+     cpunr = getcpunr()
+     interval = 1
+@@ -1931,21 +1935,28 @@
+     scheduler = sched.scheduler(time.time, time.sleep)
+     now = tickbefore = time.time()
+ 
++#    loop = 0
++    update = -1
++#    step = op.delay
++    missed = 0
++
+     ### Let the games begin
+     while update &lt;= op.delay * op.count or op.count == -1:
+-        scheduler.enterabs(now + update, 1, perform, ())
++        scheduler.enterabs(now + update + 1, 1, perform, ())
+         scheduler.run()
+ 
+-        update = update + interval
++#        update = update + interval
+ 
+     if op.update:
+         sys.stdout.write('\n')
+ 
+ def perform():
+         global totlist, oldvislist, vislist, showheader, rows, cols
+-        global tick, tickbefore, totaltime
+-        global loop, step, update
++        global tick, tickbefore, totaltime, starttime
++        global loop, step, update, missed
+ 
++        update = update + 1
++
+         loop = (update - 1 + op.delay) / op.delay
+         step = ((update - 1) % op.delay) + 1
+ 
+@@ -1958,6 +1969,12 @@
+                 totaltime = 0
+             curwidth = 8
+ 
++        ### FIXME: This is temporary functionality, we should do this better
++        ### If it takes longer than 500ms, than warn !
++        if starttime - now - update &gt; 1:
++            missed = missed + 1
++            return 0
++
+         ### Initialise certain variables
+         if loop == 0:
+             tick = ticks()
+@@ -1967,13 +1984,6 @@
+         else:
+             tick = step
+ 
+-        ### The first step is to show the definitive line if necessary
+-        if op.update:
+-            if step == 1 and update != 0:
+-                sys.stdout.write('\n' + ansi['reset'] + ansi['clearline'] + ansi['save'])
+-            else:
+-                sys.stdout.write(ansi['restore'])
+-
+         ### FIXME: Make this part smarter
+         if sys.stdout.isatty():
+             oldrows, oldcols = rows, cols
+@@ -1999,6 +2009,13 @@
+         else:
+             vislist = totlist
+ 
++        ### The first step is to show the definitive line if necessary
++        if op.update:
++            if step == 1 and update != 0:
++                sys.stdout.write('\n' + ansi['reset'] + ansi['clearline'] + ansi['save'])
++            else:
++                sys.stdout.write(ansi['restore'])
++
+         ### Display header
+         if showheader:
+             if loop == 0 and totlist != vislist:
+@@ -2037,10 +2054,10 @@
+             elif op.debug &gt; 1:
+                 sys.stdout.write('%s%6.2f %s%d:%d:%d%s' % (ansi['darkblue'], totaltime / step, ansi['darkred'], loop, step, update, ansi['default']))
+ 
+-        ### FIXME: This is temporary functionality, we should do this better
+-        ### If it takes longer than 500ms, than warn !
+-        if time.time() - now - update &gt; 1:
+-            sys.stdout.write(' '+ansi['redbg']+ansi['white']+'= warn =')
++        if missed &gt; 0:
++#            sys.stdout.write(' '+ansi['redbg']+ansi['white']+'= warn =')
++            sys.stdout.write(' '+ansi['redbg']+ansi['white']+'missed '+str(missed+1)+' ticks')
++            missed = 0
+ 
+         ### Finish the line
+         if not op.update:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005025.html">[svn] r6226 - in trunk/rpms: aria2 ffe kbibtex mathomatic radlib	segatex
+</A></li>
+	<LI>Next message: <A HREF="005027.html">[svn] r6228 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5026">[ date ]</a>
+              <a href="thread.html#5026">[ thread ]</a>
+              <a href="subject.html#5026">[ subject ]</a>
+              <a href="author.html#5026">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

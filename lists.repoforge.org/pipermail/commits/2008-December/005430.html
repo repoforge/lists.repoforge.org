@@ -1,0 +1,1800 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6631 - in trunk/rpms: . sudo
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6631%20-%20in%20trunk/rpms%3A%20.%20sudo&In-Reply-To=%3C200812291628.mBTGSROB032077%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005429.html">
+   <LINK REL="Next"  HREF="005431.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6631 - in trunk/rpms: . sudo</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6631%20-%20in%20trunk/rpms%3A%20.%20sudo&In-Reply-To=%3C200812291628.mBTGSROB032077%40surya.karan.org%3E"
+       TITLE="[svn] r6631 - in trunk/rpms: . sudo">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Dec 29 17:28:27 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005429.html">[svn] r6630 - in trunk/rpms: . djvulibre dvd95 gnutls gwenview ming	poedit python-bsddb3 python-kid python-osd xdelta
+</A></li>
+        <LI>Next message: <A HREF="005431.html">[svn] r6632 - trunk/rpms/ndoutils
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5430">[ date ]</a>
+              <a href="thread.html#5430">[ thread ]</a>
+              <a href="subject.html#5430">[ subject ]</a>
+              <a href="author.html#5430">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-12-29 16:28:26 +0000 (Mon, 29 Dec 2008)
+New Revision: 6631
+
+Added:
+   trunk/rpms/sudo/
+   trunk/rpms/sudo/sudo-1.6.7p5-strip.patch
+   trunk/rpms/sudo/sudo-1.6.8p12-audit.patch
+   trunk/rpms/sudo/sudo-1.6.8p12-env-reset.patch
+   trunk/rpms/sudo/sudo-1.6.8p12-ipv6.patch
+   trunk/rpms/sudo/sudo-1.6.8p12-pam-login.patch
+   trunk/rpms/sudo/sudo-1.6.8p12-requiretty.patch
+   trunk/rpms/sudo/sudo-1.6.8p12-s390.patch
+   trunk/rpms/sudo/sudo-1.6.8p12-sudoers
+   trunk/rpms/sudo/sudo-1.6.8p8-pam-sess.patch
+   trunk/rpms/sudo/sudo.spec
+Log:
+Added newer sudo to test.
+
+Added: trunk/rpms/sudo/sudo-1.6.7p5-strip.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.7p5-strip.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.7p5-strip.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,11 @@
++--- sudo-1.6.7p5/install-sh.strip	2005-07-21 14:28:25.000000000 +0200
+++++ sudo-1.6.7p5/install-sh	2005-07-21 14:29:18.000000000 +0200
++@@ -138,7 +138,7 @@
++ 	fi
++ 	;;
++     X-s)
++-	STRIPIT=true
+++	#STRIPIT=true
++ 	;;
++     X--)
++ 	shift
+
+Added: trunk/rpms/sudo/sudo-1.6.8p12-audit.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p12-audit.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p12-audit.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,296 @@
++diff -up sudo-1.6.8p12/set_perms.c.audit sudo-1.6.8p12/set_perms.c
++--- sudo-1.6.8p12/set_perms.c.audit	2004-05-28 01:12:02.000000000 +0200
+++++ sudo-1.6.8p12/set_perms.c	2008-03-03 17:57:42.000000000 +0100
++@@ -48,6 +48,10 @@
++ #ifdef HAVE_LOGIN_CAP_H
++ # include &lt;login_cap.h&gt;
++ #endif
+++#if defined(WITH_AUDIT) &amp;&amp; defined(HAVE_LIBCAP)
+++# include &lt;sys/prctl.h&gt;
+++# include &lt;sys/capability.h&gt;
+++#endif
++ 
++ #include &quot;sudo.h&quot;
++ 
++@@ -112,15 +116,46 @@ set_perms_posix(perm)
++ 			      	break;
++ 
++ 	case PERM_FULL_RUNAS:
++-				/* headed for exec(), assume euid == ROOT_UID */
++-				runas_setup();
++-				if (def_stay_setuid)
++-				    error = seteuid(runas_pw-&gt;pw_uid);
++-				else
++-				    error = setuid(runas_pw-&gt;pw_uid);
++-				if (error)
++-				    fatal(&quot;unable to change to runas uid&quot;, 1);
++-				break;
+++#if defined(WITH_AUDIT) &amp;&amp; defined(HAVE_LIBCAP)
+++                                { /* BEGIN CAP BLOCK */
+++                                cap_t new_caps;
+++                                cap_value_t cap_list[] = { CAP_AUDIT_WRITE };
+++ 
+++                                if (runas_pw-&gt;pw_uid != ROOT_UID) {
+++                                    new_caps = cap_init ();
+++                                    if (!new_caps)
+++                                        err(1, &quot;Error initing capabilities, aborting.\n&quot;);
+++                                    
+++                                    if(cap_set_flag(new_caps, CAP_PERMITTED, 1, cap_list, CAP_SET) ||
+++                                       cap_set_flag(new_caps, CAP_EFFECTIVE, 1, cap_list, CAP_SET)) {
+++                                         err(1, &quot;Error setting capabilities, aborting\n&quot;);   
+++                                    }
+++                                                                
+++                                    if (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0))
+++                                        err(1, &quot;Error setting KEEPCAPS, aborting\n&quot;);
+++                                }
+++#endif                          
+++                                /* headed for exec(), assume euid == ROOT_UID */                                      
+++                                runas_setup ();
+++                                if (setresuid(def_stay_setuid ? 
+++                                    user_uid : runas_pw-&gt;pw_uid,
+++                                    runas_pw-&gt;pw_uid, runas_pw-&gt;pw_uid))
+++                                    err(1, &quot;unable to change to runas uid&quot;);
+++
+++#if defined(WITH_AUDIT) &amp;&amp; defined(HAVE_LIBCAP)
+++                                if (runas_pw-&gt;pw_uid != ROOT_UID) {
+++                                    if (prctl(PR_SET_KEEPCAPS, 0, 0, 0, 0) &lt; 0)
+++                                        err(1, &quot;Error resetting KEEPCAPS, aborting\n&quot;);
+++                                
+++                                    if (cap_set_proc(new_caps))
+++                                        err(1, &quot;Error dropping capabilities, aborting\n&quot;);
+++                            
+++                                    if (cap_free (new_caps))
+++                                        err(1, &quot;Error freeing caps\n&quot;);                        
+++                                }
+++	                        } /* END CAP BLOCK */
+++#endif
+++	                         break;
++ 
++ 	case PERM_SUDOERS:
++ 				/* assume euid == ROOT_UID, ruid == user */
++diff -up sudo-1.6.8p12/sudo.c.audit sudo-1.6.8p12/sudo.c
++--- sudo-1.6.8p12/sudo.c.audit	2008-03-03 17:57:42.000000000 +0100
+++++ sudo-1.6.8p12/sudo.c	2008-03-03 17:57:42.000000000 +0100
++@@ -88,6 +88,10 @@
++ # endif
++ #endif
++ 
+++#ifdef WITH_AUDIT
+++#include &lt;libaudit.h&gt;
+++#endif
+++
++ #include &quot;sudo.h&quot;
++ #include &quot;interfaces.h&quot;
++ #include &quot;version.h&quot;
++@@ -278,6 +282,10 @@ main(argc, argv, envp)
++     if (safe_cmnd == NULL)
++ 	safe_cmnd = user_cmnd;
++ 
+++#if defined(WITH_AUDIT)
+++    audit_help_open ();
+++#endif
+++
++     /*
++      * If we are using set_perms_posix() and the stay_setuid flag was not set,
++      * set the real, effective and saved uids to 0 and use set_perms_nosuid()
++@@ -436,6 +444,18 @@ main(argc, argv, envp)
++ 	(void) sigaction(SIGTSTP, &amp;saved_sa_tstp, NULL);
++ 	(void) sigaction(SIGCHLD, &amp;saved_sa_chld, NULL);
++ 
+++        if (access(safe_cmnd, X_OK) != 0) {
+++                 warn (&quot;unable to execute %s&quot;, safe_cmnd);
+++#ifdef WITH_AUDIT
+++                audit_logger(AUDIT_USER_CMD,  safe_cmnd, user_args, 0);
+++#endif
+++                exit(127);
+++        }
+++#ifdef WITH_AUDIT
+++        audit_logger(AUDIT_USER_CMD,  safe_cmnd, user_args, 1);
+++#endif
+++
+++
++ #ifndef PROFILING
++ 	if (ISSET(sudo_mode, MODE_BACKGROUND) &amp;&amp; fork() &gt; 0)
++ 	    exit(0);
++@@ -447,10 +467,16 @@ main(argc, argv, envp)
++ 	/*
++ 	 * If we got here then the exec() failed...
++ 	 */
+++#ifdef WITH_AUDIT
+++        audit_logger(AUDIT_USER_CMD,  safe_cmnd, user_args, 0);
+++#endif
++ 	warn(&quot;unable to execute %s&quot;, safe_cmnd);
++ 	exit(127);
++     } else if (ISSET(validated, FLAG_NO_USER) || (validated &amp; FLAG_NO_HOST)) {
++ 	log_auth(validated, 1);
+++#ifdef WITH_AUDIT
+++        audit_logger(AUDIT_USER_CMD,  safe_cmnd, user_args, 0);
+++#endif
++ 	exit(1);
++     } else if (ISSET(validated, VALIDATE_NOT_OK)) {
++ 	if (def_path_info) {
++@@ -471,6 +497,9 @@ main(argc, argv, envp)
++ 	    /* Just tell the user they are not allowed to run foo. */
++ 	    log_auth(validated, 1);
++ 	}
+++#ifdef WITH_AUDIT
+++        audit_logger(AUDIT_USER_CMD,  safe_cmnd, user_args, 0);
+++#endif
++ 	exit(1);
++     } else {
++ 	/* should never get here */
++diff -up /dev/null sudo-1.6.8p12/audit_help.c
++--- /dev/null	2008-02-05 17:16:01.642928004 +0100
+++++ sudo-1.6.8p12/audit_help.c	2008-03-03 18:50:35.000000000 +0100
++@@ -0,0 +1,100 @@
+++/*
+++ *  Audit helper functions used throughout sudo
+++ *
+++ *  Copyright (C) 2007, Red Hat, Inc.
+++ *
+++ * Redistribution and use in source and binary forms, with or without
+++ * modification, are permitted provided that the following conditions
+++ * are met:
+++ * 1. Redistributions of source code must retain the above copyright
+++ *    notice, this list of conditions and the following disclaimer.
+++ * 2. Redistributions in binary form must reproduce the above copyright
+++ *    notice, this list of conditions and the following disclaimer in the
+++ *    documentation and/or other materials provided with the distribution.
+++ * 3. Neither the name of Julianne F. Haugh nor the names of its contributors
+++ *    may be used to endorse or promote products derived from this software
+++ *    without specific prior written permission.
+++ *
+++ * THIS SOFTWARE IS PROVIDED BY JULIE HAUGH AND CONTRIBUTORS ``AS IS'' AND
+++ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+++ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+++ * ARE DISCLAIMED.  IN NO EVENT SHALL JULIE HAUGH OR CONTRIBUTORS BE LIABLE
+++ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+++ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+++ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+++ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+++ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+++ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+++ * SUCH DAMAGE.
+++ */
+++
+++#include &lt;config.h&gt;
+++
+++#ifdef WITH_AUDIT
+++
+++#include &lt;stdlib.h&gt;
+++#include &lt;syslog.h&gt;
+++#include &lt;stdarg.h&gt;
+++#include &lt;libaudit.h&gt;
+++#include &lt;errno.h&gt;
+++#include &lt;stdio.h&gt;
+++#include &lt;unistd.h&gt;
+++#include &lt;sys/types.h&gt;
+++
+++int audit_fd;
+++
+++void audit_help_open (void)
+++{
+++	audit_fd = audit_open ();
+++	if (audit_fd &lt; 0) {
+++        	/* You get these only when the kernel doesn't have
+++                 * audit compiled in. */
+++		if (errno == EINVAL || errno == EPROTONOSUPPORT ||
+++		    errno == EAFNOSUPPORT)
+++			return;
+++		fprintf (stderr, &quot;Cannot open audit interface - aborting.\n&quot;);
+++		exit (1);
+++	}
+++}
+++
+++/*
+++ * This function will log a message to the audit system using a predefined
+++ * message format. Parameter usage is as follows:
+++ *
+++ * type - type of message: AUDIT_USER_CMD
+++ * command - the command being logged
+++ * params - command parameters 
+++ * result - 1 is &quot;success&quot; and 0 is &quot;failed&quot;
+++ *
+++ */
+++void audit_logger (int type, const char *command, const char *params, int result)
+++{
+++	int err;
+++	char *msg;
+++
+++	if( audit_fd &lt; 0 )
+++		return;
+++	else {
+++
+++		if( params ) 
+++	                err = asprintf(&amp;msg, &quot;%s %s&quot;, command, params);
+++		else 
+++	                err = asprintf(&amp;msg, &quot;%s&quot;, command);
+++                if (err &lt; 0) {
+++                        fprintf (stderr, &quot;Memory allocation for audit message wasn&#8217;t possible.\n&quot;);
+++                        return;
+++                }
+++		
+++		err = audit_log_user_command (audit_fd, type, msg, NULL, result);
+++               /* The kernel supports auditing and we had 
+++                  enough privilege to write to the socket. */
+++		if( err &lt;= 0 &amp;&amp; !(errno == EPERM &amp;&amp; getuid() != 0) ) {
+++			perror(&quot;audit_log_user_command()&quot;);
+++		}
+++
+++		free(msg);
+++	}
+++}
+++
+++#endif                         /* WITH_AUDIT */
+++
++diff -up sudo-1.6.8p12/Makefile.in.audit sudo-1.6.8p12/Makefile.in
++--- sudo-1.6.8p12/Makefile.in.audit	2008-03-03 17:57:42.000000000 +0100
+++++ sudo-1.6.8p12/Makefile.in	2008-03-03 17:57:42.000000000 +0100
++@@ -118,11 +118,13 @@ HDRS = compat.h def_data.h defaults.h in
++ 
++ AUTH_OBJS = sudo_auth.o @AUTH_OBJS@
++ 
+++AUDIT_OBJS = audit_help.o 
+++
++ PARSEOBJS = sudo.tab.o lex.yy.o alloc.o defaults.o
++ 
++ SUDOBJS = check.o env.o getspwuid.o gettime.o goodpath.o fileops.o find_path.o \
++ 	  interfaces.o logging.o parse.o set_perms.o sudo.o sudo_edit.o \
++-	  tgetpass.o zero_bytes.o @SUDO_OBJS@ $(AUTH_OBJS) $(PARSEOBJS)
+++	  tgetpass.o zero_bytes.o @SUDO_OBJS@ $(AUTH_OBJS) $(PARSEOBJS) $(AUDIT_OBJS)
++ 
++ VISUDOBJS = visudo.o fileops.o gettime.o goodpath.o find_path.o $(PARSEOBJS)
++ 
++@@ -265,6 +267,9 @@ securid5.o: $(authdir)/securid5.c $(AUTH
++ sia.o: $(authdir)/sia.c $(AUTHDEP)
++ 	$(CC) -c $(CPPFLAGS) $(CFLAGS) $(DEFS) $(OPTIONS) $(authdir)/sia.c
++ 
+++audit_help.o: audit_help.c sudo.h
+++	$(CC) -c $(CPPFLAGS) $(CFLAGS) $(DEFS) $(OPTIONS) $(LIBADUIT) $(srcdir)/audit_help.c
+++
++ sudo.man.in: $(srcdir)/sudo.pod
++ 	@rm -f $(srcdir)/$@
++ 	( cd $(srcdir); mansectsu=`echo @MANSECTSU@|tr A-Z a-z`; mansectform=`echo @MANSECTFORM@|tr A-Z a-z`; sed -n -e 1d -e '/^=pod/q' -e 's/^/.\\&quot; /p' sudo.pod &gt; $@; pod2man --quotes=none --date=&quot;`date '+%B %e, %Y'`&quot; --section=$$mansectsu --release=$(VERSION) --center=&quot;MAINTENANCE COMMANDS&quot; sudo.pod | sed -e &quot;s/(5)/($$mansectform)/&quot; -e &quot;s/(8)/($$mansectsu)/&quot; &gt;&gt; $@ )
++diff -up sudo-1.6.8p12/sudo.h.audit sudo-1.6.8p12/sudo.h
++--- sudo-1.6.8p12/sudo.h.audit	2008-03-03 17:57:42.000000000 +0100
+++++ sudo-1.6.8p12/sudo.h	2008-03-03 17:57:42.000000000 +0100
++@@ -23,6 +23,8 @@
++ #ifndef _SUDO_SUDO_H
++ #define _SUDO_SUDO_H
++ 
+++#include &lt;config.h&gt;
+++
++ #include &lt;pathnames.h&gt;
++ #include &lt;limits.h&gt;
++ #include &quot;compat.h&quot;
++@@ -259,4 +261,10 @@ extern void (*set_perms) __P((int));
++ extern int errno;
++ #endif
++ 
+++#ifdef WITH_AUDIT
+++extern int audit_fd;
+++extern void audit_help_open (void);
+++extern void audit_logger (int, const char *, const char *, int);
+++#endif
+++
++ #endif /* _SUDO_SUDO_H */
+
+Added: trunk/rpms/sudo/sudo-1.6.8p12-env-reset.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p12-env-reset.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p12-env-reset.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,17 @@
++--- sudo-1.6.8p12/sudoers.env_reset	2006-02-08 16:58:15.000000000 +0100
+++++ sudo-1.6.8p12/sudoers	2006-02-08 16:59:02.000000000 +0100
++@@ -13,6 +13,14 @@
++ 
++ # Defaults specification
++ 
+++Defaults    env_reset
+++Defaults    env_keep = &quot;COLORS DISPLAY HOSTNAME HISTSIZE INPUTRC KDEDIR \
+++                        LS_COLORS MAIL PS1 PS2 QTDIR USERNAME \
+++                        LANG LC_ADDRESS LC_CTYPE LC_COLLATE LC_IDENTIFICATION \
+++                        LC_MEASUREMENT LC_MESSAGES LC_MONETARY LC_NAME LC_NUMERIC \
+++                        LC_PAPER LC_TELEPHONE LC_TIME LC_ALL LANGUAGE LINGUAS \
+++                        _XKB_CHARSET&quot;
+++
++ # Runas alias specification
++ 
++ # User privilege specification
+
+Added: trunk/rpms/sudo/sudo-1.6.8p12-ipv6.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p12-ipv6.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p12-ipv6.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,611 @@
++--- sudo-1.6.8p12/Makefile.in.ipv6	2005-11-08 19:21:58.000000000 +0100
+++++ sudo-1.6.8p12/Makefile.in	2006-07-16 23:33:58.000000000 +0200
++@@ -187,14 +187,14 @@
++ @<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">DEV at PARSESRCS</A> = sudo.tab.h sudo.tab.c lex.yy.c def_data.c def_data.h
++ 
++ # Uncomment the following if you intend to modify parse.yacc
+<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">+- at DEV</A>@sudo.tab.c sudo.tab.h: parse.yacc
+<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">+- at DEV</A>@	rm -f sudo.tab.h sudo.tab.c
+<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">+- at DEV</A>@	$(YACC) -d -b sudo $(srcdir)/parse.yacc
+++sudo.tab.c sudo.tab.h: parse.yacc
+++	rm -f sudo.tab.h sudo.tab.c
+++	$(YACC) -d -b sudo $(srcdir)/parse.yacc
++ 
++ # Uncomment the following if you intend to modify parse.lex
+<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">+- at DEV</A>@lex.yy.c: parse.lex
+<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">+- at DEV</A>@	rm -f lex.yy.c
+<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">+- at DEV</A>@	$(LEX) $(srcdir)/parse.lex
+++lex.yy.c: parse.lex
+++	rm -f lex.yy.c
+++	$(LEX) $(srcdir)/parse.lex
++ 
++ # Uncomment the following if you intend to modify def_data.in
++ @<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">DEV at def_data.h</A> def_data.c: def_data.in
++--- sudo-1.6.8p12/visudo.c.ipv6	2004-11-25 18:32:40.000000000 +0100
+++++ sudo-1.6.8p12/visudo.c	2006-07-16 23:33:58.000000000 +0200
++@@ -87,6 +87,7 @@
++ static int check_syntax		__P((int));
++ int command_matches		__P((char *, char *));
++ int addr_matches		__P((char *));
+++int addr6_matches		__P((char *));
++ int hostname_matches		__P((char *, char *, char *));
++ int netgr_matches		__P((char *, char *, char *, char *));
++ int usergr_matches		__P((char *, char *, struct passwd *));
++@@ -515,6 +516,12 @@
++     return(TRUE);
++ }
++ 
+++int addr6_matches(n)
+++    char *n;
+++{
+++    return(TRUE);
+++}
+++
++ int
++ hostname_matches(s, l, p)
++     char *s, *l, *p;
++--- sudo-1.6.8p12/parse.lex.ipv6	2004-05-17 22:51:13.000000000 +0200
+++++ sudo-1.6.8p12/parse.lex	2006-07-16 23:33:58.000000000 +0200
++@@ -84,6 +84,29 @@
++ 
++ OCTET			(1?[0-9]{1,2})|(2[0-4][0-9])|(25[0-5])
++ DOTTEDQUAD		{OCTET}(\.{OCTET}){3}
+++
+++IPV6_8HEX               ([0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}
+++
+++IPV6_COMP0              :(:[0-9A-Fa-f]{1,4}){1,7}
+++IPV6_COMP1              ([0-9A-Fa-f]{1,4}){1}:(:[0-9A-Fa-f]{1,4}){0,6}
+++IPV6_COMP2              ([0-9A-Fa-f]{1,4}){2}:(:[0-9A-Fa-f]{1,4}){0,5}
+++IPV6_COMP3              ([0-9A-Fa-f]{1,4}){3}:(:[0-9A-Fa-f]{1,4}){0,4}
+++IPV6_COMP4		([0-9A-Fa-f]{1,4}){4}:(:[0-9A-Fa-f]{1,4}){0,3}
+++IPV6_COMP5              ([0-9A-Fa-f]{1,4}){5}:(:[0-9A-Fa-f]{1,4}){0,2}
+++IPV6_COMP6              ([0-9A-Fa-f]{1,4}){6}:(:[0-9A-Fa-f]{1,4}){0,1}
+++IPV6_COMPHEX            {IPV6_COMP0}|{IPV6_COMP1}|{IPV6_COMP2}|{IPV6_COMP3}|{IPV6_COMP4}|{IPV6_COMP5}|{IPV6_COMP6}
+++
+++IPV6_6H4D               [0-9A-Fa-f]{1,4}(:[0-9A-Fa-f]{1,4}){5}{DOTTEDQUAD}
+++
+++IPV6_COMP6H4D0          ([0-9A-Fa-f]{1,4}){1}:(:[0-9A-Fa-f]{1,4}){1,4}:{DOTTEDQUAD}
+++IPV6_COMP6H4D1          ([0-9A-Fa-f]{1,4}){2}:(:[0-9A-Fa-f]{1,4}){1,3}:{DOTTEDQUAD}
+++IPV6_COMP6H4D2          ([0-9A-Fa-f]{1,4}){3}:(:[0-9A-Fa-f]{1,4}){1,2}:{DOTTEDQUAD}
+++IPV6_COMP6H4D3          ([0-9A-Fa-f]{1,4}){4}:(:[0-9A-Fa-f]{1,4}){1}:{DOTTEDQUAD}
+++IPV6_COMP6H4D           {IPV6_COMP6H4D0}|{IPV6_COMP6H4D1}|{IPV6_COMP6H4D2}|{IPV6_COMP6H4D3}
+++
+++IPV6ADDR                {IPV6_8HEX}|{IPV6_COMPHEX}|{IPV6_6H4D}|{IPV6_COMP6H4D}
+++IPV6PREFIX		[1-9]|[1-9][0-9]|10[0-9]|11[0-9]|12[0-8]
+++
++ HOSTNAME		[[:alnum:]_-]+
++ WORD			([^#&gt;@!=:,\(\) \t\n\\]|\\[^\n])+
++ ENVAR			([^#!=, \t\n\\]|\\[^\n])([^#=, \t\n\\]|\\[^\n])*
++@@ -253,6 +276,11 @@
++ 			    LEXTRACE(&quot;NTWKADDR &quot;);
++ 			    return(NTWKADDR);
++ 			}
+++{IPV6ADDR}(\/{IPV6PREFIX})? {
+++			    fill(yytext, yyleng);
+++                            LEXTRACE(&quot;NTWKADDR6 &quot;);
+++                            return(NTWKADDR6);
+++			}
++ 
++ &lt;INITIAL&gt;\(		{
++ 				BEGIN GOTRUNAS;
++--- sudo-1.6.8p12/ldap.c.ipv6	2006-07-16 23:45:35.000000000 +0200
+++++ sudo-1.6.8p12/ldap.c	2006-07-16 23:59:56.000000000 +0200
++@@ -160,6 +160,7 @@
++     if (
++          !strcasecmp(*p,&quot;ALL&quot;) ||
++          addr_matches(*p) ||
+++         addr6_matches(*p) ||
++          netgr_matches(*p,user_host,user_shost,NULL) ||
++          !hostname_matches(user_shost,user_host,*p)
++        )
++--- sudo-1.6.8p12/parse.h.ipv6	2005-06-19 20:58:19.000000000 +0200
+++++ sudo-1.6.8p12/parse.h	2006-07-16 23:33:58.000000000 +0200
++@@ -93,6 +93,7 @@
++  * Prototypes
++  */
++ int addr_matches	__P((char *));
+++int addr6_matches	__P((char *));
++ int command_matches	__P((char *, char *));
++ int hostname_matches	__P((char *, char *, char *));
++ int netgr_matches	__P((char *, char *, char *, char *));
++--- sudo-1.6.8p12/interfaces.h.ipv6	2004-02-13 22:36:43.000000000 +0100
+++++ sudo-1.6.8p12/interfaces.h	2006-07-16 23:33:58.000000000 +0200
++@@ -27,8 +27,11 @@
++  * IP address and netmask pairs for checking against local interfaces.
++  */
++ struct interface {
++-    struct in_addr addr;
+++    struct in_addr addr;	/* IPv4 */
++     struct in_addr netmask;
+++    struct in6_addr addr6;	/* IPv6 */
+++    struct in6_addr netmask6;
+++    sa_family_t sa_family;	/* AF_INET ? AF_INET6 */
++ };
++ 
++ /*
++--- sudo-1.6.8p12/parse.c.ipv6	2005-06-19 22:03:24.000000000 +0200
+++++ sudo-1.6.8p12/parse.c	2006-07-16 23:57:20.000000000 +0200
++@@ -370,38 +370,134 @@
++     int i;
++     char *m;
++     struct in_addr addr, mask;
+++    struct addrinfo hints, *ai;
+++
+++    memset(&amp;hints, '\0', sizeof(hints));
+++    hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICHOST;
+++    hints.ai_family = AF_INET;
++ 
++     /* If there's an explicit netmask, use it. */
++     if ((m = strchr(n, '/'))) {
+++
++ 	*m++ = '\0';
++-	addr.s_addr = inet_addr(n);
+++	if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++	    return(FALSE);
+++	memcpy(&amp;addr.s_addr, &amp;((struct sockaddr_in *)ai-&gt;ai_addr)-&gt;sin_addr,
+++		  sizeof(struct in_addr));
+++	freeaddrinfo(ai);
+++
++ 	if (strchr(m, '.'))
++-	    mask.s_addr = inet_addr(m);
++-	else {
++-	    i = 32 - atoi(m);
++-	    mask.s_addr = 0xffffffff;
++-	    mask.s_addr &gt;&gt;= i;
++-	    mask.s_addr &lt;&lt;= i;
++-	    mask.s_addr = htonl(mask.s_addr);
+++	{
+++	    if (getaddrinfo(m, NULL, &amp;hints, &amp;ai)!=0)
+++		return(FALSE);
+++	    memcpy(&amp;mask.s_addr,    /* IPv4 netmask from dotted quad */
+++			&amp;((struct sockaddr_in *)ai-&gt;ai_addr)-&gt;sin_addr,
+++			sizeof(struct in_addr));
++ 	}
+++       	else
+++       	{
+++       	    i = 32 - atoi(m);	/* IPv4 netmask from CIDR */
+++       	    mask.s_addr = 0xffffffff;
+++       	    mask.s_addr &gt;&gt;= i;
+++            mask.s_addr &lt;&lt;= i;
+++       	    mask.s_addr = htonl(mask.s_addr);
+++       	}
+++
++ 	*(m - 1) = '/';
++ 
++-	for (i = 0; i &lt; num_interfaces; i++)
++-	    if ((interfaces[i].addr.s_addr &amp; mask.s_addr) == addr.s_addr)
++-		return(TRUE);
+++	for (i = 0; i &lt;  num_interfaces; ++i)
+++	    if (interfaces[i].sa_family == AF_INET)	/* IPv4 intf. only */
+++		if ((interfaces[i].addr.s_addr &amp; mask.s_addr) == addr.s_addr)
+++		    return (TRUE);
++     } else {
++-	addr.s_addr = inet_addr(n);
+++	if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++	    return(FALSE);
+++        memcpy(&amp;addr.s_addr, &amp;((struct sockaddr_in *)ai-&gt;ai_addr)-&gt;sin_addr,
+++                  sizeof(struct in_addr));
+++	freeaddrinfo(ai);
++ 
++ 	for (i = 0; i &lt; num_interfaces; i++)
++-	    if (interfaces[i].addr.s_addr == addr.s_addr ||
++-		(interfaces[i].addr.s_addr &amp; interfaces[i].netmask.s_addr)
++-		== addr.s_addr)
++-		return(TRUE);
+++	    if (interfaces[i].sa_family == AF_INET)     /* IPv4 intf. only */
+++	        if (interfaces[i].addr.s_addr == addr.s_addr ||
+++	            (interfaces[i].addr.s_addr &amp; interfaces[i].netmask.s_addr)
+++			 == addr.s_addr)
+++		    return(TRUE);
++     }
++ 
++     return(FALSE);
++ }
++ 
+++int
+++addr6_matches(n)
+++char *n;
+++{
+++    int i, j;
+++    uint32_t msk[4] = {0, 0, 0, 0};	/* 32x4 */
+++    uint32_t addr[4], i_msk[4], i_addr[4];
+++    char *m;
+++    struct addrinfo hints, *ai;
+++
+++    memset(&amp;hints, '\0', sizeof(hints));
+++    hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICHOST;
+++    hints.ai_family = AF_INET6;
+++	
+++    /* we have IPv6 prefix */
+++    if ((m = strchr(n, '/'))) {
+++	*m++ = '\0';
+++	if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++            return(FALSE);
+++	memcpy(&amp;addr, &amp;((struct sockaddr_in6 *)ai-&gt;ai_addr)-&gt;sin6_addr, 16);
+++	freeaddrinfo(ai);
+++
+++	for (i=0; i &lt; (atoi(m)/32); ++i)
+++	    msk[i] = 0xffffffff;
+++	if (atoi(m)&lt;128 &amp;&amp; (atoi(m) % 32))
+++	{
+++	    msk[atoi(m)/32] = 0xffffffff;
+++	    msk[atoi(m)/32] &gt;&gt;= ( 32 - (atoi(m) % 32) );
+++	    msk[atoi(m)/32] &lt;&lt;= ( 32 - (atoi(m) % 32) );
+++	}
+++	for (i=0; i&lt;4; ++i)
+++	    msk[i] = htonl(msk[i]);
+++	
+++	*(m - 1) = '/';
+++	
+++	for (i=0; i &lt; num_interfaces; i++)
+++	    if (interfaces[i].sa_family == AF_INET6)	/* compare only IPv6 intf. */
+++	    {
+++		/* nasty */
+++	        memcpy(&amp;i_addr, &amp;interfaces[i].addr6, 16);
+++		if ( ((i_addr[0] &amp; msk[0]) == addr[0]) &amp;&amp;
+++		     ((i_addr[1] &amp; msk[1]) == addr[1]) &amp;&amp;
+++		     ((i_addr[2] &amp; msk[2]) == addr[2]) &amp;&amp;
+++		     ((i_addr[3] &amp; msk[3]) == addr[3]))
+++		    return(TRUE);
+++	    }	     
+++    } else {
+++        if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++	    return(FALSE);
+++        memcpy(&amp;addr, &amp;((struct sockaddr_in6 *)ai-&gt;ai_addr)-&gt;sin6_addr, 16);
+++        freeaddrinfo(ai);
+++
+++	for (i=0; i &lt; num_interfaces; ++i)
+++	    if (interfaces[i].sa_family == AF_INET6) /* IPv6 intf. only */
+++	    {
+++	        memcpy(&amp;i_addr, &amp;interfaces[i].addr6, 16);
+++		if ((i_addr[0] == addr[0]) &amp;&amp; (i_addr[1] == addr[1]) &amp;&amp;
+++		    (i_addr[2] == addr[2]) &amp;&amp; (i_addr[3] == addr[3]))
+++		    return(TRUE); /* found my own address in sudoers */
+++
+++		memcpy(&amp;i_msk, &amp;interfaces[i].netmask6, 16);
+++		if (((i_addr[0]&amp;i_msk[0]) == addr[0]) &amp;&amp;
+++		    ((i_addr[1]&amp;i_msk[1]) == addr[1]) &amp;&amp;
+++		    ((i_addr[2]&amp;i_msk[2]) == addr[2]) &amp;&amp;
+++		    ((i_addr[3]&amp;i_msk[3]) == addr[3]))
+++		    return(TRUE); /* found my netw. address in sudoers */
+++	    }
+++    }
+++    return(FALSE);
+++}
+++
++ /*
++  * Returns 0 if the hostname matches the pattern and non-zero otherwise.
++  */
++--- sudo-1.6.8p12/sudo.c.ipv6	2006-07-16 23:33:58.000000000 +0200
+++++ sudo-1.6.8p12/sudo.c	2006-07-16 23:33:58.000000000 +0200
++@@ -1007,24 +1007,34 @@
++ void
++ set_fqdn()
++ {
++-    struct hostent *hp;
+++    struct addrinfo hints, *ai;
++     char *p;
++ 
++-    if (!(hp = gethostbyname(user_host))) {
++-	log_error(MSG_ONLY|NO_EXIT,
++-	    &quot;unable to lookup %s via gethostbyname()&quot;, user_host);
++-    } else {
++-	if (user_shost != user_host)
+++    memset(&amp;hints, '\0', sizeof(hints));
+++    hints.ai_flags = AI_ADDRCONFIG;
+++    
+++    if (getaddrinfo(user_host, NULL, &amp;hints, &amp;ai) != 0)
+++    {
+++        log_error(MSG_ONLY|NO_EXIT,
+++		&quot;unable to lookup %s via gethostbyname()&quot;, user_host);
+++    }
+++    else
+++    {
+++	char h_name[NI_MAXHOST];
+++
+++        if (user_host != user_host)
++ 	    free(user_shost);
+++
+++	getnameinfo(ai-&gt;ai_addr, ai-&gt;ai_addrlen, h_name, sizeof(h_name), NULL, 0, 0);
++ 	free(user_host);
++-	user_host = estrdup(hp-&gt;h_name);
+++	user_host = estrdup(h_name);
++     }
++     if ((p = strchr(user_host, '.'))) {
++-	*p = '\0';
++-	user_shost = estrdup(user_host);
++-	*p = '.';
+++        *p = '\0';
+++        user_shost = estrdup(user_host);
+++        *p = '.';
++     } else {
++-	user_shost = user_host;
+++        user_shost = user_host;
++     }
++ }
++ 
++--- sudo-1.6.8p12/parse.yacc.ipv6	2005-06-19 20:24:32.000000000 +0200
+++++ sudo-1.6.8p12/parse.yacc	2006-07-16 23:33:58.000000000 +0200
++@@ -250,6 +250,7 @@
++ %token &lt;tok&gt;	 RUNASALIAS		/* Runas_Alias keyword */
++ %token &lt;tok&gt;	 ':' '=' ',' '!' '+' '-' /* union member tokens */
++ %token &lt;tok&gt;	 ERROR
+++%token &lt;string&gt;  NTWKADDR6		/* IPv6 address */
++ 
++ /*
++  * NOTE: these are not true booleans as there are actually 4 possible values:
++@@ -395,6 +396,13 @@
++ 				$$ = NOMATCH;
++ 			    free($1);
++ 			}
+++		|	NTWKADDR6 {
+++			    if (addr6_matches($1))
+++				$$ = TRUE;
+++			    else
+++				$$ = NOMATCH;
+++			    free($1);
+++			}
++ 		|	NETGROUP {
++ 			    if (netgr_matches($1, user_host, user_shost, NULL))
++ 				$$ = TRUE;
++--- sudo-1.6.8p12/testsudoers.c.ipv6	2004-08-02 20:44:58.000000000 +0200
+++++ sudo-1.6.8p12/testsudoers.c	2006-07-17 00:03:50.000000000 +0200
++@@ -175,6 +175,10 @@
++     }
++ }
++ 
+++/*
+++ * Returns TRUE if &quot;n&quot; is one of our ip addresses or if
+++ * &quot;n&quot; is a network that we are on, else returns FALSE.
+++ */
++ int
++ addr_matches(n)
++     char *n;
++@@ -182,39 +186,136 @@
++     int i;
++     char *m;
++     struct in_addr addr, mask;
+++    struct addrinfo hints, *ai;
+++
+++    memset(&amp;hints, '\0', sizeof(hints));
+++    hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICHOST;
+++    hints.ai_family = AF_INET;
++ 
++     /* If there's an explicit netmask, use it. */
++     if ((m = strchr(n, '/'))) {
++-	*m++ = '\0';
++-	addr.s_addr = inet_addr(n);
++-	if (strchr(m, '.'))
++-	    mask.s_addr = inet_addr(m);
++-	else {
++-	    i = 32 - atoi(m);
++-	    mask.s_addr = 0xffffffff;
++-	    mask.s_addr &gt;&gt;= i;
++-	    mask.s_addr &lt;&lt;= i;
++-	    mask.s_addr = htonl(mask.s_addr);
++-	}
++-	*(m - 1) = '/';
++ 
++-	for (i = 0; i &lt; num_interfaces; i++)
++-	    if ((interfaces[i].addr.s_addr &amp; mask.s_addr) == addr.s_addr)
++-		return(TRUE);
+++        *m++ = '\0';
+++        if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++	    return(FALSE);
+++        memcpy(&amp;addr.s_addr, &amp;((struct sockaddr_in *)ai-&gt;ai_addr)-&gt;sin_addr,
+++                  sizeof(struct in_addr));
+++        freeaddrinfo(ai);
+++
+++        if (strchr(m, '.'))
+++        {
+++            if (getaddrinfo(m, NULL, &amp;hints, &amp;ai)!=0)
+++		return(FALSE);
+++            memcpy(&amp;mask.s_addr,    /* IPv4 netmask from dotted quad */
+++                        &amp;((struct sockaddr_in *)ai-&gt;ai_addr)-&gt;sin_addr,
+++                        sizeof(struct in_addr));
+++        }
+++        else
+++        {
+++            i = 32 - atoi(m);   /* IPv4 netmask from CIDR */
+++            mask.s_addr = 0xffffffff;
+++            mask.s_addr &gt;&gt;= i;
+++            mask.s_addr &lt;&lt;= i;
+++            mask.s_addr = htonl(mask.s_addr);
+++        }
+++
+++        *(m - 1) = '/';
+++
+++        for (i = 0; i &lt;  num_interfaces; ++i)
+++            if (interfaces[i].sa_family == AF_INET)     /* IPv4 intf. only */
+++                if ((interfaces[i].addr.s_addr &amp; mask.s_addr) == addr.s_addr)
+++                    return(TRUE);
++     } else {
++-	addr.s_addr = inet_addr(n);
++-
++-	for (i = 0; i &lt; num_interfaces; i++)
++-	    if (interfaces[i].addr.s_addr == addr.s_addr ||
++-		(interfaces[i].addr.s_addr &amp; interfaces[i].netmask.s_addr)
++-		== addr.s_addr)
++-		return(TRUE);
+++        if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++	    return(FALSE);
+++        memcpy(&amp;addr.s_addr, &amp;((struct sockaddr_in *)ai-&gt;ai_addr)-&gt;sin_addr,
+++                  sizeof(struct in_addr));
+++        freeaddrinfo(ai);
+++
+++        for (i = 0; i &lt; num_interfaces; i++)
+++            if (interfaces[i].sa_family == AF_INET)     /* IPv4 intf. only */
+++                if (interfaces[i].addr.s_addr == addr.s_addr ||
+++                    (interfaces[i].addr.s_addr &amp; interfaces[i].netmask.s_addr)
+++                         == addr.s_addr)
+++                    return(TRUE);
++     }
++ 
++     return(FALSE);
++ }
++ 
++ int
+++addr6_matches(n)
+++char *n;
+++{
+++    int i, j;
+++    uint32_t msk[4] = {0, 0, 0, 0};     /* 32x4 */
+++    uint32_t addr[4], i_msk[4], i_addr[4];
+++    char *m;
+++    struct addrinfo hints, *ai;
+++
+++    memset(&amp;hints, '\0', sizeof(hints));
+++    hints.ai_flags = AI_ADDRCONFIG | AI_NUMERICHOST;
+++    hints.ai_family = AF_INET6;
+++
+++    /* we have IPv6 prefix */
+++    if ((m = strchr(n, '/'))) {
+++        *m++ = '\0';
+++        if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++	    return(FALSE);
+++        memcpy(&amp;addr, &amp;((struct sockaddr_in6 *)ai-&gt;ai_addr)-&gt;sin6_addr, 16);
+++        freeaddrinfo(ai);
+++
+++        for (i=0; i &lt; (atoi(m)/32); ++i)
+++            msk[i] = 0xffffffff;
+++        if (atoi(m)&lt;128 &amp;&amp; (atoi(m) % 32))
+++        {
+++            msk[atoi(m)/32] = 0xffffffff;
+++            msk[atoi(m)/32] &gt;&gt;= ( 32 - (atoi(m) % 32) );
+++            msk[atoi(m)/32] &lt;&lt;= ( 32 - (atoi(m) % 32) );
+++        }
+++        for (i=0; i&lt;4; ++i)
+++            msk[i] = htonl(msk[i]);
+++
+++        *(m - 1) = '/';
+++
+++        for (i=0; i &lt; num_interfaces; i++)
+++            if (interfaces[i].sa_family == AF_INET6)    /* compare only IPv6 intf. */
+++            {
+++                /* nasty */
+++                memcpy(&amp;i_addr, &amp;interfaces[i].addr6, 16);
+++                if ( ((i_addr[0] &amp; msk[0]) == addr[0]) &amp;&amp;
+++                     ((i_addr[1] &amp; msk[1]) == addr[1]) &amp;&amp;
+++                     ((i_addr[2] &amp; msk[2]) == addr[2]) &amp;&amp;
+++                     ((i_addr[3] &amp; msk[3]) == addr[3]))
+++                    return (TRUE);
+++            }
+++    } else {
+++        if (getaddrinfo(n, NULL, &amp;hints, &amp;ai)!=0)
+++	    return(FALSE);
+++        memcpy(&amp;addr, &amp;((struct sockaddr_in6 *)ai-&gt;ai_addr)-&gt;sin6_addr, 16);
+++        freeaddrinfo(ai);
+++
+++        for (i=0; i &lt; num_interfaces; ++i)
+++            if (interfaces[i].sa_family == AF_INET6) /* IPv6 intf. only */
+++            {
+++                memcpy(&amp;i_addr, &amp;interfaces[i].addr6, 16);
+++                if ((i_addr[0] == addr[0]) &amp;&amp; (i_addr[1] == addr[1]) &amp;&amp;
+++                    (i_addr[2] == addr[2]) &amp;&amp; (i_addr[3] == addr[3]))
+++                    return (TRUE); /* found my own address in sudoers */
+++
+++                memcpy(&amp;i_msk, &amp;interfaces[i].netmask6, 16);
+++                if (((i_addr[0]&amp;i_msk[0]) == addr[0]) &amp;&amp;
+++                    ((i_addr[1]&amp;i_msk[1]) == addr[1]) &amp;&amp;
+++                    ((i_addr[2]&amp;i_msk[2]) == addr[2]) &amp;&amp;
+++                    ((i_addr[3]&amp;i_msk[3]) == addr[3]))
+++                    return (TRUE); /* found my netw. address in sudoers */
+++            }
+++    }
+++    return(FALSE);
+++}
+++
+++
+++int
++ hostname_matches(shost, lhost, pattern)
++     char *shost;
++     char *lhost;
++--- sudo-1.6.8p12/interfaces.c.ipv6	2004-02-13 22:36:43.000000000 +0100
+++++ sudo-1.6.8p12/interfaces.c	2006-07-16 23:33:58.000000000 +0200
++@@ -102,7 +102,7 @@
++ load_interfaces()
++ {
++     struct ifaddrs *ifa, *ifaddrs;
++-    /* XXX - sockaddr_in6 sin6; */
+++    struct sockaddr_in6 *sin6;
++     struct sockaddr_in *sin;
++     int i;
++ 
++@@ -117,12 +117,15 @@
++ 	    continue;
++ 
++ 	switch(ifa-&gt;ifa_addr-&gt;sa_family) {
++-	    /* XXX - AF_INET6 */
++ 	    case AF_INET:
++ 		num_interfaces++;
++ 		break;
+++	    case AF_INET6:
+++		num_interfaces++;
+++		break;
++ 	}
++     }
+++
++     if (num_interfaces == 0)
++ 	return;
++     interfaces =
++@@ -136,8 +139,8 @@
++ 		continue;
++ 
++ 	switch(ifa-&gt;ifa_addr-&gt;sa_family) {
++-	    /* XXX - AF_INET6 */
++ 	    case AF_INET:
+++		interfaces[i].sa_family = AF_INET;
++ 		sin = (struct sockaddr_in *)ifa-&gt;ifa_addr;
++ 		memcpy(&amp;interfaces[i].addr, &amp;sin-&gt;sin_addr,
++ 		    sizeof(struct in_addr));
++@@ -146,6 +149,16 @@
++ 		    sizeof(struct in_addr));
++ 		i++;
++ 		break;
+++	    case AF_INET6:
+++		interfaces[i].sa_family = AF_INET6;
+++		sin6 = (struct sockaddr_in6 *)ifa-&gt;ifa_addr;
+++		memcpy(&amp;interfaces[i].addr6, &amp;sin6-&gt;sin6_addr,
+++		    sizeof(struct in6_addr));
+++		sin6 = (struct sockaddr_in6 *)ifa-&gt;ifa_netmask;
+++                memcpy(&amp;interfaces[i].netmask6, &amp;sin6-&gt;sin6_addr,
+++                    sizeof(struct in6_addr));	
+++		i++;
+++		break;
++ 	}
++     }
++ #ifdef HAVE_FREEIFADDRS
++@@ -306,10 +319,30 @@
++ void
++ dump_interfaces()
++ {
++-    int i;
+++    int i, j, ip6_prefix=0; 	/* for counting IPv6 prefix length (in bits!!) */
+++    uint8_t u6_addr8[16]; 	/* for storing IPv6 netmask */
++ 
++     puts(&quot;Local IP address and netmask pairs:&quot;);
++     for (i = 0; i &lt; num_interfaces; i++)
++-	printf(&quot;\t%s / 0x%x\n&quot;, inet_ntoa(interfaces[i].addr),
++-	    (unsigned int)ntohl(interfaces[i].netmask.s_addr));
+++    {
+++	char name[NI_MAXHOST], netmask[NI_MAXHOST];
+++	ip6_prefix=0;
+++	
+++	switch (interfaces[i].sa_family)
+++	{
+++	    case AF_INET:
+++		inet_ntop(AF_INET, &amp;interfaces[i].addr, name, NI_MAXHOST);
+++		inet_ntop(AF_INET, &amp;interfaces[i].netmask, netmask, NI_MAXHOST);
+++		printf(&quot;\t%s / %s\n&quot;, name, netmask);
+++		break;
+++	    case AF_INET6:
+++		inet_ntop(AF_INET6, &amp;interfaces[i].addr6, name, NI_MAXHOST);
+++		memcpy(u6_addr8, &amp;interfaces[i].netmask6, 16);
+++		for (j=0; j&lt;16; ++j) 
+++		    if (u6_addr8[j] == 255)		/* 255 == 0xff */
+++			 ip6_prefix=ip6_prefix+8;	/* eight bits */
+++		printf(&quot;\t%s / %d\n&quot;, name, ip6_prefix);
+++		break;
+++	}
+++    }
++ }
+
+Added: trunk/rpms/sudo/sudo-1.6.8p12-pam-login.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p12-pam-login.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p12-pam-login.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,116 @@
++--- sudo-1.6.8p12/configure.in.login	2006-07-16 15:25:33.000000000 +0200
+++++ sudo-1.6.8p12/configure.in	2006-07-16 15:49:08.000000000 +0200
++@@ -357,6 +357,17 @@
++ 		;;
++ esac])
++ 
+++AC_ARG_WITH(pam-login, [  --with-pam-login              enable specific PAM session for sudo -i],
+++[case $with_pam_login in
+++    yes)	AC_DEFINE(HAVE_PAM_LOGIN)
+++		AC_MSG_CHECKING(whether to use PAM login)
+++		AC_MSG_RESULT(yes)
+++		;;
+++    no)		;;
+++    *)		AC_MSG_ERROR([&quot;--with-pam-login does not take an argument.&quot;])
+++		;;
+++esac])
+++
++ AC_ARG_WITH(AFS, [  --with-AFS              enable AFS support],
++ [case $with_AFS in
++     yes)	AC_DEFINE(HAVE_AFS)
++--- sudo-1.6.8p12/sudo.c.login	2006-07-16 15:39:26.000000000 +0200
+++++ sudo-1.6.8p12/sudo.c	2006-07-16 15:41:42.000000000 +0200
++@@ -109,7 +109,7 @@
++ static struct passwd *get_authpw	__P((void));
++ extern int sudo_edit			__P((int, char **));
++ extern void list_matches		__P((void));
++-extern char **rebuild_env		__P((char **, int, int));
+++extern char **rebuild_env		__P((char **, int));
++ extern char **zero_env			__P((char **));
++ extern struct passwd *sudo_getpwnam	__P((const char *));
++ extern struct passwd *sudo_getpwuid	__P((uid_t));
++@@ -140,6 +140,7 @@
++ #endif /* HAVE_BSD_AUTH_H */
++ sigaction_t saved_sa_int, saved_sa_quit, saved_sa_tstp, saved_sa_chld;
++ void (*set_perms) __P((int));
+++int sudo_mode;
++ 
++ 
++ int
++@@ -151,7 +152,6 @@
++     int validated;
++     int fd;
++     int cmnd_status;
++-    int sudo_mode;
++     int pwflag;
++     char **new_environ;
++     sigaction_t sa;
++@@ -368,7 +368,7 @@
++ 
++     /* Build a new environment that avoids any nasty bits if we have a cmnd. */
++     if (ISSET(sudo_mode, MODE_RUN))
++-	new_environ = rebuild_env(envp, sudo_mode, ISSET(validated, FLAG_NOEXEC));
+++	new_environ = rebuild_env(envp, ISSET(validated, FLAG_NOEXEC));
++     else
++ 	new_environ = envp;
++ 
++--- sudo-1.6.8p12/auth/pam.c.login	2006-07-16 15:41:59.000000000 +0200
+++++ sudo-1.6.8p12/auth/pam.c	2006-07-16 15:45:15.000000000 +0200
++@@ -89,7 +89,12 @@
++     if (auth != NULL)
++ 	auth-&gt;data = (VOID *) &amp;pam_status;
++     pam_conv.conv = sudo_conv;
++-    pam_status = pam_start(&quot;sudo&quot;, pw-&gt;pw_name, &amp;pam_conv, &amp;pamh);
+++#ifdef HAVE_PAM_LOGIN
+++    if (ISSET(sudo_mode, MODE_LOGIN_SHELL))
+++	    pam_status = pam_start(&quot;sudo-i&quot;, pw-&gt;pw_name, &amp;pam_conv, &amp;pamh);
+++    else
+++#endif
+++	    pam_status = pam_start(&quot;sudo&quot;, pw-&gt;pw_name, &amp;pam_conv, &amp;pamh);
++     if (pam_status != PAM_SUCCESS) {
++ 	log_error(USE_ERRNO|NO_EXIT|NO_MAIL, &quot;unable to initialize PAM&quot;);
++ 	return(AUTH_FATAL);
++--- sudo-1.6.8p12/env.c.login	2006-07-16 15:40:14.000000000 +0200
+++++ sudo-1.6.8p12/env.c	2006-07-16 15:57:19.000000000 +0200
++@@ -77,7 +77,7 @@
++ /*
++  * Prototypes
++  */
++-char **rebuild_env		__P((char **, int, int));
+++char **rebuild_env		__P((char **, int));
++ char **zero_env			__P((char **));
++ static void insert_env		__P((char *, int));
++ static char *format_env		__P((char *, ...));
++@@ -321,9 +321,8 @@
++  * Also adds sudo-specific variables (SUDO_*).
++  */
++ char **
++-rebuild_env(envp, sudo_mode, noexec)
+++rebuild_env(envp, noexec)
++     char **envp;
++-    int sudo_mode;
++     int noexec;
++ {
++     char **ep, *cp, *ps1;
++--- sudo-1.6.8p12/sudo.h.login	2006-07-16 15:59:08.000000000 +0200
+++++ sudo-1.6.8p12/sudo.h	2006-07-16 15:59:38.000000000 +0200
++@@ -251,6 +251,7 @@
++ extern FILE *sudoers_fp;
++ extern int tgetpass_flags;
++ extern uid_t timestamp_uid;
+++extern int sudo_mode;
++ 
++ extern void (*set_perms) __P((int));
++ #endif
++--- sudo-1.6.8p12/config.h.in.login	2006-07-16 15:32:09.000000000 +0200
+++++ sudo-1.6.8p12/config.h.in	2006-07-16 15:32:56.000000000 +0200
++@@ -230,6 +230,9 @@
++ /* Define to 1 if you use PAM authentication. */
++ #undef HAVE_PAM
++ 
+++/* Define to 1 if you use specific PAM session for sodo -i. */
+++#undef HAVE_PAM_LOGIN
+++
++ /* Define to 1 if you have the &lt;pam/pam_appl.h&gt; header file. */
++ #undef HAVE_PAM_PAM_APPL_H
++ 
+
+Added: trunk/rpms/sudo/sudo-1.6.8p12-requiretty.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p12-requiretty.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p12-requiretty.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,15 @@
++--- sudo-1.6.8p12/sudoers.tty	2006-05-29 15:10:30.000000000 +0200
+++++ sudo-1.6.8p12/sudoers	2006-05-29 15:17:03.000000000 +0200
++@@ -13,6 +13,12 @@
++ 
++ # Defaults specification
++ 
+++#
+++# Disable &quot;ssh hostname sudo &lt;cmd&gt;&quot;, because it will show the password in clear. 
+++#         You have to run &quot;ssh -t hostname sudo &lt;cmd&gt;&quot;.
+++#
+++Defaults    requiretty
+++
++ Defaults    env_reset
++ Defaults    env_keep = &quot;COLORS DISPLAY HOSTNAME HISTSIZE INPUTRC KDEDIR \
++                         LS_COLORS MAIL PS1 PS2 QTDIR USERNAME \
+
+Added: trunk/rpms/sudo/sudo-1.6.8p12-s390.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p12-s390.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p12-s390.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,23 @@
++--- sudo-1.6.8p12/configure.in.old	2007-09-24 17:15:25.000000000 -0400
+++++ sudo-1.6.8p12/configure.in	2007-09-24 17:17:03.000000000 -0400
++@@ -2145,6 +2145,8 @@
++     SUDO_LIBS=&quot;${SUDO_LIBS}${LDAP_LIBS}&quot;
++     LIBS=&quot;$_LIBS&quot;
++     LDFLAGS=&quot;$_LDFLAGS&quot;
+++    # XXX - OpenLDAP has deprecated ldap_get_values()
+++    CPPFLAGS=&quot;${CPPFLAGS} -DLDAP_DEPRECATED&quot;
++ fi
++ 
++ dnl
++--- sudo-1.6.8p12/configure.old	2007-09-24 17:18:06.000000000 -0400
+++++ sudo-1.6.8p12/configure	2007-09-24 17:19:53.000000000 -0400
++@@ -30131,6 +30131,8 @@
++     SUDO_LIBS=&quot;${SUDO_LIBS}${LDAP_LIBS}&quot;
++     LIBS=&quot;$_LIBS&quot;
++     LDFLAGS=&quot;$_LDFLAGS&quot;
+++    # XXX - OpenLDAP has deprecated ldap_get_values()
+++    CPPFLAGS=&quot;${CPPFLAGS} -DLDAP_DEPRECATED&quot;
++ fi
++ 
++ if test -n &quot;$blibpath&quot;; then
++
+
+Added: trunk/rpms/sudo/sudo-1.6.8p12-sudoers
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p12-sudoers	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p12-sudoers	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,94 @@
++## Sudoers allows particular users to run various commands as
++## the root user, without needing the root password.
++##
++## Examples are provided at the bottom of the file for collections
++## of related commands, which can then be delegated out to particular
++## users or groups.
++## 
++## This file must be edited with the 'visudo' command.
++
++## Host Aliases
++## Groups of machines. You may prefer to use hostnames (perhap using 
++## wildcards for entire domains) or IP addresses instead.
++# Host_Alias     FILESERVERS = fs1, fs2
++# Host_Alias     MAILSERVERS = smtp, smtp2
++
++## User Aliases
++## These aren't often necessary, as you can use regular groups
++## (ie, from files, LDAP, NIS, etc) in this file - just use %groupname 
++## rather than USERALIAS
++# User_Alias ADMINS = jsmith, mikem
++
++
++## Command Aliases
++## These are groups of related commands...
++
++## Networking
++Cmnd_Alias NETWORKING = /sbin/route, /sbin/ifconfig, /bin/ping, /sbin/dhclient, /usr/bin/net, /sbin/iptables, /usr/bin/rfcomm, /usr/bin/wvdial, /sbin/iwconfig, /sbin/mii-tool
++
++## Installation and management of software
++Cmnd_Alias SOFTWARE = /bin/rpm, /usr/bin/up2date, /usr/bin/yum
++
++## Services
++Cmnd_Alias SERVICES = /sbin/service, /sbin/chkconfig
++
++## Updating the locate database
++Cmnd_Alias LOCATE = /usr/sbin/updatedb
++
++## Storage
++Cmnd_Alias STORAGE = /sbin/fdisk, /sbin/sfdisk, /sbin/parted, /sbin/partprobe, /bin/mount, /bin/umount
++
++## Delegating permissions
++Cmnd_Alias DELEGATING = /usr/sbin/visudo, /bin/chown, /bin/chmod, /bin/chgrp 
++
++## Processes
++Cmnd_Alias PROCESSES = /bin/nice, /bin/kill, /usr/bin/kill, /usr/bin/killall
++
++## Drivers
++Cmnd_Alias DRIVERS = /sbin/modprobe
++
++# Defaults specification
++
++#
++# Disable &quot;ssh hostname sudo &lt;cmd&gt;&quot;, because it will show the password in clear. 
++#         You have to run &quot;ssh -t hostname sudo &lt;cmd&gt;&quot;.
++#
++Defaults    requiretty
++
++Defaults    env_reset
++Defaults    env_keep = &quot;COLORS DISPLAY HOSTNAME HISTSIZE INPUTRC KDEDIR \
++                        LS_COLORS MAIL PS1 PS2 QTDIR USERNAME \
++                        LANG LC_ADDRESS LC_CTYPE LC_COLLATE LC_IDENTIFICATION \
++                        LC_MEASUREMENT LC_MESSAGES LC_MONETARY LC_NAME LC_NUMERIC \
++                        LC_PAPER LC_TELEPHONE LC_TIME LC_ALL LANGUAGE LINGUAS \
++                        _XKB_CHARSET XAUTHORITY&quot;
++
++## Next comes the main part: which users can run what software on 
++## which machines (the sudoers file can be shared between multiple
++## systems).
++## Syntax:
++##
++## 	user	MACHINE=COMMANDS
++##
++## The COMMANDS section may have other options added to it.
++##
++## Allow root to run any commands anywhere 
++root	ALL=(ALL) 	ALL
++
++## Allows members of the 'sys' group to run networking, software, 
++## service management apps and more.
++# %sys ALL = NETWORKING, SOFTWARE, SERVICES, STORAGE, DELEGATING, PROCESSES, LOCATE, DRIVERS
++
++## Allows people in group wheel to run all commands
++# %wheel	ALL=(ALL)	ALL
++
++## Same thing without a password
++# %wheel	ALL=(ALL)	NOPASSWD: ALL
++
++## Allows members of the users group to mount and unmount the 
++## cdrom as root
++# %users  ALL=/sbin/mount /mnt/cdrom, /sbin/umount /mnt/cdrom
++
++## Allows members of the users group to shutdown this system
++# %users  localhost=/sbin/shutdown -h now
++
+
+Added: trunk/rpms/sudo/sudo-1.6.8p8-pam-sess.patch
+===================================================================
+--- trunk/rpms/sudo/sudo-1.6.8p8-pam-sess.patch	                        (rev 0)
++++ trunk/rpms/sudo/sudo-1.6.8p8-pam-sess.patch	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,32 @@
++--- sudo-1.6.8p8/auth/pam.c.sess	2005-05-24 16:38:35.976866872 +0200
+++++ sudo-1.6.8p8/auth/pam.c	2005-05-24 16:39:50.061604280 +0200
++@@ -175,6 +175,8 @@
++ pam_prep_user(pw)
++     struct passwd *pw;
++ {
+++    int error;
+++
++     if (pamh == NULL)
++ 	pam_init(pw, NULL, NULL);
++ 
++@@ -195,6 +197,20 @@
++      */
++     (void) pam_setcred(pamh, PAM_ESTABLISH_CRED);
++ 
+++    /*
+++     * That's enough initialize PAM session in this function, because
+++     * sudo calls it before exec()
+++     */
+++    if ((error = pam_open_session(pamh, 0))!=PAM_SUCCESS) {
+++	    pam_end(pamh, error);
+++	    return(AUTH_FAILURE);
+++    }
+++    /*
+++     * For example settings from pam_limits are persistent after pam_session_close() and
+++     * it's probably more clean call pam_close_session() than omit it.
+++     */
+++    pam_close_session(pamh, 0);
+++   
++     if (pam_end(pamh, PAM_SUCCESS | PAM_DATA_SILENT) == PAM_SUCCESS)
++ 	return(AUTH_SUCCESS);
++     else
+
+Added: trunk/rpms/sudo/sudo.spec
+===================================================================
+--- trunk/rpms/sudo/sudo.spec	                        (rev 0)
++++ trunk/rpms/sudo/sudo.spec	2008-12-29 16:28:26 UTC (rev 6631)
+@@ -0,0 +1,442 @@
++# $Id$
++# Authority: dag
++
++# Rationale: Some features of the newer sudo are nice to have (eg. -i)
++
++# Tag: test
++
++### This version of sudo ships with RHEL5
++# ExclusiveDist: el2 rh7 rh9 el3 el4
++
++Summary: Allows restricted root access for specified users.
++Name: sudo
++Version: 1.6.8p12
++Release: 0.12
++License: BSD
++Group: Applications/System
++URL: <A HREF="http://www.courtesan.com/sudo/">http://www.courtesan.com/sudo/</A>
++
++Source0: <A HREF="http://www.courtesan.com/sudo/dist/sudo-%{version">http://www.courtesan.com/sudo/dist/sudo-%{version</A>}.tar.gz
++Source1: sudo-1.6.8p12-sudoers
++# 154511 - sudo does not use limits.conf
++Patch2: sudo-1.6.8p8-pam-sess.patch
++# don't strip
++Patch3: sudo-1.6.7p5-strip.patch
++# Default sudoers: reset env.
++Patch4: sudo-1.6.8p12-env-reset.patch
++# Default sudoers; require tty (#190062)
++Patch5: sudo-1.6.8p12-requiretty.patch
++# Use specific PAM session for sudo -i (#198755)
++Patch6: sudo-1.6.8p12-pam-login.patch
++# IPv6 support
++Patch7: sudo-1.6.8p12-ipv6.patch
++# audit support
++Patch8: sudo-1.6.8p12-audit.patch 
++# segfaults on s390
++Patch9: sudo-1.6.8p12-s390.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: bison
++BuildRequires: flex
++BuildRequires: groff
++BuildRequires: libcap-devel
++BuildRequires: openldap-devel
++BuildRequires: pam-devel
++Requires: /etc/pam.d/system-auth
++Requires: vim-minimal
++
++%description
++Sudo (superuser do) allows a system administrator to give certain
++users (or groups of users) the ability to run some (or all) commands
++as root while logging all commands and arguments. Sudo operates on a
++per-command basis.  It is not a replacement for the shell.  Features
++include: the ability to restrict what commands a user may run on a
++per-host basis, copious logging of each command (providing a clear
++audit trail of who did what), a configurable timeout of the sudo
++command, and the ability to use the same configuration file (sudoers)
++on many different machines.
++
++%prep
++%setup
++%patch2 -p1 -b .sess
++%patch3 -p1 -b .strip
++%patch4 -p1 -b .env_reset
++%patch5 -p1 -b .tty
++%patch6 -p1 -b .login
++%patch7 -p1 -b .ipv6
++#patch8 -p1 -b .audit
++%patch9 -p1 -b .s390
++
++%{__cat} &lt;&lt;EOF &gt;sudo.pam
++#%PAM-1.0
++auth       required	pam_stack.so service=system-auth
++account    required	pam_stack.so service=system-auth
++password   required	pam_stack.so service=system-auth
++session    required	pam_limits.so
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;sudo-i.pam
++#%PAM-1.0
++auth       required	pam_stack.so service=system-auth
++account    required	pam_stack.so service=system-auth
++password   required	pam_stack.so service=system-auth
++session    required	pam_limits.so
++EOF
++
++%build
++# Note: there is a problem rebuild the ./configure script (for pam-login patch), 
++#       so we use -DHAVE_PAM_LOGIN rather than --with-pam-login... 
++#       (it's workaround that should be fixed)
++%ifarch s390 s390x
++export CFLAGS=&quot;%{optflags} -fPIE -DHAVE_PAM_LOGIN -DWITH_AUDIT&quot; 
++%else
++export CFLAGS=&quot;%{optflags} -fpie -DHAVE_PAM_LOGIN -DWITH_AUDIT&quot; 
++%endif
++export LDFLAGS=&quot;-pie&quot; 
++export LIBS=&quot;-lcap&quot;
++
++%configure \
++    --prefix=&quot;%{_prefix}&quot; \
++    --sbindir=&quot;%{_sbindir}&quot; \
++    --with-editor=&quot;/bin/vi&quot; \
++    --with-env-editor \
++    --with-ignore-dot \
++    --with-ldap \
++    --with-logfac=&quot;authpriv&quot; \
++    --with-logging=&quot;syslog&quot; \
++    --with-pam \
++    --with-tty-tickets
++%{__make} %{?_smp_mflags}
++
++%install
++%{__rm} -rf %{buildroot}
++%{__install} -dp -m0755 %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot; \
++    install_uid=&quot;$(id -u)&quot; \
++    install_gid=&quot;$(id -g)&quot; \
++    sudoers_uid=&quot;$(id -u)&quot; \
++    sudoers_gid=&quot;$(id -g)&quot;
++%{__chmod} 0755 %{buildroot}%{_bindir}/*
++%{__chmod} 0755 %{buildroot}%{_sbindir}/*
++%{__install} -d -m0700 %{buildroot}%{_localstatedir}/run/sudo
++%{__install} -Dp -m0440 %{SOURCE1} %{buildroot}%{_sysconfdir}/sudoers
++
++%{__install} -Dp -m06440 sudo.pam %{buildroot}%{_sysconfdir}/pam.d/sudo
++%{__install} -Dp -m06440 sudo-i.pam %{buildroot}%{_sysconfdir}/pam.d/sudo-i
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc BUGS CHANGES HISTORY LICENSE README RUNSON TODO TROUBLESHOOTING UPGRADE *.pod
++%doc %{_mandir}/man5/sudoers.5*
++%doc %{_mandir}/man8/sudo.8*
++%doc %{_mandir}/man8/sudoedit.8*
++%doc %{_mandir}/man8/visudo.8*
++%config(noreplace) %{_sysconfdir}/pam.d/sudo
++%config(noreplace) %{_sysconfdir}/pam.d/sudo-i
++%dir %{_localstatedir}/run/sudo
++%{_libexecdir}/sudo_noexec.*
++
++%defattr(0440, root, root, 0755)
++%config(noreplace) %{_sysconfdir}/sudoers
++
++%defattr(4111, root, root, 0755)
++%{_bindir}/sudo
++%{_bindir}/sudoedit
++
++%defattr(0755, root, root, 0755)
++%{_sbindir}/visudo
++
++# Make sure permissions are ok even if we're updating
++%post
++%{__chmod} 0440 %{_sysconfdir}/sudoers || :
++
++%changelog
++* Thu Mar 06 2008 Peter Vrabec &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pvrabec at redhat.com</A>&gt; 1.6.8p12-12
++- adjust audit patch,
++  Resolves: #320671
++
++* Fri Jan 04 2008 Peter Vrabec &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pvrabec at redhat.com</A>&gt; 1.6.8p12-11
++- fix segfaults when using ldap on s390,
++  Resolves: #305331
++- add audit support,
++  Resolves: #320671
++
++* Sun Oct 01 2006 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jkeating at redhat.com</A>&gt; - 1.6.8p12-10
++- rebuilt for unwind info generation, broken in gcc-4.1.1-21
++
++* Thu Sep 21 2006 Peter Vrabec &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pvrabec at redhat.com</A>&gt; 1.6.8p12-9
++- fix sudoers file, X apps didn't work (#206320)
++
++* Tue Aug 08 2006 Peter Vrabec &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pvrabec at redhat.com</A>&gt; 1.6.8p12-8
++- use Red Hat specific default sudoers file
++
++* Sun Jul 16 2006 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p12-7
++- fix #198755 - make login processes (sudo -i) initialise session keyring
++  (thanks for PAM config files to David Howells)
++- add IPv6 support (patch by Milan Zazrivec)
++
++* Wed Jul 12 2006 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jkeating at redhat.com</A>&gt; - 1.6.8p12-6.1
++- rebuild
++
++* Mon May 29 2006 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p12-6
++- fix #190062 - &quot;ssh localhost sudo su&quot; will show the password in clear
++
++* Tue May 23 2006 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p12-5
++- add LDAP support (#170848)
++
++* Fri Feb 10 2006 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jkeating at redhat.com</A>&gt; - 1.6.8p12-4.1
++- bump again for double-long bug on ppc(64)
++
++* Wed Feb  8 2006 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p12-4
++- reset env. by default
++
++* Tue Feb 07 2006 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jkeating at redhat.com</A>&gt; - 1.6.8p12-3.1
++- rebuilt for new gcc4.1 snapshot and glibc changes
++
++* Mon Jan 23 2006 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.8p12-3
++- Remove selinux patch.  It has been decided that the SELinux patch for sudo is
++- no longer necessary.  In tageted policy it had no effect.  In strict/MLS policy
++- We require the person using sudo to execute newrole before using sudo.
++
++* Fri Dec 09 2005 Jesse Keating &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jkeating at redhat.com</A>&gt;
++- rebuilt
++
++* Fri Nov 25 2005 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p12-1
++- new upstream version 1.6.8p12
++
++* Tue Nov  8 2005 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p11-1
++- new upstream version 1.6.8p11
++
++* Thu Oct 13 2005 Tomas Mraz &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">tmraz at redhat.com</A>&gt; 1.6.8p9-6
++- use include instead of pam_stack in pam config
++
++* Tue Oct 11 2005 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p9-5
++- enable interfaces in selinux patch
++- merge sudo-1.6.8p8-sesh-stopsig.patch to selinux patch
++
++* Mon Sep 19 2005 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p9-4
++- fix debuginfo
++
++* Mon Sep 19 2005 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p9-3
++- fix #162623 - sesh hangs when child suspends
++
++* Mon Aug 1 2005 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.8p9-2
++- Add back in interfaces call, SELinux has been fixed to work around
++
++* Tue Jun 21 2005 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p9-1
++- new version 1.6.8p9 (resolve #161116 - CAN-2005-1993 sudo trusted user arbitrary command execution)
++
++* Tue May 24 2005 Karel Zak &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">kzak at redhat.com</A>&gt; 1.6.8p8-2
++- fix #154511 - sudo does not use limits.conf
++
++* Mon Apr  4 2005 Thomas Woerner &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">twoerner at redhat.com</A>&gt; 1.6.8p8-1
++- new version 1.6.8p8: new sudoedit and sudo_noexec
++
++* Wed Feb  9 2005 Thomas Woerner &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">twoerner at redhat.com</A>&gt; 1.6.7p5-31
++- rebuild
++
++* Mon Oct  4 2004 Thomas Woerner &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">twoerner at redhat.com</A>&gt; 1.6.7p5-30.1
++- added missing BuildRequires for libselinux-devel (#132883) 
++
++* Wed Sep 29 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-30
++- Fix missing param error in sesh
++
++* Mon Sep 27 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-29
++- Remove full patch check from sesh
++
++* Thu Jul 8 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-28
++- Fix selinux patch to switch to root user
++
++* Tue Jun 15 2004 Elliot Lee &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">sopwith at redhat.com</A>&gt;
++- rebuilt
++
++* Tue Apr 13 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-26
++- Eliminate tty handling from selinux
++
++* Thu Apr  1 2004 Thomas Woerner &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">twoerner at redhat.com</A>&gt; 1.6.7p5-25
++- fixed spec file: sesh in file section with selinux flag (#119682)
++
++* Thu Mar 30 2004 Colin Walters &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">walters at redhat.com</A>&gt; 1.6.7p5-24
++- Enhance sesh.c to fork/exec children itself, to avoid
++  having sudo reap all domains.
++- Only reinstall default signal handlers immediately before
++  exec of child with SELinux patch
++
++* Thu Mar 18 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-23
++- change to default to sysadm_r 
++- Fix tty handling
++
++* Thu Mar 18 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-22
++- Add /bin/sesh to run selinux code.
++- replace /bin/bash -c with /bin/sesh
++
++* Tue Mar 16 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-21
++- Hard code to use &quot;/bin/bash -c&quot; for selinux 
++
++* Tue Mar 16 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-20
++- Eliminate closing and reopening of terminals, to match su.
++
++* Mon Mar 15 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-19
++- SELinux fixes to make transitions work properly
++
++* Fri Mar  5 2004 Thomas Woerner &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">twoerner at redhat.com</A>&gt; 1.6.7p5-18
++- pied sudo
++
++* Fri Feb 13 2004 Elliot Lee &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">sopwith at redhat.com</A>&gt;
++- rebuilt
++
++* Tue Jan 27 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-16
++- Eliminate interfaces call, since this requires big SELinux privs
++- and it seems to be useless.
++
++* Tue Jan 27 2004 Karsten Hopp &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">karsten at redhat.de</A>&gt; 1.6.7p5-15
++- visudo requires vim-minimal or setting EDITOR to something useful (#68605)
++
++* Mon Jan 26 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-14
++- Fix is_selinux_enabled call
++
++* Tue Jan 13 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-13
++- Clean up patch on failure
++
++* Tue Jan 6 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-12
++- Remove sudo.te for now.
++
++* Fri Jan 2 2004 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-11
++- Fix usage message
++
++* Mon Dec 22 2003 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-10
++- Clean up sudo.te to not blow up if pam.te not present
++
++* Thu Dec 18 2003 Thomas Woerner &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">twoerner at redhat.com</A>&gt;
++- added missing BuildRequires for groff
++
++* Tue Dec 16 2003 Jeremy Katz &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">katzj at redhat.com</A>&gt; 1.6.7p5-9
++- remove left-over debugging code
++
++* Tue Dec 16 2003 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-8
++- Fix terminal handling that caused Sudo to exit on non selinux machines.
++
++* Mon Dec 15 2003 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-7
++- Remove sudo_var_run_t which is now pam_var_run_t
++
++* Fri Dec 12 2003 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-6
++- Fix terminal handling and policy
++
++* Thu Dec 11 2003 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-5
++- Fix policy
++
++* Thu Nov 13 2003 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-4.sel
++- Turn on SELinux support
++
++* Tue Jul 29 2003 Dan Walsh &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dwalsh at redhat.com</A>&gt; 1.6.7p5-3
++- Add support for SELinux
++
++* Wed Jun 04 2003 Elliot Lee &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">sopwith at redhat.com</A>&gt;
++- rebuilt
++
++* Mon May 19 2003 Thomas Woerner &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">twoerner at redhat.com</A>&gt; 1.6.7p5-1
++
++* Wed Jan 22 2003 Tim Powers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">timp at redhat.com</A>&gt;
++- rebuilt
++
++* Tue Nov 12 2002 Nalin Dahyabhai &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">nalin at redhat.com</A>&gt; 1.6.6-2
++- remove absolute path names from the PAM configuration, ensuring that the
++  right modules get used for whichever arch we're built for
++- don't try to install the FAQ, which isn't there any more
++
++* Thu Jun 27 2002 Bill Nottingham &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">notting at redhat.com</A>&gt; 1.6.6-1
++- update to 1.6.6
++
++* Fri Jun 21 2002 Tim Powers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">timp at redhat.com</A>&gt;
++- automated rebuild
++
++* Thu May 23 2002 Tim Powers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">timp at redhat.com</A>&gt;
++- automated rebuild
++
++* Thu Apr 18 2002 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt; 1.6.5p2-2
++- Fix bug #63768
++
++* Thu Mar 14 2002 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt; 1.6.5p2-1
++- 1.6.5p2
++
++* Fri Jan 18 2002 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt; 1.6.5p1-1
++- 1.6.5p1
++- Hope this &quot;a new release per day&quot; madness stops ;)
++
++* Thu Jan 17 2002 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt; 1.6.5-1
++- 1.6.5
++
++* Tue Jan 15 2002 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt; 1.6.4p1-1
++- 1.6.4p1
++
++* Mon Jan 14 2002 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt; 1.6.4-1
++- Update to 1.6.4
++
++* Mon Jul 23 2001 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt; 1.6.3p7-2
++- Add build requirements (#49706)
++- s/Copyright/License/
++- bzip2 source
++
++* Sat Jun 16 2001 Than Ngo &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">than at redhat.com</A>&gt;
++- update to 1.6.3p7
++- use %%{_tmppath}
++
++* Fri Feb 23 2001 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt;
++- 1.6.3p6, fixes buffer overrun
++
++* Tue Oct 10 2000 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt;
++- 1.6.3p5
++
++* Wed Jul 12 2000 Prospector &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bugzilla at redhat.com</A>&gt;
++- automatic rebuild
++
++* Tue Jun 06 2000 Karsten Hopp &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">karsten at redhat.de</A>&gt;
++- fixed owner of sudo and visudo
++
++* Thu Jun  1 2000 Nalin Dahyabhai &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">nalin at redhat.com</A>&gt;
++- modify PAM setup to use system-auth
++- clean up buildrooting by using the makeinstall macro
++
++* Tue Apr 11 2000 Bernhard Rosenkraenzer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">bero at redhat.com</A>&gt;
++- initial build in main distrib
++- update to 1.6.3
++- deal with compressed man pages
++
++* Tue Dec 14 1999 Preston Brown &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pbrown at redhat.com</A>&gt;
++- updated to 1.6.1 for Powertools 6.2
++- config files are now noreplace.
++
++* Thu Jul 22 1999 Tim Powers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">timp at redhat.com</A>&gt;
++- updated to 1.5.9p2 for Powertools 6.1
++
++* Wed May 12 1999 Bill Nottingham &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">notting at redhat.com</A>&gt;
++- sudo is configured with pam. There's no pam.d file. Oops.
++
++* Mon Apr 26 1999 Preston Brown &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pbrown at redhat.com</A>&gt;
++- upgraded to 1.59p1 for powertools 6.0
++
++* Tue Oct 27 1998 Preston Brown &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pbrown at redhat.com</A>&gt;
++- fixed so it doesn't find /usr/bin/vi first, but instead /bin/vi (always installed)
++
++* Fri Oct 08 1998 Michael Maher &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">mike at redhat.com</A>&gt;
++- built package for 5.2 
++
++* Mon May 18 1998 Michael Maher &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">mike at redhat.com</A>&gt;
++- updated SPEC file. 
++
++* Thu Jan 29 1998 Otto Hammersmith &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">otto at redhat.com</A>&gt;
++- updated to 1.5.4
++
++* Tue Nov 18 1997 Otto Hammersmith &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">otto at redhat.com</A>&gt;
++- built for glibc, no problems
++
++* Fri Apr 25 1997 Michael Fulbright &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">msf at redhat.com</A>&gt;
++- Fixed for 4.2 PowerTools 
++- Still need to be pamified
++- Still need to move stmp file to /var/log
++
++* Mon Feb 17 1997 Michael Fulbright &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">msf at redhat.com</A>&gt;
++- First version for PowerCD.
+
+
+Property changes on: trunk/rpms/sudo/sudo.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005429.html">[svn] r6630 - in trunk/rpms: . djvulibre dvd95 gnutls gwenview ming	poedit python-bsddb3 python-kid python-osd xdelta
+</A></li>
+	<LI>Next message: <A HREF="005431.html">[svn] r6632 - trunk/rpms/ndoutils
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5430">[ date ]</a>
+              <a href="thread.html#5430">[ thread ]</a>
+              <a href="subject.html#5430">[ subject ]</a>
+              <a href="author.html#5430">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

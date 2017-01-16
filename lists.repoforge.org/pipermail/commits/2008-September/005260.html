@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6461 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6461%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200809091320.m89DKtNT023025%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005259.html">
+   <LINK REL="Next"  HREF="005261.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6461 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6461%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C200809091320.m89DKtNT023025%40surya.karan.org%3E"
+       TITLE="[svn] r6461 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Sep  9 15:20:55 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005259.html">[svn] r6460 - in trunk/rpms: gnuvd littlewizard
+</A></li>
+        <LI>Next message: <A HREF="005261.html">[svn] r6462 - in trunk/rpms: aria2 bitlbee enblend gnuvd klavaro	mathomatic perl-Spreadsheet-WriteExcel tor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5260">[ date ]</a>
+              <a href="thread.html#5260">[ thread ]</a>
+              <a href="subject.html#5260">[ subject ]</a>
+              <a href="author.html#5260">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-09-09 14:20:55 +0100 (Tue, 09 Sep 2008)
+New Revision: 6461
+
+Modified:
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/docs/dstat-paper.txt
+   trunk/tools/dstat/plugins/dstat_topoom.py
+Log:
+Documentation fixes.
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2008-09-08 14:45:32 UTC (rev 6460)
++++ trunk/tools/dstat/TODO	2008-09-09 13:20:55 UTC (rev 6461)
+@@ -44,6 +44,7 @@
+ + Add 'most expensive X app' (look at xrestop)
+ + Add number of (active) X sessions and X clients
+ + Allow to have multiple '1st expensive ... app' and '2nd expensive ... app'
+++ Add 'most iowaiting app' plugin
+ 
+ ### Documentation (help welcome!)
+ + Create document on general system performance tuning
+
+Modified: trunk/tools/dstat/docs/dstat-paper.txt
+===================================================================
+--- trunk/tools/dstat/docs/dstat-paper.txt	2008-09-08 14:45:32 UTC (rev 6460)
++++ trunk/tools/dstat/docs/dstat-paper.txt	2008-09-09 13:20:55 UTC (rev 6461)
+@@ -232,6 +232,7 @@
+     - topcpu: most expensive cpu process
+     - topio: most expensive I/O process
+     - topmem: most expensive memory process
++    - topoom: process first shot by OOM killer
+     - utmp: utmp counters
+     - vmkhba: VMware kernel HBA counters
+     - vmkint: VMware kernel interrupt counters
+@@ -381,7 +382,7 @@
+   2   2  96   0   0   0|                |   0    52k| 724B 2674B|   0     0 |rsync        74M
+ ----
+ 
+-=== What process is using all my CPU or memory at 4:20 AM ?
++=== What process is using all my CPU, memory or I/O at 4:20 AM ?
+ Imagine the monitoring team notices strange peaks, a system engineer got a
+ worthless message, the system was swapping extensively, a process got killed.
+ 
+@@ -389,9 +390,9 @@
+ causing it and why ? As of now you can do:
+ 
+ ----
+-dstat -tcy -M topcpu 120
+-dstat -tmgs -M topmem 120
+-dstat -td -M topio 120
++screen dstat -tcy -M topcpu 120
++screen dstat -tmgs -M topmem 120
++screen dstat -tdi -M topio 120
+ ----
+ 
+ to see what process is using the most CPU, the most memory and the most I/O
+@@ -406,7 +407,33 @@
+ 
+ Leave it running during the night and in the morning you can see the light.
+ 
++=== What device is slowing down my system ?
++Many devices generate interrupts, especially when used at maximum capacity.
++Sometimes too many interrupts can slow down a system. If you want to correlate
++bad performance with hardware interrupts, you can run a command like:
+ 
++----
++dstat -tyif
++dstat -tyi -I 12,58,ipw2200 -f 5
++----
++
++=== How much ticks per second on my kernel ?
++In some cases it can be useful to see how many ticks (timer interrupts) your
++kernel is producing. With older kernels this is a fixed number (usually 100,
++250 or 1000) but on newer kernels the number can be dynamic.
++
++Also on VMware virtual machines, the number of ticks can cause clock issues,
++so in that case if you want to see what is happening, you can simply do:
++
++----
++dstat -ti -I0
++----
++
++Dstat nowadays can also detect lost ticks (when the number of ticks do not
++much the time progress. This is useful to correlate VM issues with other
++problems.
++
++
+ ////
+ === Monitoring memory consumption of a process over time
+ Now, I have twice used Dstat to verify memory usage. And I have concluded that
+@@ -485,12 +512,16 @@
+ ----
+ 
+ === Is my SWRAID performing as it claims ?
+-This surprised me when Googling for Dstat. I was looking for other use-cases
+-on the Internet and on the linux kernel mailinglist one of the SWRAID
+-developers was indicating a problem with an implementation using Dstat output
+-to prove it.
++You can monitor I/O throughput for any block device. By default dstat limits
++itself to real block devices to prevent having the same I/O to be counted more
++than once, but if you want to monitor a SWRAID device, or a multipath device,
++you can simply do that by doing:
+ 
++----
++dstat -td -D md0,md1,sda,sdb,hda
++----
+ 
++
+ == Writing your own Dstat plugin
+ Dstat is completely written in python and this makes it extremely convenient
+ to write your own plugins. The many plugins that come with Dstat are an
+
+Modified: trunk/tools/dstat/plugins/dstat_topoom.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topoom.py	2008-09-08 14:45:32 UTC (rev 6460)
++++ trunk/tools/dstat/plugins/dstat_topoom.py	2008-09-09 13:20:55 UTC (rev 6461)
+@@ -17,7 +17,7 @@
+ 
+     def check(self):
+         if not os.access('/proc/self/oom_score', os.R_OK):
+-            raise Exception, 'Kernel does not support /proc/pid/oom_score, use at least 2.6.20.'
++            raise Exception, 'Kernel does not support /proc/pid/oom_score, use at least 2.6.11.'
+         return True
+ 
+     def extract(self):
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005259.html">[svn] r6460 - in trunk/rpms: gnuvd littlewizard
+</A></li>
+	<LI>Next message: <A HREF="005261.html">[svn] r6462 - in trunk/rpms: aria2 bitlbee enblend gnuvd klavaro	mathomatic perl-Spreadsheet-WriteExcel tor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5260">[ date ]</a>
+              <a href="thread.html#5260">[ thread ]</a>
+              <a href="subject.html#5260">[ subject ]</a>
+              <a href="author.html#5260">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,168 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6444 - trunk/tools/mrepo
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6444%20-%20trunk/tools/mrepo&In-Reply-To=%3C200808150054.m7F0sfwd001793%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005242.html">
+   <LINK REL="Next"  HREF="005244.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6444 - trunk/tools/mrepo</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6444%20-%20trunk/tools/mrepo&In-Reply-To=%3C200808150054.m7F0sfwd001793%40surya.karan.org%3E"
+       TITLE="[svn] r6444 - trunk/tools/mrepo">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug 15 02:54:41 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005242.html">[svn] r6443 - trunk/tools/mrepo
+</A></li>
+        <LI>Next message: <A HREF="005244.html">[svn] r6445 - in trunk/rpms: klavaro qsvn
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5243">[ date ]</a>
+              <a href="thread.html#5243">[ thread ]</a>
+              <a href="subject.html#5243">[ subject ]</a>
+              <a href="author.html#5243">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-08-15 01:54:41 +0100 (Fri, 15 Aug 2008)
+New Revision: 6444
+
+Modified:
+   trunk/tools/mrepo/mrepo
+Log:
+A few corrections to fuseiso and unionfs
+
+Modified: trunk/tools/mrepo/mrepo
+===================================================================
+--- trunk/tools/mrepo/mrepo	2008-08-15 00:38:31 UTC (rev 6443)
++++ trunk/tools/mrepo/mrepo	2008-08-15 00:54:41 UTC (rev 6444)
+@@ -182,6 +182,7 @@
+         self.hardlink = self.getoption('main', 'hardlink', 'no') not in disable
+ 
+         ### FIXME: See if fuse module is loaded
++        self.fuseiso = self.getoption('main', 'fuseiso', 'yes') not in disable
+         self.unionfs = self.getoption('main', 'unionfs', 'yes') not in disable
+ 
+         self.no_proxy = self.getoption('main', 'no_proxy', None)
+@@ -191,6 +192,7 @@
+ 
+         self.cmd = {}
+         self.cmd['createrepo'] = self.getoption('main', 'createrepocmd', '/usr/bin/createrepo')
++        self.cmd['fuseiso'] = self.getoption('main', 'fuseisocmd', '/usr/bin/fuseiso')
+         self.cmd['genbasedir'] = self.getoption('main', 'genbasedircmd', '/usr/bin/genbasedir')
+         self.cmd['hardlink'] = self.getoption('main', 'hardlinkcmd', '/usr/sbin/hardlink')
+         self.cmd['hardlink++'] = self.getoption('main', 'hardlinkcppcmd', '/usr/bin/hardlink++')
+@@ -201,7 +203,7 @@
+         self.cmd['repoview'] = self.getoption('main', 'repoviewcmd', '/usr/bin/repoview')
+         self.cmd['rhnget'] = self.getoption('main', 'rhngetcmd', '/usr/bin/rhnget')
+         self.cmd['rsync'] = self.getoption('main', 'rsynccmd', '/usr/bin/rsync')
+-	self.cmd['unionfs'] = self.getoption('main', 'unionfscmd', '/usr/bin/unionfs')
++        self.cmd['unionfs'] = self.getoption('main', 'unionfscmd', '/usr/bin/unionfs')
+         self.cmd['umount'] = self.getoption('main', 'umountcmd', '/bin/umount')
+         self.cmd['youget'] = self.getoption('main', 'yougetcmd', '/usr/bin/youget')
+         self.cmd['yumarch'] = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
+@@ -289,6 +291,7 @@
+                     dist.metadata = self.metadata.split()
+                     dist.enabled = True
+                     dist.promoteepoch = True
++                    dist.fuseiso = True
+                     dist.unionfs = True
+                     for option in self.cfg.options(section):
+                         if option in ('iso', 'name', 'release', 'repo', 'rhnrelease'):
+@@ -297,6 +300,8 @@
+                             pass
+                         elif option in ('disabled',):
+                             dist.enabled = self.cfg.get(section, option) in disable
++                        elif option in ('fuseiso',):
++                            dist.fuseiso = self.cfg.get(section, option) not in disable
+                         elif option in ('unionfs',):
+                             dist.unionfs = self.cfg.get(section, option) not in disable
+                         elif option in ('metadata',):
+@@ -504,7 +509,7 @@
+             remove(os.path.join(self.dir, 'iso'))
+         regexp = re.compile('.+[_-]CD[0-9]?\..+')
+         ### FIXME: See if fuse module is loaded
+-        if cf.cmd['unionfs'] and cf.unionfs and self.unionfs:
++        if cf.cmd['fuseiso'] and cf.fuseiso and self.fuseiso:
+             opts = '-n'
+             extra_opts = '-oallow_other'
+             mount_cmd = cf.cmd['fuseiso']
+@@ -543,12 +548,12 @@
+                     symlink(mount2, mount)
+ 
+         if cf.cmd['unionfs'] and cf.unionfs and self.unionfs:
+-            # This will be the name of our filesystem (first column of /etc/mtab)
++            ### This will be the name of our filesystem (first column of /etc/mtab)
+             unionfs_name = &quot;%s-%s-fuse&quot; % (self.dist, self.arch)
+ 
+-            # We need to make sure that our directory isn't already mounted (in the case of mrepo -g)
++            ### We need to make sure that our directory isn't already mounted (in the case of mrepo -g)
+             if not mountpoint(unionfs_name):
+-                # Create the 'os' directory for the merged trees.
++                ### Create the 'os' directory for the merged trees.
+                 unionfs_mountpoint = os.path.join(self.dir, 'os')
+                 mkdir(unionfs_mountpoint)
+                 info(2, &quot;%s -o allow_other,fsname=%s %s %s&quot; % (cf.cmd['unionfs'], unionfs_name, ':'.join(mountpoints), unionfs_mountpoint))
+@@ -561,10 +566,11 @@
+         discnr = 0
+         regexp = re.compile('.+[_-]CD[0-9]?\..+')
+ 
+-        # Remove any unionfs mounted directories first.
+-        if os.path.isdir(os.path.join(self.dir, 'os')):
+-            info(2, '%s %s' % (cf.cmd['umount'], os.path.join(self.dir, 'os')))
+-            run('%s %s' % (cf.cmd['umount'], os.path.join(self.dir, 'os')))
++        ### Remove any unionfs mounted directories first.
++        if os.path.ismount(os.path.join(self.dir, 'os')):
++            umount_cmd = 'fusermount -u'
++            info(2, '%s %s' % (umount_cmd, os.path.join(self.dir, 'os')))
++            run('%s %s' % (umount_cmd, os.path.join(self.dir, 'os')))
+ 
+         for iso in self.isos:
+             discnr = discnr + 1
+@@ -575,8 +581,12 @@
+             if not os.path.isfile(cf.cmd['umount']):
+                 die(5, 'umount command not %s' % cf.cmd['umount'])
+             if os.path.ismount(mount):
+-                info(2, '%s: Unmount ISO %s from %s' % (self.nick, os.path.basename(iso), mount))
+-                run('%s %s' % (cf.cmd['umount'], mount))
++                if mountpoint(mount):
++                    info(2, '%s: Unmount ISO %s from %s' % (self.nick, os.path.basename(iso), mount))
++                    run('%s %s' % (cf.cmd['umount'], mount))
++                else:
++                    info(2, '%s: Unmount ISO %s from %s' % (self.nick, os.path.basename(iso), mount))
++                    run('%s %s' % ('fusermount -u', mount))
+ 
+     def pxe(self):
+         &quot;Create PXE boot setup&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005242.html">[svn] r6443 - trunk/tools/mrepo
+</A></li>
+	<LI>Next message: <A HREF="005244.html">[svn] r6445 - in trunk/rpms: klavaro qsvn
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5243">[ date ]</a>
+              <a href="thread.html#5243">[ thread ]</a>
+              <a href="subject.html#5243">[ subject ]</a>
+              <a href="author.html#5243">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

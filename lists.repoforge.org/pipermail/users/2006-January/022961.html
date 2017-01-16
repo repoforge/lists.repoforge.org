@@ -1,0 +1,172 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [suggest] Re: New package: Maradns
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20Re%3A%20New%20package%3A%20Maradns&In-Reply-To=%3CPine.LNX.4.64.0601272226310.26218%40horsea.3ti.be%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="022960.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[suggest] Re: New package: Maradns</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20Re%3A%20New%20package%3A%20Maradns&In-Reply-To=%3CPine.LNX.4.64.0601272226310.26218%40horsea.3ti.be%3E"
+       TITLE="[suggest] Re: New package: Maradns">dag at wieers.com
+       </A><BR>
+    <I>Fri Jan 27 22:36:38 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="022960.html">[suggest] New package: Maradns
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22961">[ date ]</a>
+              <a href="thread.html#22961">[ thread ]</a>
+              <a href="subject.html#22961">[ subject ]</a>
+              <a href="author.html#22961">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Fri, 27 Jan 2006, Greg Swallow - SkyNet wrote:
+
+&gt;<i> Hi Dag et al, the authour of Maradns looks like he could use your expertise.
+</I>&gt;<i> I'm not sure if you're familiar with Maradns - see <A HREF="http://www.maradns.org/">http://www.maradns.org/</A>
+</I>&gt;<i> and <A HREF="http://sourceforge.net/projects/maradns">http://sourceforge.net/projects/maradns</A>
+</I>&gt;<i> 
+</I>&gt;<i> He has a source rpm -
+</I>&gt;<i> <A HREF="http://maradns.org/download/1.2/1.2.03.1/maradns-1.2.03.1-1.src.rpm">http://maradns.org/download/1.2/1.2.03.1/maradns-1.2.03.1-1.src.rpm</A> - , but
+</I>&gt;<i> it only builds on Redhat 6.2 according to his website.  
+</I>&gt;<i> 
+</I>&gt;<i> It wouldn't build for me and I made the attached changes to the spec file to
+</I>&gt;<i> let it build on Centos4.  But my changes could definitely be improved by one
+</I>&gt;<i> of you that knows how to write a good specfile ;-) 
+</I>
+Ok, I looked at the source RPM and created my own SPEC file. But I noticed 
+too many inconsistencies (and non-standard decisions) that I don&#180;t think I 
+should fix. I&#180;ve attached my SPEC file, ideally it should look like that.
+
+Things that I found wrong:
+
+ + sysv script should be installed with chkconfig, not by make install
+ + mandir should point to %{datadir}/man (where %{datadir} equals 
+   %{prefix}/share), not %{prefix}/man
+ + make install usually has a variable DESTDIR that points to a custo&#241; 
+   buildroot. Checking for RPM_BUILD_ROOT is nice, but having a standard 
+   DESTDIR is better.
+ + make install should create the directories (or use install -D -mMASK to 
+   install)
+ + make us of macros where possible
+
+
+&gt;<i> Thanks for all your hard work guys.  Much appreciated!
+</I>
+If he could fix these (and look at eg. dnsmasq as an example daemon RPM 
+package) I&#180;ll take another look at packaging maradns.
+
+Kind regards,
+--   dag wieers,  <A HREF="http://lists.repoforge.org/mailman/listinfo/users">dag at wieers.com</A>,  <A HREF="http://dag.wieers.com/">http://dag.wieers.com/</A>   --
+[all I want is a warm bed and a kind word and unlimited power]
+-------------- next part --------------
+# $Id$
+# Authority: dag
+
+# Tag: test
+
+Summary: Authoritative and recursive DNS server made with security in mind
+Name: maradns
+Version: 1.2.03.1
+Release: 1
+License: BSD
+Group: Applications/Internet
+URL: <A HREF="http://www.maradns.org/">http://www.maradns.org/</A>
+
+Source: <A HREF="http://www.maradns.org/download/1.2/%{version">http://www.maradns.org/download/1.2/%{version</A>}/maradns-%{version}.tar.bz2
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+
+%description
+MaraDNS is an authoritative and recursive DNS server made with
+security and embedded systems in mind.
+
+%prep
+%setup 
+
+%build
+%{__make} %{?_smp_mflags}
+
+%install
+%{__rm} -rf %{buildroot}
+%{__install} -d -m0755 %{buildroot}%{_bindir}
+%{__install} -d -m0755 %{buildroot}%{_sbindir}
+%{__install} -d -m0755 %{buildroot}%{_mandir}/man{1,5,8}/
+%{__install} -d -m0755 %{buildroot}%{_sysconfdir}/maradns/
+%{__install} -d -m0755 %{buildroot}%{_initrddir}
+%{__make} install PREFIX=&quot;%{buildroot}%{_prefix}&quot;
+%{__install} -D -m0644 build/rpm.mararc %{buildroot}%{_sysconfdir}/mararc
+
+%clean
+%{__rm} -rf %{buildroot}
+
+%files
+%defattr(-, root, root, 0755)
+%doc CHANGELOG COPYING CREDITS FAQ doc/*
+%doc %{_mandir}/man1/askmara.1*
+%doc %{_mandir}/man1/getzone.1*
+%doc %{_mandir}/man1/fetchzone.1*
+%doc %{_mandir}/man5/csv1.5*
+%doc %{_mandir}/man5/csv2.5*
+%doc %{_mandir}/man5/csv2_txt.5*
+%doc %{_mandir}/man5/mararc.5*
+%doc %{_mandir}/man8/maradns.8*
+%doc %{_mandir}/man8/zoneserver.8*
+%doc %{_mandir}/man8/duende.8*
+%config(noreplace) %{_sysconfdir}/mararc
+%config %{_sysconfdir}/maradns/db.example.net
+%config %{_initrddir}/maradns
+%dir %{_sysconfdir}/maradns/
+%{_bindir}/askmara
+%{_bindir}/duende
+%{_bindir}/fetchzone
+%{_bindir}/getzone
+%{_sbindir}/maradns
+%{_sbindir}/zoneserver
+
+%post
+/sbin/chkconfig --add maradns
+
+%preun
+if [ $1 -eq 0 ]; then
+        /sbin/service maradns stop &amp;&gt;/dev/null || :
+        /sbin/chkconfig --del maradns
+fi
+
+%postun
+/sbin/service maradns condrestart &amp;&gt;/dev/null || :
+
+
+%changelog
+* Fri Jan 27 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">dag at wieers.com</A>&gt; - 1.2.03.1-1
+- Updated to release 1.2.03.1.
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="022960.html">[suggest] New package: Maradns
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#22961">[ date ]</a>
+              <a href="thread.html#22961">[ thread ]</a>
+              <a href="subject.html#22961">[ subject ]</a>
+              <a href="author.html#22961">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6520 - trunk/rpms/nagios-nsca
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6520%20-%20trunk/rpms/nagios-nsca&In-Reply-To=%3C200810171436.m9HEaGAj008126%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005318.html">
+   <LINK REL="Next"  HREF="005320.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6520 - trunk/rpms/nagios-nsca</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6520%20-%20trunk/rpms/nagios-nsca&In-Reply-To=%3C200810171436.m9HEaGAj008126%40surya.karan.org%3E"
+       TITLE="[svn] r6520 - trunk/rpms/nagios-nsca">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Oct 17 16:36:16 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005318.html">[svn] r6519 - trunk/rpms/lighttpd
+</A></li>
+        <LI>Next message: <A HREF="005320.html">[svn] r6521 - trunk/rpms/libnfnetlink
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5319">[ date ]</a>
+              <a href="thread.html#5319">[ thread ]</a>
+              <a href="subject.html#5319">[ subject ]</a>
+              <a href="author.html#5319">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: 2008-10-17 15:36:16 +0100 (Fri, 17 Oct 2008)
+New Revision: 6520
+
+Modified:
+   trunk/rpms/nagios-nsca/nagios-nsca.spec
+Log:
+update nagios-nsca package, add nagios-nsca-client subpackage
+
+
+Modified: trunk/rpms/nagios-nsca/nagios-nsca.spec
+===================================================================
+--- trunk/rpms/nagios-nsca/nagios-nsca.spec	2008-10-16 09:44:54 UTC (rev 6519)
++++ trunk/rpms/nagios-nsca/nagios-nsca.spec	2008-10-17 14:36:16 UTC (rev 6520)
+@@ -9,8 +9,8 @@
+ 
+ Summary: Nagios Service Check Acceptor
+ Name: nagios-nsca
+-Version: 2.6
+-Release: 2
++Version: 2.7.2
++Release: 1
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.nagios.org/">http://www.nagios.org/</A>
+@@ -27,14 +27,17 @@
+ The purpose of this addon is to allow you to execute NetSaint/Nagios
+ plugins on a remote host in as transparent a manner as possible.
+ 
++%package client
++Summary: nagios send_nsca
++Group: Applications/Internet
++Provides: send_nsca
++
++%description  client
++A client program to send passive service check results to a nagios-nsca daemon.
++
+ %prep
+ %setup -n %{real_name}-%{version}
+ 
+-#%{__perl} -pi.orig -e '
+-#       s|^(command_file)=\@localstatedir\@/rw/nagios.cmd|$1=%{_localstatedir}/spool/nagios/nagios.cmd|;
+-#       s|^(alternate_dump_file)=\@localstatedir\@/rw/nsca.dump|$1=%{_localstatedir}/spool/nagios/nsca.dump|;
+-#   ' nsca.cfg.in
+-
+ %{__cat} &lt;&lt;EOF &gt;nsca.xinetd.dag
+ # default: off
+ # description: NSCA (Nagios Service Check Acceptor)
+@@ -144,7 +147,7 @@
+ %build
+ %configure \
+     --sysconfdir=&quot;%{_sysconfdir}/nagios&quot; \
+-    --localstatedir=&quot;%{_localstatedir}/log/nagios&quot; \
++    --localstatedir=&quot;%{_localstatedir}/nagios&quot; \
+     --with-nsca-user=&quot;nagios&quot; \
+     --with-nsca-grp=&quot;nagios&quot; \
+     --with-nsca-port=&quot;5667&quot;
+@@ -159,11 +162,7 @@
+ %{__install} -Dp -m0644 sample-config/send_nsca.cfg %{buildroot}%{_sysconfdir}/nagios/send_nsca.cfg
+ %{__install} -Dp -m0755 nsca.sysv %{buildroot}%{_initrddir}/nsca
+ %{__install} -Dp -m0644 nsca.xinetd.dag %{buildroot}%{_sysconfdir}/xinetd.d/nsca
+-#%{__install} -Dp -m0644 sample-config/nsca.xinetd %{buildroot}%{_sysconfdir}/xinetd.d/nsca
+ 
+-#%{__install} -d -m0755 %{buildroot}%{_localstatedir}/spool/nagios/
+-%{__install} -d -m0755 %{buildroot}%{_localstatedir}/log/nagios/rw/
+-
+ %post
+ /sbin/chkconfig --add nsca
+ 
+@@ -179,10 +178,15 @@
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
++%files client
++%config(noreplace) %{_sysconfdir}/nagios/send_nsca.cfg
++%{_sbindir}/send_nsca
++
++
+ %files
+ %defattr(-, root, root, 0755)
+ %doc Changelog LEGAL README SECURITY
+-%config(noreplace) %{_sysconfdir}/nagios/
++%config(noreplace) %{_sysconfdir}/nagios/nsca.cfg
+ %config(noreplace) %{_sysconfdir}/xinetd.d/nsca
+ %config %{_initrddir}/nsca
+ #%dir %{_localstatedir}/spool/nagios/
+@@ -190,9 +194,14 @@
+ %{_sbindir}/send_nsca
+ 
+ %defattr(-, nagios, apache, 2755)
+-%dir %{_localstatedir}/log/nagios/rw/
+ 
+ %changelog
++* Fri Oct 17 2008 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmr at financial.com</A>&gt; - 2.7.2-1
++- Updated to release 2.7.2
++- Add -client subpackage
++- change locastate dir to %{_localstatedir}/nagios
++- remove %{_localstatedir}/log/nagios/rw/ (comes from nagios package)
++
+ * Mon Jan 28 2008 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.6-2
+ - Fixed ownership of %%{_localstatedir}/log/nagios/rw/. (Josh Kelley)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005318.html">[svn] r6519 - trunk/rpms/lighttpd
+</A></li>
+	<LI>Next message: <A HREF="005320.html">[svn] r6521 - trunk/rpms/libnfnetlink
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5319">[ date ]</a>
+              <a href="thread.html#5319">[ thread ]</a>
+              <a href="subject.html#5319">[ subject ]</a>
+              <a href="author.html#5319">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

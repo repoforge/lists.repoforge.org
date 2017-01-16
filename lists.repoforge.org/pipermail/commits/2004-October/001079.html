@@ -1,0 +1,217 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2273 - in trunk/tools/pydar2: pydar sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2273%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20041013092546.09AEE17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001078.html">
+   <LINK REL="Next"  HREF="001080.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2273 - in trunk/tools/pydar2: pydar sql</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2273%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20041013092546.09AEE17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2273 - in trunk/tools/pydar2: pydar sql">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Oct 13 11:25:46 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001078.html">[SVN] r2272 - trunk/tools/pydar2/sql
+</A></li>
+        <LI>Next message: <A HREF="001080.html">[SVN] r2274 - in trunk/rpms: sylpheed xvidcore zapping
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1079">[ date ]</a>
+              <a href="thread.html#1079">[ thread ]</a>
+              <a href="subject.html#1079">[ subject ]</a>
+              <a href="author.html#1079">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-10-13 11:25:44 +0200 (Wed, 13 Oct 2004)
+New Revision: 2273
+
+Modified:
+   trunk/tools/pydar2/pydar/rpmscheck.py
+   trunk/tools/pydar2/pydar/tagsfile.py
+   trunk/tools/pydar2/sql/rpmscheck.sql
+   trunk/tools/pydar2/sql/svncheck.sql
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/rpmscheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-12 21:57:14 UTC (rev 2272)
++++ trunk/tools/pydar2/pydar/rpmscheck.py	2004-10-13 09:25:44 UTC (rev 2273)
+@@ -38,6 +38,7 @@
+     # so call this function for every directory which contains rpms
+     def check(self, rpmsDir,dbconnectstring):
+         self.cat.debug(&quot;start, rpmsDir=&quot; + rpmsDir)
++        locationId = getRpmLocationId(rpmsDir)
+         self.dbconnectstring = dbconnectstring
+         # let's check every spec file we can find in the repository
+         rpmsDirList = posix.listdir(rpmsDir)
+@@ -45,10 +46,75 @@
+             rindex = string.rfind(file,'.rpm')
+             if rindex &gt; 0 and rindex == len(file) - len('.rpm'):
+                 self.cat.debug(&quot;rpm match, file=&quot; + file)
+-                self.checkRpmFile(rpmsDir,file);
++                self.checkRpmFile(rpmsDir,file,locationId);
+ 
+-    def checkRpmFile(self,rpmsDir,fileName):
+-        self.cat.debug(&quot;start,rpmsDir=&quot;+rpmsDir+&quot;,fileName=&quot;+fileName)
++    def getRpmLocationId(rpmsDir):
++        # inserts a new one if needed!
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++        cursor.execute(&quot;select id from pydar2_rpmlocation where path='&quot; + rpmsDir + &quot;'&quot;)
++        if cursor.rowcount &gt; 0:
++            rs = cursor.fetchone()
++            retval = rs[0]
++            cursor.close()
++            conn.close()
++            return str(retval)
++        else:
++            cursor.execute(&quot;insert into pydar2_rpmlocation (path) values ('&quot; + rpmsDir + &quot;')&quot;)
++            conn.commit()
++            cursor.close()
++            conn.close()
++            return self.getRpmLocationId(rpmsDir)
++                
++    def checkRpmFile(self,rpmsDir,fileName,locationId):
++        self.cat.debug(&quot;start,rpmsDir=&quot;+rpmsDir+&quot;,fileName=&quot;+fileName+&quot;,locationId=&quot; + locationId)
++        rf = RpmFile(rpmsDir+&quot;/&quot;+fileName,'')
++        # locationid : locationId
++        # rpmname : fileName
++        # path : rpmsDir
++        specRpmName = rf.standardtags['NAME']
++        # specrpmname : specRpmName
++        specRpmRelease = rf.standardtags['RELEASE']
++        # specrpmrelease : specRpmRelease
++        fileMd5s = rf.standardtags['FILEMD5S']
++        # filemd5s : fileMd5s
++        chlogLine = rf.stardardtags['CHANGELOGNAME']
++        regexp = '.*#([0-9]*)$'
++        regex = re.compile(regexp)
++        result = regex.match(inputstring)
++        svnCmtRev = &quot;null&quot;;
++        specFileId = &quot;null&quot;;
++        if result:
++            svnCmtRev = result.group(1)
++            self.cat.debug(&quot;svnCmtRev found: &quot; + svnCmtRev)
++            specFileId = self.getSpecFileId(svnCmtRev,specRpmName,specRpmRelease)
++        # svncmtrev : svnCmtRev
++        # specfileid : specFileId
++        self.checkRpmFileInDb(locationId,fileName,rpmsDir,specRpmName,specRpmRelease,fileMd5s,svnCmtRev,specFileId)
+         
++    def checkRpmFileInDb(self,locationId,fileName,rpmsDir,specRpmName,specRpmRelease,fileMd5s,svnCmtRev,specFileId):
++        self.cat.debug('start,fileName=' + fileName + &quot;,svnCmtRev=&quot; + svnCmtRev + &quot;,specFileId=&quot; + specFileId)
++        
++    def getSpecFileId(self,svnCmtRev,specRpmName,specRpmRelease):
++        sqlStr = &quot;select v.specfileid from pydar_specfile_version v, pydar2_specfile_tags t1 where t1.name = 'NAME' and t1.specfileid=v.specfileid and t1.svncmtrev=v.svncmtrev and v.svncmtrev=&quot; + svnCmtRev + &quot; and '&quot; + specRpmName + &quot;' like t1.value || '%' order by t1.value desc&quot;
++        self.cat.debug('sqlStr: ' + sqlStr)
++        conn = pgdb.connect(self.dbconnectstring)
++        cursor = conn.cursor()
++        cursor.execute(sqlStr)
++        if cursor.rowcount &gt; 0:
++            rs = cursor.fetchone()
++            retval = rs[0]
++            cursor.close()
++            conn.close()
++            self.cat.debug('retval:' + retval)
++            return str(retval)
++        else:
++            retval = &quot;null&quot;
++            cursor.close()
++            conn.close()
++            return retval
++        
++        
++        
+ 
+ 
+
+Modified: trunk/tools/pydar2/pydar/tagsfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/tagsfile.py	2004-10-12 21:57:14 UTC (rev 2272)
++++ trunk/tools/pydar2/pydar/tagsfile.py	2004-10-13 09:25:44 UTC (rev 2273)
+@@ -35,7 +35,7 @@
+         self.cat.debug(&quot;defineargs: &quot; + defineargs)
+         self.rpmforgetags = {}
+         self.standardtags = {}
+-        self.queryformattags = (&quot;PKGID&quot;,&quot;NAME&quot;,&quot;VERSION&quot;,&quot;RELEASE&quot;,&quot;EPOCH&quot;,&quot;SERIAL&quot;,&quot;SUMMARY&quot;,&quot;DESCRIPTION&quot;,&quot;DISTRIBUTION&quot;,&quot;VENDOR&quot;,&quot;LICENSE&quot;,&quot;PACKAGER&quot;,&quot;GROUP&quot;,&quot;URL&quot;,&quot;ARCH&quot;,&quot;EXCLUDEARCH&quot;,&quot;EXCLUDEOS&quot;,&quot;EXCLUSIVEARCH&quot;,&quot;EXCLUSIVEOS&quot;,&quot;BUILDARCHS&quot;,&quot;DISTURL&quot;)
++        self.queryformattags = (&quot;PKGID&quot;,&quot;NAME&quot;,&quot;VERSION&quot;,&quot;RELEASE&quot;,&quot;EPOCH&quot;,&quot;SERIAL&quot;,&quot;SUMMARY&quot;,&quot;DESCRIPTION&quot;,&quot;DISTRIBUTION&quot;,&quot;VENDOR&quot;,&quot;LICENSE&quot;,&quot;PACKAGER&quot;,&quot;GROUP&quot;,&quot;URL&quot;,&quot;ARCH&quot;,&quot;EXCLUDEARCH&quot;,&quot;EXCLUDEOS&quot;,&quot;EXCLUSIVEARCH&quot;,&quot;EXCLUSIVEOS&quot;,&quot;BUILDARCHS&quot;,&quot;DISTURL&quot;,&quot;FILEMD5S&quot;,&quot;CHANGELOGNAME&quot;)
+         self.getStandardTags()
+         self.parseRpmForgeTags()
+         
+
+Modified: trunk/tools/pydar2/sql/rpmscheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/rpmscheck.sql	2004-10-12 21:57:14 UTC (rev 2272)
++++ trunk/tools/pydar2/sql/rpmscheck.sql	2004-10-13 09:25:44 UTC (rev 2273)
+@@ -1,14 +1,26 @@
+ 
++drop sequence pydar2_rpmlocation_idseq;
+ drop sequence pydar2_rpmfile_idseq;
++create sequence pydar2_rpmlocation_idseq;
+ create sequence pydar2_rpmfile_idseq;
++
++drop table pydar2_rpmlocation;
+ drop table pydar2_rpmfile;
+ 
++create table pydar2_rpmlocation (
++    id integer unique not null default nextval('pydar2_rpmlocation_idseq');
++    path varchar(512) not null
++);
++
+ create table pydar2_rpmfile (
+     id integer unique not null default nextval('pydar2_rpmfile_idseq'),
++    locationid integer not null,
+     rpmname varchar(512) not null,
+     path varchar(512) not null,  
+     addtimestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    specrpmepoch varchar(128) not null,
+     specrpmname varchar(128) not null,
++    specrpmversion varchar(128) not null,
+     specrpmrelease varchar(128),
+     filemd5s varchar(512) not null,
+     
+
+Modified: trunk/tools/pydar2/sql/svncheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/svncheck.sql	2004-10-12 21:57:14 UTC (rev 2272)
++++ trunk/tools/pydar2/sql/svncheck.sql	2004-10-13 09:25:44 UTC (rev 2273)
+@@ -1,4 +1,4 @@
+-
++p
+ drop sequence pydar2_specfile_idseq;
+ drop sequence pydar2_distro_idseq;
+ create sequence pydar2_specfile_idseq;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001078.html">[SVN] r2272 - trunk/tools/pydar2/sql
+</A></li>
+	<LI>Next message: <A HREF="001080.html">[SVN] r2274 - in trunk/rpms: sylpheed xvidcore zapping
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1079">[ date ]</a>
+              <a href="thread.html#1079">[ thread ]</a>
+              <a href="subject.html#1079">[ subject ]</a>
+              <a href="author.html#1079">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

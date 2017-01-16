@@ -1,0 +1,334 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2198 - trunk/rpms/firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2198%20-%20trunk/rpms/firefox&In-Reply-To=%3C20040916145302.C07F617F77%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001003.html">
+   <LINK REL="Next"  HREF="001005.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2198 - trunk/rpms/firefox</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2198%20-%20trunk/rpms/firefox&In-Reply-To=%3C20040916145302.C07F617F77%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2198 - trunk/rpms/firefox">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Sep 16 16:53:02 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001003.html">[SVN] r2197 - trunk/rpms/gkrellm-plugins
+</A></li>
+        <LI>Next message: <A HREF="001005.html">[SVN] r2199 - trunk/rpms/xmms-crossfade
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1004">[ date ]</a>
+              <a href="thread.html#1004">[ thread ]</a>
+              <a href="subject.html#1004">[ subject ]</a>
+              <a href="author.html#1004">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-09-16 16:53:01 +0200 (Thu, 16 Sep 2004)
+New Revision: 2198
+
+Removed:
+   trunk/rpms/firefox/firefox-0.9.2-extensions.patch
+   trunk/rpms/firefox/firefox-0.9.2-gcc34.patch
+   trunk/rpms/firefox/firefox-0.9.2-nsFormHistory-64bit.patch
+Modified:
+   trunk/rpms/firefox/firefox.spec
+Log:
+Update to 1.0 PR.
+
+
+Deleted: trunk/rpms/firefox/firefox-0.9.2-extensions.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-0.9.2-extensions.patch	2004-09-16 13:34:29 UTC (rev 2197)
++++ trunk/rpms/firefox/firefox-0.9.2-extensions.patch	2004-09-16 14:53:01 UTC (rev 2198)
+@@ -1,153 +0,0 @@
+-Index: toolkit/mozapps/extensions/public/nsIExtensionManager.idl
+-===================================================================
+-RCS file: /cvsroot/mozilla/toolkit/mozapps/extensions/public/nsIExtensionManager.idl,v
+-retrieving revision 1.2.6.5
+-diff -p -u -8 -r1.2.6.5 nsIExtensionManager.idl
+---- toolkit/mozapps/extensions/public/nsIExtensionManager.idl	8 Jun 2004 10:09:55 -0000	1.2.6.5
+-+++ toolkit/mozapps/extensions/public/nsIExtensionManager.idl	13 Jul 2004 10:14:33 -0000
+-@@ -58,16 +58,18 @@ interface nsIExtensionManager : nsISuppo
+- 
+-   /** 
+-    * Returns true if mismatches were found and the app needs to restart. 
+-    */
+-   boolean checkForMismatches();
+- 
+-   void handleCommandLineArgs();
+- 
+-+  void register();
+-+
+-   // Installing Extensions
+-   const unsigned long FLAG_INSTALL_PROFILE = 0x01;
+-   const unsigned long FLAG_INSTALL_GLOBAL  = 0x02;
+- 
+-   void installExtension(in nsIFile aXPIFile, in unsigned long aFlags);
+-   void uninstallExtension(in string aExtensionID);
+-   void enableExtension(in string aExtensionID);
+-   void disableExtension(in string aExtensionID);
+-Index: toolkit/mozapps/extensions/src/nsExtensionManager.js.in
+-===================================================================
+-RCS file: /cvsroot/mozilla/toolkit/mozapps/extensions/src/nsExtensionManager.js.in,v
+-retrieving revision 1.5.6.38
+-diff -p -u -8 -r1.5.6.38 nsExtensionManager.js.in
+---- toolkit/mozapps/extensions/src/nsExtensionManager.js.in	13 Jul 2004 08:08:35 -0000	1.5.6.38
+-+++ toolkit/mozapps/extensions/src/nsExtensionManager.js.in	13 Jul 2004 10:14:38 -0000
+-@@ -102,17 +102,16 @@ function getDirNoCreate(aKey, aSubDirs)
+- {
+-   return getDirInternal(aKey, aSubDirs, false);
+- }
+- 
+- function getDirInternal(aKey, aSubDirs, aCreate)
+- {
+-   var fileLocator = Components.classes[&quot;@mozilla.org/file/directory_service;1&quot;]
+-                               .getService(Components.interfaces.nsIProperties);
+--  
+-   var dir = fileLocator.get(aKey, Components.interfaces.nsIFile);
+-   for (var i = 0; i &lt; aSubDirs.length; ++i) {
+-     dir.append(aSubDirs[i]);
+-     if (aCreate &amp;&amp; !dir.exists())
+-       dir.create(Components.interfaces.nsIFile.DIRECTORY_TYPE, 0755);
+-   }
+-   return dir;
+- }
+-@@ -1443,16 +1442,17 @@ function nsExtensionManager()
+- 
+-   ensureExtensionsFiles(false);
+- }
+- 
+- nsExtensionManager.prototype = {
+-   _extInstaller     : null,
+-   _extUninstaller   : null,
+-   _extEnabler       : null,
+-+  _started          : false,
+-   
+-   /////////////////////////////////////////////////////////////////////////////
+-   // nsIObserver
+-   observe: function (aSubject, aTopic, aData)
+-   {
+-     switch (aTopic) {
+-     case &quot;quit-application-requested&quot;:
+-       if (this._downloadCount &gt; 0) {
+-@@ -1489,16 +1489,18 @@ nsExtensionManager.prototype = {
+-         PRBool.data = result;
+-       }
+-       break;  
+-     }
+-   },
+-   
+-   start: function (aIsDirty)
+-   {
+-+    this._started = true;
+-+    
+-     var needsRestart = false;
+-   
+-     ensureExtensionsFiles(true);
+-     
+-     // Somehow the component list went away, and for that reason the new one
+-     // generated by this function is going to result in a different compreg.
+-     // We must force a restart.
+-     var componentList = getFile(KEY_PROFILEDIR, [FILE_COMPONENT_MANIFEST]);
+-@@ -1637,16 +1639,33 @@ nsExtensionManager.prototype = {
+-     var unlocked = cmdLineSvc.getCmdLineValue(&quot;-unlock-item&quot;);
+-     if (unlocked) {
+-       this._ensureDS();
+-       this._ds.lockUnlockItem(unlocked, false);
+-     }
+-     
+-     this._finishOperations();
+-   },
+-+  
+-+  register: function ()
+-+  {
+-+    if (!this._started) {
+-+      // Loads the datasource and installs any pre-configured items.
+-+      this._ds = new nsExtensionsDataSource();
+-+      this._ds.loadExtensions(false);
+-+      
+-+      // Write bin/extensions/Extensions.rdf
+-+      //       bin/extensions/installed-extensions-processed.txt
+-+      (new nsInstalledExtensionReader(this)).read();
+-+
+-+      // Write bin/components.ini
+-+      var manifest = getFile(KEY_APPDIR, [FILE_COMPONENT_MANIFEST]);
+-+      this._writeProfileFile(manifest, this._getComponentsDir, false);
+-+    }
+-+  },
+- 
+-   _cancelDownloads: function ()
+-   {
+-     var os = Components.classes[&quot;@mozilla.org/observer-service;1&quot;]
+-                         .getService(Components.interfaces.nsIObserverService);
+-     for (var i = 0; i &lt; this._transactions.length; ++i)
+-       os.notifyObservers(this._transactions[i], &quot;xpinstall-progress&quot;, &quot;cancel&quot;);
+-     os.removeObserver(this, &quot;offline-requested&quot;);
+-Index: toolkit/xre/nsAppRunner.cpp
+-===================================================================
+-RCS file: /cvsroot/mozilla/toolkit/xre/nsAppRunner.cpp,v
+-retrieving revision 1.27.2.1.4.32
+-diff -p -u -8 -r1.27.2.1.4.32 nsAppRunner.cpp
+---- toolkit/xre/nsAppRunner.cpp	7 Jul 2004 21:39:06 -0000	1.27.2.1.4.32
+-+++ toolkit/xre/nsAppRunner.cpp	13 Jul 2004 10:14:43 -0000
+-@@ -1703,16 +1703,22 @@ int xre_main(int argc, char* argv[], con
+-     NS_ENSURE_SUCCESS(rv, 1);
+- 
+-     {
+-       nsCOMPtr&lt;nsIChromeRegistry&gt; chromeReg
+-         (do_GetService(&quot;@mozilla.org/chrome/chrome-registry;1&quot;));
+-       NS_ENSURE_TRUE(chromeReg, 1);
+- 
+-       chromeReg-&gt;CheckForNewChrome();
+-+
+-+      nsCOMPtr&lt;nsIExtensionManager&gt; em
+-+        (do_GetService(&quot;@mozilla.org/extensions/manager;1&quot;));
+-+      NS_ENSURE_TRUE(em, 1);
+-+
+-+      em-&gt;Register();
+-     }
+-     return 0;
+-   }
+- 
+- #if defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_GTK2)
+-   // setup for private colormap.  Ideally we'd like to do this
+-   // in nsAppShell::Create, but we need to get in before gtk
+-   // has been initialized to make sure everything is running
+-
+
+Deleted: trunk/rpms/firefox/firefox-0.9.2-gcc34.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-0.9.2-gcc34.patch	2004-09-16 13:34:29 UTC (rev 2197)
++++ trunk/rpms/firefox/firefox-0.9.2-gcc34.patch	2004-09-16 14:53:01 UTC (rev 2198)
+@@ -1,11 +0,0 @@
+---- mozilla/xpinstall/src/nsSoftwareUpdate.cpp.orig	2004-06-16 12:58:28.236052698 +0300
+-+++ mozilla/xpinstall/src/nsSoftwareUpdate.cpp	2004-06-16 12:58:33.812430303 +0300
+-@@ -512,7 +512,7 @@
+-                                          nsSoftwareUpdate::GetInstance)
+- NS_GENERIC_FACTORY_CONSTRUCTOR(nsInstallTrigger)
+- NS_GENERIC_FACTORY_CONSTRUCTOR(nsInstallVersion)
+--NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPInstallManager);
+-+NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPInstallManager)
+- NS_GENERIC_FACTORY_CONSTRUCTOR(nsSoftwareUpdateNameSet)
+- 
+- //----------------------------------------------------------------------
+
+Deleted: trunk/rpms/firefox/firefox-0.9.2-nsFormHistory-64bit.patch
+===================================================================
+--- trunk/rpms/firefox/firefox-0.9.2-nsFormHistory-64bit.patch	2004-09-16 13:34:29 UTC (rev 2197)
++++ trunk/rpms/firefox/firefox-0.9.2-nsFormHistory-64bit.patch	2004-09-16 14:53:01 UTC (rev 2198)
+@@ -1,11 +0,0 @@
+---- toolkit/components/satchel/src/nsFormHistory.cpp.~1~	2004-03-17 17:52:51.000000000 -0800
+-+++ toolkit/components/satchel/src/nsFormHistory.cpp	2004-07-29 22:06:01.488644861 -0700
+-@@ -745,7 +745,7 @@
+-     for (i = 0; i &lt; count; ++i)
+-       items[i] = i;
+- 
+--    NS_QuickSort(items, count, sizeof(nsIMdbRow*),
+-+    NS_QuickSort(items, count, sizeof(PRUint32),
+-                  SortComparison, &amp;matchingValues);
+- 
+-     for (i = 0; i &lt; count; ++i) {
+
+Modified: trunk/rpms/firefox/firefox.spec
+===================================================================
+--- trunk/rpms/firefox/firefox.spec	2004-09-16 13:34:29 UTC (rev 2197)
++++ trunk/rpms/firefox/firefox.spec	2004-09-16 14:53:01 UTC (rev 2198)
+@@ -10,22 +10,20 @@
+ 
+ Summary: Mozilla Firefox web browser
+ Name: firefox
+-Version: 0.9.3
+-Release: 1
++Version: 0.10
++Release: 0
+ License: MPL/LGPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.mozilla.org/projects/firefox/">http://www.mozilla.org/projects/firefox/</A>
+ 
+-Source: <A HREF="http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/%{version">http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/%{version</A>}/firefox-%{version}-source.tar.bz2
++#Source: <A HREF="http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/%{version">http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/%{version</A>}/firefox-%{version}-source.tar.bz2
++Source: <A HREF="http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/%{version">http://ftp.mozilla.org/pub/mozilla.org/firefox/releases/%{version</A>}/firefox-1.0PR-source.tar.bz2
+ Source1: firefox-rebuild-databases.pl.in
+ Source2: firefox.png
+ Source3: bookmarks.html
+ Source4: firefox.xpm
+-Patch0: firefox-0.9.2-gcc34.patch
+-Patch1: firefox-0.9.2-extensions.patch
+ Patch2: firefox-0.9.3-uri.patch
+ Patch3: mozilla-default-plugin-less-annoying.patch
+-Patch4: firefox-0.9.2-nsFormHistory-64bit.patch
+ Patch5: mozilla-1.7-psfonts.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+@@ -45,11 +43,8 @@
+ 
+ %prep
+ %setup -q -n mozilla
+-%patch0 -p1 -b .gcc34
+-%patch1 -p0 -b .extensions
+ %patch2 -p0 -b .uri
+ %patch3 -p1 -b .plugin
+-%patch4 -b .nsformhistory
+ %patch5 -p1 -b .psfonts
+ 
+ ### FIXME: Shouldn't the default firefox config be part of original source ?
+@@ -83,13 +78,13 @@
+ %{__cat} &lt;&lt;EOF &gt;firefox.desktop
+ [Desktop Entry]
+ Name=Firefox Web Browser
+-Comment=Browse the Internet
++GenericName=Web Browser
++Comment=Browse the Web
+ Exec=firefox
+ Icon=firefox.png
+ Terminal=false
+ Type=Application
+-StartupNotify=false
+-MimeType=text/html;text/x-java;inode/directory;application/xhtml+xml;
++MimeType=text/html;text/xml;text/x-java;inode/directory;application/xhtml+xml;
+ Categories=Application;Network;
+ EOF
+ 
+@@ -240,6 +235,9 @@
+ %{!?_without_freedesktop:%{_datadir}/applications/net-firefox.desktop}
+ 
+ %changelog
++* Thu Sep 16 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.10-0
++- Update to 1.0 PR.
++
+ * Sun Aug 08 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.9.3-1
+ - Added upstream psfonts patch from mozilla 1.7.
+ - Added upstream <A HREF="file://">file://</A> URI extensions patch.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001003.html">[SVN] r2197 - trunk/rpms/gkrellm-plugins
+</A></li>
+	<LI>Next message: <A HREF="001005.html">[SVN] r2199 - trunk/rpms/xmms-crossfade
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1004">[ date ]</a>
+              <a href="thread.html#1004">[ thread ]</a>
+              <a href="subject.html#1004">[ subject ]</a>
+              <a href="author.html#1004">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] help building nautilus-python-0.5.0 for x86_64
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20help%20building%20nautilus-python-0.5.0%20for%20x86_64&In-Reply-To=%3CFEDC7BCE-0B97-422B-B85E-766D4A35137D%40vecna.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002854.html">
+   <LINK REL="Next"  HREF="002856.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] help building nautilus-python-0.5.0 for x86_64</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20help%20building%20nautilus-python-0.5.0%20for%20x86_64&In-Reply-To=%3CFEDC7BCE-0B97-422B-B85E-766D4A35137D%40vecna.org%3E"
+       TITLE="[packagers] help building nautilus-python-0.5.0 for x86_64">shuff at vecna.org
+       </A><BR>
+    <I>Fri Oct 16 19:28:12 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002854.html">[packagers] perl-XML-LibXML-Common
+</A></li>
+        <LI>Next message: <A HREF="002856.html">[packagers] help building nautilus-python-0.5.0 for x86_64
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2855">[ date ]</a>
+              <a href="thread.html#2855">[ thread ]</a>
+              <a href="subject.html#2855">[ subject ]</a>
+              <a href="author.html#2855">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>hello folks!  i've run into a problems compiling a package, and i'd  
+appreciate some input from anyone who may have spent more time  
+wrestling with i386/x86_64 issues than i have :)
+
+i'm working on building nautilus-python (it's a GNOME component that  
+isn't included with RHEL; apparently it is no longer under active  
+development, hooray).  my package builds and runs fine under RHEL5  
+i386, but under x86_64, any programs that try to use the library fail  
+with an error message similar to the following:
+
+--- begin paste ---
+$ nautilus
+(nautilus:1091): Nautilus-Python-WARNING **: g_module_open libpython  
+failed: /usr/lib/libpython2.4.so: cannot open shared object file: No  
+such file or directory
+Traceback (most recent call last):
+   File &quot;/usr/lib64/python2.4/site-packages/gtk-2.0/gobject/ 
+__init__.py&quot;, line 30, in ?
+     from _gobject import *
+ImportError: /usr/lib64/python2.4/site-packages/gtk-2.0/gobject/ 
+_gobject.so: undefined symbol: _Py_ZeroStruct
+(nautilus:1091): Nautilus-Python-WARNING **: could not import gobject
+(nautilus:1091): Nautilus-Python-WARNING **: pygobject initialization  
+failed
+(nautilus:1091): Nautilus-Python-WARNING **:  
+nautilus_python_init_python failed
+--- end paste ---
+
+so, the issue clearly is that it's trying to link against the wrong  
+libpython2.4 (it should be looking in /usr/lib64); to further confirm  
+this hypothesis, when i make symlinks to the 64-bit shared objects,  
+the error message goes away and nautilus-python works.
+
+of course, that's not a fix that i'd like to deploy in production, so  
+i started looking through the source.  the brokenness appears to stem  
+from ./configure; here's a snippet from the log:
+
+--- begin paste ---
+pkg_cv_NAUTILUS_PYTHON_LIBS='-pthread -L/lib64 -lnautilus-extension - 
+leel-2 -lgnomeui-2 -lSM -lICE -lgailutil -lglade-2.0 -lbonoboui-2 - 
+lgnome-keyring -lgnome-2 -lpopt -lbonobo-2 -lgnomevfs-2 -lbonobo- 
+activation -lgconf-2 -lORBit-2 -lgthread-2.0 -lgnomecanvas-2 - 
+lart_lgpl_2 -lpangoft2-1.0 -lgtk-x11-2.0 -lxml2 -lz -lgdk-x11-2.0 - 
+latk-1.0 -lgdk_pixbuf-2.0 -lm -lpangocairo-1.0 -lpango-1.0 -lcairo - 
+lgobject-2.0 -lgmodule-2.0 -ldl -lglib-2.0  '
+--- end paste ---
+
+when i compile the package manually, after modifying the Makefile to  
+replace '-L/lib64' with '-L/usr/lib64 -L/lib64', i end up with  
+binaries that link properly and run without errors.  unfortunately, i  
+haven't had a lot of luck capturing this process in my specfile; i  
+suspect that i've just been looking at this problem for long enough  
+that i'm missing something obvious.
+
+the current state of my specfile is checked into svn, as well as the  
+necessary patch for the source tarball (which has nothing to do with  
+this particular issue).  please, if you've got a moment, take a look  
+at it and see if i've just done something boneheaded.
+
+thanks,
+-steve
+
+--
+If this were played upon a stage now, I could condemn it as an  
+improbable fiction. - Fabian, Twelfth Night, III,v
+<A HREF="http://five.sentenc.es">http://five.sentenc.es</A>
+
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: PGP.sig
+Type: application/pgp-signature
+Size: 195 bytes
+Desc: This is a digitally signed message part
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/packagers/attachments/20091016/9f4a9707/attachment.sig">http://lists.repoforge.org/pipermail/packagers/attachments/20091016/9f4a9707/attachment.sig</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002854.html">[packagers] perl-XML-LibXML-Common
+</A></li>
+	<LI>Next message: <A HREF="002856.html">[packagers] help building nautilus-python-0.5.0 for x86_64
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2855">[ date ]</a>
+              <a href="thread.html#2855">[ thread ]</a>
+              <a href="subject.html#2855">[ subject ]</a>
+              <a href="author.html#2855">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,239 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5425 - trunk/tools/unoconv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5425%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070520120418.6DC3E944B50%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004223.html">
+   <LINK REL="Next"  HREF="004225.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5425 - trunk/tools/unoconv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5425%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070520120418.6DC3E944B50%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5425 - trunk/tools/unoconv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May 20 14:04:18 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004223.html">[svn] r5424 - trunk/tools/unoconv
+</A></li>
+        <LI>Next message: <A HREF="004225.html">[svn] r5426 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4224">[ date ]</a>
+              <a href="thread.html#4224">[ thread ]</a>
+              <a href="subject.html#4224">[ subject ]</a>
+              <a href="author.html#4224">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-20 14:04:17 +0200 (Sun, 20 May 2007)
+New Revision: 5425
+
+Modified:
+   trunk/tools/unoconv/ChangeLog
+   trunk/tools/unoconv/unoconv
+Log:
+If format is not recognized, scan by extension
+
+Modified: trunk/tools/unoconv/ChangeLog
+===================================================================
+--- trunk/tools/unoconv/ChangeLog	2007-05-20 11:53:08 UTC (rev 5424)
++++ trunk/tools/unoconv/ChangeLog	2007-05-20 12:04:17 UTC (rev 5425)
+@@ -5,6 +5,7 @@
+ - Added Gentoo oofice path '/usr/lib/openoffice/program/' (Peter Draho)
+ - Show proper error when file does not exist (Peter Draho)
+ - Make long options work :)
++- If format is not recognized, scan by extension
+ 
+ * 0.1 - released 19/05/2007
+ - Initial release
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2007-05-20 11:53:08 UTC (rev 5424)
++++ trunk/tools/unoconv/unoconv	2007-05-20 12:04:17 UTC (rev 5425)
+@@ -42,8 +42,8 @@
+ VERSION = '0.1svn'
+ 
+ class Fmt:
+-    def __init__(self, type, name, extension, summary, filter):
+-        self.type = type
++    def __init__(self, doctype, name, extension, summary, filter):
++        self.doctype = doctype
+         self.name = name
+         self.extension = extension
+         self.summary = summary
+@@ -52,21 +52,27 @@
+ class FmtList:
+     def __init__(self):
+         self.list = []
+-    def add(self, type, name, extension, summary, filter):
+-        self.list.append(Fmt(type, name, extension, summary, filter))
++    def add(self, doctype, name, extension, summary, filter):
++        self.list.append(Fmt(doctype, name, extension, summary, filter))
+     def byname(self, name):
+         ret = []
+         for fmt in self.list:
+             if fmt.name == name:
+                 ret.append(fmt)
+         return ret
+-    def bytypename(self, type, name):
++    def byextension(self, extension):
++        ret = []
+         for fmt in self.list:
+-            if fmt.name == name and fmt.type == type:
++            if fmt.extension == extension:
++                ret.append(fmt)
++        return ret
++    def bydoctype(self, doctype, name):
++        for fmt in self.list:
++            if fmt.name == name and fmt.doctype == doctype:
+                 return (fmt, )
+-    def display(self, type):
++    def display(self, doctype):
+         for fmt in self.list:
+-            if fmt.type == type:
++            if fmt.doctype == doctype:
+                 print &gt;&gt;sys.stderr, &quot;  %-8s - %s [.%s]&quot; % (fmt.name, fmt.summary, fmt.extension)
+ 
+ class OutputStream( unohelper.Base, XOutputStream ):
+@@ -227,7 +233,7 @@
+   -f, --format=format      specify the output format
+   -l, --list               list the available output formats
+   -s, --stdout             write output to stdout
+-  -t, --type=type          specify document type (document, spreadsheet, presentation, graphics)
++  -t, --type=doctype       specify document type (document, spreadsheet, presentation, graphics)
+ '''
+ 
+ args = sys.argv[1:]
+@@ -235,7 +241,7 @@
+ showlist = False
+ format = None
+ verbose = 0
+-type = None
++doctype = None
+ server = 'localhost'
+ port = '2002'
+ connection = &quot;uno:socket,host=%s,port=%s;urp;StarOffice.ComponentContext&quot; % (server, port)
+@@ -260,7 +266,7 @@
+     elif opt in ['-s', '--stdout']:
+         stdout = True
+     elif opt in ['-t', '--type']:
+-        type = arg
++        doctype = arg
+     elif opt in ['-v', '--verbose']:
+         verbose = verbose + 1
+     elif opt in ['--version']:
+@@ -269,7 +275,7 @@
+ 
+ if not format:
+     format = 'pdf'
+-    type = 'document'
++    doctype = 'document'
+ 
+ if showlist or format == 'list':
+     print &gt;&gt;sys.stderr, 'The following list of document formats are currently available:'
+@@ -293,38 +299,39 @@
+ if verbose &gt;= 3:
+     print 'Verbosity set to level %d' % (verbose - 1)
+ 
+-if type:
+-    if type.startswith('d'):
+-        type = 'document'
+-    elif type.startswith('g'):
+-        type = 'graphics'
+-    elif type.startswith('p'):
+-        type = 'presentation'
+-    elif type.startswith('s'):
+-        type = 'spreadsheet'
++if doctype:
++    if doctype.startswith('d'):
++        doctype = 'document'
++    elif doctype.startswith('g'):
++        doctype = 'graphics'
++    elif doctype.startswith('p'):
++        doctype = 'presentation'
++    elif doctype.startswith('s'):
++        doctype = 'spreadsheet'
+ 
+ if not args:
+     print &gt;&gt;sys.stderr, 'unoconv: you have to provide a filename as argument'
+     print &gt;&gt;sys.stderr, 'Try `unoconv -h\' for more information.'
+     sys.exit(1)
+ 
+-if type:
+-    outputfmt = fmts.bytypename(type, format)
++if doctype:
++    outputfmt = fmts.bydoctype(doctype, format)
+ else:
+     outputfmt = fmts.byname(format)
++    if not outputfmt:
++        outputfmt = fmts.byextension(format)
+ 
+ if not outputfmt:
+-    print &gt;&gt;sys.stderr, 'Format is not known to unoconv.'
++    print &gt;&gt;sys.stderr, 'unoconv: format `%s\' is not known to unoconv.' % format
+     sys.exit(1)
+ elif len(outputfmt) &gt; 1:
+-    print &gt;&gt;sys.stderr, 'Format %s is part of multiple types %s, please specify the correct type.' % (format, [fmt.type for fmt in outputfmt])
+-    sys.exit(1)
++    print &gt;&gt;sys.stderr, 'unoconv: format `%s\' is part of multiple doctypes %s, selecting `%s\'.' % (format, [fmt.doctype for fmt in outputfmt], outputfmt[0].doctype)
+ 
+ outputfmt = outputfmt[0]
+ if verbose &gt; 0:
+     print &gt;&gt;sys.stderr, 'Selected format: %s [.%s]' % (outputfmt.summary, outputfmt.extension)
+     print &gt;&gt;sys.stderr, 'Selected filter: %s' % (outputfmt.filter)
+-    print &gt;&gt;sys.stderr, 'Used doctype:', outputfmt.type
++    print &gt;&gt;sys.stderr, 'Used doctype:', outputfmt.doctype
+ 
+ rc = 0
+ doc = None
+@@ -369,15 +376,16 @@
+             if not stdout:
+                 (outputfn, ext) = os.path.splitext(inputfn)
+                 outputfn = outputfn + '.' + outputfmt.extension
++                outputurl = unohelper.absolutize( cwd, unohelper.systemPathToFileUrl(outputfn) )
++                doc.storeToURL(outputurl, outputprops)
+                 if verbose &gt; 0:
+                     print &gt;&gt;sys.stderr, 'Output file:', outputfn
+-                outputurl = unohelper.absolutize( cwd, unohelper.systemPathToFileUrl(outputfn) )
+-                doc.storeToURL(outputurl, outputprops)
+             else:
+                 doc.storeToURL(&quot;private:stream&quot;, outputprops)
+ 
+         except IOException, e:
+             print &gt;&gt;sys.stderr, &quot;unoconv: error during conversion: %s&quot; % e.Message
++            print &gt;&gt;sys.stderr, &quot;The provided document cannot be convert to `%s'.&quot; % format
+             sys.exit(1)
+ 
+         except CannotConvertException, e:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004223.html">[svn] r5424 - trunk/tools/unoconv
+</A></li>
+	<LI>Next message: <A HREF="004225.html">[svn] r5426 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4224">[ date ]</a>
+              <a href="thread.html#4224">[ thread ]</a>
+              <a href="subject.html#4224">[ subject ]</a>
+              <a href="author.html#4224">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

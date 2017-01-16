@@ -1,0 +1,145 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4406 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4406%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060525140334.E31113180CD%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003205.html">
+   <LINK REL="Next"  HREF="003207.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4406 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4406%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060525140334.E31113180CD%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4406 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu May 25 16:03:34 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003205.html">[svn] r4405 - in trunk/rpms: bsc gnubiff
+</A></li>
+        <LI>Next message: <A HREF="003207.html">[svn] r4407 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3206">[ date ]</a>
+              <a href="thread.html#3206">[ thread ]</a>
+              <a href="subject.html#3206">[ subject ]</a>
+              <a href="author.html#3206">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-05-25 16:03:33 +0200 (Thu, 25 May 2006)
+New Revision: 4406
+
+Added:
+   trunk/tools/dstat/plugins/dstat_app.py
+Modified:
+   trunk/tools/dstat/dstat
+Log:
+Added dstat_app plugin, add &quot;s&quot; type
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-05-24 04:28:43 UTC (rev 4405)
++++ trunk/tools/dstat/dstat	2006-05-25 14:03:33 UTC (rev 4406)
+@@ -1435,7 +1435,10 @@
+ 	else:
+ 		color = 'default'
+ 
+-	ret = ansi[color] + ret.rjust(max)
++	if type in ('s',):
++		ret = ansi['default'] + ret.ljust(max)
++	else:
++		ret = ansi[color] + ret.rjust(max)
+ 
+ 	if unit:
+ 		if c != -1 and round(var) != 0:
+
+Added: trunk/tools/dstat/plugins/dstat_app.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_app.py	2006-05-24 04:28:43 UTC (rev 4405)
++++ trunk/tools/dstat/plugins/dstat_app.py	2006-05-25 14:03:33 UTC (rev 4406)
+@@ -0,0 +1,55 @@
++### Dstat most expensive process plugin
++### Displays the name of the most expensive process
++###
++### Authority: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
++
++### FIXME: The val, cn1 and cn2 will only grow and consume more memory.
++
++global string
++import string
++
++class dstat_app(dstat):
++	def __init__(self):
++		self.name = 'most expensive'
++		self.format = ('s', 15, 0)
++		self.nick = ('process',)
++		self.vars = self.nick
++		self.cn1 = {}; self.cn2 = {}; self.val = {}
++
++	def extract(self):
++		max = 0
++		for pid in os.listdir('/proc/'):
++			try: int(pid)
++			except: continue
++			if os.path.exists('/proc/%s/stat' % pid):
++				if not self.cn1.has_key(pid):
++					self.cn1[pid] = 0
++
++				for line in dopen('/proc/%s/stat' % pid).readlines():
++					l = string.split(line)
++					self.cn2[pid] = int(l[13]) + int(l[14])
++				self.val[pid] = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
++
++				### Get the process that spends the most jiffies
++				if self.val[pid] &gt; max:
++					max = self.val[pid]
++					self.val['process'] = l[1][1:-1]
++
++					### Debug
++#					self.val['process'] = self.val['process'] + ' ' + str(max)
++#					self.val['process'] = self.val['process'] + ' ' + l[13] + ':' + l[14]
++
++				### Garbage collect sort off
++#				if self.val[pid] == 0:
++#					del(self.cn1[pid]); del(self.cn2[pid]); del(self.val[pid])
++
++				### If the name is a known interpreter, take the second argument from the cmdline
++				if self.val['process'] in ('perl', 'python', 'sh', 'bash'):
++					for line in dopen('/proc/%s/cmdline' % pid).readlines():
++						l = string.split(line, '\0')
++						self.val['process'] = os.path.basename(l[1])
++
++		if step == op.delay:
++			self.cn1.update(self.cn2)
++
++# vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003205.html">[svn] r4405 - in trunk/rpms: bsc gnubiff
+</A></li>
+	<LI>Next message: <A HREF="003207.html">[svn] r4407 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3206">[ date ]</a>
+              <a href="thread.html#3206">[ thread ]</a>
+              <a href="subject.html#3206">[ subject ]</a>
+              <a href="author.html#3206">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,184 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3529 - in trunk/tools/sandbox: . jeff
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3529%20-%20in%20trunk/tools/sandbox%3A%20.%20jeff&In-Reply-To=%3C20050823232141.5CC2631802A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002329.html">
+   <LINK REL="Next"  HREF="002331.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3529 - in trunk/tools/sandbox: . jeff</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3529%20-%20in%20trunk/tools/sandbox%3A%20.%20jeff&In-Reply-To=%3C20050823232141.5CC2631802A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3529 - in trunk/tools/sandbox: . jeff">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Aug 24 01:21:41 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002329.html">[svn] r3528 - trunk/tools
+</A></li>
+        <LI>Next message: <A HREF="002331.html">[svn] r3530 - in trunk/web/rpmforge.net: . developer dweb packager	packager/distributions packager/persona packager/persona/bert	packager/persona/dag packager/persona/dries	packager/persona/matthias user user/community user/faq
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2330">[ date ]</a>
+              <a href="thread.html#2330">[ thread ]</a>
+              <a href="subject.html#2330">[ subject ]</a>
+              <a href="author.html#2330">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: jeff
+Date: 2005-08-24 01:21:40 +0200 (Wed, 24 Aug 2005)
+New Revision: 3529
+
+Added:
+   trunk/tools/sandbox/jeff/
+   trunk/tools/sandbox/jeff/Makefile
+   trunk/tools/sandbox/jeff/rpmpp.c
+Log:
+spec parser in C
+
+
+
+Added: trunk/tools/sandbox/jeff/Makefile
+===================================================================
+--- trunk/tools/sandbox/jeff/Makefile	2005-08-23 23:20:28 UTC (rev 3528)
++++ trunk/tools/sandbox/jeff/Makefile	2005-08-23 23:21:40 UTC (rev 3529)
+@@ -0,0 +1,5 @@
++
++
++rpmpp:  rpmpp.c
++	cc -g -lrpm -lrpmbuild $@.c -o $@
++
+
+Added: trunk/tools/sandbox/jeff/rpmpp.c
+===================================================================
+--- trunk/tools/sandbox/jeff/rpmpp.c	2005-08-23 23:20:28 UTC (rev 3528)
++++ trunk/tools/sandbox/jeff/rpmpp.c	2005-08-23 23:21:40 UTC (rev 3529)
+@@ -0,0 +1,98 @@
++#include &lt;string.h&gt;
++#include &lt;stdio.h&gt;
++
++#include &lt;rpm/rpmlib.h&gt;
++#include &lt;rpm/rpmbuild.h&gt;
++#include &lt;rpm/rpmts.h&gt;
++
++int
++main(int argc, char **argv) {
++    char *specFile;
++    const char *archname;
++    rpmts ts;
++    Spec spec;
++
++    if(argv[1] == NULL || argv[2] == NULL) {
++        fprintf(stderr, &quot;need spec name and param...\n&quot;);
++        return 2;
++    }
++
++    rpmReadConfigFiles(NULL,NULL);
++    ts = rpmtsCreate();
++
++    //rpmGetArchInfo(&amp;archname, NULL);
++    //if(spec-&gt;BANames)
++    //    printf(&quot;BuildArch: %s\n&quot;, *spec-&gt;BANames);
++
++    if(!strcmp(argv[1], &quot;-s&quot;))
++    {
++        int i;
++        struct Source *src;
++        specFile = strdup(argv[2]);
++        parseSpec(ts, specFile, &quot;/&quot;, NULL, 1, &quot;&quot;, NULL, 1, 1); 
++        spec = rpmtsSpec(ts);
++        src = spec-&gt;sources;
++        printf(&quot;sources = {&quot;);
++        for(i=0;i&lt;spec-&gt;numSources;++i) {
++            if(src) {
++                printf(&quot;'%s':'%s',&quot;, src-&gt;source, src-&gt;fullSource);
++            }
++            src = src-&gt;next;
++        }
++        printf(&quot;}\n\n&quot;);
++    }
++    if(!strcmp(argv[1], &quot;-r&quot;))
++    {
++        int i=0;
++        Package pkg;
++        Header h;
++        char *dist = argv[2];
++        char *arch = argv[3];
++        specFile = strdup(argv[4]);
++        parseSpec(ts, specFile, &quot;/&quot;, NULL, 1, &quot;&quot;, NULL, 1, 1); 
++        spec = rpmtsSpec(ts);
++        printf(&quot;targets = [&quot;);
++        for (pkg = spec-&gt;packages; pkg != NULL; pkg = pkg-&gt;next) {
++            const char *pkgname;
++            const char *version;
++            const char *release;
++            h = pkg-&gt;header;
++            headerNVR(h, &amp;pkgname, &amp;version, &amp;release);
++            if(spec-&gt;BANames &amp;&amp; 
++               !strcmp(*spec-&gt;BANames, &quot;noarch&quot;) &amp;&amp;
++               strstr(pkgname, &quot;debuginfo&quot;)
++              ) continue;
++            printf(&quot;'%s-%s-%s%s.%s.rpm',&quot;, pkgname, version, release, dist, arch);
++            ++i;
++        }
++        printf(&quot;]\n\n&quot;);
++    }
++    if(!strcmp(argv[1], &quot;-z&quot;))
++    {
++        int i=0;
++        Package pkg;
++        Header h;
++        specFile = strdup(argv[2]);
++        parseSpec(ts, specFile, &quot;/&quot;, NULL, 1, &quot;&quot;, NULL, 1, 1); 
++        spec = rpmtsSpec(ts);
++        printf(&quot;targets = [&quot;);
++        for (pkg = spec-&gt;packages; pkg != NULL; pkg = pkg-&gt;next) {
++            const char *pkgname;
++            const char *version;
++            const char *release;
++            h = pkg-&gt;header;
++            headerNVR(h, &amp;pkgname, &amp;version, &amp;release);
++            if(spec-&gt;BANames &amp;&amp; 
++               !strcmp(*spec-&gt;BANames, &quot;noarch&quot;) &amp;&amp;
++               strstr(pkgname, &quot;debuginfo&quot;)
++              ) continue;
++            printf(&quot;'%s-%s-%s.src.rpm',&quot;, pkgname, version, release);
++            ++i;
++            break;
++        }
++        printf(&quot;]\n\n&quot;);
++    }
++    ts = rpmtsFree(ts);
++
++    return 0;
++}
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002329.html">[svn] r3528 - trunk/tools
+</A></li>
+	<LI>Next message: <A HREF="002331.html">[svn] r3530 - in trunk/web/rpmforge.net: . developer dweb packager	packager/distributions packager/persona packager/persona/bert	packager/persona/dag packager/persona/dries	packager/persona/matthias user user/community user/faq
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2330">[ date ]</a>
+              <a href="thread.html#2330">[ thread ]</a>
+              <a href="subject.html#2330">[ subject ]</a>
+              <a href="author.html#2330">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

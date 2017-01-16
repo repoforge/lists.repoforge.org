@@ -1,0 +1,960 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5623 - in trunk/tools/mrepo: . tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5623%20-%20in%20trunk/tools/mrepo%3A%20.%20tests&In-Reply-To=%3C20070722115906.50BCD944ACC%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004421.html">
+   <LINK REL="Next"  HREF="004423.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5623 - in trunk/tools/mrepo: . tests</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5623%20-%20in%20trunk/tools/mrepo%3A%20.%20tests&In-Reply-To=%3C20070722115906.50BCD944ACC%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5623 - in trunk/tools/mrepo: . tests">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jul 22 13:59:06 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004421.html">[svn] r5622 - trunk/rpms/phpmyadmin
+</A></li>
+        <LI>Next message: <A HREF="004423.html">[svn] r5624 - trunk/tools/mrepo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4422">[ date ]</a>
+              <a href="thread.html#4422">[ thread ]</a>
+              <a href="subject.html#4422">[ subject ]</a>
+              <a href="author.html#4422">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-07-22 13:59:05 +0200 (Sun, 22 Jul 2007)
+New Revision: 5623
+
+Added:
+   trunk/tools/mrepo/tests/unittest.py
+Modified:
+   trunk/tools/mrepo/ChangeLog
+   trunk/tools/mrepo/mrepo
+Log:
+- Replace mrepo's Set() by one based on hashes or python's if available (Alexander Bergolth)
+- Get rid of variables named 'list' that override python's list() builtin (Alexander Bergolth)
+- Synchronize symlinks instead of deleting and recreating them (Alexander Bergolth)
+- Added unit tests (Alexander Bergolth)
+
+
+
+Modified: trunk/tools/mrepo/ChangeLog
+===================================================================
+--- trunk/tools/mrepo/ChangeLog	2007-07-20 19:51:36 UTC (rev 5622)
++++ trunk/tools/mrepo/ChangeLog	2007-07-22 11:59:05 UTC (rev 5623)
+@@ -15,6 +15,10 @@
+ - Fixed RPM links from a <A HREF="file:///">file:///</A> source (Gabe Johnson)
+ - Fixed a typo (<A HREF="rhns://">rhns://</A>) in the RHEL5 template (Bjoern Engels)
+ - Added fuseiso support (as opposed to devloop) to allow +255 ISO and user mounts (Chandan Dutta Chowdhury)
++- Replace mrepo's Set() by one based on hashes or python's if available (Alexander Bergolth)
++- Get rid of variables named 'list' that override python's list() builtin (Alexander Bergolth)
++- Synchronize symlinks instead of deleting and recreating them (Alexander Bergolth)
++- Added unit tests (Alexander Bergolth)
+ 
+ * 0.8.4 - Sint-Jacobsplein - released 13/12/2006
+ - Renamed Yam to mrepo (Matthew Hannigan)
+
+Modified: trunk/tools/mrepo/mrepo
+===================================================================
+--- trunk/tools/mrepo/mrepo	2007-07-20 19:51:36 UTC (rev 5622)
++++ trunk/tools/mrepo/mrepo	2007-07-22 11:59:05 UTC (rev 5623)
+@@ -14,6 +14,7 @@
+ ### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ### Copyright 2004-2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
++from __future__ import generators # for Python 2.2
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse, sha, types, traceback
+ import time
+@@ -343,15 +344,15 @@
+ 
+     def rewrite(self):
+         &quot;Rewrite (string) attributes to replace variables by other (string) attributes&quot;
+-        list = variables
+-        list.update({ 'arch': self.arch, 'nick': self.nick, 'dist': self.dist,
++        varlist = variables
++        varlist.update({ 'arch': self.arch, 'nick': self.nick, 'dist': self.dist,
+                 'release': self.release, 'rhnrelease': self.rhnrelease })
+         for key, value in vars(self).iteritems():
+             if isinstance(value, types.StringType):
+-                setattr(self, key, substitute(value, list))
++                setattr(self, key, substitute(value, varlist))
+         for repo in self.repos:
+-            list['repo'] = repo.name
+-            repo.url = substitute(repo.url, list)
++            varlist['repo'] = repo.name
++            repo.url = substitute(repo.url, varlist)
+ 
+     def findisos(self):
+         &quot;Return a list of existing ISO files&quot;
+@@ -363,21 +364,21 @@
+                 if not os.path.isabs(file):
+                     absfile = os.path.join(cf.srcdir, self.nick, file)
+                     info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+-                    list = glob.glob(absfile)
+-                if not list:
++                    filelist = glob.glob(absfile)
++                if not filelist:
+                     absfile = os.path.join(cf.srcdir, self.dist, file)
+                     info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+-                    list = glob.glob(absfile)
+-                if not list:
++                    filelist = glob.glob(absfile)
++                if not filelist:
+                     absfile = os.path.join(cf.srcdir, 'iso', file)
+                     info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+-                    list = glob.glob(absfile)
+-                if not list:
++                    filelist = glob.glob(absfile)
++                if not filelist:
+                     absfile = os.path.join(cf.srcdir, file)
+                     info(6, '%s: Looking for ISO files matching %s' % (self.nick, absfile))
+-                    list = glob.glob(absfile)
+-                list.sort()
+-                for iso in list:
++                    filelist = glob.glob(absfile)
++                filelist.sort()
++                for iso in filelist:
+                     if os.path.isfile(iso) and iso not in self.isos:
+                         self.isos.append(iso)
+         if self.isos:
+@@ -389,13 +390,97 @@
+ 
+     def listrepos(self, names=None):
+         ret = []
+-        for repo in self.repos:
+-            if not names:
+-                ret.append(repo)
+-            elif repo.name in names:
+-                ret.append(repo)
+-        return ret
++        if names:
++            return [ repo for repo in self.repos if repo.name in names ]
++        else:
++            return self.repos
+ 
++    def genmetadata(self):
++        allsrcdirs = []
++        pathjoin = os.path.join
++        for repo in self.listrepos(op.repos):
++            if not repo.lock('generate'):
++                continue
++            if repo.name in ('os', 'core') and self.isos:
++                repo.url = None
++                srcdirs = [ pathjoin(self.dir, disc) for disc in self.discs ]
++                self.linksync(repo, srcdirs)
++                for file in glob.glob(pathjoin(self.dir + '/disc1/*/base/comps.xml')):
++                    if not os.path.exists(pathjoin(self.srcdir, self.nick, 'os-comps.xml')):
++                        copy(file, pathjoin(self.srcdir, self.nick, 'os-comps.xml'))
++                    allsrcdirs.extend(srcdirs)
++            else:
++                self.linksync(repo)
++                allsrcdirs.append(repo.srcdir)
++
++            repo.check()
++            repo.createmd()
++
++            ### After generation, write a sha1sum
++            repo.writesha1()
++            repo.unlock('generate')
++
++        # do not generate md for 'all', just the links
++        self.linksync(Repo('all', '', self, cf), allsrcdirs)
++
++    def linksync(self, repo, srcdirs=None):
++        if not srcdirs:
++            srcdirs = [ repo.srcdir ]
++        destdir = repo.wwwdir
++        srcfiles = listrpms(srcdirs, relative = destdir)
++        # srcfiles = [ (basename, relpath), ... ]
++        srcfiles.sort()
++        # uniq basenames
++        srcfiles = [f for i, f in enumerate(srcfiles) if not i or f[0] != srcfiles[i-1][0]]
++
++        info(5, '%s: Symlink %s packages from %s to %s' % (repo.dist.nick, repo.name, srcdirs, destdir))
++        mkdir(destdir)
++
++        destfiles = listrpmlinks(destdir)
++        # destfiles is a list of (link_target_base, link_target_dir) tuples
++        destfiles.sort()
++
++        pathjoin = os.path.join
++
++        def keyfunc(x):
++            # compare the basenames
++            return x[0]
++
++        changed = False
++        for srcfile, destfile in synciter(srcfiles, destfiles, key = keyfunc):
++            if srcfile is None:
++                # delete the link
++                base, targetdir = destfile
++                linkname = pathjoin(destdir, base)
++                info(5, 'Remove link: %s' % (linkname,))
++                if not op.dryrun:
++                    os.unlink(linkname)
++                    changed = True
++            elif destfile is None:
++                base, srcdir = srcfile
++                # create a new link
++                linkname = pathjoin(destdir, base)
++                target = pathjoin(srcdir, base)
++                info(5, 'New link: %s -&gt; %s' % (linkname, target))
++                if not op.dryrun:
++                    os.symlink(target, linkname)
++                    changed = True
++            else:
++                 # same bases
++                 base, srcdir = srcfile
++                 base2, curtarget = destfile
++                 target = pathjoin(srcdir, base)
++                 if target != curtarget:
++                     info(5, 'Changed link %s: current: %s, should be: %s' % (base, curtarget, target))
++                     linkname = pathjoin(destdir, base)
++                     if not op.dryrun:
++                         os.unlink(linkname)
++                         os.symlink(target, linkname)
++                         changed = True
++
++        if changed:
++            repo.changed = True
++
+     def mount(self):
+         &quot;Loopback mount all ISOs&quot;
+         discs = []
+@@ -489,13 +574,10 @@
+         self.url = url
+         self.dist = dist
+         self.srcdir = os.path.join(cf.srcdir, dist.nick, self.name)
+-        self.wwwdir = os.path.join(cf.wwwdir, dist.nick, 'RPMS.' + self.name)
++        self.wwwdir = os.path.join(dist.dir, 'RPMS.' + self.name)
+ 
+         self.changed = False
+ 
+-        self.oldlist = Set()
+-        self.newlist = Set()
+-
+     def __repr__(self):
+ #       return &quot;%s/%s&quot; % (self.dist.nick, self.name)
+         return self.name
+@@ -548,50 +630,26 @@
+         ### Make a snapshot of the directory
+         self.newlist = self.rpmlist()
+ 
+-    def clean(self):
+-        info(5, '%s: Removing %s symlinks' % (self.dist.nick, self.name))
+-        mkdir(self.wwwdir)
+-        remove(glob.glob(os.path.join(self.wwwdir, '*.rpm')))
+-
+-    def linkall(self):
+-        &quot;Symlink all RPM packages that match a given arch&quot;
+-        srcdir = os.path.join(cf.srcdir, 'all', self.name)
+-        info(5, '%s: Symlink %s packages from %s' % (self.dist.nick, self.name, srcdir))
+-        os.path.walk(os.path.join(cf.srcdir, 'all', self.name), rpmlink, (self.dist, self.name))
+-
+-    def link(self, srcdir=None):
+-        &quot;Symlink all RPM packages that match a given arch&quot;
+-
+-        mkdir(self.wwwdir)
+-        mkdir(os.path.join(cf.wwwdir, self.dist.nick, 'RPMS.all'))
+-
+-        if not srcdir:
+-            srcdir = self.srcdir
+-
+-        info(5, '%s: Symlink %s packages from %s' % (self.dist.nick, self.name, srcdir))
+-        os.path.walk(srcdir, rpmlink, (self.dist, self.name))
+-
+     def rpmlist(self):
+         &quot;Capture a list of packages in the repository&quot;
+-        list = Set()
++        filelist = set()
+ 
+         ### os.walk() is a python 2.4 feature
+ #       for root, dirs, files in os.walk(self.srcdir):
+ #           for file in files:
+ #               if os.path.exists(file) and file.endswith('.rpm'):
+ #                   size = os.stat(os.path.join(root, file)).st_size
+-#                   list.add( (file, size) )
++#                   filelist.add( (file, size) )
+ 
+         ### os.path.walk() goes back further
+-        def addfile((list, ), path, files):
++        def addfile((filelist, ), path, files):
+             for file in files:
+                 if os.path.exists(os.path.join(path, file)) and file.endswith('.rpm'):
+                     size = os.stat(os.path.join(path, file)).st_size
+-                    list.add( (file, size) )
++                    filelist.add( (file, size) )
+ 
+-        os.path.walk(self.srcdir, addfile, (list,))
+-        list.sort()
+-        return list
++        os.path.walk(self.srcdir, addfile, (filelist,))
++        return filelist
+ 
+     def check(self):
+         &quot;Return what repositories require an update and write .newsha1sum&quot;
+@@ -777,6 +835,7 @@
+         mkdir(os.path.join(self.dist.dir, 'base'))
+ 
+         ### Write out /srcdir/nick/base/release
++        # TODO: should not be done per repository
+         releasefile = os.path.join(self.dist.dir, 'base', 'release')
+         if not os.path.exists(releasefile):
+             open(releasefile, 'w').write(
+@@ -834,34 +893,33 @@
+ #           if ret:
+ #               raise(mrepoGenerateException('%s failed with return code: %s' % (cf.cmd['repoview'], ret)))
+ 
+-class Set:
+-    def __init__(self):
+-        self.list = []
++class mySet:
++    def __init__(self, seq = ()):
++        self._dict = dict([(a, True) for a in seq])
+ 
+     def add(self, input):
+-        if input not in self.list:
+-            self.list.append(input)
++        self._dict[input] = True
+ 
+-    def delete(self, input):
+-        if input in self.list:
+-            self.list.removed(input)
+-
+     def difference(self, other):
+-        newlist = Set()
+-        for element in self.list:
+-            if element not in other.list:
+-                newlist.add(element)
+-        return newlist
++        return mySet([k for k in self._dict.keys() if k not in other])
+ 
+-    def sort(self):
+-        return self.list.sort()
++    def __getitem__(self, key):
++        return self._dict[key]
+ 
+-    def __str__(self):
+-        return '\n\t' + '\n\t'.join([element[0] for element in self.list])
++    def __iter__(self):
++        return self._dict.__iter__()
+ 
++    def __repr__(self):
++        return 'mySet(%r)' % (self._dict.keys(), )
++
++    __str__ = __repr__
++
+     def __len__(self):
+-        return len(self.list)
++        return len(self._dict)
+ 
++    def __eq__(self, s):
++        return self._dict == s._dict
++
+ class mrepoMirrorException(Exception):
+     def __init__(self, value):
+         self.value = value
+@@ -953,9 +1011,9 @@
+     &quot;Return the mountpoint of a mounted device/file&quot;
+     for entry in readfile('/etc/mtab').split('\n'):
+         if entry:
+-            list = entry.split()
+-            if dev == list[0]:
+-                return list[1]
++            cols = entry.split()
++            if dev == cols[0]:
++                return cols[1]
+ 
+ def distsort(a, b):
+     return cmp(a.nick, b.nick)
+@@ -986,7 +1044,8 @@
+     return os.path.normpath(os.path.join(path, reference))
+ 
+ def relpath(path, reference):
+-    &quot;Make relative path from reference&quot;
++    &quot;&quot;&quot;Make relative path from reference
++       if reference is a directory, it must end with a /&quot;&quot;&quot;
+     common = os.path.commonprefix([path, reference])
+     common = common[0:common.rfind('/')+1]
+     (uncommon, targetName) = os.path.split(reference.replace(common, '', 1))
+@@ -1187,9 +1246,9 @@
+ #   else: ### FIXME: Only if ISO file
+ #       if not os.path.isabs(file):
+ #           file = os.path.join(cf.srcdir, 'iso', file)
+-#       list = glob.glob(file)
+-#       list.sort()
+-#       for iso in list:
++#       isolist = glob.glob(file)
++#       isolist.sort()
++#       for iso in isolist:
+ #           if os.path.isfile(iso):
+ #               print 'Please mount %s to %s' % (iso, path)
+ 
+@@ -1314,19 +1373,107 @@
+             cf.update(configfile)
+     return cf
+ 
++def _nextNone(iterator):
++    try:
++        return iterator.next()
++    except StopIteration:
++        return None
++
++def synciter(a, b, key = None, keya = None, keyb = None):
++    &quot;&quot;&quot;returns an iterator that compares two ordered iterables a and b.
++    If keya or keyb are specified, they are called with elements of the corresponding
++    iterable. They should return a value that is used to compare two elements.
++    If keya or keyb are not specified, they default to key or to the element itself,
++    if key is None.&quot;&quot;&quot;
++
++    if key is None:
++        key = lambda x: x
++    if keya is None:
++        keya = key
++    if keyb is None:
++        keyb = key
++    ai = iter(a)
++    bi = iter(b)
++    aelem = _nextNone(ai)
++    belem = _nextNone(bi)
++    while not ((aelem is None) or (belem is None)):
++        akey = keya(aelem)
++        bkey = keyb(belem)
++        if akey == bkey:
++            yield aelem, belem
++            aelem = _nextNone(ai)
++            belem = _nextNone(bi)
++        elif akey &gt; bkey:
++            # belem missing in a
++            yield None, belem
++            belem = _nextNone(bi)
++        elif bkey &gt; akey:
++            # aelem missing in b
++            yield aelem, None
++            aelem = _nextNone(ai)
++    # rest
++    while aelem is not None:
++        akey = key(aelem)
++        yield aelem, None
++        aelem = _nextNone(ai)
++    while belem is not None:
++        bkey = key(belem)
++        yield None, belem
++        belem = _nextNone(bi)
++
++def listrpms(dirs, relative = ''):
++    &quot;&quot;&quot;return a list of rpms in the given directories as a list of (name, path) tuples
++    if relative is specified, return the paths relative to this directory&quot;&quot;&quot;
++    if not isinstance(dirs, (list, tuple)):
++        dirs = ( dirs, )
++    if relative and not relative.endswith('/'):
++        relative += '/'
++    isdir = os.path.isdir
++    pathjoin = os.path.join
++    pathexists = os.path.exists
++
++    def processdir(rpms, path, files):
++        if relative:
++            path2 = relpath(path, relative)
++        else:
++            path2 = path
++        for f in files:
++            pf = pathjoin(path, f)
++            if f.endswith('.rpm') and pathexists(pf) and not isdir(pf):
++                rpms.append((f, path2))
++
++    rpms = []
++    for dir in dirs:
++        if not dir.startswith('/'):
++            dir = pathjoin(relative, dir)
++        os.path.walk(dir, processdir, rpms)
++    rpms.sort()
++    return rpms
++
++def listrpmlinks(dir):
++    islink = os.path.islink
++    readlink = os.readlink
++    pathjoin = os.path.join
++    links = []
++    for f in os.listdir(dir):
++        path = pathjoin(dir, f)
++        if islink(path) and f.endswith('.rpm'):
++            links.append((f, readlink(path)))
++    return links
++
+ def main():
+     ### Check availability of commands
+     for cmd in cf.cmd.keys():
+         if not cf.cmd[cmd]:
+             continue
+-        list = cf.cmd[cmd].split()
+-        if not os.path.isfile(list[0]):
+-            list[0] = which(list[0])
+-        if list[0] and not os.path.isfile(list[0]):
+-            error(4, '%s command not found as %s, support disabled' % (cmd, list[0]))
++        cmdlist = cf.cmd[cmd].split()
++        if not os.path.isfile(cmdlist[0]):
++            cmdlist[0] = which(cmdlist[0])
++        if cmdlist[0] and not os.path.isfile(cmdlist[0]):
++            error(4, '%s command not found as %s, support disabled' % (cmd, cmdlist[0]))
+             cf.cmd[cmd] = ''
+         else:
+-            cf.cmd[cmd] = ' '.join(list)
++            cf.cmd[cmd] = ' '.join(cmdlist)
+     if not cf.cmd['createrepo'] and not cf.cmd['yumarch'] and not cf.cmd['genbasedir']:
+         error(1, 'No tools found to generate repository metadata. Please install apt, yum or createrepo.')
+ 
+@@ -1386,8 +1533,12 @@
+                     repo.mirror()
+                 else:
+                     info(2, '%s: Repository %s does not exist' % (dist.nick, repo.name))
++                    repo.unlock('update')
++                    continue
++
+                 repo.unlock('update')
+ 
++                ### files whose size has changed are in new and removed!
+                 new = repo.newlist.difference(repo.oldlist)
+                 removed = repo.oldlist.difference(repo.newlist)
+ 
+@@ -1397,17 +1548,27 @@
+                     fd = open(cf.logfile, 'a+')
+                     date = time.strftime(&quot;%b %d %H:%M:%S&quot;, time.gmtime())
+ 
+-                    if new.list:
+-                        info(4, '%s: New packages: %s' % (dist.nick, new))
+-                        distnew += len(new)
+-                        for element in new.list:
++                    def sortedlist(pkgs):
++                        l = list(pkgs)
++                        l.sort()
++                        return l
++
++                    def formatlist(pkglist):
++                        return '\n\t' + '\n\t'.join([elem[0] for elem in pkglist])
++
++                    if new:
++                        pkglist = sortedlist(new)
++                        info(4, '%s: New packages: %s' % (dist.nick, formatlist(pkglist)))
++                        distnew += len(pkglist)
++                        for element in pkglist:
+                             fd.write('%s %s/%s Added %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
+                             msg = msg + '\n\t\t+ %s (%d kiB)' % (element[0], element[1]/1024)
+ 
+-                    if removed.list:
+-                        info(4, '%s: Removed packages: %s' % (dist.nick, removed))
+-                        distremoved += len(removed)
+-                        for element in removed.list:
++                    if removed:
++                        pkglist = sortedlist(removed)
++                        info(4, '%s: Removed packages: %s' % (dist.nick, formatlist(pkglist)))
++                        distremoved += len(pkglist)
++                        for element in pkglist:
+                             fd.write('%s %s/%s Removed %s (%d kiB)\n' % (date, dist.nick, repo.name, element[0], element[1]/1024))
+                             msg = msg + '\n\t\t- %s (%d kiB)' % (element[0], element[1]/1024)
+ 
+@@ -1435,33 +1596,7 @@
+ 
+         info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+ 
+-        info(5, '%s: Removing %s symlinks' % (dist.nick, 'all'))
+-        mkdir(os.path.join(cf.wwwdir, dist.nick, 'RPMS.all'))
+-        remove(glob.glob(os.path.join(cf.wwwdir, dist.nick, 'RPMS.all', '*.rpm')))
+-
+-        for repo in dist.listrepos(op.repos):
+-            if not repo.lock('generate'):
+-                continue
+-            repo.clean()
+-            if repo.name in ('os', 'core') and dist.isos:
+-                repo.url = None
+-                for disc in dist.discs:
+-                    repo.link(os.path.join(dist.dir, disc))
+-                for file in glob.glob(os.path.join(dist.dir + '/disc1/*/base/comps.xml')):
+-                    if not os.path.exists(os.path.join(cf.srcdir, dist.nick, 'os-comps.xml')):
+-                        copy(file, os.path.join(cf.srcdir, dist.nick, 'os-comps.xml'))
+-            repo.linkall()
+-            repo.link()
+-
+-            ### Check if repository is updated
+-            repo.check()
+-            repo.createmd()
+-
+-            ### After generation, write a sha1sum
+-            repo.writesha1()
+-
+-            repo.unlock('generate')
+-
++        dist.genmetadata()
+         dist.pxe()
+ 
+     if cf.hardlink and not op.dists:
+@@ -1473,11 +1608,21 @@
+ 
+ ### Workaround for python &lt;= 2.2.1
+ try:
+-     True, False
++    True, False
+ except NameError:
+-     True = 1
+-     False = 0
++    True, False = (0==0, 0!=0)
+ 
++try:
++    set()
++except NameError:
++    set = mySet
++
++try:
++    enumerate
++except NameError:
++    enumerate = lambda seq: zip(xrange(len(seq)), seq)
++
++
+ ### Main entrance
+ if __name__ == '__main__':
+     exitcode = 0
+
+Added: trunk/tools/mrepo/tests/unittest.py
+===================================================================
+--- trunk/tools/mrepo/tests/unittest.py	                        (rev 0)
++++ trunk/tools/mrepo/tests/unittest.py	2007-07-22 11:59:05 UTC (rev 5623)
+@@ -0,0 +1,304 @@
++#!/usr/bin/python
++
++import os
++import sys
++
++import os.path
++testdir = os.path.abspath(os.path.dirname(__file__))
++parentdir = os.path.dirname(testdir)
++sys.path.insert(1, parentdir)
++
++import unittest
++import mrepo
++from mrepo import mySet
++
++class TestmySet(unittest.TestCase):
++
++    def setUp(self):
++        self.s = mySet([1, 2, 3, 4])
++        
++    def test_initempty(self):
++        s = mySet()
++        self.assert_(isinstance(s, mrepo.mySet))
++
++    def test_init(self):
++        s = mySet([ 1, 2, 3, 4 ])
++        self.assert_(isinstance(s, mrepo.mySet))
++        self.assert_(repr(s) == 'mySet([1, 2, 3, 4])')
++
++    def test_add(self):
++        s = self.s
++        self.assert_(9 not in s)
++        s.add(9)
++        self.assert_(9 in s)
++
++    def test_eq(self):
++        s1 = mySet([1, 2, 3])
++        s2 = mySet([1, 2, 3])
++        self.assertEqual(s1, s2)
++
++    def test_difference(self):
++        s1 = mySet([ 1, 2, 3, 4 ])
++        s2 = mySet([ 1, 3 ])
++        s = s1.difference(s2)
++        self.assertEqual(s, mySet([2, 4]))
++
++    def test_iter(self):
++        s = mySet([1, 2, 3])
++        l = []
++        for i in s:
++            l.append(i)
++        self.assertEqual(l, [1, 2, 3])
++
++
++class TestSync(unittest.TestCase):
++    def setUp(self):
++        pass
++    def test_synciter1(self):
++        left = (
++            1, 2, 4, 5
++            )
++        right = (
++            2, 3, 5, 6, 7
++            )
++
++        onlyright = []
++        onlyleft = []
++        keyequal = []
++        for a, b in mrepo.synciter(left, right):
++            # print &quot;%s, %s, %s&quot; % ( a, b, k )
++            if a is None:
++                onlyright.append(b)
++            elif b is None:
++                onlyleft.append(a)
++            else:
++                keyequal.append(a)
++
++        self.assertEqual(onlyright, [3, 6, 7])
++        self.assertEqual(onlyleft, [1, 4])
++        self.assertEqual(keyequal, [2, 5])
++
++    def test_synciter2(self):
++        left = (
++            (1, 'l1'), (2, 'l2'), (4, 'l4'), (5, 'l5')
++            )
++        right = (
++            (2, 'r2'), (3, 'r3'), (5, 'r5'), (6, 'r6'), (7, 'r7')
++            )
++
++        onlyright = []
++        onlyleft = []
++        keyequal = []
++        # key is the first element
++        for a, b in mrepo.synciter(left, right, key = lambda x: x[0]):
++            if a is None:
++                onlyright.append(b)
++            elif b is None:
++                onlyleft.append(a)
++            else:
++                keyequal.append((a, b))
++
++        self.assertEqual(onlyright, [(3, 'r3'), (6, 'r6'), (7, 'r7')])
++        self.assertEqual(onlyleft, [(1, 'l1'), (4, 'l4')])
++        self.assertEqual(keyequal, [((2, 'l2'), (2, 'r2')),
++                                    ((5, 'l5'), (5, 'r5'))])
++
++class Testlinksync(unittest.TestCase):
++    def setUp(self):
++        mkdir = os.mkdir
++        pj= os.path.join
++        self.tmpdir = tmpdir = pj(testdir, 'tmp')
++
++        os.mkdir(tmpdir)
++
++        # global &quot;op&quot; is needed by mrepo.Config, horrible for testing!
++        
++        class TestConfig:
++            pass
++        
++        self.cf = cf = TestConfig()
++
++        cf.srcdir = pj(tmpdir, 'src')
++        cf.wwwdir = pj(tmpdir, 'dst')
++       
++        self.dist = mrepo.Dist('testdist', 'i386', cf)
++        self.repo = repo = mrepo.Repo('testrepo', '', self.dist, cf)
++        srcdir = repo.srcdir
++
++
++        # tmp/src/testdist-i386/testrepo
++        os.makedirs(srcdir)
++
++        # tmp/dst/testdist-i386/RPMS.testrepo
++        os.makedirs(repo.wwwdir)
++
++        for f in xrange(4):
++            __touch(pj(srcdir, str(f) + '.rpm'))
++        __touch(pj(srcdir, 'dontsync.txt'))
++                
++        os.mkdir(pj(srcdir, 'a'))
++        __touch(pj(srcdir, 'a', '2.rpm'))
++        __touch(pj(srcdir, 'a', 'a.rpm'))
++
++        self.localdir = localdir = pj(cf.srcdir, 'testdist-i386', 'local')
++        os.makedirs(localdir)
++        for f in ('local.rpm', 'dont_sync2.txt'):
++            __touch(pj(localdir, f))
++
++        # this should be the result when linksync'ing srcdir
++        self.linkbase = linkbase = '../../../src/testdist-i386/testrepo'
++        self.links = [
++            ('0.rpm', pj(linkbase, '0.rpm')),
++            ('1.rpm', pj(linkbase, '1.rpm')),
++            ('2.rpm', pj(linkbase, '2.rpm')),
++            ('3.rpm', pj(linkbase, '3.rpm')),
++            ('a.rpm', pj(linkbase, 'a', 'a.rpm'))
++            ]
++        self.links.sort()
++
++        
++    def tearDown(self):
++        isdir = os.path.isdir
++        walk = os.path.walk
++        pathjoin= os.path.join
++        tmpdir = self.tmpdir
++        # for safety-reasons:
++        if tmpdir.count('/') &lt; 3:
++            raise &quot;Will not remove tmpdir %s&quot; % ( tmpdir, )
++
++        def rmfile(arg, path, files):
++            for file in files:
++                # print &quot;%s&quot; % ( file, )
++                f = pathjoin(path, file)
++                if isdir(f):
++                    walk(f, rmfile, None)
++                    #print &quot;rmdir %s&quot; % ( f, )
++                    os.rmdir(f)
++                else:
++                    #print &quot;unlink %s&quot; % ( f, )
++                    os.unlink(f)
++
++        os.path.walk(tmpdir, rmfile, None)
++        os.rmdir(tmpdir)
++
++    def readlinks(self, dir):
++        &quot;&quot;&quot;return a list of (linkname, linktarget) tuples for all files in a directory&quot;&quot;&quot;
++        pj = os.path.join
++        readlink = os.readlink
++        return [ (l, readlink(pj(dir, l))) for l in os.listdir(dir) ]
++
++    def genlinks(self, links, dir=''):
++        if not dir:
++            dir = self.repo.wwwdir
++        pj = os.path.join
++        symlink = os.symlink
++        for name, target in links:
++            symlink(target, pj(dir, name))
++
++    def test_listrpms(self):
++        srcdir = self.repo.srcdir
++        actual = mrepo.listrpms(srcdir)
++        pj= os.path.join
++        target = [
++            ('0.rpm', srcdir),
++            ('1.rpm', srcdir),
++            ('2.rpm', srcdir),
++            ('2.rpm', pj(srcdir, 'a')),
++            ('3.rpm', srcdir),
++            ('a.rpm', pj(srcdir, 'a')),
++            ]
++        self.assertEqual(actual, target)
++
++    def test_listrpms_rel(self):
++        srcdir = self.repo.srcdir
++        linkbase = self.linkbase
++        actual = mrepo.listrpms(srcdir, relative = self.repo.wwwdir)
++        pj= os.path.join
++        target = [
++            ('0.rpm', linkbase),
++            ('1.rpm', linkbase),
++            ('2.rpm', linkbase),
++            ('2.rpm', pj(linkbase, 'a')),
++            ('3.rpm', linkbase),
++            ('a.rpm', pj(linkbase, 'a')),
++            ]
++        self.assertEqual(actual, target)
++
++    def test_linksync_new(self):
++        repo = self.repo
++        self.dist.linksync(repo)
++
++        actual = self.readlinks(repo.wwwdir)
++        target = self.links
++        self.assertEqual(actual, target)
++
++    def test_linksync_missing(self):
++        repo = self.repo
++        links = self.links[:]
++
++        # remove some links
++        del links[0]
++        del links[2]
++        del links[-1:]
++        self.genlinks(links)
++
++        self.dist.linksync(repo)
++
++        actual = self.readlinks(repo.wwwdir)
++        target = self.links
++        actual.sort()
++        self.assertEqual(actual, target)
++
++    def test_linksync_additional(self):
++        repo = self.repo
++        links = self.links[:]
++
++        pj = os.path.join
++        # add some links
++        links.insert(0, ('new1.rpm', pj(self.linkbase, 'new1.rpm')))
++        links.insert(2, ('new2.rpm', pj(self.linkbase, 'new2.rpm')))
++        links.append(('new3.rpm', pj(self.linkbase, 'new3.rpm')))
++        self.genlinks(links)
++
++        self.dist.linksync(repo)
++
++        actual = self.readlinks(repo.wwwdir)
++        actual.sort()
++        target = self.links
++        self.assertEqual(actual, target)
++
++    def test_linksync_targetchange(self):
++        repo = self.repo
++        links = self.links[:]
++
++        pj = os.path.join
++        # add some links
++        
++        # basename != target basename
++        links[1] = (links[1][0], pj(self.linkbase, 'illegal.rpm'))
++        # different dir
++        links[2] = (links[2][0], pj(self.linkbase, 'illegaldir', links[2][0]))
++        # correct, but absolute link
++        links[3] = (links[3][0], pj(repo.srcdir, links[3][0]))
++
++        self.genlinks(links)
++
++        self.dist.linksync(repo)
++
++        actual = self.readlinks(repo.wwwdir)
++        actual.sort()
++        target = self.links
++        self.assertEqual(actual, target)
++
++
++    def test_linksync_mod(self):
++        self.dist.linksync(self.repo)
++
++def _Testlinksync__touch(filename):
++    open(filename, 'a')
++
++
++if __name__ == '__main__':
++    # mrepo.op = mrepo.Options(('-vvvvv', '-c/dev/null'))
++    mrepo.op = mrepo.Options(('-c/dev/null')) # should really get rid of this!
++    unittest.main()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004421.html">[svn] r5622 - trunk/rpms/phpmyadmin
+</A></li>
+	<LI>Next message: <A HREF="004423.html">[svn] r5624 - trunk/tools/mrepo
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4422">[ date ]</a>
+              <a href="thread.html#4422">[ thread ]</a>
+              <a href="subject.html#4422">[ subject ]</a>
+              <a href="author.html#4422">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

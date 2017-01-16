@@ -1,0 +1,159 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] cfengine 2.2.9
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20cfengine%202.2.9&In-Reply-To=%3C1236256628.3928.58.camel%40HUB8071NC4.financial.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002686.html">
+   <LINK REL="Next"  HREF="002688.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] cfengine 2.2.9</H1>
+    <B>Christoph Maser</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20cfengine%202.2.9&In-Reply-To=%3C1236256628.3928.58.camel%40HUB8071NC4.financial.com%3E"
+       TITLE="[packagers] cfengine 2.2.9">cmr at financial.com
+       </A><BR>
+    <I>Thu Mar  5 13:37:08 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002686.html">[packagers] cfengine 2.2.9
+</A></li>
+        <LI>Next message: <A HREF="002688.html">[packagers] cfengine 2.2.9
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2687">[ date ]</a>
+              <a href="thread.html#2687">[ thread ]</a>
+              <a href="subject.html#2687">[ subject ]</a>
+              <a href="author.html#2687">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Am Donnerstag, den 05.03.2009, 11:57 +0100 schrieb Dag Wieers:
+&gt;<i> On Thu, 5 Mar 2009, Ralph Angenendt wrote:
+</I>&gt;<i>
+</I>&gt;<i> &gt; Christoph Maser wrote:
+</I>&gt;<i> &gt;&gt; The cfengine package does not compile for el5 buldsystem, they do build
+</I>&gt;<i> &gt;&gt; in my own rpmforge-mock-setup. Can anyone understanding the buildlogs
+</I>&gt;<i> &gt;&gt; tell me what is going wrong?
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; Strange, builds for me, too ...
+</I>&gt;<i>
+</I>&gt;<i> I am using static build environments and BuildRequires are not
+</I>&gt;<i> automatically being installed. Maybe someone has to explain me to set up
+</I>&gt;<i> mock the way I want.
+</I>&gt;<i>
+</I>Thats very easy
+
+&gt;<i> Although I am not sure it makes a lot of sense to spend time on that when
+</I>&gt;<i> we need a central buildsystem anyway.
+</I>&gt;<i>
+</I>Right. The Question is will it happen and when? Since I think it will
+take a while i just start describing the mock build, if you find
+interest and/or time in it i hope this info is somewhat useful.
+
+The usual build looks like this:
+1. Write spec file
+2. Build SRPM &quot;rpmbuild -bs --nodeps foo.spec&quot;
+3. Run mock with some args:
+Example:
+        mock -r rpmforge-el5-x86_64 --resultdir=/home/cmr/mock
+-v /home/cmr/redhat/SRPMS/cfengine-2.2.9-1.src.rpm
+
+
+-r chooses wich config is used (from default dir /etc/mock)
+--resultdir should be obvious
+-v is for verbose output
+
+
+The user must be in the os-group mock. You should have /var/lib/mock
+(default path for build-chroots and cache) on some fast disks as mock
+normally removes the build-chroots and rebuilds it from a &quot;cache&quot; tar-gz
+with each run. (I think LVM snapshots are a cool thing for
+build-chroots, if anyone has that running with mock please tell me how )
+
+And the last part a simple mock config file my rpmforge-el5-x86_64.cfg:
+
+config_opts['root'] = 'rpmforge-el5-x86_64'
+config_opts['target_arch'] = 'x86_64'
+config_opts['chroot_setup_cmd'] = 'install buildsys-build'
+config_opts['dist'] = 'el5'  # only useful for --resultdir variable
+subst
+config_opts['releasever'] = '5'
+config_opts['plugin_conf']['ccache_enable'] = False
+
+config_opts['yum.conf'] = &quot;&quot;&quot;
+[main]
+cachedir=/var/cache/yum
+debuglevel=1
+logfile=/var/log/yum.log
+reposdir=/dev/null
+retries=20
+obsoletes=1
+gpgcheck=0
+assumeyes=1
+# grub/syslinux on x86_64 need glibc-devel.i386 which pulls in
+glibc.i386, need to exclude all
+# .i?86 packages except these.
+exclude=[0-9A-Za-fh-z]*.i?86 g[0-9A-Za-km-z]*.i?86
+gl[0-9A-Za-hj-z]*.i?86 gli[0-9A-Zac-z]*.i?86 glib[0-9A-Za-bd-z]*.i?86
+
+# repos
+[core]
+name=base
+baseurl=<A HREF="http://centos-mirror/CentOS/">http://centos-mirror/CentOS/</A>&quot;&quot;&quot; + config_opts['releasever'] +
+&quot;&quot;&quot;/os/&quot;&quot;&quot;  + config_opts['target_arch']   +  &quot;&quot;&quot;
+
+[update]
+name=updates
+baseurl=<A HREF="http://centos-mirror/CentOS/">http://centos-mirror/CentOS/</A>&quot;&quot;&quot; + config_opts['releasever'] +
+&quot;&quot;&quot;/updates/&quot;&quot;&quot; + config_opts['target_arch']   +  &quot;&quot;&quot;
+
+[groups]
+name=groups
+baseurl=<A HREF="http://buildsys.fedoraproject.org/buildgroups/rhel5/x86_64/">http://buildsys.fedoraproject.org/buildgroups/rhel5/x86_64/</A>
+
+[rpmforge]
+name=Dag RPM Repository for Red Hat Enterprise Linux
+baseurl=<A HREF="http://rpmforge-mirror/rpmforge/redhat/el">http://rpmforge-mirror/rpmforge/redhat/el</A>&quot;&quot;&quot; +
+config_opts['releasever'] + &quot;&quot;&quot;/en/&quot;&quot;&quot;  + config_opts['target_arch']   +
+&quot;&quot;&quot;/dag
+
+&quot;&quot;&quot;
+
+
+
+
+
+financial.com AG
+
+Munich head office/Hauptsitz M&#252;nchen: Maria-Probst-Str. 19 | 80939 M&#252;nchen | Germany
+Frankfurt branch office/Niederlassung Frankfurt: Messeturm | Friedrich-Ebert-Anlage 49 | 60327 Frankfurt | Germany
+Management board/Vorstand: Dr. Steffen Boehnert (CEO/Vorsitzender) | Dr. Alexis Eisenhofer | Dr. Yann Samson | Matthias Wiederwach
+Supervisory board/Aufsichtsrat: Dr. Dr. Ernst zur Linden (chairman/Vorsitzender)
+Register court/Handelsregister: Munich &#8211; HRB 128 972 | Sales tax ID number/St.Nr.: DE205 370 553
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002686.html">[packagers] cfengine 2.2.9
+</A></li>
+	<LI>Next message: <A HREF="002688.html">[packagers] cfengine 2.2.9
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2687">[ date ]</a>
+              <a href="thread.html#2687">[ thread ]</a>
+              <a href="subject.html#2687">[ subject ]</a>
+              <a href="author.html#2687">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

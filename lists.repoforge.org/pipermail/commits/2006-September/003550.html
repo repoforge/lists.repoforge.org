@@ -1,0 +1,178 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4750 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4750%20-%20trunk/tools/yam&In-Reply-To=%3C20060920231408.2E3F33180A9%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003549.html">
+   <LINK REL="Next"  HREF="003551.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4750 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4750%20-%20trunk/tools/yam&In-Reply-To=%3C20060920231408.2E3F33180A9%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4750 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Sep 21 01:14:08 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003549.html">[svn] r4749 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="003551.html">[svn] r4751 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3550">[ date ]</a>
+              <a href="thread.html#3550">[ thread ]</a>
+              <a href="subject.html#3550">[ subject ]</a>
+              <a href="author.html#3550">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-09-21 01:14:07 +0200 (Thu, 21 Sep 2006)
+New Revision: 4750
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Some more small updates.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-09-20 22:18:45 UTC (rev 4749)
++++ trunk/tools/yam/ChangeLog	2006-09-20 23:14:07 UTC (rev 4750)
+@@ -1,3 +1,8 @@
++* 0.8.3 - ... - released 21/09/2006
++- Fixed a problem with specific python versions (Justin B Hochstetler)
++- Fixed the non-functional -r option
++- Apply -r option to repository generation as well
++
+ * 0.8.2 - Finally fixed - released 19/09/2006
+ - Use exec in conjunction with system()
+ - Fixed permission on cron entry
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-09-20 22:18:45 UTC (rev 4749)
++++ trunk/tools/yam/yam	2006-09-20 23:14:07 UTC (rev 4750)
+@@ -20,7 +20,7 @@
+ __version__ = &quot;$Revision$&quot;
+ # $Source$
+ 
+-VERSION = '0.8.2'
++VERSION = '0.8.2svn'
+ 
+ archs = {
+ 	'i386': ('i386', 'i486', 'i586', 'i686', 'athlon'),
+@@ -131,7 +131,7 @@
+   -g, --generate          generate Yam repositories
+   -n, --dry-run           show what would have been done
+   -q, --quiet             minimal output
+-  -r, --repo=repo1,repo2  restrict download to these repos
++  -r, --repo=repo1,repo2  restrict action to specific repositories
+       --remount           remount distribution ISOs
+   -u, --update            fetch OS updates
+   -v, --verbose           increase verbosity
+@@ -364,19 +364,12 @@
+ 	def listrepos(self, names=None):
+ 		ret = []
+ 		for repo in self.repos:
+-			if names and repo.name in names:
++			if not names:
+ 				ret.append(repo)
+-			else:
++			elif repo.name in names:
+ 				ret.append(repo)
+ 		return ret
+ 
+-	def listchangedrepos(self):
+-		ret = []
+-		for repo in self.repos:
+-			if repo.changed:
+-				ret.append(repo)
+-		return ret
+-
+ 	def lock(self, action, repo=''):
+ 		lockfile = os.path.join(cf.lockdir, self.nick, action + '-' + repo + '.lock')
+ 		mkdir(os.path.dirname(lockfile))
+@@ -489,6 +482,10 @@
+ 		self.changed = False
+ 		self.skip = False
+ 
++	def __repr__(self):
++#		return &quot;%s/%s&quot; % (self.dist.nick, self.name)
++		return self.name
++
+ 	def mirror(self):
+ 		&quot;Check URL and pass on to mirror-functions.&quot;
+ 		global exitcode
+@@ -630,7 +627,6 @@
+ 			opts = ' --quiet' + opts
+ 		elif op.verbose &gt;= 4:
+ 			opts = ' -v' + opts
+-#		for repo in self.listchangedrepos():
+ 		if os.path.isdir(self.wwwdir):
+ 			repoopts = opts
+ 			if cf.cachedir:
+@@ -1380,7 +1376,7 @@
+ 
+ 	### Generating metadata for available distributions/repositories
+ 	for dist in dists:
+-		repos = dist.listrepos()
++		repos = dist.listrepos(op.repos)
+ 
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+ 		if not dist.lock('generate'):
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-09-20 22:18:45 UTC (rev 4749)
++++ trunk/tools/yam/yam.spec	2006-09-20 23:14:07 UTC (rev 4750)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Tool to set up a Yum/Apt mirror from various sources (ISO, RHN, rsync, http, ftp, ...)
+ Name: yam
+-Version: 0.8.2
++Version: 0.8.2svn
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -101,6 +101,9 @@
+ %{_localstatedir}/yam/
+ 
+ %changelog
++* Thu Sep 21 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.8.2svn-1
++- Updated to release 0.8.2svn.
++
+ * Tue Sep 19 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.8.2-1
+ - Updated to release 0.8.2.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003549.html">[svn] r4749 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="003551.html">[svn] r4751 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3550">[ date ]</a>
+              <a href="thread.html#3550">[ thread ]</a>
+              <a href="subject.html#3550">[ subject ]</a>
+              <a href="author.html#3550">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

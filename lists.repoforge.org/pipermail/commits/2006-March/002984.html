@@ -1,0 +1,362 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4184 - in trunk/tools/dar: . python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4184%20-%20in%20trunk/tools/dar%3A%20.%20python&In-Reply-To=%3C20060316121920.0011C318096%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002983.html">
+   <LINK REL="Next"  HREF="002985.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4184 - in trunk/tools/dar: . python</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4184%20-%20in%20trunk/tools/dar%3A%20.%20python&In-Reply-To=%3C20060316121920.0011C318096%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4184 - in trunk/tools/dar: . python">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Mar 16 13:19:20 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002983.html">[svn] r4183 - trunk/tools/sarah
+</A></li>
+        <LI>Next message: <A HREF="002985.html">[svn] r4185 - trunk/rpms/x264
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2984">[ date ]</a>
+              <a href="thread.html#2984">[ thread ]</a>
+              <a href="subject.html#2984">[ subject ]</a>
+              <a href="author.html#2984">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-03-16 13:19:19 +0100 (Thu, 16 Mar 2006)
+New Revision: 4184
+
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-exec
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/python/create-pkgdb.py
+   trunk/tools/dar/python/create-specdb.py
+   trunk/tools/dar/python/print-missing.py
+Log:
+Updates
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2006-03-16 09:59:40 UTC (rev 4183)
++++ trunk/tools/dar/dar-build	2006-03-16 12:19:19 UTC (rev 4184)
+@@ -143,8 +143,8 @@
+ 			RELEASE=&quot;$(rpmconf Release)&quot;
+ 
+ 			NEWSPECFILE=&quot;$TEMPDIR/$app-$VERSION-$TAG.spec&quot;
+-			RPMFILE=&quot;$app-$VERSION-$RELEASE.${DISTTAG// *}.$TAG.$arch.rpm&quot;
+-			LOGFILE=&quot;$app-$VERSION-$RELEASE.${DISTTAG// *}.$TAG.$arch.log&quot;
++			RPMFILE=&quot;$app-$VERSION-$RELEASE.$DISTNAME.$TAG.$arch.rpm&quot;
++			LOGFILE=&quot;$app-$VERSION-$RELEASE.$DISTNAME.$TAG.$arch.log&quot;
+ 			export MAKEFLAGS=&quot;%nil&quot;
+ 
+ 			if [ &quot;$arch&quot; == &quot;nosrc&quot; ]; then
+@@ -153,12 +153,12 @@
+ 			fi
+ 
+ 			### Check if already build (2 version schemes, multiple disttags)
+-#			for disttag in $DISTTAG; do
+-#				for tag in $TAGS; do
+-#					NEWRPMFILE=&quot;$app-$VERSION-$RELEASE.$disttag.$tag.$arch.rpm&quot;
+-#					OLDRPMFILE=&quot;$app-$VERSION-$RELEASE.$tag.$disttag.$arch.rpm&quot;
+-#					for rpmfile in $NEWRPMFILE $OLDRPMFILE; do
+-						rpmfile=$RPMFILE
++			for disttag in $DISTNAME $DISTTAG; do
++				for tag in $TAGS; do
++					NEWRPMFILE=&quot;$app-$VERSION-$RELEASE.$disttag.$tag.$arch.rpm&quot;
++					OLDRPMFILE=&quot;$app-$VERSION-$RELEASE.$tag.$disttag.$arch.rpm&quot;
++					for rpmfile in $NEWRPMFILE $OLDRPMFILE; do
++#						echo $rpmfile
+ 						if [ -z &quot;$FORCE_OVERWRITE&quot; -a -f &quot;$PACKAGEDIR/$app/$rpmfile&quot; ]; then
+ 							warning &quot;Package \&quot;$PACKAGEDIR/$app/$rpmfile\&quot; already exists.&quot;
+ 			
+@@ -166,17 +166,16 @@
+ 								SOURCE_DISTS=&quot;$DISTNICK&quot;
+ 							fi
+ 			
+-#							continue 4
+-							continue
++							continue 4
+ 						fi
+-#					done
+-#				done
+-#			done
++					done
++				done
++			done
+ 
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+ 
+ 			export origspecfile=&quot;$SPECFILE&quot; specfile=&quot;$NEWSPECFILE&quot; builddir=&quot;$BUILDDIR&quot; chrootdir=&quot;$CHROOTDIR/$dist&quot;
+-			export app buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;${DISTTAG// *}&quot; repotag=&quot;$TAG&quot;
++			export app buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;$DISTNAME&quot; repotag=&quot;$TAG&quot;
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+ 				source &quot;$script&quot;
+ 			done
+@@ -186,7 +185,7 @@
+ 			(	echo &quot;----- Build information -----&quot;
+ 				echo &quot;Package name: $app&quot;
+ 				echo &quot;Package version: $VERSION&quot;
+-				echo &quot;Package release: $RELEASE.${DISTTAG// *}.$TAG&quot;
++				echo &quot;Package release: $RELEASE.$DISTNAME.$TAG&quot;
+ 				echo &quot;Packager: $(logname)&quot;
+ 				echo &quot;Distribution: $DISTNAME/$DISTARCH&quot;
+ 				echo &quot;Package arch: $arch&quot;
+@@ -308,7 +307,7 @@
+ 					--define \&quot;_tmppath $TEMPDIR\&quot; \
+ 					--define \&quot;debug_package %nil\&quot; \
+ 					--define \&quot;dist $DISTNAME\&quot; \
+-					--define \&quot;disttag ${DISTTAG// *}\&quot; \
++					--define \&quot;disttag $DISTNAME\&quot; \
+ 					--define \&quot;$DISTNAME 1\&quot; \
+ 					--define \&quot;$DISTNICK 1\&quot; \&quot;$NEWSPECFILE\&quot;&quot;
+ 
+@@ -329,7 +328,7 @@
+ 						--define &quot;_buildroot $TEMPDIR/$app-$VERSION-$RELEASE-root&quot; \
+ 						--define &quot;debug_package %nil&quot; \
+ 						--define &quot;dist $DISTNAME&quot; \
+-						--define &quot;disttag ${DISTTAG// *}&quot; \
++						--define &quot;disttag $DISTNAME&quot; \
+ 						--define &quot;$DISTNAME 1&quot; \
+ 						--define &quot;$DISTNICK 1&quot; \
+ 						&quot;$NEWSPECFILE&quot;
+@@ -345,7 +344,7 @@
+ 						--define '_buildroot $TEMPDIR/$app-$VERSION-$RELEASE-root' \
+ 						--define 'debug_package %nil' \
+ 						--define 'dist $DISTNAME' \
+-						--define 'disttag ${DISTTAG// *}' \
++						--define 'disttag $DISTNAME' \
+ 						--define '$DISTNAME 1' \
+ 						--define '$DISTNICK 1' \
+ 						$NEWSPECFILE&quot;
+@@ -386,8 +385,10 @@
+ 			if [ $RC -eq 0 ]; then
+ 				DARBUILDRC=0
+ 				if [ &quot;$FORCE_VERBOSE&quot; == &quot;yes&quot; ]; then
+-					echo -e &quot;\033[1;32mSuccess\033[0;0m $app [$dist/$arch], file in [$PACKAGEDIR/$app/]&quot;
++					echo -e &quot;${_GR}Success${_DE} $app [$dist/$arch], file in [$PACKAGEDIR/$app/]&quot;
+ 				fi
++				echo &quot;$app [$dist/$arch] ${SPECFILE/*\/} $LOGFILE&quot; &gt;&gt;/dar/log/dar-build-success.log
++				cp -au &quot;$SPECFILE&quot; &quot;$PACKAGEDIR/$app/&quot;
+ 
+ 				if [ &quot;$RETAIN_LOGS&quot; == &quot;yes&quot; ]; then
+ #					bzip2 -9 -f &quot;$PACKAGEDIR/$app/_buildlogs/$LOGFILE&quot;
+@@ -402,7 +403,8 @@
+ 				fi
+ 			else
+ #				log &quot;Failed building package $app for $dist/$arch.&quot; &gt;&gt; &quot;$LOGDIR/dar.log&quot;
+-				error &quot;\033[1;31mFailed\033[0;0m $app [$dist/$arch], see log [$SPECDIR/_buildlogs/$LOGFILE]&quot;
++				error &quot;${_RE}Failed${_DE} $app [$dist/$arch], see log [$SPECDIR/_buildlogs/$LOGFILE]&quot;
++				echo &quot;$app [$dist/$arch] ${SPECFILE/*\/} $LOGFILE&quot; &gt;&gt;/dar/log/dar-build-failed.log
+ #				bzip2 -9 -f &quot;$PACKAGEDIR/$app/_buildlogs/$LOGFILE&quot;
+ 				gzip -9 --rsyncable -f &quot;$PACKAGEDIR/$app/_buildlogs/$LOGFILE&quot;
+ 			fi
+@@ -427,7 +429,7 @@
+ 
+ 			NEWSPECFILE=&quot;$TEMPDIR/$app.spec&quot;
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+-			export buildarch=&quot;src&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;${DISTTAG// *}&quot; specfile=&quot;$NEWSPECFILE&quot; repotag=&quot;$TAG&quot;
++			export buildarch=&quot;src&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;$DISTNAME&quot; specfile=&quot;$NEWSPECFILE&quot; repotag=&quot;$TAG&quot;
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+ 				source &quot;$script&quot;
+ 			done
+@@ -441,19 +443,21 @@
+ 				--define &quot;_sourcedir $SPECDIR&quot; \
+ 				--define &quot;$dist 1&quot; \
+ 				--define &quot;dist $DISTNAME&quot; \
+-				--define &quot;disttag ${DISTTAG// *}&quot; \
++				--define &quot;disttag $DISTNAME&quot; \
+ 				--define &quot;$DISTNAME 1&quot; \
+ 				&quot;$NEWSPECFILE&quot; &amp;&gt;/dev/null
+ 			RC=$?
+ 			if [ $RC -eq 0 ]; then
+ 				if [ &quot;$FORCE_VERBOSE&quot; == &quot;yes&quot; ]; then
+-					echo -e &quot;\033[1;32mSuccess\033[0;0m $app [$dist/src], file in [$PACKAGEDIR/$app/]&quot;
++					echo -e &quot;${_GR}Success${_DE} $app [$dist/src], file in [$PACKAGEDIR/$app/]&quot;
+ 				fi
++				echo &quot;$app [$dist/src] ${SPECFILE/*\/}&quot; &gt;&gt;/dar/log/dar-build-success.log
+ 			else
+-				error &quot;\033[1;31mFailed\033[0;0m $app [$dist/src], see log [$SPECDIR/_buildlogs/$LOGFILE]&quot;
++				error &quot;${_RE}Failed${_DE} $app [$dist/src], see log [$SPECDIR/_buildlogs/$LOGFILE]&quot;
++				echo &quot;$app [$dist/src] ${SPECFILE/*\/}&quot; &gt;&gt;/dar/log/dar-build-failed.log
+ 			fi
+ 
+-			cp -au &quot;$NEWSPECFILE&quot; &quot;$PACKAGEDIR/$app/&quot;
++			cp -au &quot;$SPECFILE&quot; &quot;$PACKAGEDIR/$app/&quot;
+ 		done
+ 
+ 	fi
+
+Modified: trunk/tools/dar/dar-exec
+===================================================================
+--- trunk/tools/dar/dar-exec	2006-03-16 09:59:40 UTC (rev 4183)
++++ trunk/tools/dar/dar-exec	2006-03-16 12:19:19 UTC (rev 4184)
+@@ -53,12 +53,20 @@
+ 	### Check for building as user
+ 	if [ $AS_ROOT -eq 1 ]; then
+ #		DO_SU=&quot;/bin/su -l -c&quot;
+-		DO_SU=&quot;/bin/bash -x -s&quot;
++		if [ &quot;$FORCE_VERBOSE&quot; ]; then
++			DO_SU=&quot;/bin/bash -x -s&quot;
++		else
++			DO_SU=&quot;/bin/bash -s&quot;
++		fi
+ 	else
+-		DO_SU=&quot;/bin/su -lm $BUILD_USER -- /bin/bash -x -s&quot;
++		if [ &quot;$FORCE_VERBOSE&quot; ]; then
++			DO_SU=&quot;/bin/su -lm $BUILD_USER -- /bin/bash -x -s&quot;
++		else
++			DO_SU=&quot;/bin/su -lm $BUILD_USER -- /bin/bash -s&quot;
++		fi
+ 	fi
+ 
+-	echo chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU $CMD
++#	echo chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU $CMD
+ #	chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU $CMD
+ 	echo &quot;$CMD&quot; | chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU
+ 	RC=$?
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2006-03-16 09:59:40 UTC (rev 4183)
++++ trunk/tools/dar/dar-functions	2006-03-16 12:19:19 UTC (rev 4184)
+@@ -296,7 +296,7 @@
+ 				i=$((i+1))
+ 			done
+ 			if [ $RC -ne 0 ]; then
+-				warning &quot;Problems downloading source [$url].&quot;
++				error &quot;Problems downloading source [$url].&quot;
+ 				ERC=1
+ 			fi
+ 		fi
+@@ -443,6 +443,9 @@
+ 	local DISTPATH=&quot;$1&quot;
+ 	local REPODATA=&quot;$FTPDIR/$DISTPATH/$REPO/repodata/&quot;
+ 
++	if [ -d &quot;$FTPDIR/$DISTPATH/$REPO/.olddata/&quot; ]; then
++		rm -rf &quot;$FTPDIR/$DISTPATH/$REPO/.olddata/&quot;
++	fi
+ 	createrepo -q -c &quot;$TEMPDIR/.cache/createrepo/&quot; &quot;$FTPDIR/$DISTPATH/$REPO&quot;
+ 	echo &quot;&lt;?xml version=\&quot;1.0\&quot; encoding=\&quot;UTF-8\&quot;?&gt;&quot; &gt;&quot;$REPODATA/repomd.xml&quot;
+ 	echo &quot;&lt;repomd xmlns=\&quot;<A HREF="http://linux.duke.edu/metadata/repo\">http://linux.duke.edu/metadata/repo\</A>&quot;&gt;&quot; &gt;&gt;&quot;$REPODATA/repomd.xml&quot;
+
+Modified: trunk/tools/dar/python/create-pkgdb.py
+===================================================================
+--- trunk/tools/dar/python/create-pkgdb.py	2006-03-16 09:59:40 UTC (rev 4183)
++++ trunk/tools/dar/python/create-pkgdb.py	2006-03-16 12:19:19 UTC (rev 4184)
+@@ -20,22 +20,24 @@
+ 
+ distlist = ['0', 'rh6', 'rh7', 'rh8', 'rh9', 'el2', 'el3', 'el4', 'fc1', 'fc2', 'fc3', 'fc4', 'fc5', 'au1.91', 'au1.92']
+ distlistre = '|'.join(distlist + distmap.keys())
++repolist = ['dag', 'dries', 'rf', 'test']
++repolistre = '|'.join(repolist)
+ 
+ def repo(filename):
+         try:
+-                return re.search('\.(dag|dries|rf|test)\.\w+\.rpm$', filename).groups()[0]
++                return re.search('\.(%s)\.\w+\.rpm$' % repolistre, filename).groups()[0]
+         except: 
+                 try:
+-                        return re.search('\.(dag|dries|rf|test)\.('+distlistre+')\.\w+\.rpm$', filename).groups()[0]
++                        return re.search('\.(%s)\.(%s)\.\w+\.rpm$' % (repolistre, distlistre), filename).groups()[0]
+                 except: 
+                         return None
+ 
+ def dist(filename):
+         try:
+-                dist = re.search('\.('+distlistre+')\.(dag|dries|rf|test)\.\w+\.rpm$', filename).groups()[0]
++                dist = re.search('\.(%s)\.(%s)\.\w+\.rpm$' % (distlistre, repolistre), filename).groups()[0]
+         except: 
+                 try:
+-                        dist = re.search('\.(dag|dries|rf|test)\.(\w+)\.\w+\.rpm$', filename).groups()[1]
++                        dist = re.search('\.(%s)\.(\w+)\.\w+\.rpm$' % repolistre, filename).groups()[1]
+                 except: 
+                         dist = None
+         if dist in distlist: return dist
+@@ -86,7 +88,7 @@
+ 		try:
+ 			pkgrec = readfile(file, builder)
+ 		except:
+-#			print file, 'FAILED'
++			print file, 'FAILED'
+ 			continue
+ 		darlib.insertrec(cur, 'pkg', pkgrec)
+ con.commit()
+
+Modified: trunk/tools/dar/python/create-specdb.py
+===================================================================
+--- trunk/tools/dar/python/create-specdb.py	2006-03-16 09:59:40 UTC (rev 4183)
++++ trunk/tools/dar/python/create-specdb.py	2006-03-16 12:19:19 UTC (rev 4184)
+@@ -11,7 +11,7 @@
+ 	'upstream':	'^# Upstream: (.+?)$',
+ 	'epoch':	'^Epoch: (\d+)$',
+ 	'version':	'^Version: ([\w\.]+)$',
+-	'release':	'^Release: ([\w\.]+)$',
++	'release':	'^Release: (.+)$',
+ 	'summary':	'^Summary: (.+?)$',
+ 	'name':		'^Name: ([\w\-\+_]+)$',
+ #	'parent':	'^Name: ([\w\-\+_]+)$',
+@@ -32,12 +32,14 @@
+ 		except Exception, e:
+ 			if key in ('epoch', 'upstream'):
+ 				continue
+-			elif key in ('url', ):
++			elif key in ('url', 'version', 'release'):
+ 				print 'Error with key &quot;%s&quot; in &quot;%s&quot;' % (key, file)
++				rec[key] = None
+ 			else:
+ 				print 'Error with key &quot;%s&quot; in &quot;%s&quot; (FAILED)' % (key, file)
+ 				raise
+ 	if not rec['upstream']: rec['upstream'] = '<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">packagers at list.rpmforge.net</A>'
++#	rec['release'] = rec['release']
+ 	rec['specname'] = os.path.basename(file).replace('.spec','')
+ 	rec['parent'] = os.path.basename(os.path.dirname(file))
+ 	return rec
+
+Modified: trunk/tools/dar/python/print-missing.py
+===================================================================
+--- trunk/tools/dar/python/print-missing.py	2006-03-16 09:59:40 UTC (rev 4183)
++++ trunk/tools/dar/python/print-missing.py	2006-03-16 12:19:19 UTC (rev 4184)
+@@ -117,7 +117,8 @@
+ 
+ #	print name, '\t', dist, '  dr:', B, '\tda:', D
+ 	if vercmp(('0', B['version'], B['release']), ('0', D['version'], D['release'])) &gt; 0:
+-		missinglist.append(dist+archmap[arch])
++		if dist+archmap[arch] not in missinglist:
++			missinglist.append(dist+archmap[arch])
+ 
+ 	oldname = name
+ 	oldparent = parent
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002983.html">[svn] r4183 - trunk/tools/sarah
+</A></li>
+	<LI>Next message: <A HREF="002985.html">[svn] r4185 - trunk/rpms/x264
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2984">[ date ]</a>
+              <a href="thread.html#2984">[ thread ]</a>
+              <a href="subject.html#2984">[ subject ]</a>
+              <a href="author.html#2984">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,177 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2978 - in trunk/tools/dar: . scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2978%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C200503090851.j298pOOG015342%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001777.html">
+   <LINK REL="Next"  HREF="001779.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2978 - in trunk/tools/dar: . scripts</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2978%20-%20in%20trunk/tools/dar%3A%20.%20scripts&In-Reply-To=%3C200503090851.j298pOOG015342%40lists.rpmforge.net%3E"
+       TITLE="[SVN] r2978 - in trunk/tools/dar: . scripts">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Mar  9 09:51:24 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001777.html">[SVN] r2977 - trunk/rpms/bittorrent
+</A></li>
+        <LI>Next message: <A HREF="001779.html">[SVN] r2979 - in trunk/rpms: perl-Algorithm-Diff	perl-Bit-Vector-Minimal perl-Carp-Assert qemu
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1778">[ date ]</a>
+              <a href="thread.html#1778">[ thread ]</a>
+              <a href="subject.html#1778">[ subject ]</a>
+              <a href="author.html#1778">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-09 09:51:22 +0100 (Wed, 09 Mar 2005)
+New Revision: 2978
+
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar.conf
+   trunk/tools/dar/scripts/pre-brand.sh
+   trunk/tools/dar/scripts/pre-disttag.sh
+Log:
+Small updates
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2005-03-09 06:59:16 UTC (rev 2977)
++++ trunk/tools/dar/dar-build	2005-03-09 08:51:22 UTC (rev 2978)
+@@ -168,8 +168,8 @@
+ 			done
+ 
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+-			export NEWSPECFILE DISTTAG TAG
+ 
++			export buildarch=&quot;$arch&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;${DISTTAG// *}&quot; specfile=&quot;$NEWSPECFILE&quot; repotag=&quot;$TAG&quot;
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+ 				source &quot;$script&quot;
+ 			done
+@@ -406,8 +406,7 @@
+ 
+ 			NEWSPECFILE=&quot;$TEMPDIR/$app.spec&quot;
+ 			cp -af &quot;$SPECFILE&quot; &quot;$NEWSPECFILE&quot;
+-			export NEWSPECFILE DISTTAG TAG ARCH=&quot;src&quot;
+-
++			export buildarch=&quot;src&quot; distarch=&quot;$DISTARCH&quot; disttag=&quot;${DISTTAG// *}&quot; specfile=&quot;$NEWSPECFILE&quot; repotag=&quot;$TAG&quot;
+ 			for script in $CONFIGDIR/scripts/pre-*.sh; do
+ 				source &quot;$script&quot;
+ 			done
+
+Modified: trunk/tools/dar/dar.conf
+===================================================================
+--- trunk/tools/dar/dar.conf	2005-03-09 06:59:16 UTC (rev 2977)
++++ trunk/tools/dar/dar.conf	2005-03-09 08:51:22 UTC (rev 2978)
+@@ -30,6 +30,6 @@
+ RSYNC_OPTIONS=&quot;--exclude bert/ --exclude dries/ --exclude redhat/6.2 --exclude redhat/8.0 --delay-renames&quot;
+ RSYNC_TARGET=&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at rsync.sw.be</A>:dag.wieers.com/pub/&quot;
+ ### Use wondershaper
+-RSYNC_LIMIT=&quot;18&quot;
++RSYNC_LIMIT=&quot;48&quot;
+ GPG_PATH=&quot;/home/dag/.gnupg&quot;
+ GPG_NAME=&quot;Dag Wieers (Dag Apt Repository v1.0)&quot;
+
+Modified: trunk/tools/dar/scripts/pre-brand.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-brand.sh	2005-03-09 06:59:16 UTC (rev 2977)
++++ trunk/tools/dar/scripts/pre-brand.sh	2005-03-09 08:51:22 UTC (rev 2978)
+@@ -1,25 +1,29 @@
+ #!/bin/bash
+ 
+-#echo &quot;Specfile: $NEWSPECFILE&quot;
++#echo &quot;** pre-brand: Specfile: $specfile&quot;
+ #set -x
+ 
+-AUTHOR=&quot;$(grep '^# Authority: ' $NEWSPECFILE | sed -e 's|^# Authority: ||')&quot;
++author=&quot;$(grep '^# Authority: ' $specfile | sed -e 's|^# Authority: ||')&quot;
+ 
+-case &quot;$AUTHOR&quot; in
++case &quot;$author&quot; in
+ 	(dries)
+-		PACKAGER=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot;
++		packager=&quot;Dries Verachtert &lt;dries\@ulyssis.org&gt;&quot;
+ 		;;
+ 	(bert)
+-		PACKAGER=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot;
++		packager=&quot;Bert de Bruijn &lt;bert\@debruijn.be&gt;&quot;
+ 		;;
+ 	(dag|thias|matthias|*)
+-		PACKAGER=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot;
++		packager=&quot;Dag Wieers &lt;dag\@wieers.com&gt;&quot;
+ 		;;
+ esac
+ 
+-VENDOR=&quot;Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>&quot;
++vendor=&quot;Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>&quot;
+ 
+-perl -pi.orig -e 's|^(Source:.+)$|Packager: '&quot;$PACKAGER&quot;'\nVendor: '&quot;$VENDOR&quot;'\n\n$1|' &quot;$NEWSPECFILE&quot;
++### Removing existing branding
++perl -pi.orig -e 's/^(Packager|Vendor|Distribution):.+\n$//m' &quot;$specfile&quot;
+ 
++### Add own branding
++perl -pi.orig -e 's|^(Source:.+)$|Packager: '&quot;$packager&quot;'\nVendor: '&quot;$vendor&quot;'\n\n$1|' &quot;$specfile&quot;
++
+ #set +x
+-#diff -u &quot;$NEWSPECFILE&quot;.orig &quot;$NEWSPECFILE&quot;
++#diff -u &quot;$specfile.orig&quot; &quot;$specfile&quot;
+
+Modified: trunk/tools/dar/scripts/pre-disttag.sh
+===================================================================
+--- trunk/tools/dar/scripts/pre-disttag.sh	2005-03-09 06:59:16 UTC (rev 2977)
++++ trunk/tools/dar/scripts/pre-disttag.sh	2005-03-09 08:51:22 UTC (rev 2978)
+@@ -1,16 +1,16 @@
+ #!/bin/bash
+ 
+-#echo &quot;Specfile: $NEWSPECFILE, Disttag: $DISTTAG, Tag: $TAG&quot;
++#echo &quot;** pre-disttag: BuildArch: $buildarch, Disttag: $disttag, Repotag: $repotag, Specfile: $specfile&quot;
+ #set -x
+ 
+-case &quot;$ARCH&quot; in
++case &quot;$buildarch&quot; in
+ 	(src)
+-		perl -pi.orig -e 's|^(Release)\s*:\s+(.+)\s*$|$1: $2.'$TAG'\n|' &quot;$NEWSPECFILE&quot;
++		perl -pi.orig -e 's|^(Release)\s*:\s+(.+)\s*$|$1: $2.'$repotag'\n|' &quot;$specfile&quot;
+ 		;;
+ 	(*)
+-		perl -pi.orig -e 's|^(Release)\s*:\s+(.+)\s*$|$1: $2.'${DISTTAG// *}'.'$TAG'\n|' &quot;$NEWSPECFILE&quot;
++		perl -pi.orig -e 's|^(Release)\s*:\s+(.+)\s*$|$1: $2.'${disttag// *}'.'$repotag'\n|' &quot;$specfile&quot;
+ 		;;
+ esac
+ 
+-#diff -u &quot;$NEWSPECFILE&quot;.orig &quot;$NEWSPECFILE&quot;
++#diff -u &quot;$specfile&quot;.orig &quot;$specfile&quot;
+ #set +x
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001777.html">[SVN] r2977 - trunk/rpms/bittorrent
+</A></li>
+	<LI>Next message: <A HREF="001779.html">[SVN] r2979 - in trunk/rpms: perl-Algorithm-Diff	perl-Bit-Vector-Minimal perl-Carp-Assert qemu
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1778">[ date ]</a>
+              <a href="thread.html#1778">[ thread ]</a>
+              <a href="subject.html#1778">[ subject ]</a>
+              <a href="author.html#1778">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,270 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3228 - in trunk/tools/dstat: . examples plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3228%20-%20in%20trunk/tools/dstat%3A%20.%20examples%20plugins&In-Reply-To=%3C20050522071438.308CC1D02A0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002029.html">
+   <LINK REL="Next"  HREF="002031.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3228 - in trunk/tools/dstat: . examples plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3228%20-%20in%20trunk/tools/dstat%3A%20.%20examples%20plugins&In-Reply-To=%3C20050522071438.308CC1D02A0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3228 - in trunk/tools/dstat: . examples plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun May 22 09:14:38 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002029.html">[svn] r3227 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="002031.html">[svn] r3229 - in trunk/tools/dstat: . examples proc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2030">[ date ]</a>
+              <a href="thread.html#2030">[ thread ]</a>
+              <a href="subject.html#2030">[ subject ]</a>
+              <a href="author.html#2030">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-05-22 09:14:37 +0200 (Sun, 22 May 2005)
+New Revision: 3228
+
+Modified:
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/examples/read.py
+   trunk/tools/dstat/plugins/dstat_battery.py
+   trunk/tools/dstat/plugins/dstat_cpufreq.py
+   trunk/tools/dstat/plugins/dstat_dbus.py
+   trunk/tools/dstat/plugins/dstat_postfix.py
+   trunk/tools/dstat/plugins/dstat_sendmail.py
+   trunk/tools/dstat/plugins/dstat_utmp.py
+Log:
+Updates
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/TODO	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -37,7 +37,6 @@
+ + Implement better (?) protection against counter rollovers
+ + tcp stat is very slow and generates lots of softirqs (on busy systems), to be confirmed
+ + proc stats (run, blk and new) does not work on 2.4.30+ (possibly 2.4.x), to be confirmed
+-+ disk stats cannot find a usable plugin on 2.4.24+, to be confirmed
+ + proc stats seem to be off-by-one compared to vmstat (some of the time, this is what I get from /proc/stat)
+ + /proc/partitions can have negative numbers, seen on systems with long uptime. dstat handles this except for calculating the very first stat, no work-around possible
+ 
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/dstat	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -801,7 +801,7 @@
+ class dstat_int24(dstat):
+ 	def __init__(self):
+ 		self.name = 'interrupts'
+-		self.format = ('f', 5, 1000)
++		self.format = ('d', 5, 1000)
+ 		self.open('/proc/interrupts')
+ 		self.vars = self.vars()
+ 		self.nick = self.vars
+@@ -1039,20 +1039,16 @@
+ 		self.vars = ('pswpin', 'pswpout')
+ 		self.init(self.vars, 1)
+ 
+-#	def check(self):
+-#		if self.fd and not os.path.exists('/proc/vmstat'):
+-#			return True
+-#		return False
+-
+ 	def extract(self):
+ 		self.fd.seek(0)
+ 		for line in self.fd.readlines():
+ 			l = line.split()
+ 			if len(l) &lt; 3: continue
+ 			name = l[0]
+-			if name == 'swap':
+-				self.cn2['pswpin'] = long(l[1])
+-				self.cn2['pswpout'] = long(l[2])
++			if name != 'swap': continue
++			self.cn2['pswpin'] = long(l[1])
++			self.cn2['pswpout'] = long(l[2])
++			break
+ 		for name in self.vars:
+ 			self.val[name] = (self.cn2[name] - self.cn1[name]) * pagesize * 1.0 / tick
+ 		if step == op.delay:
+@@ -1568,16 +1564,16 @@
+ 					continue
+ 			try:
+ 				exec(compile('o = dstat_%s()' % mod, '&lt;string&gt;', 'exec'))
++
++				### Remove defect stat objects and calculate line length
++				if o.check():
++					linewidth = linewidth + o.statwidth() + 1
++					totlist.append(o)
++					break
+ 			except Exception, e:
+ 				info(1, 'Module &quot;dstat_%s&quot; has problems. (%s)' % (mod, e))
+ 				continue
+ 
+-			### Remove defect stat objects and calculate line length
+-			if o.check():
+-				linewidth = linewidth + o.statwidth() + 1
+-				totlist.append(o)
+-				break
+-
+ 	if not totlist:
+ 		die(8, 'None of the stats you selected are available.')
+ 
+
+Modified: trunk/tools/dstat/examples/read.py
+===================================================================
+--- trunk/tools/dstat/examples/read.py	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/examples/read.py	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -12,7 +12,7 @@
+ c = dstat.dstat_cpu()
+ print c.title1() + '\n' + c.title2()
+ c.extract()
+-print c, clear
++print c.show(), clear
+ print 'Percentage:', c.val['']
+ print 'Raw:', c.cn2['']
+ print
+@@ -20,20 +20,20 @@
+ m = dstat.dstat_mem()
+ print m.title1() + '\n' + m.title2()
+ m.extract()
+-print m, clear
++print m.show(), clear
+ print 'Raw:', m.val
+ print
+ 
+ l = dstat.dstat_load()
+ print l.title1() + '\n' + l.title2()
+ l.extract()
+-print l, clear
++print l.show(), clear
+ print 'Raw:', l.val
+ print
+ 
+ d = dstat.dstat_disk()
+ print d.title1() + '\n' + d.title2()
+ d.extract()
+-print d, clear
++print d.show(), clear
+ print 'Raw:', d.val['total']
+ print
+
+Modified: trunk/tools/dstat/plugins/dstat_battery.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_battery.py	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/plugins/dstat_battery.py	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -16,11 +16,13 @@
+ 				if len(l) &lt; 4: continue
+ 				if l[0] == 'last':
+ 					full = int(l[3])
++					break
+ 			for line in dopen('/proc/acpi/battery/'+battery+'/state').readlines():
+ 				l = string.split(line)
+ 				if len(l) &lt; 3: continue
+ 				if l[0] == 'remaining':
+ 					current = int(l[2])
++					break
+ 			self.val[battery] = current * 100.0 / full
+ 
+ # vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/plugins/dstat_cpufreq.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_cpufreq.py	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/plugins/dstat_cpufreq.py	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -8,7 +8,6 @@
+ 		self.vars = os.listdir('/sys/devices/system/cpu/')
+ 		self.nick = [string.lower(name) for name in self.vars]
+ 		self.init(self.vars, 1)
+-		self.check()
+ 
+ 	def check(self): 
+ 		if self.vars:
+
+Modified: trunk/tools/dstat/plugins/dstat_dbus.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_dbus.py	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/plugins/dstat_dbus.py	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -5,7 +5,6 @@
+ 		self.nick = ('sys', 'ses')
+ 		self.vars = ('system', 'session')
+ 		self.init(self.vars, 1)
+-		self.check()
+ 
+ 	def check(self): 
+ #		dstat.info(1, 'The dbus module is an EXPERIMENTAL module.')
+
+Modified: trunk/tools/dstat/plugins/dstat_postfix.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_postfix.py	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/plugins/dstat_postfix.py	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -5,7 +5,6 @@
+ 		self.vars = ('incoming', 'active', 'deferred', 'bounce', 'defer')
+ 		self.nick = ('inco', 'actv', 'dfrd', 'bnce', 'defr')
+ 		self.init(self.vars, 1)
+-		self.check()
+ 
+ 	def check(self): 
+ 		if not os.access('/var/spool/postfix/active', os.R_OK):
+
+Modified: trunk/tools/dstat/plugins/dstat_sendmail.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_sendmail.py	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/plugins/dstat_sendmail.py	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -9,7 +9,6 @@
+ 		self.vars = ('queue',)
+ 		self.nick = ('queu',)
+ 		self.init(self.vars, 1)
+-		self.check()
+ 
+ 	def check(self):
+ 		if not os.access('/var/spool/mqueue', os.R_OK):
+
+Modified: trunk/tools/dstat/plugins/dstat_utmp.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_utmp.py	2005-05-22 06:27:40 UTC (rev 3227)
++++ trunk/tools/dstat/plugins/dstat_utmp.py	2005-05-22 07:14:37 UTC (rev 3228)
+@@ -5,7 +5,6 @@
+ 		self.nick = ('ses', 'usr', 'adm' )
+ 		self.vars = ('sessions', 'users', 'root')
+ 		self.init(self.vars, 1)
+-		self.check()
+ 
+ 	def check(self): 
+ 		try:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002029.html">[svn] r3227 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="002031.html">[svn] r3229 - in trunk/tools/dstat: . examples proc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2030">[ date ]</a>
+              <a href="thread.html#2030">[ thread ]</a>
+              <a href="subject.html#2030">[ subject ]</a>
+              <a href="author.html#2030">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

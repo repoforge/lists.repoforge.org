@@ -1,0 +1,167 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4235 - trunk/rpms/asterisk
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4235%20-%20trunk/rpms/asterisk&In-Reply-To=%3C20060323175829.7BA3D318159%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003034.html">
+   <LINK REL="Next"  HREF="003036.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4235 - trunk/rpms/asterisk</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4235%20-%20trunk/rpms/asterisk&In-Reply-To=%3C20060323175829.7BA3D318159%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4235 - trunk/rpms/asterisk">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Mar 23 18:58:29 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003034.html">[svn] r4234 - in trunk/tools/yam: . config patches
+</A></li>
+        <LI>Next message: <A HREF="003036.html">[svn] r4236 - in trunk/rpms: perl-AI-Menu	perl-Apache-SessionManager perl-Array-Lookup	perl-Array-Reform perl-Authen-Smb perl-CGI-Log	perl-CORBA-IOP-IOR perl-Class-Loader perl-Class-Virtual	perl-Config-Crontab perl-Crypt-CipherSaber perl-Crypt-Tea	perl-DBD-File perl-DBD-XBase perl-Data-Stag	perl-Date-Holidays-DE perl-Date-Holidays-DK	perl-DateTime-Util-Astro perl-Devel-Size perl-ExtUtils-F77	perl-File-Archive perl-File-Recurse perl-Filesys-DiskSpace	perl-GraphViz-Zone perl-Graphics-ColorNames perl-Heap-Simple	perl-Kolab-LDAP-Backend perl-Kolab-LDAP-Backend-slurpd	perl-Lingua-EN-Gender perl-Lingua-EN-Infinitive	perl-Lingua-Stem-Snowball perl-Lingua-Stem-Snowball-Da	perl-Locale-Maketext-Simple perl-Log-Common	perl-Log-Dispatch-FileRotate perl-Mail-MboxParser	perl-Math-Approx perl-Math-Base85 perl-Math-Bezier	perl-Math-Bezier-Convert perl-Math-GMP	perl-Math-Geometry-Planar perl-Math-SimpleVariable	perl-Module-Versions-Report perl-Net-DNS-Codes	perl-NetServer-Generic perl-Number-Spell	perl-POE-Component-Client-Ident perl-Params-Validate	perl-Pod-Escapes perl-SNMP-Simple perl-Schedule-At	perl-Set-Bag perl-Set-NestedGroups perl-Sort-ArbBiLex	perl-Spreadsheet-SimpleExcel perl-String-CRC	perl-String-Nysiis perl-String-REPartition	perl-Template-Toolkit perl-Text-German perl-Text-LineEditor	perl-Tie-Array-Sorted perl-Tie-TransactHash perl-Time-Piece	perl-VCS perl-Video-Capture-V4l perl-WWW-Google-SiteMap perl-ldap
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3035">[ date ]</a>
+              <a href="thread.html#3035">[ thread ]</a>
+              <a href="subject.html#3035">[ subject ]</a>
+              <a href="author.html#3035">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-03-23 18:58:06 +0100 (Thu, 23 Mar 2006)
+New Revision: 4235
+
+Added:
+   trunk/rpms/asterisk/asterisk.logrotate
+Modified:
+   trunk/rpms/asterisk/asterisk.spec
+Log:
+Add missing log dirs to asterisk, logrotate and fix libpri detection on 64bits.
+
+
+Added: trunk/rpms/asterisk/asterisk.logrotate
+===================================================================
+--- trunk/rpms/asterisk/asterisk.logrotate	2006-03-23 12:21:01 UTC (rev 4234)
++++ trunk/rpms/asterisk/asterisk.logrotate	2006-03-23 17:58:06 UTC (rev 4235)
+@@ -0,0 +1,14 @@
++/var/log/asterisk/debug /var/log/asterisk/messages /var/log/asterisk/*log {
++    missingok
++    compress
++    sharedscripts
++    postrotate
++        /usr/sbin/asterisk -rx 'logger reload' &amp;&gt;/dev/null
++    endscript 
++}
++
++/var/log/asterisk/cdr-csv/*csv {
++    missingok
++    compress
++}
++
+
+Modified: trunk/rpms/asterisk/asterisk.spec
+===================================================================
+--- trunk/rpms/asterisk/asterisk.spec	2006-03-23 12:21:01 UTC (rev 4234)
++++ trunk/rpms/asterisk/asterisk.spec	2006-03-23 17:58:06 UTC (rev 4235)
+@@ -8,12 +8,13 @@
+ Summary: PBX and telephony application and toolkit
+ Name: asterisk
+ Version: 1.2.5
+-Release: 2
++Release: 4
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
+ Source0: <A HREF="http://ftp.digium.com/pub/asterisk/asterisk-%{version">http://ftp.digium.com/pub/asterisk/asterisk-%{version</A>}.tar.gz
+ Source1: asterisk.init
++Source2: asterisk.logrotate
+ Patch0: asterisk-1.0.9-agi_streamfile_video_raw_special.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires: perl, zaptel
+@@ -51,6 +52,7 @@
+ %{__perl} -pi -e 's|/var/run$|%{_var}/run/asterisk|g' Makefile
+ # Fix lib vs. lib64 directory
+ %{__perl} -pi -e 's|/usr/lib/asterisk$|%{_libdir}/asterisk|g' Makefile
++%{__perl} -pi -e 's|lib/libpri.so|%{_lib}/libpri.so|g' channels/Makefile
+ 
+ 
+ %build
+@@ -60,12 +62,18 @@
+ 
+ %install
+ %{__rm} -rf %{buildroot}
++
+ %{__make} install DESTDIR=%{buildroot}
++
+ # Install all sample config files
+ %{__make} samples DESTDIR=%{buildroot}
++
+ %{__install} -D -p -m 0755 %{SOURCE1} \
+     %{buildroot}%{_sysconfdir}/rc.d/init.d/asterisk
+ 
++%{__install} -D -p -m 0644 %{SOURCE2} \
++    %{buildroot}%{_sysconfdir}/logrotate.d/asterisk
++
+ # We need that directory, see above
+ %{__mkdir_p} %{buildroot}%{_var}/run/asterisk
+ 
+@@ -108,6 +116,7 @@
+ %attr(640, %{uname}, %{gname}) %config(noreplace) %{_sysconfdir}/asterisk/*.conf
+ %attr(640, %{uname}, %{gname}) %config(noreplace) %{_sysconfdir}/asterisk/*.adsi
+ %attr(640, %{uname}, %{gname}) %config(noreplace) %{_sysconfdir}/asterisk/*.ael
++%config(noreplace) %{_sysconfdir}/logrotate.d/asterisk
+ %{_sysconfdir}/rc.d/init.d/asterisk
+ %{_libdir}/asterisk/
+ %{_sbindir}/*
+@@ -115,6 +124,8 @@
+ %attr(-  , %{uname}, %{gname}) %{_var}/lib/asterisk/
+ %attr(750, %{uname}, %{gname}) %{_var}/run/asterisk/
+ %attr(750, %{uname}, %{gname}) %dir %{_var}/log/asterisk/
++%attr(750, %{uname}, %{gname}) %dir %{_var}/log/asterisk/cdr-csv/
++%attr(750, %{uname}, %{gname}) %dir %{_var}/log/asterisk/cdr-custom/
+ %attr(750, %{uname}, %{gname}) %dir %{_var}/spool/asterisk/
+ #                                   %{_var}/spool/asterisk/vm/
+ %attr(750, %{uname}, %{gname}) %dir %{_var}/spool/asterisk/voicemail/
+@@ -130,8 +141,13 @@
+ 
+ 
+ %changelog
+-* Mon Mar 20 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.2.5-2
++* Thu Mar 23 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.2.5-4
++- Add missing log directories, cdr-csv and cdr-custom.
++- Add logrotate entry.
++
++* Mon Mar 20 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.2.5-3
+ - Add libpri-devel build requirement to enable libpri support.
++- Fix libpri detection on 64bit archs.
+ 
+ * Tue Mar  7 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.2.5-1
+ - Update to 1.2.5.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003034.html">[svn] r4234 - in trunk/tools/yam: . config patches
+</A></li>
+	<LI>Next message: <A HREF="003036.html">[svn] r4236 - in trunk/rpms: perl-AI-Menu	perl-Apache-SessionManager perl-Array-Lookup	perl-Array-Reform perl-Authen-Smb perl-CGI-Log	perl-CORBA-IOP-IOR perl-Class-Loader perl-Class-Virtual	perl-Config-Crontab perl-Crypt-CipherSaber perl-Crypt-Tea	perl-DBD-File perl-DBD-XBase perl-Data-Stag	perl-Date-Holidays-DE perl-Date-Holidays-DK	perl-DateTime-Util-Astro perl-Devel-Size perl-ExtUtils-F77	perl-File-Archive perl-File-Recurse perl-Filesys-DiskSpace	perl-GraphViz-Zone perl-Graphics-ColorNames perl-Heap-Simple	perl-Kolab-LDAP-Backend perl-Kolab-LDAP-Backend-slurpd	perl-Lingua-EN-Gender perl-Lingua-EN-Infinitive	perl-Lingua-Stem-Snowball perl-Lingua-Stem-Snowball-Da	perl-Locale-Maketext-Simple perl-Log-Common	perl-Log-Dispatch-FileRotate perl-Mail-MboxParser	perl-Math-Approx perl-Math-Base85 perl-Math-Bezier	perl-Math-Bezier-Convert perl-Math-GMP	perl-Math-Geometry-Planar perl-Math-SimpleVariable	perl-Module-Versions-Report perl-Net-DNS-Codes	perl-NetServer-Generic perl-Number-Spell	perl-POE-Component-Client-Ident perl-Params-Validate	perl-Pod-Escapes perl-SNMP-Simple perl-Schedule-At	perl-Set-Bag perl-Set-NestedGroups perl-Sort-ArbBiLex	perl-Spreadsheet-SimpleExcel perl-String-CRC	perl-String-Nysiis perl-String-REPartition	perl-Template-Toolkit perl-Text-German perl-Text-LineEditor	perl-Tie-Array-Sorted perl-Tie-TransactHash perl-Time-Piece	perl-VCS perl-Video-Capture-V4l perl-WWW-Google-SiteMap perl-ldap
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3035">[ date ]</a>
+              <a href="thread.html#3035">[ thread ]</a>
+              <a href="subject.html#3035">[ subject ]</a>
+              <a href="author.html#3035">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

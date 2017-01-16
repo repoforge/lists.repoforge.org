@@ -1,0 +1,470 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3275 - in trunk/tools/pydar2: . pydar scripts sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3275%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts%20sql&In-Reply-To=%3C20050605111451.7752B1D03B0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002076.html">
+   <LINK REL="Next"  HREF="002078.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3275 - in trunk/tools/pydar2: . pydar scripts sql</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3275%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts%20sql&In-Reply-To=%3C20050605111451.7752B1D03B0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3275 - in trunk/tools/pydar2: . pydar scripts sql">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Jun  5 13:14:51 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002076.html">[svn] r3274 - trunk/rpms/pydar2
+</A></li>
+        <LI>Next message: <A HREF="002078.html">[svn] r3276 - trunk/rpms/unrar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2077">[ date ]</a>
+              <a href="thread.html#2077">[ thread ]</a>
+              <a href="subject.html#2077">[ subject ]</a>
+              <a href="author.html#2077">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-05 13:14:50 +0200 (Sun, 05 Jun 2005)
+New Revision: 3275
+
+Added:
+   trunk/tools/pydar2/pydar-master-movecommandresults.py
+Modified:
+   trunk/tools/pydar2/Makefile
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar-buildserver-slave.py
+   trunk/tools/pydar2/pydar-master-autoqueue.py
+   trunk/tools/pydar2/pydar/commandlist.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/mastercommand.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/pydarclient.py
+   trunk/tools/pydar2/pydar/rights.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+   trunk/tools/pydar2/sql/master.sql
+Log:
+update
+
+Modified: trunk/tools/pydar2/Makefile
+===================================================================
+--- trunk/tools/pydar2/Makefile	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/Makefile	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -4,7 +4,7 @@
+ sysconfdir=/etc
+ localstatedir=/var
+ 
+-DIST_PYSCRIPTS=pydar-buildserver-master.py pydar-buildserver-slave.py pydar-remote.py pydar-master-update.py pydar-master-autoqueue.py
++DIST_PYSCRIPTS=pydar-buildserver-master.py pydar-buildserver-slave.py pydar-remote.py pydar-master-update.py pydar-master-autoqueue.py pydar-master-movecommandresults.py
+ DIST_ETCFILES=etc/master.conf etc/client.conf etc/slave.conf etc/specrepositories.conf etc/targets.conf etc/accounts.conf
+ #DIST_SHSCRIPTS=dar-remote
+ #DIST_INITSCRIPTS=pydar-buildserver-master pydar-buildserver-slave
+
+Modified: trunk/tools/pydar2/pydar/commandlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/commandlist.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar/commandlist.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -79,15 +79,20 @@
+         self.__cat.debug(&quot;end&quot;)
+         return aCommand
+ 
+-    def moveCommandResults(self):
+-        # check if there are directories which contain results of builds done by slave buildservers
+-        # check if they contain directories with commandids which were reserved with the correct build id
++    def moveCommandResults(self, commandId):
+         self.__cat.debug(&quot;start&quot;)
+-        dirlist = os.listdir(self.__config.getMasterBuildResultsDir())
+-        for entry in dirlist:
+-            self.__cat.debug(&quot;entry: &quot; + entry)
+-            if self.__storage.isBuildMachineId(entry):
+-                self.__cat.debug(&quot;its a valid buildmachine id&quot;)
+-                #buildmachinebuildsdir = os.path.join(
+-                
++        # get the command about this commandId
++        aCommand = self.__storage.getCommand(commandId)
++        self.__cat.debug(&quot;got aCommand:&quot; + str(aCommand))
++        buildMachineId = self.__storage.getBuildMachineIdOfCommand(commandId)
++        self.__cat.debug(&quot;got buildMachineId:&quot; + str(buildMachineId))
++        commanddir = os.path.join(os.path.join(self.__config.getMasterBuildResultsDir(), buildMachineId),commandId)
++        self.__cat.debug(&quot;got commanddir:&quot; + str(commanddir))
++        if os.path.isdir(commanddir):
++            # nice, the dir exists.. 
++            self.__cat.debug(&quot;going to call moveCommandResults with command: &quot; + str(aCommand) + &quot;, commanddir: &quot; + str(commanddir))
++            return aCommand.getTarget().moveCommandResults(aCommand, commanddir)
++        else:
++            return False
++            
+         
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar/config.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -31,6 +31,7 @@
+ from preparespecfilescript import PrepareSpecFileScript
+ from acceptcommandscript import AcceptCommandScript
+ from updatesitescript import UpdateSiteScript
++from movecommandresultsscript import MoveCommandResultsScript
+ from buildrootlist import BuildRootList
+ from filepathscript import FilePathScript
+ import yumbasedbuildroot
+@@ -149,7 +150,7 @@
+                 t.setGetRpmDataScript(FilePathScript(myParser.get(name,'getrpmdatascript'),myParser.get(name,'getrpmdatafunction')))
+             if myParser.has_option(name,'movecommandresultsscript') and myParser.has_option(name,'movecommandresultsfunction'):
+                 self.__cat.debug('movecommandresultsscript &amp; function ok')
+-                t.setMoveCommandResultsScript(FilePathScript(myParser.get(name,'movecommandresultsscript'),myParser.get(name,'movecommandresultsfunction')))
++                t.setMoveCommandResultsScript(MoveCommandResultsScript(myParser.get(name,'movecommandresultsscript'),myParser.get(name,'movecommandresultsfunction')))
+             if myParser.has_option(name,'preparescript') and myParser.has_option(name,'preparefunction'):
+                 t.appendPrepareSpecFileScript(PrepareSpecFileScript(myParser.get(name,'preparescript'),myParser.get(name,'preparefunction')))
+             if myParser.has_option(name,'acceptcommandscript') and myParser.has_option(name,'acceptcommandfunction'):
+
+Modified: trunk/tools/pydar2/pydar/mastercommand.py
+===================================================================
+--- trunk/tools/pydar2/pydar/mastercommand.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar/mastercommand.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -93,7 +93,11 @@
+     def setVersion(self,version):
+         self.__version = version
+     
++    def getNameFromSpec(self):
++        self.__authority = storagefactory.StorageFactory.getStorage().getNameOfMostRecentVersion(self.getSpecFileId())
++        return self.__authority
+     
++    
+     # create an object which can be used on SlaveCommand to create a new SlaveCommand object
+     def toXmlRpcPersistantObject(self):
+         retval = CommandValueObject()
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -59,6 +59,19 @@
+         self.__releaseConnection(conn)
+         return retval
+         
++    def getNameOfMostRecentVersion(self, specFileId):
++        retval = None
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        sql = &quot;select t.value from pydar2_specfile_version sv, pydar2_specfile_tags t where t.versionid=sv.id and upper(t.name)='NAME' and sv.specfileid=&quot; + str(specFileId)  + &quot; order by sv.id desc limit 1&quot;
++        self.__cat.debug(&quot;sql:&quot; + sql)
++        cursor.execute(sql)
++        for row in cursor.fetchall():
++            retval = row[0]
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++        
+     def getSpecFileIdsToVersions(self, specRepository):
+         retval = {}
+         conn = self.__getConnection()
+@@ -511,6 +524,53 @@
+         self.__releaseConnection(conn)
+         return retval
+ 
++    def getCommand(self, commandId):
++        self.__cat.debug(&quot;start, commandId=&quot; + commandId)
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        sql = &quot;select pc.id, pc.specfileid, pc.specrepoid, pc.toemail, pc.distroarchtag, pc.targetid, pc.commandname, pc.userid, pc.priority, pc.version from pydar2_commands pc where pc.id=&quot; + str(commandId)
++        self.__cat.debug(&quot;sql 1: &quot; + sql)
++        cursor.execute(sql)
++        retval = &quot;&quot;
++        if cursor.rowcount &gt; 0:
++            self.__cat.debug(&quot;rowcount &gt; 0&quot;)
++            rs = cursor.fetchone()
++            self.__cat.debug(&quot;command found for commandId=&quot; + str(commandId))
++            commandId = rs[0]
++            specFileId = rs[1]
++            specRepoId = rs[2]
++            toEmail = rs[3]
++            distroArchTag = rs[4]
++            targetId = rs[5]
++            commandName = rs[6]
++            userId = rs[7]
++            priority = rs[8]
++            version = rs[9]
++            aCommand = MasterCommand(commandName,userId,specRepoId,specFileId,toEmail,distroArchTag,priority,targetId)
++            aCommand.setVersion(version)
++            aCommand.setCommandId(rs[0])
++            retval = aCommand
++        else:
++            self.__cat.debug(&quot;rowcount &lt;= 0&quot;)
++            retval = None
++        conn.commit()
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++        
++    def getBuildMachineIdOfCommand(self, commandId):
++        retval = None
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        sql = &quot;select buildmachineid, count(buildmachineid) as cnt from pydar2_actions where commandid=&quot; + str(commandId) + &quot; group by buildmachineid order by cnt desc&quot;
++        cursor.execute(sql)
++        if cursor.rowcount &gt; 0:
++            row = cursor.fetchone()
++            retval = row[0]
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++    
+     def getVersionIdsOfSpecRepoSpecFile(self, specRepoSpecFile):
+         conn = self.__getConnection()
+         cursor = conn.cursor()
+
+Modified: trunk/tools/pydar2/pydar/pydarclient.py
+===================================================================
+--- trunk/tools/pydar2/pydar/pydarclient.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar/pydarclient.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -59,3 +59,8 @@
+         myserverclient = Server(self.buildmasterurl)
+         retval = myserverclient.autoQueue(userId, password, targetName, mailTo, priority, specRepoName)
+         return retval
++
++    def callMoveCommandResultsScript(self,userId,password, commandId):
++        myserverclient = Server(self.buildmasterurl)
++        retval = myserverclient.callMoveCommandResultsScript(userId,password, commandId)
++        return retval
+
+Modified: trunk/tools/pydar2/pydar/rights.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rights.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar/rights.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -33,4 +33,5 @@
+     UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS = &quot;UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS&quot;
+     GET_NUMBER_OF_NOTYETSTARTED_COMMANDS = &quot;GET_NUMBER_OF_NOTYETSTARTED_COMMANDS&quot;
+     AUTO_QUEUE = &quot;AUTO_QUEUE&quot;
++    MOVE_COMMAND_RESULTS =&quot;MOVE_COMMAND_RESULTS&quot;
+     
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar/target.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -181,6 +181,6 @@
+     # move the results of a command (an srpm, rpm(s), buildlog.txt.gz, .. ) to their final place
+     def moveCommandResults(self, command, commanddir):
+         if self.__moveCommandResultsScript != None:
+-            return self.__acceptCommandScript.runScript(command, commanddir)
++            return self.__moveCommandResultsScript.runScript(command, commanddir)
+         else:
+-            return True
++            return False
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -180,9 +180,14 @@
+         else:
+             raise Exception(&quot;UNKNOWN USERID&quot;)
+             
+-    
++    def callMoveCommandResultsScript(self,userId,password, commandId):
++        self.__cat.debug(&quot;start,userId=&quot; + str(userId))
++        if self.__storage.checkIfValidUserId(userId, password, Rights.MOVE_COMMAND_RESULTS):
++            tmp =  self.__config.getCommandList().moveCommandResults(commandId)
++            return tmp
++        else:
++            raise Exception(&quot;UNKNOWN USERID&quot;)
+ 
+-
+ class Master:
+     def __init__(self):
+         self.__cat = Logger().get_instance(self)
+
+Modified: trunk/tools/pydar2/pydar-buildserver-slave.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-slave.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar-buildserver-slave.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -157,7 +157,7 @@
+         output = &quot;&quot;
+         rpmspart = &quot;&quot;
+         if len(brr.getRpms()) &gt; 0:
+-            subject = &quot;build ok: &quot; + command.getDistroArchTag() + &quot; - &quot; + command.getSpecFileShortFileName()
++            subject = &quot;pydar2:: build ok: &quot; + command.getDistroArchTag() + &quot; - &quot; + command.getSpecFileShortFileName()
+             rpmspart = &quot;rpms: \n&quot;
+             for i in brr.getRpms():
+                 rpmspart = rpmspart + &quot;  &quot; + i + &quot;\n&quot;
+
+Modified: trunk/tools/pydar2/pydar-master-autoqueue.py
+===================================================================
+--- trunk/tools/pydar2/pydar-master-autoqueue.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar-master-autoqueue.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -27,14 +27,6 @@
+ from pydarclient import PydarClient
+ from config import Config
+ 
+-# updates the spec file repositories on the master
+-
+-# - get the commands to execute from the master
+-# - use those commands
+-# - informs the master when the update is done -&gt; rechecks spec files
+-
+-# get  the url of the master and a userId
+-
+ conf = Config.getInstance()
+ 
+ parser = OptionParser()
+
+Added: trunk/tools/pydar2/pydar-master-movecommandresults.py
+===================================================================
+--- trunk/tools/pydar2/pydar-master-movecommandresults.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/pydar-master-movecommandresults.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -0,0 +1,42 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; move command results &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import ConfigParser, os, posixpath, sys, commands
++from optparse import OptionParser
++sys.path.append(&quot;.&quot;)
++sys.path.append(&quot;pydar&quot;)
++sys.path.append(&quot;/usr/share/pydar2/pydar&quot;)
++
++
++from pydarclient import PydarClient
++from config import Config
++
++conf = Config.getInstance()
++
++parser = OptionParser()
++parser.add_option(&quot;-c&quot;, &quot;--clientconfig&quot;, default=None, dest=&quot;clientconfig&quot;, help=&quot;specify configuration file&quot;, metavar=&quot;FILE&quot;)
++(options, args) = parser.parse_args()
++conf.specifyGetOptOptions(options)
++password = conf.getClientPassword()
++
++commandId = args[0]
++
++pc = PydarClient(conf.getBuildMasterUrlClient())
++print pc.callMoveCommandResultsScript(conf.getClientUserId(), password, commandId)
++
+
+
+Property changes on: trunk/tools/pydar2/pydar-master-movecommandresults.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -27,10 +27,15 @@
+     webrootdir = &quot;/var/lib/pydar2/webroot/&quot;
+     packagesdir = os.path.join(webrootdir, &quot;packages&quot;)
+     shortname = command.getNameFromSpec()
++    print &quot;shortname: &quot; + str(shortname)
+     pdir = os.path.join(packagesdir, shortname)
+-    os.makedirs(pdir)
+-    distroarchreleasetagparts = command.getDistroArch().getTagParts()
+-    
++    distroarchtag = command.getDistroArchTag()
++    pdirwithdistroarchtag = os.path.join(pdir, distroarchtag)
++    print &quot;pdirwithdistroarchtag: &quot; + str(pdirwithdistroarchtag)
++    try:
++        os.makedirs(pdirwithdistroarchtag)
++    except:
++        print &quot;exception, dir probably exists already&quot;
+     containsRpms = False
+     # first check if there are new rpm files
+     for entry in os.listdir(commanddir):
+@@ -39,28 +44,22 @@
+     
+     # only if it contains rpms: remove the old ones and copy the new ones
+     if containsRpms:
+-        for entry in os.listdir(pdir):
+-            removeEntry = False
+-            for part in distroarchreleasetagparts:
+-                if string.find(entry, part) &gt; 0:
+-                    removeEntry = True
+-            if removeEntry:
+-                print &quot;remove: &quot; + os.path.join(pdir, entry)
+-                #os.remove(os.path.join(pdir, entry))
++        for entry in os.listdir(pdirwithdistroarchtag):
++            print &quot;remove: &quot; + os.path.join(pdirwithdistroarchtag, entry)
++            os.remove(os.path.join(pdirwithdistroarchtag, entry))
+         # now move the newly created rpms
+         for entry in os.listdir(commanddir):
+             moveEntry = False
+-            for part in distroarchreleasetagparts:
+-                if string.find(entry, part) &gt; 0 and string.find(entry, &quot;.rpm&quot;) &gt; 0:
+-                    moveEntry = True
++            if string.find(entry, &quot;.rpm&quot;) &gt; 0:
++                moveEntry = True
+             if moveEntry:
+-                #os.rename(os.path.join(commanddir,entry), os.path.join(pdir, entry))
+-                print &quot;rename: &quot; + os.path.join(commanddir,entry) + &quot; to &quot; + os.path.join(pdir, entry)
++                os.rename(os.path.join(commanddir,entry), os.path.join(pdirwithdistroarchtag, entry))
++                print &quot;rename: &quot; + os.path.join(commanddir,entry) + &quot; to &quot; + os.path.join(pdirwithdistroarchtag, entry)
+     
+     # always move the buildlog
+-    #shutil.copy(os.path.join(commanddir,&quot;buildlog.txt.gz&quot;), os.path.join(pdir, entry...
++    os.rename(os.path.join(commanddir,&quot;buildlog.txt.gz&quot;),os.path.join(pdirwithdistroarchtag, shortname + &quot;-&quot; + distroarchtag +  &quot;-buildlog.txt.gz&quot;))
++    print &quot;rename: &quot; + os.path.join(commanddir,&quot;buildlog.txt.gz&quot;) + &quot; to &quot; + os.path.join(pdirwithdistroarchtag, shortname + &quot;-&quot; + distroarchtag +  &quot;-buildlog.txt.gz&quot;)
+             
+-    return False    
+-    #return True
++    return True
+     
+     
+
+Modified: trunk/tools/pydar2/sql/master.sql
+===================================================================
+--- trunk/tools/pydar2/sql/master.sql	2005-06-05 11:14:13 UTC (rev 3274)
++++ trunk/tools/pydar2/sql/master.sql	2005-06-05 11:14:50 UTC (rev 3275)
+@@ -253,4 +253,5 @@
+ insert into pydar2_rights (id, abbrev, description) values (9, 'UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS', 'ask the master to update all spec repositories');
+ insert into pydar2_rights (id, abbrev, description) values (10, 'GET_NUMBER_OF_NOTYETSTARTED_COMMANDS', 'get the number of commands which are not yet reserved or finished');
+ insert into pydar2_rights (id, abbrev, description) values (11, 'AUTO_QUEUE', 'auto queue commands');
++insert into pydar2_rights (id, abbrev, description) values (12, 'MOVE_COMMAND_RESULTS', 'move the results of a command');
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002076.html">[svn] r3274 - trunk/rpms/pydar2
+</A></li>
+	<LI>Next message: <A HREF="002078.html">[svn] r3276 - trunk/rpms/unrar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2077">[ date ]</a>
+              <a href="thread.html#2077">[ thread ]</a>
+              <a href="subject.html#2077">[ subject ]</a>
+              <a href="author.html#2077">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

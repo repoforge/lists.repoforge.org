@@ -1,0 +1,257 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6694 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6694%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200902102313.n1ANDefH027945%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005492.html">
+   <LINK REL="Next"  HREF="005496.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6694 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6694%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200902102313.n1ANDefH027945%40surya.karan.org%3E"
+       TITLE="[svn] r6694 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Feb 11 00:13:40 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005492.html">[svn] r6693 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="005496.html">[svn] r6695 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5493">[ date ]</a>
+              <a href="thread.html#5493">[ thread ]</a>
+              <a href="subject.html#5493">[ subject ]</a>
+              <a href="author.html#5493">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-02-10 23:13:40 +0000 (Tue, 10 Feb 2009)
+New Revision: 6694
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Added option handlers.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-02-09 20:17:41 UTC (rev 6693)
++++ trunk/tools/wiipresent/ChangeLog	2009-02-10 23:13:40 UTC (rev 6694)
+@@ -1,16 +1,23 @@
++* Tue Feb 10 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++- Added -b/--bluetooth option to specify bluetooth address
++- Added -d/--display option to specify the X display to use
++- Added -l/--length option to specify the presentation length
++- Added -h/--help option to display a help message
++- Added -v/--version option to display the wiipresent version
++
+ * Mon Feb 09 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-- Use tilt information to move mouse pointer.
+-- Show battery information.
+-- Implemented left and right mouse buttons.
+-- Simple battery level check.
++- Use tilt information to move mouse pointer
++- Show battery information
++- Implemented left and right mouse buttons
++- Simple battery level check
+ 
+ * Sat Feb 07 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-- Ignore repeating keys.
+-- Rumble wiimote when associated.
+-- Divide presentation time into 5 phases.
+-- Change the leds to indicate when changing phase.
+-- Rumble the wiimote when chaning phase.
+-- Increase rumble time exponentially based on phase.
++- Ignore repeating keys
++- Rumble wiimote when associated
++- Divide presentation time into 5 phases
++- Change the leds to indicate when changing phase
++- Rumble the wiimote when chaning phase
++- Increase rumble time exponentially based on phase
+ 
+ * Fri Feb 06 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-- Initial test program using libwiimote.
++- Initial test program using libwiimote
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-02-09 20:17:41 UTC (rev 6693)
++++ trunk/tools/wiipresent/wiipresent.c	2009-02-10 23:13:40 UTC (rev 6694)
+@@ -16,6 +16,7 @@
+ 
+ // $Id$
+ 
++#include &lt;getopt.h&gt;
+ #include &lt;math.h&gt;
+ #include &lt;signal.h&gt;
+ #include &lt;stdio.h&gt;
+@@ -29,6 +30,9 @@
+ 
+ #include &quot;wiimote_api.h&quot;
+ 
++static char NAME[] = &quot;wiipresent&quot;;
++static char VERSION[] = &quot;0.5&quot;;
++
+ static char *displayname = NULL;
+ static Display *display = NULL;
+ static Window window = 0;
+@@ -81,35 +85,105 @@
+     wmote-&gt;rumble = 0;
+ }
+ 
+-int main() {
++int main(int argc, char **argv) {
+     int debug = False;
+     int length = 50 * 60;
+-    char btaddress[] = &quot;00:1B:7A:F9:D5:70&quot;;
++    char *btaddress = NULL;
+     wmote = (wiimote_t) WIIMOTE_INIT;
+-    wiimote_report_t report = WIIMOTE_REPORT_INIT;
+ 
++    int c;
++
+     // Make stdout unbuffered
+     setvbuf(stdout, NULL, _IONBF, 0);
+ 
++    while (1) {
++        int option_index = 0;
++        static struct option long_options[] = {
++            {&quot;bluetooth&quot;, 1, 0, 'b'},
++            {&quot;display&quot;, 1, 0, 'd'},
++            {&quot;help&quot;, 0, 0, 'h'},
++            {&quot;length&quot;, 1, 0, 'l'},
++            {&quot;version&quot;, 0, 0, 'v'},
++            {0, 0, 0, 0}
++        };
++
++        c = getopt_long (argc, argv, &quot;b:hl:v&quot;, long_options, &amp;option_index);
++        if (c == -1)
++            break;
++
++        switch (c) {
++            case 'b':
++                btaddress = optarg;
++                continue;
++            case 'd':
++                displayname = optarg;
++                continue;
++            case 'h':
++                printf(&quot;Nintendo Wiimote presentation controller\n\
++\n\
++%s options:\n\
++  -b, --bluetooth=btaddress      Wiimote bluetooth address (use hcitool scan)\n\
++  -d, --display=name             X display to use\n\
++  -l, --length=minutes           presentation length in minutes\n\
++\n\
++  -h, --help                     display this help and exit\n\
++  -v, --version                  output version information and exit\n\
++\n\
++Report bugs to &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;.\n&quot;, NAME);
++                exit(0);
++            case 'l':
++                length = atoi(optarg) * 60;
++                continue;
++            case 'v':
++                printf(&quot;%s %s\n\
++Copyright (C) 2009 Dag Wie&#235;rs\n\
++This is open source software.  You may redistribute copies of it under the terms of\n\
++the GNU General Public License &lt;<A HREF="http://www.gnu.org/licenses/gpl.html">http://www.gnu.org/licenses/gpl.html</A>&gt;.\n\
++There is NO WARRANTY, to the extent permitted by law.\n\
++\n\
++Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;.\n&quot;, NAME, VERSION);
++                exit(0);
++            default:
++                printf (&quot;?? getopt returned character code 0%o ??\n&quot;, c);
++        }
++
++        if (optind &lt; argc) {
++            printf (&quot;non-option ARGV-elements: &quot;);
++            while (optind &lt; argc)
++                printf (&quot;%s &quot;, argv[optind++]);
++            printf (&quot;\n&quot;);
++        }
++    }
++
+     // Wait for 1+2
+-    printf(&quot;Please press 1+2 on the wiimote with address %s...&quot;, btaddress);
+-    wiimote_connect(&amp;wmote, btaddress);
+-    printf(&quot;\nIt's alive, Jim!\n&quot;);
++    if (btaddress == NULL) {
++//        printf(&quot;Please press 1+2 on a wiimote in the viscinity...&quot;);
++//        wiimote_connect(&amp;wmote, btaddress);
++        printf(&quot;Sorry, you need to provide a bluetooth address using -b/--bluetooth.\n&quot;);
++        exit(1);
++    } else {
++        printf(&quot;Please press 1+2 on the wiimote with address %s...&quot;, btaddress);
++        wiimote_connect(&amp;wmote, btaddress);
++    }
+ 
+     signal(SIGINT, exit_clean);
+     signal(SIGHUP, exit_clean);
+     signal(SIGQUIT, exit_clean);
+ 
++    printf(&quot;\nIt's alive, Jim!\n&quot;);
++
++    printf(&quot;Presentation length is %dmin divided in 5 slots of %dmin.\n&quot;, length/60, length/60/5);
++
+     // Obtain the X11 display.
+-//    if (displayname == NULL)
+-//        displayname = getenv(&quot;DISPLAY&quot;);
++    if (displayname == NULL)
++        displayname = getenv(&quot;DISPLAY&quot;);
+ 
+-//    if (displayname == NULL)
+-//        displayname = &quot;:0.0&quot;;
++    if (displayname == NULL)
++        displayname = &quot;:0.0&quot;;
+ 
+-    display = XOpenDisplay(0);
++    display = XOpenDisplay(displayname);
+     if (display == NULL) {
+-        fprintf(stderr, &quot;wiipresent: can't open display `%s'.\n&quot;, displayname);
++        fprintf(stderr, &quot;%s: can't open display `%s'.\n&quot;, NAME, displayname);
+         return -1;
+     }
+ 
+@@ -172,6 +246,9 @@
+         if (wmote.keys.a) {
+             wmote.mode.acc = 1;
+ 
++            // Tilt method
++            MovePointer(display, wmote.tilt.x / 4, wmote.tilt.y / 4, 1);
++
+             // Block repeating keys
+             if (keys == wmote.keys.bits) {
+                 continue;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005492.html">[svn] r6693 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="005496.html">[svn] r6695 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5493">[ date ]</a>
+              <a href="thread.html#5493">[ thread ]</a>
+              <a href="subject.html#5493">[ subject ]</a>
+              <a href="author.html#5493">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

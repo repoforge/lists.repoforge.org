@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] Distributing the product
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Distributing%20the%20product&In-Reply-To=%3C4DAC7389.9070706%40hrbac.cz%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003602.html">
+   <LINK REL="Next"  HREF="003604.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] Distributing the product</H1>
+    <B>David Hrb&#225;&#269;</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20Distributing%20the%20product&In-Reply-To=%3C4DAC7389.9070706%40hrbac.cz%3E"
+       TITLE="[packagers] Distributing the product">david-lists at hrbac.cz
+       </A><BR>
+    <I>Mon Apr 18 19:23:21 CEST 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003602.html">[packagers] Distributing the product
+</A></li>
+        <LI>Next message: <A HREF="003604.html">[packagers] Distributing the product
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3603">[ date ]</a>
+              <a href="thread.html#3603">[ thread ]</a>
+              <a href="subject.html#3603">[ subject ]</a>
+              <a href="author.html#3603">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Dne 18.4.2011 17:18, Dag Wieers napsal(a):
+&gt;<i> I agree, although I would keep el2.1 packages for the time being. The
+</I>&gt;<i> question is whether we want to keep th eold package somewhere in a
+</I>&gt;<i> publically accessible vault, or not. Maybe el2.1 belongs there.
+</I>
+I plan to have archive.rpmforge.org for the obsolete folders, including 2.1.
+
+&gt;<i>
+</I>&gt;<i> Repoview in the past was very expensive to create, but if we drop APT
+</I>&gt;<i> metadata, and only offer 1 metadata per repository this would be
+</I>&gt;<i> possible. Still I would so love to have a one-pass tool that generates
+</I>&gt;<i> both metadata and interface.
+</I>One pass tools is available. Bash script:
+echo &quot;Reporeload processing...&quot;
+repodata=(&quot;hrb&quot; &quot;hrb-tls&quot; &quot;hrb-bacula&quot; &quot;hrb-fw&quot; &quot;hrb-kernel&quot; &quot;hrb-ssh&quot;
+&quot;hrb-as&quot;)
+
+for index in ${!repodata[*]}
+do
+  printf &quot;%4d: %s\n&quot; $index ${repodata[$index]}
+
+  for a in `find /var/www/html/hrb33/el4/${repodata[$index]}/ -mindepth
+2 -maxdepth 2 -type d`
+  do
+    if [ ${repodata[$index]} == &quot;hrb-kernel&quot; ]; then
+      repomanage -k 5 -o $a | xargs rm -f
+    fi
+#    createrepo -q --skip-stat --update -d -c /tmp/repocache $a
+    createrepo -q --update -d -c /tmp/repocache $a
+    repoview $a -q -t 'David Hrbac' -f -u
+<A HREF="http://fs12.vsb.cz${a#/var/www/html">http://fs12.vsb.cz${a#/var/www/html</A>} -k /usr/share/repoview/hrb/ -f
+  done
+  for a in `find /var/www/html/hrb33/el5/${repodata[$index]}/ -mindepth
+2 -maxdepth 2 -type d`
+  do
+   if [ ${repodata[$index]} == &quot;hrb-kernel&quot; ]; then
+     repomanage -k 5 -o $a | xargs rm -f
+   fi
+   #repomanage -k 5 -o $a
+#   createrepo -q --skip-stat --update -d -c /tmp/repocache $a
+   createrepo -q --update -d -c /tmp/repocache $a
+   repoview $a -q -t 'David Hrbac' -f -u
+<A HREF="http://fs12.vsb.cz${a#/var/www/html">http://fs12.vsb.cz${a#/var/www/html</A>} -k /usr/share/repoview/hrb/ -f
+  done
+done
+
+steps:
+1. remove every instance but last 5 per package
+2. create repository, using repo cache (huge speed up)
+3. create repoview
+ 
+&gt;<i>
+</I>&gt;<i> On the other hand, having a dynamic web-interface that allows to
+</I>&gt;<i> browse/search the repository metadata would be prefered over a static
+</I>&gt;<i> repoview. For one, it does not have to be mirrored !!
+</I>Repoview is good enough. If we mirror it, that it will exactly
+correspond to this particular mirror repo.
+&gt;<i>
+</I>&gt;<i> Yes, but surya is RHEL4. Karanbir mentioned that he now can do sqlite
+</I>&gt;<i> on RHEL4, but it is currently still not possible. Either we move to
+</I>&gt;<i> another system, or we need Karanbir's solution.
+</I>&gt;<i>
+</I>This is something Karanbir has been asking the info from me. As I have
+written. You can still have surya, as the primary source repository
+source. This signed repo tree might be mirrored to main mirror, where we
+can run sqlite createrepo etc. I can prepare machine as main
+mirror/archive storage. We have planty of virtual resources :o). This
+machine can than prepare (semi)dynamic mirror list/metalink list for yum.
+&gt;<i>
+</I>&gt;<i> These mirrors are collected once by using Google. Instead of having a
+</I>&gt;<i> list of people that mirror it, we should be having a mailinglist and
+</I>&gt;<i> actively communicate with mirror admins. In fact, they should be part
+</I>&gt;<i> of this discussion before we redesign the repositories.
+</I>
+Yes, there's a task:
+- create mirror maillist  :o)
+
+Well, I guess there is no need to discuss the repo with mirror admins.
+We have to just stick with standards, that's all.
+&gt;<i>
+</I>&gt;<i> There is one thing that I would like to bring into this discussion. I
+</I>&gt;<i> very much like the packages.sw.be interface. In fact I often use this
+</I>&gt;<i> at customers for downloading a specific package for a specific
+</I>&gt;<i> distribution.
+</I>&gt;<i>
+</I>
+I'm fine with it, this is something the mirror SIG is not interested in
+right now. On the other hand I need to keep SRPMs folder across repos
+and archs, just like we are having now. I'm creating local repo of it,
+I'm using it as a source for upstream release checking:
+<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">root at specs2</A>:1292:291:~/hrbcnu$ python cnucnu.py  --create-bugs -v
+1/91 * altermime Added cnucnu-FedoraRawhide repo from
+http:/repository.vsb.cz  
+6/91 * chkrootkit
+cnucnu.errors.UpstreamVersionRetrievalError                  
+11/91 * iftop: repo=0.17
+upstream=1.0pre1                                      
+12/91 * lha
+cnucnu.errors.UpstreamVersionRetrievalError                        
+19/91 * nmon
+cnucnu.errors.UpstreamVersionRetrievalError                       
+21/91 * p7zip: repo=9.13
+upstream=9.20.1                                       
+35/91 * perl-Data-Dumper-Concise: repo=1.100
+upstream=2.020                    
+36/91 * perl-Digest-MD5: repo=2.39
+upstream=2.51                               
+37/91 * perl-Digest-SHA: repo=5.50
+upstream=5.61                               
+61/91 * perl-Math-BigInt-FastCalc: repo=0.19
+upstream=0.28                     
+69/91 * perl-Pod-Simple: repo=3.15
+upstream=3.16                               
+74/91 * perl-Unix-PID: repo=0.0.15
+upstream=0.23                               
+79/91 * phpmyadmin3
+exceptions.KeyError                                        
+80/91 * proftpd
+cnucnu.errors.UpstreamVersionRetrievalError                    
+81/91 * razor-agents: repo=2.84
+upstream=2.85                                  
+86/91 * subversion: repo=1.6.15
+upstream=1.6.16                                
+89/91 * unarj: repo=2.63
+upstream=2.63a                                        
+91/91 * zoo
+cnucnu.errors.UpstreamVersionRetrievalError                        
+                                                                               
+
+==================== Results ====================
+Total                    91 (100%)
+Outdated                 11 ( 12%)
+Unresolved                6 (  6%)
+
+
+&gt;<i> I would like to keep this structure, in fact, it is the base structure
+</I>&gt;<i> used for creating everything else. The question begs if we want
+</I>&gt;<i> mirrors to also mirror this structure (probably not) or whether we
+</I>&gt;<i> want a dynamic webinterface provide this exact view (possible thanks
+</I>&gt;<i> to SRPM Id).
+</I>No, we don't. We also don't need some dynamic web. Let's start with
+simple and working solutions. We can improve later.
+DH
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003602.html">[packagers] Distributing the product
+</A></li>
+	<LI>Next message: <A HREF="003604.html">[packagers] Distributing the product
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3603">[ date ]</a>
+              <a href="thread.html#3603">[ thread ]</a>
+              <a href="subject.html#3603">[ subject ]</a>
+              <a href="author.html#3603">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1518 - in trunk/tools/dar: . dists dists/el3a
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1518%20-%20in%20trunk/tools/dar%3A%20.%20dists%20dists/el3a&In-Reply-To=%3C20040708165420.09FBF1FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000326.html">
+   <LINK REL="Next"  HREF="000328.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1518 - in trunk/tools/dar: . dists dists/el3a</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1518%20-%20in%20trunk/tools/dar%3A%20.%20dists%20dists/el3a&In-Reply-To=%3C20040708165420.09FBF1FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1518 - in trunk/tools/dar: . dists dists/el3a">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Jul  8 18:54:20 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000326.html">[SVN] r1517 - in trunk/rpms: cpufreqd distcc plasticfs straw
+</A></li>
+        <LI>Next message: <A HREF="000328.html">[SVN] r1519 - trunk/rpms/mp1e
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#327">[ date ]</a>
+              <a href="thread.html#327">[ thread ]</a>
+              <a href="subject.html#327">[ subject ]</a>
+              <a href="author.html#327">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-07-08 18:54:18 +0200 (Thu, 08 Jul 2004)
+New Revision: 1518
+
+Added:
+   trunk/tools/dar/dists/el3a/
+   trunk/tools/dar/dists/el3a/config
+   trunk/tools/dar/dists/el3a/rhel3-base.txt
+Modified:
+   trunk/tools/dar/ChangeLog
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-functions
+Log:
+See ChangeLog
+
+
+Modified: trunk/tools/dar/ChangeLog
+===================================================================
+--- trunk/tools/dar/ChangeLog	2004-07-08 16:18:13 UTC (rev 1517)
++++ trunk/tools/dar/ChangeLog	2004-07-08 16:54:18 UTC (rev 1518)
+@@ -16,6 +16,8 @@
+ - dar-build: Use rpmdb -E if possible for resolving macros (thanks to Jeff Pitman)
+ - dar-build: Check for existance of distribution build environment
+ - dar-functions: Use lftpget instead of wget
++- dar-build: Added support for nodist packages
++- dar-functions: Fixed a small bug in rpmconf()
+ 
+ Version 0.6.0
+ - dar.conf: Removed DISTSMAP, added it to dists specific section
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2004-07-08 16:18:13 UTC (rev 1517)
++++ trunk/tools/dar/dar-build	2004-07-08 16:54:18 UTC (rev 1518)
+@@ -95,6 +95,13 @@
+ 			continue
+ 		fi
+ 
++		if [ &quot;$NODIST&quot; ]; then
++			DISTTAG=&quot;0&quot;
++			DISTNAME=&quot;nodist&quot;
++#			ARCHS=&quot;noarch&quot;
++		fi
++
++
+ 		if [ ! -d &quot;$CHROOTDIR/$DISTNICK&quot; ]; then
+ 			warning &quot;Distribution $DISTNICK has no build environment ($CHROOTDIR/$DISTNICK). Aborting.&quot;
+ 			continue
+@@ -125,7 +132,7 @@
+ 
+ 		set_archs
+ 
+-		### Check if etc/rpm/macros exists with proper content
++		### TODO: Check if etc/rpm/macros exists with proper content
+ 
+ 		for arch in $ARCHS; do
+ 			VERSION=&quot;$(rpmconf Version)&quot;
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2004-07-08 16:18:13 UTC (rev 1517)
++++ trunk/tools/dar/dar-functions	2004-07-08 16:54:18 UTC (rev 1518)
+@@ -69,8 +69,12 @@
+ 		return 1
+ 	fi
+ 
++	if [ &quot;$DISTNICK&quot; ]; then
++		local RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK rpm --version | cut -d' ' -f3)&quot;
++	fi
++
+ 	(
+-	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su - -m $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNICK\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n64 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
++	if [ -z &quot;$DISTNICK&quot; ] || [ &quot;$RPMVER&quot; \&lt; &quot;4.1&quot; ] || ! chroot &quot;$CHROOTDIR/$DISTNICK&quot; /bin/su - -m $BUILD_USER -c &quot;rpmdb -D \&quot;dist $DISTNAME\&quot; -D \&quot;$DISTNICK 1\&quot; -D \&quot;$DISTNAME 1\&quot; -E \&quot;%{expand:%(head -n128 $SPECFILE)}\&quot;&quot; | grep -i &quot;^ *$CONFIG *:&quot; | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 		if ! grep -i &quot;^ *$CONFIG *:&quot; $SPECFILE | sed -e &quot;s/^ *$CONFIG *: *//i&quot; | head -1; then
+ 			debug &quot;Config $CONFIG not found in $SPECFILE&quot;
+ 		fi
+@@ -158,11 +162,16 @@
+ }
+ 
+ function set_dists {
++	unset NODIST
+ 	if [ &quot;$FORCE_DISTS&quot; ]; then
+ 		DISTS=&quot;${FORCE_DISTS//[,:;]/ }&quot;
+ 	else
+ 		DISTS=&quot;$(metaconf Dists)&quot;
+ 	fi
++	if [ &quot;$(metaconf Dist)&quot; == &quot;nodist&quot; ]; then
++		NODIST=&quot;nodist&quot;
++		DISTS=&quot;$(echo &quot;$DISTS&quot; | cut -f1)&quot;
++	fi
+ 	if [ -z &quot;$DISTS&quot; ]; then DISTS=&quot;$DEFAULT_DISTS&quot;; fi
+ }
+ 
+@@ -325,11 +334,11 @@
+ 		case &quot;$DISTARCH&quot; in
+ 			i386)
+ 				echo $PACKAGEDIR/*/*.$REPO.$tag.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null # Backward compatibility
+-				echo $PACKAGEDIR/*/*.$tag.$REPO.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
++				echo $PACKAGEDIR/*/*.{$tag,0}.$REPO.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
+ 				;;
+ 			x86_64)
+ 				echo $PACKAGEDIR/*/*.$REPO.$tag.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null # Backward compatibility
+-				echo $PACKAGEDIR/*/*.$tag.$REPO.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
++				echo $PACKAGEDIR/*/*.{$tag,0}.$REPO.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/RPMS.$REPO/ &amp;&gt;/dev/null
+ 				;;
+ 		esac
+ 	done
+@@ -358,11 +367,11 @@
+ 		case &quot;$DISTARCH&quot; in
+ 			i386)
+ 				echo $PACKAGEDIR/*/*.$REPO.$tag.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null # Backward compatibility
+-				echo $PACKAGEDIR/*/*.$tag.$REPO.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null
++				echo $PACKAGEDIR/*/*.{$tag,0}.$REPO.{noarch,i386,i586,i686,athlon}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null
+ 				;;
+ 			x86_64)
+ 				echo $PACKAGEDIR/*/*.$REPO.$tag.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null # Backward compatibility
+-				echo $PACKAGEDIR/*/*.$tag.$REPO.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null
++				echo $PACKAGEDIR/*/*.{$tag,0}.$REPO.{noarch,x86_64}.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/$REPO/RPMS/ &amp;&gt;/dev/null
+ 				;;
+ 		esac
+ 	done
+
+Added: trunk/tools/dar/dists/el3a/config
+===================================================================
+--- trunk/tools/dar/dists/el3a/config	2004-07-08 16:18:13 UTC (rev 1517)
++++ trunk/tools/dar/dists/el3a/config	2004-07-08 16:54:18 UTC (rev 1518)
+@@ -0,0 +1,17 @@
++### RED HAT ENTERPRISE LINUX 3
++
++### Distcc compilers
++DISTCC_CC=&quot;x86_64-redhat-linux-gcc-3.2.3&quot;
++DISTCC_CXX=&quot;x86_64-redhat-linux-g++-3.2.3&quot;
++
++UPDATECMD=&quot;up2date -u&quot;
++#UPDATECMD=&quot;apt-get -qq update&quot;
++#UPGRADECMD=&quot;apt-get -qq -f -y upgrade&quot;
++#INSTALLCMD=&quot;up2date -i %p&quot;
++INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
++
++DISTNAME=&quot;el3&quot;
++DISTNICK=&quot;el3a&quot;
++DISTTAG=&quot;1.el3 rhel3&quot;
++DISTPATH=&quot;redhat/el3/en/x86_64&quot;
++DISTARCH=&quot;x86_64&quot;
+
+Added: trunk/tools/dar/dists/el3a/rhel3-base.txt
+===================================================================
+--- trunk/tools/dar/dists/el3a/rhel3-base.txt	2004-07-08 16:18:13 UTC (rev 1517)
++++ trunk/tools/dar/dists/el3a/rhel3-base.txt	2004-07-08 16:54:18 UTC (rev 1518)
+@@ -0,0 +1,55 @@
++basesystem-8.0-2
++bash-2.05b-29
++beecrypt-3.0.1-0.20030630
++bzip2-1.0.2-11
++bzip2-libs-1.0.2-11
++chkconfig-1.3.8-3
++coreutils-4.5.3-26
++cracklib-2.7-22
++cracklib-dicts-2.7-22
++db4-4.1.25-8
++dev-3.3.8-1
++e2fsprogs-1.32-15
++elfutils-0.89-1
++elfutils-libelf-0.89-1
++ethtool-1.8-2
++filesystem-2.2.1-3
++findutils-4.1.7-9
++gawk-3.1.1-9
++glib-1.2.10-11.1
++glibc-2.3.2-95.3
++glibc-common-2.3.2-95.3
++gpm-1.19.3-27.2
++grep-2.5.1-16
++info-4.5-3
++initscripts-7.31.6.EL-1
++iproute-2.4.7-10
++iputils-20020927-11
++less-378-11
++libacl-2.2.3-1
++libattr-2.2.0-1
++libgcc-3.2.3-20
++libtermcap-2.0.8-35
++mingetty-1.06-1
++mktemp-1.5-18
++modutils-2.4.25-9.EL
++mount-2.11y-31.1
++ncurses-5.3-9.3
++net-tools-1.60-20
++pam-0.75-51
++pcre-3.9-10
++popt-1.8.1-4.2
++procps-2.0.13-9.2E
++psmisc-21.3-1.RHEL.0
++rpm-4.2.1-4.2
++sed-4.0.7-3
++setup-2.5.27-1
++shadow-utils-4.0.3-7
++sysklogd-1.4.1-12
++SysVinit-2.85-4
++termcap-11.0.1-17.1
++tzdata-2003c-1
++util-linux-2.11y-31.1
++which-2.14-7
++words-2-21
++zlib-1.1.4-8.1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000326.html">[SVN] r1517 - in trunk/rpms: cpufreqd distcc plasticfs straw
+</A></li>
+	<LI>Next message: <A HREF="000328.html">[SVN] r1519 - trunk/rpms/mp1e
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#327">[ date ]</a>
+              <a href="thread.html#327">[ thread ]</a>
+              <a href="subject.html#327">[ subject ]</a>
+              <a href="author.html#327">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

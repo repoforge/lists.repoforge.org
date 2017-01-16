@@ -1,0 +1,181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2475 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2475%20-%20trunk/tools/dstat&In-Reply-To=%3C20041111171918.8F64B18490%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001280.html">
+   <LINK REL="Next"  HREF="001282.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2475 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2475%20-%20trunk/tools/dstat&In-Reply-To=%3C20041111171918.8F64B18490%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2475 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Nov 11 18:19:18 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001280.html">[SVN] r2474 - in trunk/rpms: rhythmbox xmms zapping zvbi
+</A></li>
+        <LI>Next message: <A HREF="001282.html">[SVN] r2476 - in trunk/rpms: perl-Cache-Cache perl-Error	perl-Video-DVDRip perl-libintl
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1281">[ date ]</a>
+              <a href="thread.html#1281">[ thread ]</a>
+              <a href="subject.html#1281">[ subject ]</a>
+              <a href="author.html#1281">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-11 18:19:16 +0100 (Thu, 11 Nov 2004)
+New Revision: 2475
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Some more changes.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-11 16:58:24 UTC (rev 2474)
++++ trunk/tools/dstat/ChangeLog	2004-11-11 17:19:16 UTC (rev 2475)
+@@ -1,3 +1,6 @@
++* 0.5.2
++- Changed disk stats discover() from a whitelist to a blacklist
++
+ * 0.5.1
+ - Fixed bug that caused counters to not be averages when delay &gt; 1
+ - Added time stats (-t)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-11 16:58:24 UTC (rev 2474)
++++ trunk/tools/dstat/dstat	2004-11-11 17:19:16 UTC (rev 2475)
+@@ -18,7 +18,7 @@
+ import os, sys, re, getopt, fcntl, termios, struct, time
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = &quot;0.5.1&quot;
++VERSION = &quot;0.5.2&quot;
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -48,7 +48,7 @@
+ 
+ 		for opt, arg in opts:
+ 			if opt in ['-a', '--all']:
+-				self.modlist = [ 'cpu', 'disk', 'net', 'page', 'sys', 'load' ]
++				self.modlist = self.modlist + [ 'cpu', 'disk', 'net', 'page', 'sys', 'load' ]
+ 			elif opt in ['-c', '--cpu']:
+ 				self.modlist.append('cpu')
+ 			elif opt in ['-h', '--help']:
+@@ -276,9 +276,11 @@
+ 	def discover(self):
+ 		retlist = []
+ 		for line in open('/proc/diskstats', 'r').readlines():
+-			dev = line.split()[2]
+-			if re.match('^(hd[a-z]|sd[a-z])$', dev):
+-				retlist.append(dev)
++			l = line.split()
++			if len(l) &lt; 13: continue
++			name = l[2]
++			if not re.match('^(ram[0-9]+|loop[0-9]+)$', name):
++				retlist.append(name)
+ 		if len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+ 		return retlist
+@@ -291,7 +293,9 @@
+ 	def stats(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/diskstats', 'r').readlines():
+-			l = line.split(); name = l[2]
++			l = line.split();
++			if len(l) &lt; 13: continue
++			name = l[2]
+ 			if name in self.vars:
+ #				print mountpoint('/dev/' + name)
+ #				bsize = os.statvfs(mountpoint('/dev/' + name))[0]
+@@ -314,10 +318,11 @@
+ 	def discover(self):
+ 		retlist = []
+ 		for line in open('/proc/partitions', 'r').readlines():
+-			if len(line) &lt; 4: continue
+-			dev = line.split()[3]
+-			if re.match('^(hd[a-z]|sd[a-z])$', dev):
+-				retlist.append(dev)
++			l = line.split()
++			if len(l) &lt; 15 or l[12] == '0': continue
++			name = l[3]
++			if not re.match('^(ram[0-9]+|loop[0-9]+|name)$', name):
++				retlist.append(name)
+ 		if len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+ 		return retlist
+@@ -736,9 +741,9 @@
+ 	### lowercase (b) is better for the eyes than uppercase
+ 	unit = ('B', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+ 	if step == op.delay:
+-		color = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
++		color = ('silver', 'red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred')
+ 	else:
+-		color = ('darkred', 'brown', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'darkred', 'darkgreen')
++		color = ('gray', 'darkred', 'brown', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'darkred')
+ 		
+ 	c = 0
+ 	var = var / step
+@@ -892,7 +897,7 @@
+ 			update = update + 1
+ 		else:
+ 			update = update + op.delay
+-		step = ((update + op.delay - 1) % op.delay)+1
++		step = ((update + op.delay - 1) % op.delay) + 1
+ 		count = update / op.delay 
+ 
+ 		if count != op.count:
+@@ -924,12 +929,14 @@
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+-		print
++		if step != op.delay:
++			print
+ 		print 'Exiting on user request'
+ 		sys.exit(6)
+ 	except OSError, e:
+ #		print e.errno
+-		print
++		if step != op.delay:
++			print
+ 		print 'OSError: %s' %e
+ 		sys.exit(7)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001280.html">[SVN] r2474 - in trunk/rpms: rhythmbox xmms zapping zvbi
+</A></li>
+	<LI>Next message: <A HREF="001282.html">[SVN] r2476 - in trunk/rpms: perl-Cache-Cache perl-Error	perl-Video-DVDRip perl-libintl
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1281">[ date ]</a>
+              <a href="thread.html#1281">[ thread ]</a>
+              <a href="subject.html#1281">[ subject ]</a>
+              <a href="author.html#1281">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

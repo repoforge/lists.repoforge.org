@@ -1,0 +1,148 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2250 - trunk/rpms/firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2250%20-%20trunk/rpms/firefox&In-Reply-To=%3C20041004093208.CA8A917F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001055.html">
+   <LINK REL="Next"  HREF="001057.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2250 - trunk/rpms/firefox</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2250%20-%20trunk/rpms/firefox&In-Reply-To=%3C20041004093208.CA8A917F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2250 - trunk/rpms/firefox">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Oct  4 11:32:08 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001055.html">[SVN] r2249 - in trunk/tools/pydar2: . pydar sql tests
+</A></li>
+        <LI>Next message: <A HREF="001057.html">[SVN] r2251 - in trunk/rpms: xmame zapping
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1056">[ date ]</a>
+              <a href="thread.html#1056">[ thread ]</a>
+              <a href="subject.html#1056">[ subject ]</a>
+              <a href="author.html#1056">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-10-04 11:32:07 +0200 (Mon, 04 Oct 2004)
+New Revision: 2250
+
+Modified:
+   trunk/rpms/firefox/firefox.spec
+Log:
+More changes.
+
+
+Modified: trunk/rpms/firefox/firefox.spec
+===================================================================
+--- trunk/rpms/firefox/firefox.spec	2004-10-03 21:32:31 UTC (rev 2249)
++++ trunk/rpms/firefox/firefox.spec	2004-10-04 09:32:07 UTC (rev 2250)
+@@ -67,11 +67,17 @@
+ 
+ %{__cat} &lt;&lt;'EOF' &gt;.mozconfig
+ . $topsrcdir/browser/config/mozconfig
++export BUILD_OFFICIAL=1
++export MOZILLA_OFFICIAL=1
++mk_add_options BUILD_OFFICIAL=1
++mk_add_options MOZILLA_OFFICIAL=1
+ ac_add_options --x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot;
+ ac_add_options --disable-debug
+ ac_add_options --disable-installer
+ ac_add_options --disable-jsd
++ac_add_options --disable-strip
+ ac_add_options --disable-tests
++ac_add_options --disable-xprint
+ ac_add_options --enable-extensions=&quot;default,-content-packs,-editor,-help,-irc,-spellcheck,-typeaheadfind&quot;
+ ac_add_options --enable-official-branding
+ # We want to replace -O? with -Os to optimize compilation for size
+@@ -173,38 +179,28 @@
+ 			URL=&quot;<A HREF="file://$1">file://$1</A>&quot;
+ 		else
+ 			URL=&quot;$1&quot;
+-		fi
+-		if [ $RUNNING -eq 0 -a $REMOTE -ne 1 ]; then
+-			MOZARGS=&quot;$MOZARGS -remote openURL($URL,$METHOD)&quot;
+-			REMOTE=1
+-		else
+-			MOZARGS=&quot;$MOZARGS $URL&quot;
+ 		fi;;
+ 	esac
+ 	shift
+ done
+ 
+-if [ $RUNNING -ne 0 -a $REMOTE -ne 1 ]; then
+-	exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS -remote &quot;xfeDoCommand(openBrowser)&quot;
+-elif [ $REMOTE -ne 1 ]; then
+-	exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS -remote &quot;openURL(about:blank,$METHOD)&quot;
+-else
+-	exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS &amp;
+-fi;
++if [ -z &quot;$URL&quot; ]; then URL=&quot;about:blank&quot;; fi
++
++if [ $RUNNING -eq 0 -a $REMOTE -ne 1 ]; then
++        exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS -remote &quot;openURL($URL,$METHOD)&quot;
++fi      
++
++exec $MOZ_PROGRAM -a $MOZ_APP_NAME $MOZARGS $URL
+ EOF
+ 
+ %build
+-export MOZ_PHOENIX=1
+ export MOZILLA_OFFICIAL=1
+ export BUILD_OFFICIAL=1
+-%{__make} -f client.mk depend
++#%{__make} -f client.mk depend
+ %{__make} %{?_smp_mflags} -f client.mk build
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-export MOZ_PHOENIX=1
+-export MOZILLA_OFFICIAL=1
+-export BUILD_OFFICIAL=1
+ %{__make} -C xpinstall/packager/ \
+ 	MOZILLA_BIN=&quot;\$(DIST)/bin/firefox-bin&quot;
+ 
+@@ -275,6 +271,11 @@
+ %{!?_without_freedesktop:%{_datadir}/applications/net-firefox.desktop}
+ 
+ %changelog
++* Mon Oct 04 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.10.1-0.1
++- Disable typeaheadfind as it breaks things. (Matthias Hensler)
++- Added more patches from rawhide.
++- A few improvements to the firefox startup script. (Nicolai Langfeldt)
++
+ * Tue Sep 28 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.10-0.1
+ - Include default mozconfig.
+ - Add mozilla and mozilla plugins directory to package.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001055.html">[SVN] r2249 - in trunk/tools/pydar2: . pydar sql tests
+</A></li>
+	<LI>Next message: <A HREF="001057.html">[SVN] r2251 - in trunk/rpms: xmame zapping
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1056">[ date ]</a>
+              <a href="thread.html#1056">[ thread ]</a>
+              <a href="subject.html#1056">[ subject ]</a>
+              <a href="author.html#1056">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

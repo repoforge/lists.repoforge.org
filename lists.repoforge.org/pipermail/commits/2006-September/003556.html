@@ -1,0 +1,162 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4756 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4756%20-%20trunk/tools/yam&In-Reply-To=%3C20060923072126.D6A45318144%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003555.html">
+   <LINK REL="Next"  HREF="003557.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4756 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4756%20-%20trunk/tools/yam&In-Reply-To=%3C20060923072126.D6A45318144%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4756 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Sep 23 09:21:26 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003555.html">[svn] r4755 - in trunk/rpms: . exiv2 flash-plugin galeon gtklife	shc synbak yam
+</A></li>
+        <LI>Next message: <A HREF="003557.html">[svn] r4757 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3556">[ date ]</a>
+              <a href="thread.html#3556">[ thread ]</a>
+              <a href="subject.html#3556">[ subject ]</a>
+              <a href="author.html#3556">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-09-23 09:21:17 +0200 (Sat, 23 Sep 2006)
+New Revision: 4756
+
+Modified:
+   trunk/tools/yam/yam
+Log:
+Initial reporting infrastructure.
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-09-22 13:16:05 UTC (rev 4755)
++++ trunk/tools/yam/yam	2006-09-23 07:21:17 UTC (rev 4756)
+@@ -207,8 +207,6 @@
+ 
+ 		self.rhndownloadall = self.getoption('main', 'rhn-download-all', 'no') not in disable
+ 
+-#		self.skipmetadata = self.getoption('main', 'skip-metadata', 'all')
+-
+ 		self.shareiso = self.getoption('main', 'shareiso', 'yes') not in disable
+ 
+ 		self.dists = []
+@@ -480,8 +478,10 @@
+ 		self.wwwdir = os.path.join(cf.wwwdir, dist.nick, 'RPMS.' + self.name)
+ 
+ 		self.changed = False
+-		self.skip = False
+ 
++		self.oldlist = None
++		self.newlist = None
++
+ 	def __repr__(self):
+ #		return &quot;%s/%s&quot; % (self.dist.nick, self.name)
+ 		return self.name
+@@ -491,6 +491,10 @@
+ 		global exitcode
+ 		if self.name == 'all':
+ 			return
++
++		### Make a snapshot of the directory
++		self.oldlist = self.rpmlist()
++
+ 		for url in self.url.split():
+ 			try:
+ 				info(2, '%s: Mirror packages from %s to %s' % (self.dist.nick, url, self.srcdir))
+@@ -521,6 +525,9 @@
+ 			### Create directory in case no URL is given
+ 			mkdir(self.srcdir)
+ 
++		### Make a snapshot of the directory
++		self.newlist = self.rpmlist()
++
+ 	def clean(self):
+ 		info(5, '%s: Removing %s symlinks' % (self.dist.nick, self.name))
+ 		mkdir(self.wwwdir)
+@@ -544,13 +551,19 @@
+ 		info(5, '%s: Symlink %s packages from %s' % (self.dist.nick, self.name, srcdir))
+ 		os.path.walk(srcdir, rpmlink, (self.dist, self.name))
+ 
++	def rpmlist(self):
++		&quot;Capture a list of packages in the repository&quot;
++		list = []
++		for root, dirs, files in os.walk(self.srcdir):
++			for file in files:
++				if file.endswith('.rpm'):
++					size = os.stat(os.path.join(root, file)).st_size
++					list.append( (file, size) )
++		list.sort()
++		return set(list)
++
+ 	def check(self):
+ 		&quot;Return what repositories require an update and write .newsha1sum&quot;
+-#		for repo in self.listrepos():
+-#			### Skip metadata generation if required (usually repo all)
+-#			if repo.name in cf.skipmetadata.split():
+-#				info(4, '%s: Skip metadata generation for repository %s' % (self.nick, repo.name))
+-#				continue
+ 		if not os.path.isdir(self.wwwdir):
+ 			return
+ 		sha1file = os.path.join(self.wwwdir, '.sha1sum')
+@@ -569,8 +582,6 @@
+ 			info(5, '%s: New repository %s detected.' % (self.dist.nick, self.name))
+ 		writesha1(sha1file + '.tmp', cursha1)
+ 		self.changed = True
+-#		if 'all' not in cf.skipmetadata.split():
+-#			self.repos['all'].new = True
+ 
+ 	def writesha1(self):
+ 		&quot;Verify .newsha1sum and write a .sha1sum file per repository&quot;
+@@ -1368,6 +1379,15 @@
+ 					info(2, '%s: Repository %s does not exist' % (dist.nick, repo.name))
+ 				dist.unlock('update', repo.name)
+ 
++				new = repo.newlist.difference(repo.oldlist)
++				removed = repo.oldlist.difference(repo.newlist)
++
++				if new or removed:
++					info(1, '%s: Repository %s changed (new: %d, removed: %d)' % (dist.nick, repo.name, len(new), len(removed)))
++					info(4, '%s: New packages: %s' % (dist.nick, new))
++					info(4, '%s: Removed packages: %s' % (dist.nick, removed))
++					repo.changed = True
++
+ 	if not op.generate:
+ 		sys.exit(0)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003555.html">[svn] r4755 - in trunk/rpms: . exiv2 flash-plugin galeon gtklife	shc synbak yam
+</A></li>
+	<LI>Next message: <A HREF="003557.html">[svn] r4757 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3556">[ date ]</a>
+              <a href="thread.html#3556">[ thread ]</a>
+              <a href="subject.html#3556">[ subject ]</a>
+              <a href="author.html#3556">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

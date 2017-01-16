@@ -1,0 +1,289 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3201 - in trunk/tools/dstat: . stats
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3201%20-%20in%20trunk/tools/dstat%3A%20.%20stats&In-Reply-To=%3C20050507035838.99B1C94CB10%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002002.html">
+   <LINK REL="Next"  HREF="002004.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3201 - in trunk/tools/dstat: . stats</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3201%20-%20in%20trunk/tools/dstat%3A%20.%20stats&In-Reply-To=%3C20050507035838.99B1C94CB10%40lists.rpmforge.net%3E"
+       TITLE="[svn] r3201 - in trunk/tools/dstat: . stats">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat May  7 05:58:38 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002002.html">[svn] r3200 - in trunk/rpms: . alltray amavisd-new atlantis cacti	cgilib clamav clamtk gaim-meanwhile galeon glunarclock gnochm	gnofract4d gvpe laptop-mode-tools lftp lilo lshw meanwhile	netspeed_applet op openvpn pancho ptunnel qemu sitecopy	snortalog spamassassin texmaker tinc tvtime webmin x2
+</A></li>
+        <LI>Next message: <A HREF="002004.html">[svn] r3202 - in trunk/rpms: . libevent rrdtool rsnapshot sudosh
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2003">[ date ]</a>
+              <a href="thread.html#2003">[ thread ]</a>
+              <a href="subject.html#2003">[ subject ]</a>
+              <a href="author.html#2003">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-05-07 05:58:37 +0200 (Sat, 07 May 2005)
+New Revision: 3201
+
+Added:
+   trunk/tools/dstat/stats/dstat_freespace.py
+   trunk/tools/dstat/stats/dstat_postfix.py
+   trunk/tools/dstat/stats/dstat_sendmail.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/stats/dstat_cpufreq.py
+Log:
+Added postfix, sendmail and freespace stats
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-05-07 02:59:17 UTC (rev 3200)
++++ trunk/tools/dstat/ChangeLog	2005-05-07 03:58:37 UTC (rev 3201)
+@@ -15,8 +15,14 @@
+ - Allowed external tools to use the dstat classes
+ - Added example scripts using the dstat classes (mstat.py and read.py)
+ - Allowed external modules to be plugged in
+-- Added external acpi modules (dstat_battery, dstat_cpufreq and dstat_thermal)
+-- Added external modules (dstat_dbus and dstat_utmp)
++- Added external acpi module dstat_battery
++- Added external acpi module dstat_cpufreq
++- Added external acpi module dstat_thermal)
++- Added external app module dstat_postfix
++- Added external app module dstat_sendmail
++- Added external module dstat_dbus
++- Added external module dstat_freespace
++- Added external module dstat_utmp
+ - Removed user stat (now in dstat_utmp module)
+ - Smaller fixes and overall improvements
+ - Improved help output and manpage
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2005-05-07 02:59:17 UTC (rev 3200)
++++ trunk/tools/dstat/Makefile	2005-05-07 03:58:37 UTC (rev 3201)
+@@ -17,7 +17,7 @@
+ #	install -Dp -m0755 examples/*.py $(DESTDIR)$(datadir)/dstat/examples/
+ 
+ clean:
+-	rm -f dstat15.tr examples/*.pyc
++	rm -f dstat15.tr examples/*.pyc stats/*.pyc
+ 
+ #### Imperfect translation to dstat15
+ tr:
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-05-07 02:59:17 UTC (rev 3200)
++++ trunk/tools/dstat/dstat	2005-05-07 03:58:37 UTC (rev 3201)
+@@ -20,9 +20,9 @@
+ 	import sys, signal, os, re, time
+ 	import types, curses, signal, resource
+ 	pwd = os.path.dirname(sys.argv[0])
++	sys.path.insert(0, '/usr/share/dstat/')
++	sys.path.insert(0, pwd + '/stats/')
+ 	sys.path.insert(0, pwd)
+-	sys.path.insert(0, pwd + '/stats/')
+-	sys.path.insert(0, '/usr/share/dstat/')
+ except KeyboardInterrupt, e:
+ 	pass
+ 
+@@ -273,7 +273,7 @@
+ 				sep = ansi['default'] + char['colon']
+ 			else:
+ 				line = line + cprint(self.val[name], self.format)
+-				sep = ' '
++				sep = char['space']
+ 			if i + 1 != len(self.vars):
+ 				line = line + sep
+ 		return line
+@@ -310,7 +310,7 @@
+ 		for i, name in enumerate(self.name):
+ 			max = self.width()
+ 			ret = ret + name[0:max].center(max).replace(' ', '-')
+-			if i + 1 != len(self.name): ret = ret + '-'
++			if i + 1 != len(self.name): ret = ret + ansi['blue'] + char['dash'] + ansi['darkblue']
+ 		return ansi['darkblue'] + ret
+ 
+ 	def title2(self):
+@@ -318,15 +318,15 @@
+ 			ret = ''
+ 			for i, nick in enumerate(self.nick):
+ 				ret = ret + nick.center(self.format[1]).replace(' ', '_')
+-				if i + 1 != len(self.nick): ret = ret + ' '
++				if i + 1 != len(self.nick): ret = ret + char['space']
+ 			return ansi['blue'] + ret
+ 		else:
+ 			ret = ''
+ 			for i, name in enumerate(self.name):
+ 				for j, nick in enumerate(self.nick):
+ 					ret = ret + ansi['blue'] + nick.center(self.format[1]).replace(' ', '_')
+-					if j + 1 != len(self.nick): ret = ret + ' '
+-				if i + 1 != len(self.name): ret = ret + ' '
++					if j + 1 != len(self.nick): ret = ret + char['space']
++				if i + 1 != len(self.name): ret = ret + ansi['default'] + char['colon']
+ 			return ansi['blue'] + ret
+ 
+ 	def titlecsv(self, nr):
+@@ -1259,6 +1259,7 @@
+ 	'colon': ':',
+ 	'gt': '&gt;',
+ 	'space': ' ',
++	'dash': '-',
+ }
+ 
+ def ticks():
+
+Modified: trunk/tools/dstat/stats/dstat_cpufreq.py
+===================================================================
+--- trunk/tools/dstat/stats/dstat_cpufreq.py	2005-05-07 02:59:17 UTC (rev 3200)
++++ trunk/tools/dstat/stats/dstat_cpufreq.py	2005-05-07 03:58:37 UTC (rev 3201)
+@@ -13,7 +13,7 @@
+ 		if self.vars:
+ 			for cpu in self.vars:
+ 				if not os.access('/sys/devices/system/cpu/'+cpu+'/cpufreq/cpuinfo_cur_freq', os.R_OK):
+-					raise Exception, 'Module cannot access acpi cpu frequency information.'
++					raise Exception, 'Module cannot access acpi cpu frequency information'
+ 					return False
+ 			return True
+ 		return false
+
+Added: trunk/tools/dstat/stats/dstat_freespace.py
+===================================================================
+--- trunk/tools/dstat/stats/dstat_freespace.py	2005-05-07 02:59:17 UTC (rev 3200)
++++ trunk/tools/dstat/stats/dstat_freespace.py	2005-05-07 03:58:37 UTC (rev 3201)
+@@ -0,0 +1,31 @@
++import dstat, os
++
++### FIXME: This module needs infrastructure to provide a list of mountpoints
++
++class dstat_freespace(dstat.dstat):
++	def __init__(self):
++		self.format = ('f', 5, 1024)
++		self.open('/etc/mtab')
++		self.vars = self.vars()
++		self.name = ['/' + os.path.basename(name) for name in self.vars]
++		self.nick = ('avail', 'free')
++		self.init(self.vars, 2)
++
++	def vars(self):
++		ret = []
++		if self.fd:
++			self.fd.seek(0)
++			for line in self.fd.readlines():
++				l = line.split()
++				if len(l) &lt; 6: continue
++				if l[0] in ('none', 'usbfs', 'sunrpc'): continue
++				name = l[1] 
++				ret.append(name)
++		return ret
++
++	def extract(self):
++		for name in self.vars:
++			res = os.statvfs(name)
++			self.val[name] = ( long(res[3]) * long(res[0]), long(res[2]) * long(res[0]) )
++
++# vim:ts=4:sw=4
+
+
+Property changes on: trunk/tools/dstat/stats/dstat_freespace.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/dstat/stats/dstat_postfix.py
+===================================================================
+--- trunk/tools/dstat/stats/dstat_postfix.py	2005-05-07 02:59:17 UTC (rev 3200)
++++ trunk/tools/dstat/stats/dstat_postfix.py	2005-05-07 03:58:37 UTC (rev 3201)
+@@ -0,0 +1,22 @@
++import dstat, os, glob
++
++class dstat_postfix(dstat.dstat):
++	def __init__(self):
++		self.name = 'postfix'
++		self.format = ('d', 4, 100)
++		self.vars = ('incoming', 'active', 'deferred', 'bounce', 'defer')
++		self.nick = ('inco', 'actv', 'dfrd', 'bnce', 'defr')
++		self.init(self.vars, 1)
++		self.check()
++
++	def check(self): 
++		if not os.access('/var/spool/postfix/active', os.R_OK):
++			raise Exception, 'Module cannot access postfix queues'
++			return False
++		return True
++
++	def extract(self):
++		for item in self.vars:
++			self.val[item] = len(glob.glob('/var/spool/postfix/'+item+'/*/*'))
++
++# vim:ts=4:sw=4
+
+
+Property changes on: trunk/tools/dstat/stats/dstat_postfix.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/dstat/stats/dstat_sendmail.py
+===================================================================
+--- trunk/tools/dstat/stats/dstat_sendmail.py	2005-05-07 02:59:17 UTC (rev 3200)
++++ trunk/tools/dstat/stats/dstat_sendmail.py	2005-05-07 03:58:37 UTC (rev 3201)
+@@ -0,0 +1,16 @@
++import dstat, glob
++
++### FIXME: Should read /var/log/mail/statistics or /etc/mail/statistics (format ?)
++
++class dstat_sendmail(dstat.dstat):
++	def __init__(self):
++		self.name = 'sendmail'
++		self.format = ('d', 4, 100)
++		self.vars = ('queue',)
++		self.nick = ('queu',)
++		self.init(self.vars, 1)
++
++	def extract(self):
++		self.val['queue'] = len(glob.glob('/var/spool/mqueue/qf*'))
++
++# vim:ts=4:sw=4
+
+
+Property changes on: trunk/tools/dstat/stats/dstat_sendmail.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002002.html">[svn] r3200 - in trunk/rpms: . alltray amavisd-new atlantis cacti	cgilib clamav clamtk gaim-meanwhile galeon glunarclock gnochm	gnofract4d gvpe laptop-mode-tools lftp lilo lshw meanwhile	netspeed_applet op openvpn pancho ptunnel qemu sitecopy	snortalog spamassassin texmaker tinc tvtime webmin x2
+</A></li>
+	<LI>Next message: <A HREF="002004.html">[svn] r3202 - in trunk/rpms: . libevent rrdtool rsnapshot sudosh
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2003">[ date ]</a>
+              <a href="thread.html#2003">[ thread ]</a>
+              <a href="subject.html#2003">[ subject ]</a>
+              <a href="author.html#2003">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

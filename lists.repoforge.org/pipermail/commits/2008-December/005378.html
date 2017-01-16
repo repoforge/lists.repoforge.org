@@ -1,0 +1,198 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6579 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6579%20-%20trunk/tools/dstat&In-Reply-To=%3C200812021352.mB2DqUaW020267%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005377.html">
+   <LINK REL="Next"  HREF="005379.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6579 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6579%20-%20trunk/tools/dstat&In-Reply-To=%3C200812021352.mB2DqUaW020267%40surya.karan.org%3E"
+       TITLE="[svn] r6579 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Dec  2 14:52:30 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005377.html">[svn] r6578 - trunk/rpms/smplayer
+</A></li>
+        <LI>Next message: <A HREF="005379.html">[svn] r6580 - trunk/rpms/nagios
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5378">[ date ]</a>
+              <a href="thread.html#5378">[ thread ]</a>
+              <a href="subject.html#5378">[ subject ]</a>
+              <a href="author.html#5378">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-12-02 13:52:29 +0000 (Tue, 02 Dec 2008)
+New Revision: 6579
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Added internal dstat_io plugin showing number of completed I/O reuests
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-12-02 13:11:23 UTC (rev 6578)
++++ trunk/tools/dstat/ChangeLog	2008-12-02 13:52:29 UTC (rev 6579)
+@@ -8,6 +8,7 @@
+ - Added internal dstat_aio plugin to see number of asynchronous I/O requests
+ - Listing modules (-M list) now also lists internal plugins
+ - Added internal dstat_vm plugin showing page faults, allocations and frees
++- Added internal dstat_io plugin showing number of completed I/O reuests
+ 
+ * 0.6.8 - Buenos Aires - release 12/09/2008
+ - Added improved tick patch (Kelly Long)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-12-02 13:11:23 UTC (rev 6578)
++++ trunk/tools/dstat/dstat	2008-12-02 13:52:29 UTC (rev 6579)
+@@ -104,10 +104,10 @@
+ 
+         try:
+             import getopt
+-            opts, args = getopt.getopt (args, 'acdfghilmno:pstTvyC:D:I:M:N:S:V',
+-                ['aio', 'cpu', 'disk', 'epoch', 'fs', 'filesystem', 'int', 'ipc',
+-                 'load', 'lock', 'mem', 'net', 'page', 'proc', 'raw', 'socket',
+-                 'swap', 'sys', 'tcp', 'time', 'udp', 'unix', 'vm',
++            opts, args = getopt.getopt (args, 'acdfghilmno:prstTvyC:D:I:M:N:S:V',
++                ['aio', 'cpu', 'disk', 'epoch', 'fs', 'filesystem', 'int', 'io', 'ipc',
++                 'load', 'lock', 'mem', 'net', 'page', 'proc', 'raw', 'socket', 'swap',
++                 'sys', 'tcp', 'time', 'udp', 'unix', 'vm',
+                  'all', 'debug', 'full', 'help', 'integer', 'list', 'mods', 'modules',
+                  'nocolor', 'noheaders', 'noupdate', 'output=', 'pidfile=', 'version',
+                  'vmstat'])
+@@ -119,7 +119,7 @@
+ 
+         for opt, arg in opts:
+             if opt in ['--aio']:
+-                self.modlist.append('cpu')
++                self.modlist.append('aio')
+             elif opt in ['-c', '--cpu']:
+                 self.modlist.append('cpu')
+             elif opt in ['-C']:
+@@ -156,6 +156,8 @@
+                 self.modlist.append('proc')
+             elif opt in ['--raw']:
+                 self.modlist.append('raw')
++            elif opt in ['-r', '--io']:
++                self.modlist.append('io')
+             elif opt in ['--socket']:
+                 self.modlist.append('socket')
+             elif opt in ['-s', '--swap']:
+@@ -267,6 +269,7 @@
+   -n, --net              enable network stats
+      -N eth1,total          include eth1 and total
+   -p, --proc             enable process stats
++  -r, --io               enable io stats (I/O requests completed)
+   -s, --swap             enable swap stats
+      -S swap1,total         include swap1 and total
+   -t, --time             enable time/date output
+@@ -1014,6 +1017,72 @@
+         if step == op.delay:
+             self.cn1.update(self.cn2)
+ 
++class dstat_io(dstat):
++    def __init__(self):
++        self.format = ('f', 5, 1000)
++        self.open('/proc/diskstats')
++        self.nick = ('read', 'writ')
++        self.discover = self.discover()
++        self.vars = self.vars()
++        self.name = ['io/'+name for name in self.vars]
++        self.init(self.vars + ['total',], 3)
++
++    def discover(self, *objlist):
++        ret = []
++        for line in self.readlines():
++            l = line.split()
++            if len(l) &lt; 13: continue
++            if l[3:] == ['0',] * 11: continue
++            name = l[2]
++            ret.append(name)
++        for item in objlist: ret.append(item)
++        return ret
++
++    def vars(self):
++        ret = []
++        if op.disklist:
++            varlist = op.disklist
++        elif not op.full:
++            varlist = ('total',)
++        else:
++            varlist = []
++            blockdevices = [os.path.basename(filename) for filename in glob.glob('/sys/block/*')]
++            for name in self.discover:
++                if re.match('(md[0-9]+|dm-[0-9]+)', name): continue
++                if name not in blockdevices: continue
++                varlist.append(name)
++#           if len(varlist) &gt; 2: varlist = varlist[0:2]
++            varlist.sort()
++        for name in varlist:
++            if name in self.discover + ['total'] + op.diskset.keys():
++                ret.append(name)
++        return ret
++
++    def extract(self):
++        for name in self.vars: self.cn2[name] = (0, 0)
++        for line in self.readlines():
++            l = line.split()
++            if len(l) &lt; 13: continue
++            if l[3] == '0' and l[7] == '0': continue
++            name = l[2]
++            if l[3:] == ['0',] * 11: continue
++            if not re.match('(md[0-9]+|dm-[0-9]+)', name):
++                self.cn2['total'] = ( self.cn2['total'][0] + long(l[3]), self.cn2['total'][1] + long(l[7]) )
++            if name in self.vars and name != 'total':
++                self.cn2[name] = ( self.cn2[name][0] + long(l[3]), self.cn2[name][1] + long(l[7]) )
++            for diskset in self.vars:
++                if diskset in op.diskset.keys():
++                    for disk in op.diskset[diskset]:
++                        if re.match('^'+disk+'$', name):
++                            self.cn2[diskset] = ( self.cn2[diskset][0] + long(l[3]), self.cn2[diskset][1] + long(l[7]) )
++        for name in self.cn2.keys():
++            self.val[name] = (
++                (self.cn2[name][0] - self.cn1[name][0]) * 1.0 / tick,
++                (self.cn2[name][1] - self.cn1[name][1]) * 1.0 / tick,
++            )
++        if step == op.delay:
++            self.cn1.update(self.cn2)
++
+ class dstat_ipc(dstat):
+     def __init__(self):
+         self.name = 'sysv ipc'
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005377.html">[svn] r6578 - trunk/rpms/smplayer
+</A></li>
+	<LI>Next message: <A HREF="005379.html">[svn] r6580 - trunk/rpms/nagios
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5378">[ date ]</a>
+              <a href="thread.html#5378">[ thread ]</a>
+              <a href="subject.html#5378">[ subject ]</a>
+              <a href="author.html#5378">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

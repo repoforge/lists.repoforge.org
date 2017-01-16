@@ -1,0 +1,120 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9738 - in /trunk/tools/dstat: ChangeLog dstat	plugins/dstat_mem_adv.py
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9738%20-%20in%20/trunk/tools/dstat%3A%20ChangeLog%20dstat%0A%09plugins/dstat_mem_adv.py&In-Reply-To=%3C201103041525.p24FPeGn007840%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008521.html">
+   <LINK REL="Next"  HREF="008523.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9738 - in /trunk/tools/dstat: ChangeLog dstat	plugins/dstat_mem_adv.py</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9738%20-%20in%20/trunk/tools/dstat%3A%20ChangeLog%20dstat%0A%09plugins/dstat_mem_adv.py&In-Reply-To=%3C201103041525.p24FPeGn007840%40surya.karan.org%3E"
+       TITLE="[svn] r9738 - in /trunk/tools/dstat: ChangeLog dstat	plugins/dstat_mem_adv.py">dag at wieers.com
+       </A><BR>
+    <I>Fri Mar  4 16:25:40 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008521.html">[svn] r9737 - /trunk/tools/dstat/plugins/dstat_mem_adv.py
+</A></li>
+        <LI>Next message: <A HREF="008523.html">[svn] r9739 - in /trunk/tools/dstat: TODO dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8522">[ date ]</a>
+              <a href="thread.html#8522">[ thread ]</a>
+              <a href="subject.html#8522">[ subject ]</a>
+              <a href="author.html#8522">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Fri Mar  4 15:25:40 2011
+New Revision: 9738
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9738&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9738&amp;view=rev</A>
+Log:
+Allow more variables (self.vars) than nicknames (self.nick) to simplify plugins
+
+Modified:
+    trunk/tools/dstat/ChangeLog
+    trunk/tools/dstat/dstat
+    trunk/tools/dstat/plugins/dstat_mem_adv.py
+
+Modified: trunk/tools/dstat/ChangeLog
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/ChangeLog?rev=9738&amp;r1=9737&amp;r2=9738&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/ChangeLog?rev=9738&amp;r1=9737&amp;r2=9738&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/ChangeLog (original)
++++ trunk/tools/dstat/ChangeLog Fri Mar  4 15:25:40 2011
+@@ -10,6 +10,7 @@
+ - Fix warning message when colors are disabled because TERM is not found (Ulp 660181)
+ - Fix typo in dstat_nfs3_ops and dstat_nfsd3_ops (Chris Larsson)
+ - Added external dstat_mem_adv plugin so show advanced memory counters (Damon Snyder)
++- Allow more variables (self.vars) than nicknames (self.nick) to simplify plugins
+ 
+ * 0.7.2 - Real soon now - release 15/06/2010
+ - Added external dstat_disk_tps plugin to show transactions per second
+
+Modified: trunk/tools/dstat/dstat
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/dstat?rev=9738&amp;r1=9737&amp;r2=9738&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/dstat?rev=9738&amp;r1=9737&amp;r2=9738&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/dstat (original)
++++ trunk/tools/dstat/dstat Fri Mar  4 15:25:40 2011
+@@ -509,6 +509,8 @@
+         if hasattr(self, 'output'):
+             return cprint(self.output, self.type, self.width, self.scale)
+         for i, name in enumerate(self.vars):
++            ### Make sure we don't show more values than we have nicknames
++            if i &gt;= len(self.nick): break
+             if isinstance(self.val[name], types.TupleType) or isinstance(self.val[name], types.ListType):
+                 line = line + cprintlist(self.val[name], self.type, self.width, self.scale)
+                 sep = theme['frame'] + char['colon']
+
+Modified: trunk/tools/dstat/plugins/dstat_mem_adv.py
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_mem_adv.py?rev=9738&amp;r1=9737&amp;r2=9738&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/dstat/plugins/dstat_mem_adv.py?rev=9738&amp;r1=9737&amp;r2=9738&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/dstat/plugins/dstat_mem_adv.py (original)
++++ trunk/tools/dstat/plugins/dstat_mem_adv.py Fri Mar  4 15:25:40 2011
+@@ -10,13 +10,13 @@
+     def __init__(self):
+         self.name = 'advanced memory usage'
+         self.nick = ('used', 'buff', 'cach', 'free', 'dirty')
+-        self.vars = ('MemUsed', 'Buffers', 'Cached', 'MemFree', 'Dirty')
++        self.vars = ('MemUsed', 'Buffers', 'Cached', 'MemFree', 'Dirty', 'MemTotal')
+         self.open('/proc/meminfo')
+ 
+     def extract(self):
+         for l in self.splitlines():
+             if len(l) &lt; 2: continue
+             name = l[0].split(':')[0]
+-            if name in self.vars + ('MemTotal', ):
++            if name in self.vars:
+                 self.val[name] = long(l[1]) * 1024.0
+         self.val['MemUsed'] = self.val['MemTotal'] - self.val['MemFree'] - self.val['Buffers'] - self.val['Cached']
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008521.html">[svn] r9737 - /trunk/tools/dstat/plugins/dstat_mem_adv.py
+</A></li>
+	<LI>Next message: <A HREF="008523.html">[svn] r9739 - in /trunk/tools/dstat: TODO dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8522">[ date ]</a>
+              <a href="thread.html#8522">[ thread ]</a>
+              <a href="subject.html#8522">[ subject ]</a>
+              <a href="author.html#8522">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

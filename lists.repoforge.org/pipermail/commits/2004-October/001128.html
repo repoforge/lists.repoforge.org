@@ -1,0 +1,365 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2322 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2322%20-%20trunk/tools/dstat&In-Reply-To=%3C20041026175558.D0A7B1809E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001127.html">
+   <LINK REL="Next"  HREF="001129.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2322 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2322%20-%20trunk/tools/dstat&In-Reply-To=%3C20041026175558.D0A7B1809E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2322 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Oct 26 19:55:58 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001127.html">[SVN] r2321 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="001129.html">[SVN] r2323 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1128">[ date ]</a>
+              <a href="thread.html#1128">[ thread ]</a>
+              <a href="subject.html#1128">[ subject ]</a>
+              <a href="author.html#1128">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-10-26 19:55:57 +0200 (Tue, 26 Oct 2004)
+New Revision: 2322
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Updates for 2.4 kernels and small improvements.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-10-26 15:58:37 UTC (rev 2321)
++++ trunk/tools/dstat/ChangeLog	2004-10-26 17:55:57 UTC (rev 2322)
+@@ -6,8 +6,11 @@
+ - Added -D, -I and -N options to customize list
+ - Allow to specify 'total' for -D and -N to get aggregated numbers
+ - Added --vmstat option, vmstat alike output
+-- Implemented a basic interface and disk 'discovery' function
++- Implemented a basic network, interrupt and disk 'discovery' function
+ - Replaced hardcoded 4096 by resource.getpagesize()
++- Added enumerate() for python &lt; 2.3
++- Fixes for kernel 2.4 support
++- Titles are now truncated to max-1
+ - Initial public release
+ 
+ * 0.3
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-10-26 15:58:37 UTC (rev 2321)
++++ trunk/tools/dstat/dstat	2004-10-26 17:55:57 UTC (rev 2322)
+@@ -1,5 +1,6 @@
+ #!/usr/bin/python2
+ 
++from __future__ import generators
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse, time, signal, resource
+ 
+@@ -141,6 +142,9 @@
+ 
+ class dstat:
+ 	def init(self):
++		if not self.check():
++			return
++		
+ 		self.title1 = self.set_title1()
+ 		self.title2 = self.set_title2()
+ 
+@@ -155,16 +159,19 @@
+ 
+ 	def set_title1(self):
+ 		max = len(self.vars) * self.len + len(self.vars) - 1
+-		return self.name.center(max).replace(' ', '-')
++		return self.name[0:max-2].center(max).replace(' ', '-')
+ 
+ 	def set_title2(self):
+ 		str = ''
+ 		for c, i in enumerate(self.nick):
+-			str = str + i.center(self.len).replace(' ', '_')
++			str = str + i[0:self.len].center(self.len).replace(' ', '_')
+ 			if c != len(self.nick)-1:
+ 				str = str + ' '
+ 		return str
+ 
++	def check(self):
++		return True
++
+ 	def stats(self):
+ 		pass
+ 
+@@ -191,11 +198,16 @@
+ 		self.init()
+ 		self.cn1['sum'] = 0
+ 
++	def check(self):
++		if os.path.exists('/proc/stat'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			list = line.split()
+-			cn = map(int, list[1:])
+ 			if list[0] == 'cpu':
++				cn = map(int, list[1:])
+ 				self.cn2['user'] = cn[0]
+ 				self.cn2['sys'] = cn[2]
+ 				self.cn2['idle'] = cn[3]
+@@ -209,6 +221,7 @@
+ 
+ class dstat_disk(dstat):
+ 	def __init__(self):
++		if not self.check(): return
+ 		self.format = '%s %s'
+ 		self.len = 11
+ 		self.name = 'disk i/o'
+@@ -216,7 +229,6 @@
+ 			self.vars = op.disklist
+ 		else:
+ 			self.vars = self.discover()
+-#		self.vars = ('hda', 'hdc', 'sda', 'local', 'total')
+ 		self.diskset = {
+ 			'local': ('sda', 'hda', 'hdc'),
+ 			'lores': ('sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj', 'sdk', 'sdl', 'sdm', 'sdn', 'sdo', 'sdp', 'sdq', 'sdr', 'sds', 'sdt'),
+@@ -224,6 +236,7 @@
+ 		}
+ 		self.nick = self.vars
+ 		self.init()
++#		self.vars = ('hda', 'hdc', 'sda', 'local', 'total')
+ 
+ 		for name in self.vars: self.cn1[name] = (0, 0)
+ 		self.cn1['total'] = (0, 0)
+@@ -243,6 +256,11 @@
+ 		return retlist
+ #		return ('local', 'lores', 'hires')
+ 
++	def check(self):
++		if os.path.exists('/proc/diskstats'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/diskstats', 'r').readlines():
+@@ -277,8 +295,22 @@
+ 		self.init()
+ 
+ 	def discover(self):
+-		return ('5', '9', '10', '14', '15')
++		retlist = ()
++		for line in open('/proc/interrupts', 'r').readlines():
++			list = line.split()
++			name = list[0].split(':')[0]
++			if name in ('0', '1', '2', '8'):
++				continue
++			if len(list) &gt; 1 and list[1] != '0':
++				retlist = retlist + (name,)
++#		return ('5', '9', '10', '14', '15')
++		return retlist
+ 
++	def check(self):
++		if os.path.exists('/proc/interrupts'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/interrupts', 'r').readlines():
+ 			list = line.split()
+@@ -301,6 +333,11 @@
+ 		self.vars = ('load1', 'load5', 'load15')
+ 		self.init()
+ 
++	def check(self):
++		if os.path.exists('/proc/loadavg'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/loadavg', 'r').readlines():
+ 			list = line.split()
+@@ -317,6 +354,11 @@
+ 		self.vars = ('MemUsed', 'MemFree', 'Buffers', 'Cached')
+ 		self.init()
+ 
++	def check(self):
++		if os.path.exists('/proc/meminfo'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/meminfo', 'r').readlines():
+ 			list = line.split()
+@@ -355,6 +397,11 @@
+ 		return retlist
+ #		return ('bond0', 'eth0', 'eth1')
+ 
++	def check(self):
++		if os.path.exists('/proc/net/dev'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		self.cn2['total'] = (0, 0)
+ 		for line in open('/proc/net/dev', 'r').readlines():
+@@ -366,10 +413,10 @@
+ 			else:
+ 				list = list[1:]
+ 			if name in (self.vars) :
+-				cn = map(int, list)
++				cn = map(float, list)
+ 				self.cn2[name] = ( round(cn[0] /op.sleep), round(cn[8] /op.sleep) )
+ 			if name in ('bond0', 'bond1', 'bond2', 'eth0', 'eth1', 'eth2', 'eth3', 'eth4', 'eth5'):
+-				cn = map(int, list)
++				cn = map(float, list)
+ 				self.cn2['total'] = ( self.cn2['total'][0] + round(cn[0] /op.sleep), self.cn2['total'][1] + round(cn[8] /op.sleep))
+ 
+ 		if count != 0:
+@@ -387,6 +434,11 @@
+ 		self.nick = ('in', 'out')
+ 		self.init()
+ 
++	def check(self):
++		if os.path.exists('/proc/vmstat'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/vmstat', 'r').readlines():
+ 			list = line.split()
+@@ -400,7 +452,8 @@
+ 
+ class dstat_proc(dstat):
+ 	def __init__(self):
+-		self.name = 'procs'
++#		self.name = 'procs'
++		self.name = 'prc'
+ 		self.format = '%2d'
+ 		self.len = 2
+ #		self.vars = ('procs_running', 'procs_blocked', 'processes')
+@@ -409,16 +462,20 @@
+ 		self.nick = ('ru', 'bl')
+ 		self.init()
+ 
++	def check(self):
++		if os.path.exists('/proc/stat'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			list = line.split()
+-			cn = map(int, list[1:])
+-			if list[0] in ('processess'):
+-				self.cn2[list[0]] = cn[0]
++			if list[0] in ('processess',):
++				self.cn2[list[0]] = int(list[1])
+ 			elif list[0] in self.vars:
+-				self.val[list[0]] = cn[0]
+-		if count != 0:
+-			self.val['processes'] = self.cn2['processes']-self.cn1['processes']
++				self.val[list[0]] = int(list[1])
++#		if count != 0:
++#			self.val['processes'] = self.cn2['processes']-self.cn1['processes']
+ 		self.val['procs_running'] = self.val['procs_running']-1
+ 		self.cn1.update(self.cn2)
+ 
+@@ -431,6 +488,11 @@
+ 		self.vars = ('SwapUsed', 'SwapFree')
+ 		self.init()
+ 
++	def check(self):
++		if os.path.exists('/proc/meminfo'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/meminfo', 'r').readlines():
+ 			list = line.split()
+@@ -449,11 +511,16 @@
+ 		self.names = { 'intr': 'int', 'ctxt': 'csw' }
+ 		self.init()
+ 
++	def check(self):
++		if os.path.exists('/proc/stat'):
++			return True
++		return False
++
+ 	def stats(self):
+ 		for line in open('/proc/stat', 'r').readlines():
+ 			list = line.split()
+-			cn = map(int, list[1:])
+ 			if list[0] in self.vars:
++				cn = map(int, list[1:])
+ 				self.cn2[list[0]] = cn[0] /op.sleep
+ 
+ 		if count != 0:
+@@ -509,6 +576,14 @@
+ 		elif mod == 'swap':	olist.append(dstat_swap())
+ 		elif mod == 'sys':	olist.append(dstat_sys())
+ 
++	### Remove defect objects
++	rmlist = ()
++	for o in olist:
++		if not o.check():
++			rmlist = rmlist + (o,)
++	for o in rmlist:
++			olist.remove(o)
++
+ #	sys.setcheckinterval(op.sleep * 1.5 * 100)
+ 	signal.signal(signal.SIGALRM, handler)
+ 	signal.alarm(op.sleep)
+@@ -549,6 +624,15 @@
+ Yes = yes = On = on = True
+ No = no = Off = off = False
+ 
++#try:
++#	enumerate(None)
++#except NameError:
++def enumerate(sequence):
++    index = 0
++    for item in sequence:
++        yield index, item
++        index += 1
++
+ ### Main entrance
+ if __name__ == '__main__':
+ 	op=Options(sys.argv[1:])
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001127.html">[SVN] r2321 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="001129.html">[SVN] r2323 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1128">[ date ]</a>
+              <a href="thread.html#1128">[ thread ]</a>
+              <a href="subject.html#1128">[ subject ]</a>
+              <a href="author.html#1128">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

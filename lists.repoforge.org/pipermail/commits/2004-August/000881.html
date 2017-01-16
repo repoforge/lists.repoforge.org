@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2075 - in trunk/tools: . pydar2 pydar2/doc
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2075%20-%20in%20trunk/tools%3A%20.%20pydar2%20pydar2/doc&In-Reply-To=%3C20040823211448.7194C17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000880.html">
+   <LINK REL="Next"  HREF="000882.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2075 - in trunk/tools: . pydar2 pydar2/doc</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2075%20-%20in%20trunk/tools%3A%20.%20pydar2%20pydar2/doc&In-Reply-To=%3C20040823211448.7194C17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2075 - in trunk/tools: . pydar2 pydar2/doc">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Aug 23 23:14:48 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000880.html">[SVN] r2074 - in trunk/rpms: bochs cabletv camorama cfengine cog	dansguardian denemo devhelp distcc drivel etherape ettercap	fidelio gcvs gdesklets genius ggcov gnet2
+</A></li>
+        <LI>Next message: <A HREF="000882.html">[SVN] r2076 - trunk/rpms/advancescan
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#881">[ date ]</a>
+              <a href="thread.html#881">[ thread ]</a>
+              <a href="subject.html#881">[ subject ]</a>
+              <a href="author.html#881">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2004-08-23 23:14:46 +0200 (Mon, 23 Aug 2004)
+New Revision: 2075
+
+Added:
+   trunk/tools/pydar2/
+   trunk/tools/pydar2/doc/
+   trunk/tools/pydar2/doc/pydar2.txt
+Log:
+add
+
+Added: trunk/tools/pydar2/doc/pydar2.txt
+===================================================================
+--- trunk/tools/pydar2/doc/pydar2.txt	2004-08-23 19:53:05 UTC (rev 2074)
++++ trunk/tools/pydar2/doc/pydar2.txt	2004-08-23 21:14:46 UTC (rev 2075)
+@@ -0,0 +1,100 @@
++
++This file explains the upcoming rewrite of pydar, not the current version!
++Be warned: i haven't read this text a second time so it probably contains a
++lot of bad english :-)
++
++
++
++* General:
++
++All information is stored in a database (postgresql currently) and only the
++processes on the master server have access to this database. A slavedaemon can
++register itself at the master which registers this information in the
++database. A slavedaemon can request something to build and every build of a
++spec file has a unique buildid. The slavedaemons don't need access to the
++svn anymore.
++
++
++* Terminology:
++- master server: a machine with the database, the master daemon, the site,
++all the rpms, ...
++- slave server: a machine which builds rpms, it runs a slave daemon
++- master daemon: a python process which runs on the master server which uses
++the database to store all its information about slave servers
++- slave daemon: a python process which runs on the slave server and does the
++actual building of rpms
++- database: the database contains the information about the slave daemons,
++about every buildid and about spec files
++- svncheck daemon: a seperate process which runs on the master server which
++checks the subversion repository. It updates information about specfiles in
++the database. 
++- website: the website shows information about specfiles known in the
++database and about the queues of rpms to build
++- some process which queues rpms automatically if possible..
++
++
++* Directory structure used by the slave and masterdaemons:
++
++It should be possible to use buildmachines on different locations. As long
++as the slave build machine is able to connect by https/http to the master
++and is able to rsync it's work back to the master, then it should work.
++
++The master server and the slave servers have a local directory where they 
++store all the files used by any of the components of pydar:
++/var/lib/pydar
++
++This directory should not contain any sensitive information. Certain
++directories will be visible from the slaves and certain directories will be
++rsynced to by the slaves. 
++
++If a master server has a svncheck daemon running, then it needs a local svn
++checkout:
++/var/lib/pydar/svn/trunk/rpms
++
++The master server has a directory for each slave daemon which can connect
++(they all need to have a unique id)
++/var/lib/pydar/slaves/&lt;uniqueid&gt;/
++
++Each slave server uses the same directory, normally a slave server has only
++one slave daemon running, but it is possible to run multiple slave daemons
++on the same machine if they have a unique id:
++/var/lib/pydar/slaves/&lt;uniqueid&gt;/
++
++The master never writes anything in this /var/lib/pydar/slaves/&lt;uniqueid&gt;/
++directory. Only the slave daemons write in this directory and these files
++are copied to the master with rsync.
++The slave servers will only rsync their own directory and not the
++directories of the other slave directories. Because the master never writes
++in these directories, the slaves will never have to download anything by
++rsync from the master.
++
++The master server has a directory for each buildid:
++/var/lib/pydar/builds/&lt;buildid&gt;/
++
++If a new spec file has to be build, then a new directory
++/var/lib/pydar/builds/&lt;buildid&gt;/ is created. 
++
++* Part 1: svncheck daemon
++Normally this runs on the master server. It checks the subversion
++repository. 
++Probably implemented as:
++every hour a cronjob starts which tries to do a svn update and checks which
++files are changed. The information about those specfiles are updated in the
++database. Information like 'exclusive archs' and 'authority' is also stored
++so it's possible to check which specfile should be build for which
++architecture.
++It should not yet queue automatically rpms for a rebuild. I think it's
++better if the website simply creates a list of specfiles which can be
++rebuild for certain archs/distros and the packager chooses the ones which
++are queued.
++
++* Part 2: master daemon
++This runs on the master server. 'There can be only one!'.
++It also uses the database but tables which are seperated from the svncheck
++daemon. Basicly: it maintains a list of specfiles to rebuild and logs every
++build by every slave daemon and keeps track of all the results: rpms, srpms
++and log files and md5sums of all these files.
++Functions:
++- a way to queue the build of a certain specfile for a certain arch/distro
++- register a slave daemon
++- 
+\ No newline at end of file
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000880.html">[SVN] r2074 - in trunk/rpms: bochs cabletv camorama cfengine cog	dansguardian denemo devhelp distcc drivel etherape ettercap	fidelio gcvs gdesklets genius ggcov gnet2
+</A></li>
+	<LI>Next message: <A HREF="000882.html">[SVN] r2076 - trunk/rpms/advancescan
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#881">[ date ]</a>
+              <a href="thread.html#881">[ thread ]</a>
+              <a href="subject.html#881">[ subject ]</a>
+              <a href="author.html#881">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

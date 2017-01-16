@@ -1,0 +1,343 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4536 - in trunk/tools/dstat: . plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4536%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060620114418.8BB7B318078%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003335.html">
+   <LINK REL="Next"  HREF="003337.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4536 - in trunk/tools/dstat: . plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4536%20-%20in%20trunk/tools/dstat%3A%20.%20plugins&In-Reply-To=%3C20060620114418.8BB7B318078%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4536 - in trunk/tools/dstat: . plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jun 20 13:44:18 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003335.html">[svn] r4535 - trunk/rpms/perl-Video-DVDRip
+</A></li>
+        <LI>Next message: <A HREF="003337.html">[svn] r4537 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3336">[ date ]</a>
+              <a href="thread.html#3336">[ thread ]</a>
+              <a href="subject.html#3336">[ subject ]</a>
+              <a href="author.html#3336">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-06-20 13:44:17 +0200 (Tue, 20 Jun 2006)
+New Revision: 4536
+
+Modified:
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/plugins/dstat_app.py
+Log:
+Small performance improvement
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-06-20 09:55:34 UTC (rev 4535)
++++ trunk/tools/dstat/dstat	2006-06-20 11:44:17 UTC (rev 4536)
+@@ -369,7 +369,7 @@
+ 			raise Exception, 'File %s does not exist' % self.file
+ 		if not self.vars:
+ 			raise Exception, 'No variables defined'
+-		if self.discover() and self.width():
++		if self.discover and self.width():
+ 			return True
+ 		raise Exception, 'Unknown problem, please report'
+ 
+@@ -428,6 +428,7 @@
+ 		self.format = ('p', 3, 34)
+ 		self.open('/proc/stat')
+ 		self.nick = ( 'usr', 'sys', 'idl', 'wai', 'hiq', 'siq' )
++		self.discover = self.discover()
+ 		self.vars = self.vars()
+ 		self.name = self.name()
+ 		self.init(self.vars + ['total',], 6)
+@@ -455,6 +456,7 @@
+ 
+ 	def vars(self):
+ 		ret = []
++		discover = self.discover
+ 		if op.cpulist:
+ 			list = op.cpulist
+ 		elif not op.full:
+@@ -467,7 +469,7 @@
+ 				cpu = cpu + 1
+ #			if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+-			if name in self.discover('total'):
++			if name in discover + ['total']:
+ 				ret.append(name)
+ 		return ret
+ 
+@@ -490,6 +492,7 @@
+ 		self.format = ('p', 3, 34)
+ 		self.open('/proc/stat')
+ 		self.nick = ( 'usr', 'sys', 'idl')
++		self.discover = self.discover()
+ 		self.vars = self.vars()
+ 		self.name = self.name()
+ 		self.init(self.vars + ['total',], 3)
+@@ -516,6 +519,7 @@
+ 
+ 	def vars(self):
+ 		ret = []
++		discover = self.discover
+ 		if op.cpulist:
+ 			list = op.cpulist
+ 		elif not op.full:
+@@ -528,7 +532,7 @@
+ 				cpu = cpu + 1
+ #			if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+-			if name in self.discover('total'):
++			if name in discover + ['total']:
+ 				ret.append(name)
+ 		return ret
+ 
+@@ -550,6 +554,7 @@
+ 		self.format = ('f', 5, 1024)
+ 		self.open('/proc/diskstats')
+ 		self.nick = ('read', 'writ')
++		self.discover = self.discover()
+ 		self.vars = self.vars()
+ 		self.name = ['dsk/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+@@ -569,16 +574,17 @@
+ 
+ 	def vars(self):
+ 		ret = []
++		discover = self.discover
+ 		if op.disklist:
+ 			list = op.disklist
+ 		elif not op.full:
+ 			list = ('total', )
+ 		else:
+-			list = self.discover()
++			list = discover
+ #			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+-			if name in self.discover('total') + op.diskset.keys():
++			if name in discover + ['total'] + op.diskset.keys():
+ 				ret.append(name)
+ 		return ret
+ 
+@@ -613,8 +619,9 @@
+ 		self.format = ('f', 5, 1024)
+ 		self.open('/proc/partitions')
+ 		self.nick = ('read', 'writ')
++		self.discover = self.discover()
+ 		self.vars = self.vars()
+-		if self.fd and not self.discover():
++		if self.fd and not self.discover:
+ 			raise Exception, 'kernel is not compiled with CONFIG_BLK_STATS'
+ 		self.name = ['dsk/'+sysfs_dev(name) for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+@@ -637,11 +644,11 @@
+ 		elif not op.full:
+ 			list = ('total', )
+ 		else:
+-			list = self.discover()
++			list = self.discover
+ #			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+-			if name in self.discover('total') + op.diskset.keys():
++			if name in self.discover + ['total'] + op.diskset.keys():
+ 				ret.append(name)
+ 		return ret
+ 
+@@ -676,6 +683,7 @@
+ 		self.open('/proc/stat')
+ 		self.nick = ('read', 'writ')
+ 		self.regexp = re.compile('^\((\d+),(\d+)\):\(\d+,\d+,(\d+),\d+,(\d+)\)$')
++		self.discover = self.discover()
+ 		self.vars = self.vars()
+ 		self.name = ['dsk/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+@@ -706,7 +714,7 @@
+ 		elif not op.full:
+ 			list = ('total', )
+ 		else:
+-			list = self.discover()
++			list = self.discover
+ #			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+@@ -792,13 +800,13 @@
+ 		if op.intlist:
+ 			list = op.intlist
+ 		else:
+-			list = self.discover()
++			list = self.discover
+ 			for name in list:
+ 				if name in ('0', '1', '2', '8', 'NMI', 'LOC', 'MIS', 'CPU0'):
+ 					list.remove(name)
+ 			if not op.full and len(list) &gt; 3: list = list[-3:]
+ 		for name in list:
+-			if name in self.discover():
++			if name in self.discover:
+ 				ret.append(name)
+ 			elif name.lower() in self.intmap.keys():
+ 				ret.append(self.intmap[name.lower()])
+@@ -822,6 +830,7 @@
+ 		self.format = ('d', 5, 1000)
+ 		self.open('/proc/interrupts')
+ 		self.vars = self.vars()
++		self.discover = self.discover()
+ 		self.nick = self.vars
+ 		self.init(self.vars, 1)
+ 
+@@ -850,7 +859,7 @@
+ 		return ret
+ 
+ #	def check(self):
+-#		if self.fd and self.discover():
++#		if self.fd and self.discover:
+ #			self.fd.seek(0)
+ #			for line in self.fd.readlines():
+ #				l = line.split()
+@@ -863,13 +872,13 @@
+ 		if op.intlist:
+ 			list = op.intlist
+ 		else:
+-			list = self.discover()
++			list = self.discover
+ 			for name in list:
+ 				if name in ('0', '1', '2', '8', 'NMI', 'LOC', 'MIS', 'CPU0'):
+ 					list.remove(name)
+ 			if not op.full and len(list) &gt; 3: list = list[-3:]
+ 		for name in list:
+-			if name in self.discover():
++			if name in self.discover:
+ 				ret.append(name)
+ 			elif name.lower() in self.intmap.keys():
+ 				ret.append(self.intmap[name.lower()])
+@@ -973,6 +982,7 @@
+ 		self.format = ('f', 5, 1024)
+ 		self.open('/proc/net/dev')
+ 		self.nick = ('recv', 'send')
++		self.discover = self.discover()
+ 		self.vars = self.vars()
+ 		self.name = ['net/'+name for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+@@ -998,7 +1008,7 @@
+ 		elif not op.full:
+ 			list = ('total', )
+ 		else:
+-			list = self.discover()
++			list = self.discover
+ #			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+@@ -1122,6 +1132,7 @@
+ 		self.format = ('f', 5, 1024)
+ 		self.open('/proc/swaps')
+ 		self.nick = ('used', 'free')
++		self.discover = self.discover()
+ 		self.vars = self.vars()
+ 		self.name = ['swp/'+improve(name) for name in self.vars]
+ 		self.init(self.vars + ['total',], 2)
+@@ -1133,23 +1144,25 @@
+ 			l = line.split()
+ 			if len(l) &lt; 5: continue
+ 			if l[0] == 'Filename': continue
+-			ret.append(improve(l[0]))
++#			ret.append(improve(l[0]))
++			ret.append(l[0])
+ 		ret.sort()
+ 		for item in list: ret.append(item)
+ 		return ret
+ 
+ 	def vars(self):
+ 		ret = []
++		discover = self.discover
+ 		if op.swaplist:
+ 			list = op.swaplist
+ 		elif not op.full:
+ 			list = ('total', )
+ 		else:
+-			list = self.discover()
++			list = discover
+ #			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+-			if name in self.discover('total',):
++			if name in discover + ['total']:
+ 				ret.append(name)
+ 		return ret
+ 
+@@ -1158,12 +1171,11 @@
+ 		self.fd.seek(0)
+ 		for line in self.fd.readlines():
+ 			l = line.split()
+-			if len(l) &lt; 5: continue
+-			if l[0] == 'Filename': continue
+-			name = improve(l[0])
+-			if name in self.vars :
++			if len(l) &lt; 5 or l[0] == 'Filename': continue
++			name = l[0]
++			if name in self.vars:
+ 				self.val[name] = ( long(l[3]) * 1024.0, (long(l[2]) - long(l[3])) * 1024.0 )
+-			self.val['total'] = ( self.val['total'][0] + long(l[3]) * 1024.0, self.val['total'][1] + (long(l[2]) - long(l[3])) * 1024.0)
++			self.val['total'] = ( self.val['total'][0] + self.val[name][0], self.val['total'][1] + self.val[name][1])
+ 
+ class dstat_swapold(dstat):
+ 	def __init__(self):
+
+Modified: trunk/tools/dstat/plugins/dstat_app.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_app.py	2006-06-20 09:55:34 UTC (rev 4535)
++++ trunk/tools/dstat/plugins/dstat_app.py	2006-06-20 11:44:17 UTC (rev 4536)
+@@ -25,7 +25,7 @@
+ 				if not self.cn1.has_key(pid):
+ 					self.cn1[pid] = 0
+ 
+-				l = string.split(dopen('/proc/%s/stat' % pid).read())
++				l = string.split(open('/proc/%s/stat' % pid).read())
+ 				if len(l) &lt; 15: continue
+ 				self.cn2[pid] = int(l[13]) + int(l[14])
+ 				usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
+@@ -41,7 +41,7 @@
+ 		else:
+ 			### If the name is a known interpreter, take the second argument from the cmdline
+ 			if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
+-				l = string.split(dopen('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
++				l = string.split(open('/proc/%s/cmdline' % self.val['pid']).read(), '\0')
+ 				if len(l) &gt; 2:
+ 					self.val['name'] = os.path.basename(l[1])
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003335.html">[svn] r4535 - trunk/rpms/perl-Video-DVDRip
+</A></li>
+	<LI>Next message: <A HREF="003337.html">[svn] r4537 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3336">[ date ]</a>
+              <a href="thread.html#3336">[ thread ]</a>
+              <a href="subject.html#3336">[ subject ]</a>
+              <a href="author.html#3336">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

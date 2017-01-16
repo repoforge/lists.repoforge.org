@@ -1,0 +1,380 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3288 - in trunk/tools/pydar2: . etc/yum pydar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3288%20-%20in%20trunk/tools/pydar2%3A%20.%20etc/yum%20pydar&In-Reply-To=%3C20050606193826.9B2821D0558%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002089.html">
+   <LINK REL="Next"  HREF="002091.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3288 - in trunk/tools/pydar2: . etc/yum pydar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3288%20-%20in%20trunk/tools/pydar2%3A%20.%20etc/yum%20pydar&In-Reply-To=%3C20050606193826.9B2821D0558%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3288 - in trunk/tools/pydar2: . etc/yum pydar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Jun  6 21:38:26 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002089.html">[svn] r3287 - trunk/rpms/transcode
+</A></li>
+        <LI>Next message: <A HREF="002091.html">[svn] r3289 - in trunk/rpms: kino kino-dvtitler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2090">[ date ]</a>
+              <a href="thread.html#2090">[ thread ]</a>
+              <a href="subject.html#2090">[ subject ]</a>
+              <a href="author.html#2090">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-06 21:38:24 +0200 (Mon, 06 Jun 2005)
+New Revision: 3288
+
+Modified:
+   trunk/tools/pydar2/etc/yum/fc1-i386.conf
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar-master-autoqueue.py
+   trunk/tools/pydar2/pydar/memorystorage.py
+   trunk/tools/pydar2/pydar/pydarclient.py
+   trunk/tools/pydar2/pydar/storage.py
+   trunk/tools/pydar2/pydar/storagefactory.py
+   trunk/tools/pydar2/pydar/svnwrapper.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/pydar/yumbasedbuildroot.py
+Log:
+update
+
+Modified: trunk/tools/pydar2/etc/yum/fc1-i386.conf
+===================================================================
+--- trunk/tools/pydar2/etc/yum/fc1-i386.conf	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/etc/yum/fc1-i386.conf	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -11,14 +11,14 @@
+ reposdir=noway
+ 
+ [core]
+-name=Fedora Linux core
+-baseurl=<A HREF="http://ftp.belnet.be/linux/fedora/linux/1/i386/os/">http://ftp.belnet.be/linux/fedora/linux/1/i386/os/</A>
+-#gpgcheck=0
++name=Fedora Linux $releasever - $basearch - core
++baseurl=<A HREF="http://ayo.freshrpms.net/fedora/linux/1/i386/core">http://ayo.freshrpms.net/fedora/linux/1/i386/core</A>
++gpgcheck=0
+ 
+ [updates]
+-name=Fedora Linux updates
+-baseurl=<A HREF="http://ftp.belnet.be/linux/fedora/linux/updates/1/i386/">http://ftp.belnet.be/linux/fedora/linux/updates/1/i386/</A>
+-#gpgcheck=0
++name=Fedora Linux $releasever - $basearch - updates
++baseurl=<A HREF="http://ayo.freshrpms.net/fedora/linux/1/i386/updates">http://ayo.freshrpms.net/fedora/linux/1/i386/updates</A>
++gpgcheck=0
+ 
+ [dries]
+ name=Extra Fedora rpms dries
+
+Modified: trunk/tools/pydar2/pydar/memorystorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/memorystorage.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar/memorystorage.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -19,12 +19,67 @@
+ from command import Command
+ from log4py import Logger
+ import pgdb, posixpath, posix, string
++from storage import Storage
+ 
+ # needs to be rewritten so it uses only arrays/hashes
+ 
+ class MemoryStorage(Storage):
+-    def __init__(self,myconfig):
+-        self.cat = Logger().get_instance(self)
+-        self.config = myconfig
+-        self.cat.debug(&quot;initialized&quot;)
+-        raise Exception(&quot;MemoryStorage is not yet implemented&quot;)
++    def __init__(self):
++        self.__cat = Logger().get_instance(self)
++        self.__cat.debug(&quot;initialized&quot;)
++        self.specrepos = []
++        # an array of the real specrepository objects
++        self.targets = []
++        # an array of the real target objects
++        self.userIdToRightsArr = {}
++        self.accounts = {}
++        # for each acc:
++        # name =&gt; [
++        #   'name' =&gt; name
++        #   'type' =&gt; type like USER or BUILDMACHINE
++        #   'fullname' =&gt; fullname
++        #   'passw' =&gt; password
++        #   'rights'] =&gt; array of abbreviations from class Rights
++        self.specfiles = {}
++        # for each specfile
++        # id =&gt; [
++        #   'id' =&gt; a unique id
++        #   'subdir' =&gt; subdir
++        #   'filename' =&gt; filename
++        #   'specrepoid' =&gt; id of the specrepo
++        #   'checksum'=&gt; the checksum of the spec file
++        # ]
++
++    def saveSpecRepository(self,specRepo):
++        self.specrepos.append(specRepo)
++
++    def updateTarget(self, newTarget):
++        self.targets.append(newTarget)
++        
++    def clearAssignedRights(self):
++        self.userIdToRightsArr = {}
++        
++    def addAccount(self,name,type,fullname,passw,rights):
++        acc = {}
++        acc['name'] = name
++        acc['type'] = type
++        acc['fullname'] = fullname
++        acc['passw'] = passw
++        acc['rights'] = rights
++        self.accounts[name] = acc
++        self.userIdToRightsArr[name] = rights
++
++    def getSpecRepositoryFileListToIds(self,specRepo):
++        retval = {}
++        for i in self.specfiles.values():
++            if i['specrepoid'] = specRepo.getId():
++                retval[i['subdir'] + '/' + i.['filename']] = i['id']
++        return retval
++        
++    def getSpecRepositoryFileListToChecksum(self,specRepo):
++        retval = {}
++        for i in self.specfiles.values():
++            if i['specrepoid'] = specRepo.getId():
++                ddddddddd dddd retval[i['subdir'] + '/' + i.['filename']] = i['id']
++        return retval
++        
+\ No newline at end of file
+
+Modified: trunk/tools/pydar2/pydar/pydarclient.py
+===================================================================
+--- trunk/tools/pydar2/pydar/pydarclient.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar/pydarclient.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -55,9 +55,9 @@
+         retval = myserverclient.getNumberOfNotYetStartedCommands(userId,password)
+         return retval
+ 
+-    def autoQueue(self,userId, password, targetName, mailTo, priority, specRepoName):
++    def autoQueue(self,userId, password, targetName, mailTo, priority, specRepoName, distroArchTag):
+         myserverclient = Server(self.buildmasterurl)
+-        retval = myserverclient.autoQueue(userId, password, targetName, mailTo, priority, specRepoName)
++        retval = myserverclient.autoQueue(userId, password, targetName, mailTo, priority, specRepoName, distroArchTag)
+         return retval
+ 
+     def callMoveCommandResultsScript(self,userId,password, commandId):
+
+Modified: trunk/tools/pydar2/pydar/storage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/storage.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar/storage.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -51,6 +51,15 @@
+     #    return cls.__myInstance
+     #getInstance = classmethod(getInstance)
+     
++    def clearAssignedRights(self):
++        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++    
++    def addAccount(self,name,type,fullname,passw,rights):
++        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++    
++    def updateTarget(self, newTarget):
++        raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
++    
+     def getSpecRepositoryFileListToIds(self,specRepo):
+         raise Exception(&quot;Dont use Storage but a subclass of Storage, use getInstance()&quot;)
+     
+
+Modified: trunk/tools/pydar2/pydar/storagefactory.py
+===================================================================
+--- trunk/tools/pydar2/pydar/storagefactory.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar/storagefactory.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -19,6 +19,7 @@
+ 
+ from log4py import Logger
+ from postgresqlstorage import PostgresqlStorage
++#from memorystorage import MemoryStorage
+ 
+ ## SINGLETON: so use the getInstance() or immediately the getStorage() method
+ 
+@@ -42,6 +43,7 @@
+     def getStorage(cls):
+         if cls.__myStorageInstance == None:
+             cls.__myStorageInstance = PostgresqlStorage()
++            #cls.__myStorageInstance = MemoryStorage()
+         return cls.__myStorageInstance
+     getStorage = classmethod(getStorage)
+     
+
+Modified: trunk/tools/pydar2/pydar/svnwrapper.py
+===================================================================
+--- trunk/tools/pydar2/pydar/svnwrapper.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar/svnwrapper.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -20,7 +20,7 @@
+ # subversion repository
+ # Using a callback (so you know which files are updated) does not work
+ 
+-import svn.wc, svn.client, svn.util, svn.core
++import svn.wc, svn.client, svn.core
+ import atexit
+ from log4py import Logger
+ 
+@@ -60,18 +60,18 @@
+     def startTransaction(self):
+         self.cat.debug(&quot;start&quot;)
+         if self.transStarted == 0:
+-            svn.util.apr_initialize()
+-            self.pool = svn.util.svn_pool_create(None)
++            svn.core.apr_initialize()
++            self.pool = svn.core.svn_pool_create(None)
+             self.transStarted = 1
+-            atexit.register(svn.util.apr_terminate)
++            atexit.register(svn.core.apr_terminate)
+         else:
+             self.cat.warn(&quot;transaction already started&quot;)
+         
+     def stopTransaction(self):
+         self.cat.debug(&quot;start&quot;)
+         if self.transStarted == 1:
+-            svn.util.svn_pool_destroy(self.pool)
+-            svn.util.apr_terminate()
++            svn.core.svn_pool_destroy(self.pool)
++            svn.core.apr_terminate()
+             self.transStarted = 0
+         else:
+             self.cat.warn(&quot;transaction not yet started&quot;)
+@@ -83,7 +83,7 @@
+         myContext.config = svn.core.svn_config_get_config(None, self.pool)
+         #self.cat.debug(&quot;result of config: &quot; + str(configResult))
+         provider = svn.client.svn_client_get_simple_provider(self.pool)
+-        myContext.auth_baton = svn.util.svn_auth_open([provider], self.pool)
++        myContext.auth_baton = svn.core.svn_auth_open([provider], self.pool)
+         myRevision = svn.core.svn_opt_revision_t()
+         self.cat.debug(&quot;myRevision=&quot; + str(myRevision))
+         myRevision.kind = svn.core.svn_opt_revision_head
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar/target.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -77,6 +77,9 @@
+     def setMoveCommandResultsScript(self,newScript):
+         self.__moveCommandResultsScript = newScript
+ 
++    def autoQueue(self, mailTo, userName, priority, specRepository, distroArchTag):
++        self.__autoQueueByDistroArchTag(distroArchTag,mailTo,userName,priority,specRepository)
++        
+     def autoQueue(self, mailTo, userName, priority, specRepository):
+         self.__cat.debug(&quot;start&quot;)
+         self.__storage = storagefactory.StorageFactory.getStorage()
+
+Modified: trunk/tools/pydar2/pydar/yumbasedbuildroot.py
+===================================================================
+--- trunk/tools/pydar2/pydar/yumbasedbuildroot.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar/yumbasedbuildroot.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -73,7 +73,7 @@
+     def installRpms(self,builddepsarr):
+         brr = BuildRootResult(self)
+         # todo auto remove all deps which are already installed , not only perl
+-        if len(builddepsarr) &gt; 0 or (len(builddepsarr) == 1 and builddepsarr[0] ==  &quot;perl&quot;):
++        if len(builddepsarr) &gt; 0 and not (len(builddepsarr) == 1 and builddepsarr[0] ==  &quot;perl&quot;):
+             commandpart = &quot;&quot;
+             for b in builddepsarr:
+                 commandpart = commandpart + &quot; &quot; + b
+@@ -212,8 +212,10 @@
+         script = script + &quot;    fi\n&quot;
+         script = script + &quot;done\n&quot;
+         script = script + &quot;chown -R root.root &quot; + self.rootdir + &quot;/usr/src/redhat\n&quot;
+-        #script = script + &quot;cd /usr/src/redhat/SPECS\n&quot;
+-        script = script + &quot;chroot &quot; + self.rootdir + &quot;/usr/bin/rpmbuild -ba &quot; + command.getSpecFileShortFileName() + &quot; &gt; /buildlog.txt 2&gt;&amp;1&quot;
++        # the following command first checks if the dependencies are ok
++        script = script + &quot;(/usr/bin/rpmbuild --root=&quot; + self.rootdir + &quot; --nobuild --bs &quot; + self.rootdir + &quot;/usr/src/redhat/SPECS/&quot; + command.getSpecFileShortFileName() + &quot; &amp;&amp; &quot;
++        # do the real build
++        script = script + &quot;/usr/sbin/chroot &quot; + self.rootdir + &quot; /usr/bin/rpmbuild --nodeps -ba /usr/src/redhat/SPECS/&quot; + command.getSpecFileShortFileName() + &quot;) &gt; &quot; + self.rootdir + &quot;/buildlog.txt 2&gt;&amp;1&quot;
+         self.__cat.debug( &quot;script contains: &quot; + script)
+         return script
+         
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -156,16 +156,16 @@
+         else:
+             raise Exception(&quot;UNKNOWN USERID&quot;)
+ 
+-    def autoQueue(self,userId, password, targetName, mailTo, priority, specRepoName):
++    def autoQueue(self,userId, password, targetName, mailTo, priority, specRepoName, distroArchTag):
+         self.__cat.debug(&quot;start,userId=&quot; + str(userId))
+         if self.__storage.checkIfValidUserId(userId, password, Rights.AUTO_QUEUE):
+             target = self.__config.getTargetList().getTargetByName(targetName)
+             specRepo = self.__config.getSpecRepositoryList().getSpecRepositoryByName(specRepoName)
+             if target != None and specRepo != None:
+-                target.autoQueue(mailTo, userId, priority, specRepo)
++                target.autoQueue(mailTo, userId, priority, specRepo, distroArchTag)
+             else:
+                 raise Exception(&quot;target or specrepo unknown&quot;)
+-            return self.__config.getSpecRepositoryList().getSpecRepositoriesUpdateCommands()
++            return &quot;OK&quot;
+         else:
+             raise Exception(&quot;UNKNOWN USERID&quot;)
+ 
+
+Modified: trunk/tools/pydar2/pydar-master-autoqueue.py
+===================================================================
+--- trunk/tools/pydar2/pydar-master-autoqueue.py	2005-06-05 22:24:05 UTC (rev 3287)
++++ trunk/tools/pydar2/pydar-master-autoqueue.py	2005-06-06 19:38:24 UTC (rev 3288)
+@@ -29,16 +29,17 @@
+ 
+ conf = Config.getInstance()
+ 
+-parser = OptionParser()
++parser = OptionParser(usage=&quot;usage: pydar-master-autoqueue.py [targetName] [mailTo] [specRepoName] [distroArchTag]&quot;)
+ parser.add_option(&quot;-c&quot;, &quot;--clientconfig&quot;, default=None, dest=&quot;clientconfig&quot;, help=&quot;specify configuration file&quot;, metavar=&quot;FILE&quot;)
+ (options, args) = parser.parse_args()
+ conf.specifyGetOptOptions(options)
+ password = conf.getClientPassword()
+ 
+ pc = PydarClient(conf.getBuildMasterUrlClient())
+-targetName = &quot;dries&quot;
+-mailTo = '<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>'
++targetName = args[0] #&quot;dries&quot;
++mailTo = args[1] # '<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>'
+ priority = 0
+-specRepoName = &quot;rpmforge&quot;
+-commandlines = pc.autoQueue(conf.getClientUserId(), password, targetName, mailTo, priority, specRepoName)
++specRepoName = args[2] #&quot;rpmforge&quot;
++distroArchTag = args[3]
++commandlines = pc.autoQueue(conf.getClientUserId(), password, targetName, mailTo, priority, specRepoName,distroArchTag)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002089.html">[svn] r3287 - trunk/rpms/transcode
+</A></li>
+	<LI>Next message: <A HREF="002091.html">[svn] r3289 - in trunk/rpms: kino kino-dvtitler
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2090">[ date ]</a>
+              <a href="thread.html#2090">[ thread ]</a>
+              <a href="subject.html#2090">[ subject ]</a>
+              <a href="author.html#2090">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

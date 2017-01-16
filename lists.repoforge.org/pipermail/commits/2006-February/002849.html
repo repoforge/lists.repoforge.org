@@ -1,0 +1,195 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4049 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4049%20-%20trunk/tools/yam&In-Reply-To=%3C20060203120444.2632B3180AE%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002848.html">
+   <LINK REL="Next"  HREF="002850.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4049 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4049%20-%20trunk/tools/yam&In-Reply-To=%3C20060203120444.2632B3180AE%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4049 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Feb  3 13:04:44 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002848.html">[svn] r4048 - in trunk/rpms: SDL_net bittorrent blender exiv2 kwave	phc
+</A></li>
+        <LI>Next message: <A HREF="002850.html">[svn] r4050 - in trunk/rpms: libetpan sylpheed-claws
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2849">[ date ]</a>
+              <a href="thread.html#2849">[ thread ]</a>
+              <a href="subject.html#2849">[ subject ]</a>
+              <a href="author.html#2849">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-02-03 13:04:42 +0100 (Fri, 03 Feb 2006)
+New Revision: 4049
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/README.rhn
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam.spec
+Log:
+Updates
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-02-02 21:53:54 UTC (rev 4048)
++++ trunk/tools/yam/ChangeLog	2006-02-03 12:04:42 UTC (rev 4049)
+@@ -15,6 +15,10 @@
+ - Fixed a small bug in fetching updates
+ - Added RHN support
+ - Added RHN channel subscription support
++- Removed the -r option from the usage info (Gary Law)
++- Fixed RPM package uninstall script problem (Matthew Hannigan)
++- Fixed bug in lftp rate limiting (Matthew Hannigan)
++- Improved lftp debugging output when -vvvv
+ 
+ * 0.7.3 - released 25/03/2005
+ - Added ia64 support (Gareth Armstrong)
+
+Modified: trunk/tools/yam/README.rhn
+===================================================================
+--- trunk/tools/yam/README.rhn	2006-02-02 21:53:54 UTC (rev 4048)
++++ trunk/tools/yam/README.rhn	2006-02-03 12:04:42 UTC (rev 4049)
+@@ -77,3 +77,17 @@
+ This is possible, although hard to implement currently. I could check
+ whether the file exists on one of the ISOs (or in the RPMS/ directory),
+ but I prefer to implement this after a redesign.
++
++
++RHN documentation and references
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++A useful list of RHN references:
++
++	Red Hat: RHN XMLRPC API
++	<A HREF="https://rhn.redhat.com/rpc/api/errata/">https://rhn.redhat.com/rpc/api/errata/</A>
++
++	kickstart-list: RHN XMLRPC API
++	<A HREF="https://www.redhat.com/archives/kickstart-list/2005-December/msg00021.html">https://www.redhat.com/archives/kickstart-list/2005-December/msg00021.html</A>
++
++	RHbz 162210: [RFE] New up2date command-line options
++	<A HREF="https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=162210">https://bugzilla.redhat.com/bugzilla/show_bug.cgi?id=162210</A>
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-02-02 21:53:54 UTC (rev 4048)
++++ trunk/tools/yam/yam	2006-02-03 12:04:42 UTC (rev 4049)
+@@ -109,7 +109,7 @@
+   -d, --dist=dist       specify distributions and/or architecture
+   -g, --generate        generate Yam repositories
+   -q, --quiet           minimal output
+-  -r, --remount         remount distribution ISOs
++      --remount         remount distribution ISOs
+   -u, --update          fetch OS updates
+   -v, --verbose         increase verbosity
+   -vv, -vvv             increase verbosity more
+@@ -558,19 +558,22 @@
+ 	sets = ''
+ #	sets = 'set dns:fatal-timeout 5;'
+ 	if cf.lftptimeout: sets = sets + ' set net:timeout %s;' % cf.lftptimeout
+-	if cf.lftpbwlimit: sets = sets + ' set net:limit-total-rate=%s:0;' % cf.lftpbwlimit
++	if cf.lftpbwlimit: sets = sets + ' set net:limit-total-rate %s:0;' % cf.lftpbwlimit
+ 
+-	opts = 'mirror ' + cf.lftpmirroroptions
+-	if op.verbose &lt;= 1: opts = opts + ' --verbose=0'
+-	else: opts = '%s --verbose=%d' % (opts, op.verbose-1)
+-	if cf.lftpcleanup: opts = opts + ' -e'
++	opts = cf.lftpoptions
++	if op.verbose &lt;= 4: opts = opts + ' -d'
+ 
+-	opts = opts + ' -I *.rpm'
+-	if cf.lftpexclsrpm: opts = opts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
+-	if cf.lftpexcldebug: opts = opts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
++	mirroropts = 'mirror ' + cf.lftpmirroroptions
++	if op.verbose &lt;= 1: mirroropts = mirroropts + ' --verbose=0'
++	else: opts = '%s --verbose=%d' % (mirroropts, op.verbose-1)
++	if cf.lftpcleanup: mirroropts = mirroropts + ' -e'
+ 
+-	run('%s %s -c \'%s %s %s %s\'' % (cf.cmd['lftp'], cf.lftpoptions, sets, opts, url, path))
++	mirroropts = mirroropts + ' -I *.rpm'
++	if cf.lftpexclsrpm: mirroropts = mirroropts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
++	if cf.lftpexcldebug: mirroropts = mirroropts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
+ 
++	run('%s %s -c \'%s %s %s %s\'' % (cf.cmd['lftp'], opts, sets, mirroropts, url, path))
++
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+ 	dir = url.replace('<A HREF="file://">file://</A>', '')
+@@ -658,9 +661,13 @@
+ 	repos = repoDirector.initRepoDirector()
+ 
+ 	rhnChannel.updateChannels(label)
++	### DEBUG
+ 	channels = rpcServer.doCall(server.up2date.listChannels, systemid)
+ 	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in channels])
+ 	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
++	channels = rpcServer.doCall(channel.list_software_channels, systemid)
++	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in channels])
++	### DEBUG END
+ 	channel = rhnChannel.getChannels().getByLabel(label)
+ 	if not channel:
+ 		if cf.rhnlogin:
+
+Modified: trunk/tools/yam/yam.spec
+===================================================================
+--- trunk/tools/yam/yam.spec	2006-02-02 21:53:54 UTC (rev 4048)
++++ trunk/tools/yam/yam.spec	2006-02-03 12:04:42 UTC (rev 4049)
+@@ -46,14 +46,18 @@
+ %{__rm} -rf %{buildroot}
+ %{__make} install DESTDIR=&quot;%{buildroot}&quot;
+ 
+-%post
+-/sbin/chkconfig --add yam
+-
+-%postun
++%preun
+ if [ $1 -eq 0 ]; then
++	/service yam stop &amp;&gt;/dev/null || :
+         /sbin/chkconfig --del yam
+ fi
+ 
++%post
++/sbin/chkconfig --add yam
++
++#%postun
++#/sbin/service nagios condrestart &amp;&gt;/dev/null || :
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002848.html">[svn] r4048 - in trunk/rpms: SDL_net bittorrent blender exiv2 kwave	phc
+</A></li>
+	<LI>Next message: <A HREF="002850.html">[svn] r4050 - in trunk/rpms: libetpan sylpheed-claws
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2849">[ date ]</a>
+              <a href="thread.html#2849">[ thread ]</a>
+              <a href="subject.html#2849">[ subject ]</a>
+              <a href="author.html#2849">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

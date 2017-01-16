@@ -1,0 +1,276 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3271 - in trunk/tools/pydar2: . pydar scripts sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3271%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts%20sql&In-Reply-To=%3C20050604180242.4749E1D0323%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002072.html">
+   <LINK REL="Next"  HREF="002074.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3271 - in trunk/tools/pydar2: . pydar scripts sql</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3271%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts%20sql&In-Reply-To=%3C20050604180242.4749E1D0323%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3271 - in trunk/tools/pydar2: . pydar scripts sql">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Jun  4 20:02:42 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002072.html">[svn] r3270 - in trunk/tools/pydar2: pydar scripts
+</A></li>
+        <LI>Next message: <A HREF="002074.html">[svn] r3272 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2073">[ date ]</a>
+              <a href="thread.html#2073">[ thread ]</a>
+              <a href="subject.html#2073">[ subject ]</a>
+              <a href="author.html#2073">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-04 20:02:41 +0200 (Sat, 04 Jun 2005)
+New Revision: 3271
+
+Modified:
+   trunk/tools/pydar2/Makefile
+   trunk/tools/pydar2/pydar/commandlist.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py
+   trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+   trunk/tools/pydar2/sql/master.sql
+Log:
+update
+
+Modified: trunk/tools/pydar2/Makefile
+===================================================================
+--- trunk/tools/pydar2/Makefile	2005-06-02 16:18:13 UTC (rev 3270)
++++ trunk/tools/pydar2/Makefile	2005-06-04 18:02:41 UTC (rev 3271)
+@@ -4,7 +4,7 @@
+ sysconfdir=/etc
+ localstatedir=/var
+ 
+-DIST_PYSCRIPTS=pydar-buildserver-master.py pydar-buildserver-slave.py pydar-remote.py
++DIST_PYSCRIPTS=pydar-buildserver-master.py pydar-buildserver-slave.py pydar-remote.py pydar-master-update.py pydar-master-autoqueue.py
+ DIST_ETCFILES=etc/master.conf etc/client.conf etc/slave.conf etc/specrepositories.conf etc/targets.conf etc/accounts.conf
+ #DIST_SHSCRIPTS=dar-remote
+ #DIST_INITSCRIPTS=pydar-buildserver-master pydar-buildserver-slave
+@@ -32,7 +32,7 @@
+ 		$(DESTDIR)$(datadir)/pydar2/dries \
+ 		$(DESTDIR)$(datadir)/pydar2/dries/pydar2 \
+ 		$(DESTDIR)$(datadir)/pydar2/scripts
+-	install -m0755 $(DIST_PYSCRIPTS) $(DESTDIR)$(datadir)/pydar2/
++	install -m0755 $(DIST_PYSCRIPTS) log4py.conf $(DESTDIR)$(datadir)/pydar2/
+ 	install -m0755 $(DIST_ETCFILES) $(DESTDIR)$(sysconfdir)/pydar2/
+ 	install -m0755 etc/yum/*.conf $(DESTDIR)$(sysconfdir)/pydar2/yum/
+ 	#install -m0755 $(DIST_SHSCRIPTS) $(DESTDIR)$(bindir)
+
+Modified: trunk/tools/pydar2/pydar/commandlist.py
+===================================================================
+--- trunk/tools/pydar2/pydar/commandlist.py	2005-06-02 16:18:13 UTC (rev 3270)
++++ trunk/tools/pydar2/pydar/commandlist.py	2005-06-04 18:02:41 UTC (rev 3271)
+@@ -78,3 +78,16 @@
+         aCommand.setVersion(self.__storage.getNewestVersion(specRepoSpecFile.getId()))
+         self.__cat.debug(&quot;end&quot;)
+         return aCommand
++
++    def moveCommandResults(self):
++        # check if there are directories which contain results of builds done by slave buildservers
++        # check if they contain directories with commandids which were reserved with the correct build id
++        self.__cat.debug(&quot;start&quot;)
++        dirlist = os.listdir(self.__config.getMasterBuildResultsDir())
++        for entry in dirlist:
++            self.__cat.debug(&quot;entry: &quot; + entry)
++            if self.__storage.isBuildMachineId(entry):
++                self.__cat.debug(&quot;its a valid buildmachine id&quot;)
++                #buildmachinebuildsdir = os.path.join(
++                
++        
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-06-02 16:18:13 UTC (rev 3270)
++++ trunk/tools/pydar2/pydar/config.py	2005-06-04 18:02:41 UTC (rev 3271)
+@@ -171,7 +171,7 @@
+                 rights.append(myParser.get(name,'right' + str(cnt)))
+                 cnt = cnt + 1
+             st.addAccount(name,type,fullname,passw,rights)
+-        
++        self.__masterBuildResultsDir = '/var/lib/pydar2/masterbuildresults/'
+         #oldstuff
+         #sr = srf.createSpecRepository(&quot;rpmforge&quot;,SpecRepository.TYPE_SVN,self.__specreposrootdir + &quot;/rpmforge/rpms&quot;)
+         # we add a filter so the spec templates used by rpmforge are not stored in the database
+@@ -189,6 +189,10 @@
+         __fullInitMasterDone = True
+         self.__cat.debug('end')
+         
++    def getMasterBuildResultsDir(self):
++        self.__fullInitMaster()
++        return self.__masterBuildResultsDir
++        
+     def __fullInitSlave(self):
+         if Config.__fullInitSlaveDone or Config.__withinFullInitSlave:
+             return
+@@ -207,9 +211,9 @@
+         self.__slavepassword = myParser.get('slave','password')
+         # get the supported distro + arch strings like fc3-i386
+         self.__buildRootList = BuildRootList()
+-        for key in myParser.options('machroots'):
++        for key in myParser.options('distroarchs'):
+             # todo also get a lot of options about each buildroot
+-            tmp = rsyncyumbasedbuildroot.RsyncYumBasedBuildRoot(myParser.get('machroots',key))
++            tmp = rsyncyumbasedbuildroot.RsyncYumBasedBuildRoot(myParser.get('distroarchs',key))
+             tmp.setUseCacheOnly(False)
+             self.__buildRootList.addBuildRoot(tmp)
+         self.__slavedataroot = '/var/lib/pydar2/slavedataroot'
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-06-02 16:18:13 UTC (rev 3270)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-06-04 18:02:41 UTC (rev 3271)
+@@ -34,6 +34,18 @@
+         self.__cat = Logger().get_instance(self)
+         self.__cat.debug(&quot;initialized&quot;)
+ 
++    def isBuildMachineId(self, id):
++        retval = False
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        sql = &quot;select id from pydar2_distroarch where id='&quot; + id + &quot;'&quot;
++        cursor.execute(sql)
++        for row in cursor.fetchall():
++            retval = True
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++        
+     def getAuthorityOfMostRecentVersion(self, specFileId):
+         retval = None
+         conn = self.__getConnection()
+
+Modified: trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py	2005-06-02 16:18:13 UTC (rev 3270)
++++ trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py	2005-06-04 18:02:41 UTC (rev 3271)
+@@ -35,7 +35,16 @@
+         distroarchtag='fc2-i386'
+     if string.find(rpmPath,'1.fc1.rf.i386') &gt; 0 or (string.find(rpmPath,'fc1') &gt; 0 and string.find(rpmPath,'i386') &gt; 0):
+         distroarchtag='fc1-i386'
++    if string.find(rpmPath,'.el4.rf') &gt; 0 and string.find(rpmPath,'i386') &gt; 0:
++        distroarchtag='el4-i386'
++    if string.find(rpmPath,'.el3.') &gt; 0 and string.find(rpmPath,'i386') &gt; 0:
++        distroarchtag='el3-i386'
++    if string.find(rpmPath,'au1.92.rf') &gt; 0 or string.find(rpmPath,'au1.92.dries') &gt; 0:
++        distroarchtag='au1.92-sparc'
++    if string.find(rpmPath,'au1.91.rf') &gt; 0 or string.find(rpmPath,'au1.91.dries') &gt; 0:
++        distroarchtag='au1.91-sparc'
+     
++    
+     rf = rpmfiletags.RpmFileTags(rpmPath,'')
+     # locationid : locationId
+     # rpmname : fileName
+
+Modified: trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-06-02 16:18:13 UTC (rev 3270)
++++ trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-06-04 18:02:41 UTC (rev 3271)
+@@ -20,8 +20,47 @@
+ # this script must move the results of one command. it gets the command and the directory where it can find the rpms and the buildlog
+ # if the commanddir is accepted and if the rpms are moved, then it should return True, otherwise False
+ 
++import os,string, shutil
++
+ def moveCommandResults(command, commanddir):
+     print &quot;moveCommandResults start, commanddir:&quot; + commanddir
+-    return False
++    webrootdir = &quot;/var/lib/pydar2/webroot/&quot;
++    packagesdir = os.path.join(webrootdir, &quot;packages&quot;)
++    shortname = command.getNameFromSpec()
++    pdir = os.path.join(packagesdir, shortname)
++    os.makedirs(pdir)
++    distroarchreleasetagparts = command.getDistroArch().getTagParts()
+     
++    containsRpms = False
++    # first check if there are new rpm files
++    for entry in os.listdir(commanddir):
++        if string.find(entry,&quot;.rpm&quot;) &gt; 0:
++            containsRpms = True
+     
++    # only if it contains rpms: remove the old ones and copy the new ones
++    if containsRpms:
++        for entry in os.listdir(pdir):
++            removeEntry = False
++            for part in distroarchreleasetagparts:
++                if string.find(entry, part) &gt; 0:
++                    removeEntry = True
++            if removeEntry:
++                print &quot;remove: &quot; + os.path.join(pdir, entry)
++                #os.remove(os.path.join(pdir, entry))
++        # now move the newly created rpms
++        for entry in os.listdir(commanddir):
++            moveEntry = False
++            for part in distroarchreleasetagparts:
++                if string.find(entry, part) &gt; 0 and string.find(entry, &quot;.rpm&quot;) &gt; 0:
++                    moveEntry = True
++            if moveEntry:
++                #os.rename(os.path.join(commanddir,entry), os.path.join(pdir, entry))
++                print &quot;rename: &quot; + os.path.join(commanddir,entry) + &quot; to &quot; + os.path.join(pdir, entry)
++    
++    # always move the buildlog
++    #shutil.copy(os.path.join(commanddir,&quot;buildlog.txt.gz&quot;), os.path.join(pdir, entry...
++            
++    return False    
++    #return True
++    
++    
+
+Modified: trunk/tools/pydar2/sql/master.sql
+===================================================================
+--- trunk/tools/pydar2/sql/master.sql	2005-06-02 16:18:13 UTC (rev 3270)
++++ trunk/tools/pydar2/sql/master.sql	2005-06-04 18:02:41 UTC (rev 3271)
+@@ -208,6 +208,8 @@
+ create index pydar2_specfile_t_four on pydar2_specfile_tags(versionid,distroid,name,value);
+ create index pydar2_specfile_t_name on pydar2_specfile_tags(name);
+ create index pydar2_specfile_t_value on pydar2_specfile_tags(value);
++create index pydar2_specfile_t_uname on pydar2_specfile_tags(upper(name));
++create index pydar2_specfile_t_u2 on pydar2_specfile_tags(upper(name),versionid);
+ 
+ --create VIEW pydar2_specfile_lastversion AS select max(v.version) as latestversion, v.specfileid, s.filename 
+ --from pydar2_specfile_version v, pydar2_specfile s where s.id=v.specfileid group by v.specfileid, s.filename;
+@@ -235,6 +237,8 @@
+ insert into pydar2_distroarch (distroarchtag, name,defines) values ('el4-i386','Red Hat Enterprise Linux 4',' --define &quot;el4 1&quot;');
+ insert into pydar2_distroarch (distroarchtag, name,defines) values ('el3-i386','Red Hat Enterprise Linux 3',' --define &quot;el3 1&quot;');
+ insert into pydar2_distroarch (distroarchtag, name,defines) values ('el2-i386','Red Hat Enterprise Linux 2',' --define &quot;el2 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('au1.92-sparc', 'Aurora Linux 1.92 sparc', ' --define &quot;fc2 1&quot;');
++insert into pydar2_distroarch (distroarchtag, name,defines) values ('au1.91-sparc', 'Aurora Linux 1.91 sparc', ' --define &quot;fc2 1&quot;');
+ 
+ 
+ insert into pydar2_rights (id, abbrev, description) values (0, 'REGISTER_SLAVE', 'register as a slave');
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002072.html">[svn] r3270 - in trunk/tools/pydar2: pydar scripts
+</A></li>
+	<LI>Next message: <A HREF="002074.html">[svn] r3272 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2073">[ date ]</a>
+              <a href="thread.html#2073">[ thread ]</a>
+              <a href="subject.html#2073">[ subject ]</a>
+              <a href="author.html#2073">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

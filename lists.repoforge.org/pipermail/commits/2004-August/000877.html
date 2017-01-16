@@ -1,0 +1,463 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2071 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2071%20-%20trunk/tools/yam&In-Reply-To=%3C20040823151230.960EA17F77%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000876.html">
+   <LINK REL="Next"  HREF="000878.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2071 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2071%20-%20trunk/tools/yam&In-Reply-To=%3C20040823151230.960EA17F77%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2071 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Aug 23 17:12:30 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000876.html">[SVN] r2070 - trunk/rpms/eternallands
+</A></li>
+        <LI>Next message: <A HREF="000878.html">[SVN] r2072 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#877">[ date ]</a>
+              <a href="thread.html#877">[ thread ]</a>
+              <a href="subject.html#877">[ subject ]</a>
+              <a href="author.html#877">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-23 17:12:28 +0200 (Mon, 23 Aug 2004)
+New Revision: 2071
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Another batch after a weekend Italy :p
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-23 07:30:38 UTC (rev 2070)
++++ trunk/tools/yam/ChangeLog	2004-08-23 15:12:28 UTC (rev 2071)
+@@ -5,6 +5,7 @@
+ - Intercept user input and exit when asked
+ - Run external commands much better and print on errors
+ - Added examples of IP or hostname based restriction and HTTP authentication
++- Make use of os.path.join() and urlparse()
+ 
+ * 0.5
+ - Skipped a 0.4 release to indicate this is an important update.
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-23 07:30:38 UTC (rev 2070)
++++ trunk/tools/yam/TODO	2004-08-23 15:12:28 UTC (rev 2071)
+@@ -3,33 +3,34 @@
+ 
+ ### Repository metadata
+ + Think of a way to speed up generating repositories (new basegendir should improve)
+-+ Add URPMI support (help needed)
+++ Add URPMI and Red Carpet support (help needed)
+ + Add YaST/YOU support (both for mirroring as providing metadata)
+ 
+-### Remote installation
++### Yamenu tool / remote installation
+++ Create small curses tool to manage systems / MAC-addresses / profiles (kickstart)
+ + Generate remote syslinux menu to boot any of the available dists
+-+ Generate a dnsmasq-yam.conf if dnsmasq is installed
+-+ Create small curses tool to manage systems / MAC-addresses / kickstart files
+++ Look into providing bootsplash like SuSE
+++ Generate a dnsmasq-yam.conf if dnsmasq is installed/running(?)
+ + Add default kickstart integration (files/location)
+ + Add default AutoYast integration (help needed)
+-+ Adapt to work Mandrake too (help needed)
+++ Adapt to make Mandrake/SuSE work too (help needed)
+++ Add CSM support
+ 
+ ### Usability
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+ + Improve SHTML output (more condensed and useful information)
+++ Think of a way to get rid of older/obsolete updates
+ 
+-### Documentation/integration
+-+ Add CSM support
++### Documentation
+ + Add integration/documentation with ISC dhcpd
+-+ Write basic documentation
+ 
+ ### Internal python
+ + Improve the copy/symlink/rename functions, using exceptions
+ + Mirroring code should be in a seperate class
+-+ File-operations may need to go a seperate class
+++ File-operations may need to go to a seperate class
+ 
+ ### Misc
+-+ Change file permissions of packages in /var/www/yam
+++ Correct file permissions of packages in /var/www/yam
+ 
+ ### Bugs
+ + basegendir stumbles on broken symlinks (Apt already fixed upstream, thx to Panu)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-23 07:30:38 UTC (rev 2070)
++++ trunk/tools/yam/yam	2004-08-23 15:12:28 UTC (rev 2071)
+@@ -1,4 +1,4 @@
+-#!/usr/bin/python -d
++#!/usr/bin/python
+ 
+ import os, sys, glob, re, shutil, getopt, popen2
+ import ConfigParser, urlparse
+@@ -65,7 +65,7 @@
+ 		print 'yam %s' % VERSION
+ 		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
+ 		print
+-		print 'os %s' % sys.platform
++		print 'platform %s, os %s' % (sys.platform, os.name)
+ 		print 'python %s' % sys.version
+ 
+ 	def usage(self):
+@@ -164,7 +164,7 @@
+ 			var = self.cfg.get(section, option)
+ 			info(3, 'Setting config %s in section [%s] to: %s' % (option, section, var))
+ 		except ConfigParser.NoSectionError, e:
+-			info(4, 'Failed to find [%s] in op.configfile' % section)
++			info(4, 'Failed to find [%s] in %s' % (section, op.configfile))
+ 		except ConfigParser.NoOptionError, e:
+ 			info(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
+ 		return var
+@@ -185,7 +185,7 @@
+ 		self.dist = dist
+ 		self.nick = dist + '-' + arch
+ 		self.name = self.nick
+-		self.dir = dir + '/' + self.nick
++		self.dir = os.path.join(dir, self.nick)
+ 		self.iso = None
+ 		self.release = None
+ 		self.repos = {}
+@@ -215,7 +215,7 @@
+ 		isos=[]
+ 		if self.iso:
+ 			for file in self.iso.split(' '):
+-				list = glob.glob(cf.srcdir + '/iso/' + file)
++				list = glob.glob(os.path.join(cf.srcdir, 'iso', file))
+ 				list.sort()
+ 				for iso in list:
+ 					if os.path.isfile(iso):
+@@ -226,15 +226,15 @@
+ 		&quot;Loopback mount all ISOs&quot;
+ 		discs = []
+ 		discnr = 0
+-		mkdir(self.dir + '/iso/')
++		mkdir(os.path.join(self.dir, 'iso'))
+ 		for iso in self.isos():
+-			symlink(iso, self.dir + '/iso/')
++			symlink(iso, os.path.join(self.dir, 'iso'))
+ 			try:
+ 				discnr = re.compile('disc([0-9])').search(iso).group(1)
+ 			except AttributeError, e:
+ 				discnr = discnr + 1
+ 			discs = discs + [ 'disc%s' % discnr ]
+-			mount = self.dir + '/disc' + str(discnr)
++			mount = os.path.join(self.dir, 'disc' + str(discnr))
+ 			if not os.path.exists(iso):
+ 				die(3, 'File %s does not exist.' % iso)
+ 			if not os.path.isfile(cf.cmd['mount']):
+@@ -253,7 +253,7 @@
+ 					os.rename(mount, os.tempnam(os.path.dirname(mount), 'bak-'))
+ 				mkdir(mount)
+ 				if not os.path.ismount(mount):
+-					info(1, '%s: Mount ISO %s to %s' % (self.nick, iso, mount))
++					info(2, '%s: Mount ISO %s to %s' % (self.nick, iso, mount))
+ 					run('%s -o loop %s %s' % (cf.cmd['mount'], iso, mount))
+ 		return discs
+ 	
+@@ -265,11 +265,11 @@
+ 				discnr = re.compile('disc([0-9])').search(iso).group(1)
+ 			except AttributeError, e:
+ 				discnr = discnr + 1
+-			mount = self.dir + '/disc' + str(discnr)
++			mount = os.path.join(self.dir, 'disc' + str(discnr))
+ 			if not os.path.isfile(cf.cmd['umount']):
+-				die(0, 'umount command not %s' % cf.cmd['umount'])
++				die(5, 'umount command not %s' % cf.cmd['umount'])
+ 			if os.path.ismount(mount):
+-				info(1, '%s: Unmount ISO %s' % (self.nick, mount))
++				info(2, '%s: Unmount ISO %s' % (self.nick, mount))
+ 				run('%s %s' % (cf.cmd['umount'], mount))
+ 
+ 	def aptrepo(self):
+@@ -290,9 +290,10 @@
+ #		info(1, '%s: Create old-style Yum repository' % self.nick)
+ #		run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS'))
+ 		for repo in self.repos.keys() + ['local']:
+-			if os.path.exists(self.dir + '/RPMS.' + repo):
++			repodir = os.path.join(self.dir, 'RPMS.' + repo)
++			if os.path.exists(repodir):
+ 				info(1, '%s: Create old-style Yum repository for %s' % (self.nick, repo))
+-				run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS.' + repo))
++				run('%s %s -l %s' % (cf.cmd['yumarch'], opts, repodir))
+ 
+ 	def createrepo(self):
+ 		&quot;Create a new-style Yum repository&quot;
+@@ -303,9 +304,10 @@
+ #		info(1, '%s: Create new-style Yum repository' % self.nick)
+ #		run('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS'))
+ 		for repo in self.repos.keys() + ['local']:
+-			if os.path.exists(self.dir + '/RPMS.' + repo):
++			repodir = os.path.join(self.dir, 'RPMS.' + repo)
++			if os.path.exists(repodir):
+ 				info(1, '%s: Create new-style Yum repository for %s' % (self.nick, repo))
+-				run('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS.' + repo))
++				run('%s %s %s' % (cf.cmd['createrepo'], opts, repodir))
+ 
+ 	def html(self):
+ 		&quot;Put html information in repository&quot;
+@@ -316,22 +318,22 @@
+ 	def link(self, srcdir, repo):
+ 		&quot;Symlink all RPM packages that match a given arch&quot;
+ 		info(2, '%s: Symlink %s packages from %s' % (self.nick, repo, srcdir))
+-		mkdir(self.dir + '/RPMS.' + repo)
+-		mkdir(self.dir + '/RPMS')
++		mkdir(os.path.join(self.dir, 'RPMS.' + repo))
++		mkdir(os.path.join(self.dir, 'RPMS'))
+ 		os.path.walk(srcdir, rpmlink, (self, repo))
+ 
+ 	def taglink(self, srcdir, repo):
+ 		&quot;Symlink all RPM packages that match a given arch and disttag&quot;
+ 		if dist.tag:
+ 			info(2, '%s: Symlink %s tagged packages from %s' % (dist.nick, repo, dirpath))
+-			mkdir(dist.dir + '/RPMS.' + repo)
+-			mkdir(dist.dir + '/RPMS')
++			mkdir(os.path.join(self.dir, 'RPMS.' + repo))
++			mkdir(os.path.join(self.dir, 'RPMS'))
+ 			os.path.walk(srcdir, rpmtaglink, (self, repo))
+ 		else:
+ 			info(4, '%s: No tags defined for %s' % (dist.nick, dist.name))
+ 
+ 	def clean(self, repo=None):
+-		repodir = self.dir + '/RPMS'
++		repodir = os.path.join(self.dir, 'RPMS')
+ 		if repo: repodir = repodir + '.' + repo
+ 		info(3, 'Removing %s' % repodir)
+ 		remove(repodir)
+@@ -359,9 +361,9 @@
+ 	else:
+ 		void, ret = os.wait()
+ 		if ret:
+-			print 'Command failed with code = %s' % ret
++			info(0, 'Command failed with code = %s' % ret)
+ 			out = pout.read()
+-			if out: print out
++			if out: print out,
+ 
+ def readfile(file, len = 0):
+ 	&quot;Return content of a file&quot;
+@@ -387,7 +389,7 @@
+ def symlink(src, dst):
+ 	&quot;Create a symbolic link, force if dst exists&quot;
+ 	if not os.path.islink(dst) and os.path.isdir(dst):
+-		dst = dst + '/' + os.path.basename(src)
++		dst = os.path.join(dst, os.path.basename(src))
+ ### Not using filecmp increases speed with 15%
+ #	if os.path.isfile(dst) and filecmp.cmp(src, dst) == 0:
+ 	if os.path.isfile(dst):
+@@ -401,7 +403,7 @@
+ def copy(src, dst):
+ 	&quot;Copy a file, force if dst exists&quot;
+ 	if os.path.isdir(dst):
+-		dst = dst + '/' + os.path.basename(src) 
++		dst = os.path.join(dst, os.path.basename(src))
+ 	if os.path.islink(dst) or os.path.isfile(dst):
+ 		os.unlink(dst)
+ 	mkdir(os.path.dirname(dst))
+@@ -425,7 +427,7 @@
+ 
+ def removedir(void, dir, files):
+ 	for file in files:
+-		remove(dir + '/' + file)
++		remove(os.path.join(dir, file))
+ 
+ def mkdir(path):
+ 	&quot;Create a directory, and parents if needed&quot;
+@@ -443,20 +445,15 @@
+ def mirror(url, path):
+ 	&quot;Check URL and pass on to mirror-functions.&quot;
+ 	info(2, 'Fetch packages from %s' % url)
+-	if url.find('<A HREF="rsync://">rsync://</A>') == 0:
++	(s,b,p,q,f,o) = urlparse.urlparse(url)
++	if s in ['rsync']:
+ 		mirrorrsync(url, path)
+-	elif (url.find('<A HREF="ftp://">ftp://</A>') == 0 or
+-		url.find('<A HREF="http://">http://</A>') == 0 or
+-		url.find('<A HREF="sftp://">sftp://</A>') == 0 or
+-		url.find('<A HREF="fish://">fish://</A>') == 0):
++	elif s in ['fish', 'ftp', 'http', 'sftp']:
+ 		mirrorlftp(url, path)
+-	elif url.find('<A HREF="file://">file://</A>') == 0:
++	elif s in ['file', '']:
+ 		mirrorfile(url, path)
+-	elif url.find('<A HREF="rhn://">rhn://</A>') == 0:
+-		info(2, '<A HREF="rhn://">rhn://</A> method not implemented yet')
+-#		mirrorrhn(url, path)
+ 	else:
+-		info(2, 'Method not found for %s' % url)
++		info(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
+ 
+ def mirrorrsync(url, path):
+ 	&quot;Mirror everything from an <A HREF="rsync://">rsync://</A> URL&quot;
+@@ -499,8 +496,9 @@
+ 		rpmmatch='.+\.' + arch + '\.rpm$'
+ 		for file in filelist:
+ 			if re.compile(rpmmatch).match(file, 1):
+-				symlink(dirpath + '/' + file, dist.dir + '/RPMS.' + repo)
+-				symlink(dirpath + '/' + file, dist.dir + '/RPMS')
++				srcdir = os.path.join(dirpath, file)
++				symlink(srcdir, os.path.join(dist.dir, 'RPMS.' + repo))
++				symlink(srcdir, os.path.join(dist.dir, 'RPMS'))
+ 	
+ def rpmtaglink((dist, repo), dirpath, filelist):
+ 	for tag in dist.tag + [ '0' ]:
+@@ -510,16 +508,15 @@
+ 			rpmmatch='.+\.' + tag + '\..+\.' + arch + '\.rpm$'
+ 			for file in filelist:
+ 				if re.compile(rpmmatch).match(file, 1):
+-					symlink(dirpath + '/' + file, dist.dir + '/RPMS.' + repo)
+-					symlink(dirpath + '/' + file, dist.dir + '/RPMS')
++					srcdir = os.path.join(dirpath, file)
++					symlink(srcdir, os.path.join(dist.dir, 'RPMS.' + repo))
++					symlink(srcdir, os.path.join(dist.dir, 'RPMS'))
+ 
+ def htmlindex():
+ 	symlink(cf.htmldir + '/HEADER.index.shtml', cf.wwwdir + '/HEADER.shtml')
+ 	symlink(cf.htmldir + '/README.index.shtml', cf.wwwdir + '/README.shtml')
+ 
+-
+ def main():
+-
+ 	### Check availability of commands
+ 	for cmd in cf.cmd.keys():
+ 		if not os.path.isfile(cf.cmd[cmd]):
+@@ -553,15 +550,16 @@
+ 
+ 		### Downloading things
+ 		for repo in dist.repos.keys():
++			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 			if repo in ['os', 'core']:
+ 				if op.update and not dist.isos():
+-					mirror(dist.repos[repo], cf.srcdir + '/' + dist.nick + '/' + repo)
++					mirror(dist.repos[repo], srcdir)
+ 			elif repo in ['updates']:
+ 				if op.update:
+-					mirror(dist.repos[repo], cf.srcdir + '/' + dist.nick + '/' + repo)
++					mirror(dist.repos[repo], srcdir)
+ 			else:
+ 				if op.extra:
+-					mirror(dist.repos[repo], cf.srcdir + '/' + dist.nick + '/' + repo)
++					mirror(dist.repos[repo], srcdir)
+ 
+ 	if not op.generate:
+ 		sys.exit(0)
+@@ -584,7 +582,7 @@
+ 			dist.clean(repo)
+ 
+ 		for repo in dist.repos.keys():
+-			srcdir = cf.srcdir + '/' + dist.nick + '/' + repo
++			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 			if repo in ['os', 'core']:
+ 				if not dist.isos():
+ 					dist.link(srcdir, repo)
+@@ -593,41 +591,41 @@
+ 
+ 		if dist.isos():
+ 			for disc in discs:
+-				dist.link(dist.dir + '/' + disc, 'os')
++				dist.link(os.path.join(dist.dir, disc), 'os')
+ 
+ 		### FIXME: should remove identical files from cf.srcdir + '/updates/' + dist + '/*.rpm'
+ 		### Maybe add a hardlink utility for cleaning up afterwards
+ #		os.remove(cf.srcdir + '/updates/' + dist + '/' + os.path.basename(file))
+ 
+ 		### Link custom local packages
+-		srcdir = cf.srcdir + '/' + dist.nick + '/local'
++		srcdir = os.path.join(cf.srcdir, dist.nick, 'local')
+ 		dist.clean('local')
+ 		if os.path.exists(srcdir):
+ 			dist.link(srcdir, 'local')
+ 
+-		srcdir = cf.srcdir + '/all/local/'
++		srcdir = os.path.join(cf.srcdir, 'all/local')
+ 		if os.path.exists(srcdir):
+ 			dist.link(srcdir, 'local')
+ 
+ 		### Link global repos
+ 		for repo in cf.repos:
+-			srcdir = cf.srcdir + '/all/' + repo
++			os.path.join(cf.srcdir, 'all', repo)
+ 			if os.path.exists(srcdir):
+ 				dist.taglink(srcdir, repo)
+ 
+ 		### Create apt/yum repository
++		if cf.repo['apt']:
++			dist.aptrepo()
++		if cf.repo['yum']:
++			dist.yumrepo()
+ 		if cf.repo['createrepo']:
+ 			dist.createrepo()
+-		if cf.repo['yum']:
+-			dist.yumrepo()
+-		if cf.repo['apt']:
+-			dist.aptrepo()
+ 
+ 		### Create pxe boot
+ 		if cf.tftpdir and os.path.isdir(cf.tftpdir):
+-			tftpdir = cf.tftpdir + '/' + dist.nick
++			tftpdir = os.path.join(cf.tftpdir, dist.nick)
+ 			info(1, '%s: Symlink pxe boot files to %s ' % (dist.nick, tftpdir))
+-			mkdir(tftpdir + '/pxelinux.cfg/')
++			mkdir(os.path.join(tftpdir, 'pxelinux.cfg'))
+ 			for file in glob.glob(dist.dir + '/disc?/images/pxeboot/vmlinuz'):
+ 				copy(file, tftpdir)
+ 			for file in glob.glob(dist.dir + '/disc?/images/pxeboot/initrd*.img'):
+@@ -651,6 +649,9 @@
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+-		die(6, 'Exiting on User Cancel')
++		die(6, 'Exiting on user request')
++	except OSError, e:
++#		print e.errno
++		die(7, 'OSError: %s' % e)
+ 
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000876.html">[SVN] r2070 - trunk/rpms/eternallands
+</A></li>
+	<LI>Next message: <A HREF="000878.html">[SVN] r2072 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#877">[ date ]</a>
+              <a href="thread.html#877">[ thread ]</a>
+              <a href="subject.html#877">[ subject ]</a>
+              <a href="author.html#877">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

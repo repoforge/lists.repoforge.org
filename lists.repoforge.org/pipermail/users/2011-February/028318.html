@@ -1,0 +1,114 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] Nagios 3.2.3 SELinux
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Nagios%203.2.3%20SELinux&In-Reply-To=%3C1297895698.2915.28.camel%40meierpad%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="028317.html">
+   <LINK REL="Next"  HREF="028319.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] Nagios 3.2.3 SELinux</H1>
+    <B>Christoph Maser</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20Nagios%203.2.3%20SELinux&In-Reply-To=%3C1297895698.2915.28.camel%40meierpad%3E"
+       TITLE="[users] Nagios 3.2.3 SELinux">cmaser at gmx.de
+       </A><BR>
+    <I>Wed Feb 16 23:34:58 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="028317.html">[users] Nagios 3.2.3 SELinux
+</A></li>
+        <LI>Next message: <A HREF="028319.html">[users] Nagios 3.2.3 SELinux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28318">[ date ]</a>
+              <a href="thread.html#28318">[ thread ]</a>
+              <a href="subject.html#28318">[ subject ]</a>
+              <a href="author.html#28318">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Am Mittwoch, den 16.02.2011, 19:42 +0100 schrieb Christoph Maser:
+&gt;<i> Am Dienstag, den 11.01.2011, 23:40 +0100 schrieb Pavel Kankovsky:
+</I>&gt;<i> &gt; On Wed, 5 Jan 2011, Scott Reese wrote:
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; &gt; Since the files aren't where the SELinux policy expects them to be, it
+</I>&gt;<i> &gt; &gt; generates denials and Nagios doesn't work.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Denials are caused by incorrect contexts. And contexts are not initialized
+</I>&gt;<i> &gt; correctly because files and directories are not at expected places.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Missing file context rules can be added with &quot;semanage fcontext&quot; and 
+</I>&gt;<i> &gt; existing files and directories relabeled with &quot;fixfiles restore&quot;.
+</I>&gt;<i> &gt; 
+</I>&gt;<i> &gt; Anyway, the easiest solution would probably be to change the package 
+</I>&gt;<i> &gt; layout to follow FHS, as expected by the standard policy and its file 
+</I>&gt;<i> &gt; context rules.
+</I>&gt;<i> 
+</I>&gt;<i> Yes there are some improvements to be done but the policy shipped in
+</I>&gt;<i> rehel 5 certainly is also incomplete. Its missing /var/run/nagios.*
+</I>&gt;<i> and /var/spool/nagios(/.*)? in the file context. Wich means that a)
+</I>&gt;<i> nagios has to be started as root to create the pid file. Yes I know
+</I>&gt;<i> nagio drops privileges, but it reads the config before dropping privs on
+</I>&gt;<i> startup. If the permissions are wrong on the configs a runtime config
+</I>&gt;<i> reload can cause failures 
+</I>&gt;<i> b) checkresultdir has to be under /var/log but it should be
+</I>&gt;<i> under /var/spool.
+</I>&gt;<i> 
+</I>&gt;<i> So, what do we do? And btw. newer releases of selinux-policies have that
+</I>&gt;<i> fixed (e.g. in fedora 14). That means another bunch of conditionals in
+</I>&gt;<i> the spec :( 
+</I>
+
+I have to correct myself, actually /var/spool/nagios is in the policy. I
+did only look at the source files of selinux-policy but there is also a
+huge patch in that package wich includes a lot of nagios policy changes.
+But I did identify a few problems with the nagios policy module as
+shipped in C5:
+
+- init script: it is possible to start nagios as root or nagios user on
+the command line but not using the init script. the init script is
+context initrc_exec_t and that context is not allowed
+
+- pid file: actually nagios drops its privs before writing the pid file,
+so the init script can not be in /var/run. workaround: put the pid file
+under /var/log/nagios
+
+- command file: by default nagios installs the command file in
+$LOGDIR/rw wich would be /var/log/nagios/rw but fifo access for
+httpd_nagios_script_t is only allowed for /var/spool/nagios. Setting
+$LOGDIR to /var/spool/nagios is not a solution since that breaks a lot
+of other policies. workaround: patch Makefiles so the command file
+location can be set seperatley
+
+I will try to fix the last 2 ones, but I have no idea how to deal with
+the init script. Does anyone have an idea how to deal with it?
+
+Chris
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="028317.html">[users] Nagios 3.2.3 SELinux
+</A></li>
+	<LI>Next message: <A HREF="028319.html">[users] Nagios 3.2.3 SELinux
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28318">[ date ]</a>
+              <a href="thread.html#28318">[ thread ]</a>
+              <a href="subject.html#28318">[ subject ]</a>
+              <a href="author.html#28318">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

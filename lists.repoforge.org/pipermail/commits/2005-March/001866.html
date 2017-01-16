@@ -1,0 +1,526 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3062 - in trunk/rpms: . amavisd-new cfengine	perl-Class-Container perl-Proc-ProcessTable ripole smart
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3062%20-%20in%20trunk/rpms%3A%20.%20amavisd-new%20cfengine%0A%09perl-Class-Container%20perl-Proc-ProcessTable%20ripole%20smart&In-Reply-To=%3C20050330181410.6AEF45C402B%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001865.html">
+   <LINK REL="Next"  HREF="001867.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3062 - in trunk/rpms: . amavisd-new cfengine	perl-Class-Container perl-Proc-ProcessTable ripole smart</H1>
+    <B>svn-commits at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3062%20-%20in%20trunk/rpms%3A%20.%20amavisd-new%20cfengine%0A%09perl-Class-Container%20perl-Proc-ProcessTable%20ripole%20smart&In-Reply-To=%3C20050330181410.6AEF45C402B%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3062 - in trunk/rpms: . amavisd-new cfengine	perl-Class-Container perl-Proc-ProcessTable ripole smart">svn-commits at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Mar 30 20:14:10 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001865.html">[svn] r3061 - trunk/rpms/sylpheed-claws
+</A></li>
+        <LI>Next message: <A HREF="001867.html">[svn] r3063 - in trunk/rpms: . clamtk gaim-meanwhile-ibm gnet gnet2	perl-Apache-ASP perl-Class-DBI-AbstractSearch	perl-Class-Data-Inheritable perl-Devel-StackTrace	perl-Exception-Class perl-File-Which perl-IO-Socket-INET6	perl-Lingua-Stem-Snowball perl-PHP-Perlinfo perl-SQL-Abstract	perl-Socket6 perl-Storable rsync spamassassin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1866">[ date ]</a>
+              <a href="thread.html#1866">[ thread ]</a>
+              <a href="subject.html#1866">[ subject ]</a>
+              <a href="author.html#1866">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-30 20:14:08 +0200 (Wed, 30 Mar 2005)
+New Revision: 3062
+
+Added:
+   trunk/rpms/perl-Proc-ProcessTable/
+   trunk/rpms/perl-Proc-ProcessTable/perl-Proc-ProcessTable.spec
+   trunk/rpms/ripole/
+   trunk/rpms/ripole/ripole-0.1.4-shared.patch
+   trunk/rpms/ripole/ripole.spec
+Modified:
+   trunk/rpms/amavisd-new/amavisd-new.spec
+   trunk/rpms/cfengine/cfengine.spec
+   trunk/rpms/perl-Class-Container/perl-Class-Container.spec
+   trunk/rpms/smart/smart.spec
+Log:
+Updates
+
+Modified: trunk/rpms/amavisd-new/amavisd-new.spec
+===================================================================
+--- trunk/rpms/amavisd-new/amavisd-new.spec	2005-03-30 10:40:46 UTC (rev 3061)
++++ trunk/rpms/amavisd-new/amavisd-new.spec	2005-03-30 18:14:08 UTC (rev 3062)
+@@ -21,7 +21,7 @@
+ BuildRequires: sendmail-devel &gt;= 8.12, sendmail
+ Requires: arc &gt;= 5.21e, nomarch &gt;= 1.2, unrar &gt;= 2.71, zoo &gt;= 2.10
+ Requires: bzip2, cpio, file, freeze, lha, lzop, ncompress, unarj
+-Requires: cabextract, perl(BerkeleyDB)
++Requires: cabextract, ripole, perl(BerkeleyDB)
+ Requires: perl(Archive::Tar), perl(Archive::Zip), perl(Compress::Zlib)
+ Requires: perl(Convert::TNEF), perl(Convert::UUlib), perl(IO::Stringy)
+ Requires: perl(MIME::Base64), perl(MIME::Tools), perl(Unix::Syslog)
+@@ -135,6 +135,12 @@
+ }
+ 
+ stop() {
++	echo -n $&quot;Shutting down $desc ($prog): &quot;
++	killproc $prog
++#	su - $AMAVIS_USER -c &quot;%{_sbindir}/$prog -c $CONFIG_FILE stop&quot;
++	RETVAL=$?
++	echo
++	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
+ 	if [ &quot;$MILTER_SOCKET&quot; -o -f %{_localstatedir}/lock/subsys/$prog2 ]; then
+ 		echo -n $&quot;Shutting down $desc ($prog2): &quot;
+ 		killproc $prog2
+@@ -142,12 +148,6 @@
+ 		echo
+ 		[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog2
+ 	fi
+-	echo -n $&quot;Shutting down $desc ($prog): &quot;
+-	killproc $prog
+-#	su - $AMAVIS_USER -c &quot;%{_sbindir}/$prog -c $CONFIG_FILE stop&quot;
+-	RETVAL=$?
+-	echo
+-	[ $RETVAL -eq 0 ] &amp;&amp; rm -f %{_localstatedir}/lock/subsys/$prog
+ 	return $RETVAL
+ }
+ 
+@@ -309,6 +309,10 @@
+ %{_sbindir}/amavis-milter
+ 
+ %changelog
++* Tue Mar 29 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.2.1-2
++- Change order of shutting down milter/amavisd.
++- Added ripole as a dependency.
++
+ * Mon Feb 07 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.2.1-1
+ - Updated to release 2.2.1.
+ 
+
+Modified: trunk/rpms/cfengine/cfengine.spec
+===================================================================
+--- trunk/rpms/cfengine/cfengine.spec	2005-03-30 10:40:46 UTC (rev 3061)
++++ trunk/rpms/cfengine/cfengine.spec	2005-03-30 18:14:08 UTC (rev 3062)
+@@ -10,7 +10,7 @@
+ 
+ Summary: System administration tool for networks
+ Name: cfengine
+-Version: 2.1.11
++Version: 2.1.13
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -22,7 +22,7 @@
+ BuildRequires: bison, flex, m4, openssl-devel, tetex, texinfo, ghostscript
+ BuildRequires: tetex-latex, tetex-dvips
+ %{!?_without_db4:BuildRequires: db4-devel}
+-%{?_without_db4:BuildRequires: db3-devel}
++%{?_without_db4:BuildRequires: db3-devel &gt;= 3.2}
+ 
+ %description
+ Cfengine, or the configuration engine is an agent/software robot and a
+@@ -54,9 +54,13 @@
+ prog=&quot;cfenvd&quot;
+ desc=&quot;cfengine anomaly detection service&quot;
+ 
++if [ -r /etc/sysconfig/$prog ]; then
++	source %{_sysconfdir}/sysconfig/$prog
++fi
++
+ start() {
+ 	echo -n $&quot;Starting $desc ($prog): &quot;
+-	daemon $prog
++	daemon $prog $OPTIONS
+ 	RETVAL=$?
+ 	echo
+ 	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
+@@ -122,9 +126,13 @@
+ prog=&quot;cfexecd&quot;
+ desc=&quot;cfengine client daemon&quot;
+ 
++if [ -r /etc/sysconfig/$prog ]; then
++	source %{_sysconfdir}/sysconfig/$prog
++fi
++
+ start() {
+ 	echo -n $&quot;Starting $desc ($prog): &quot;
+-	daemon $prog
++	daemon $prog $OPTIONS
+ 	RETVAL=$?
+ 	echo
+ 	[ $RETVAL -eq 0 ] &amp;&amp; touch %{_localstatedir}/lock/subsys/$prog
+@@ -301,6 +309,9 @@
+ %exclude %{_datadir}/cfengine/
+ 
+ %changelog
++* Wed Mar 30 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.1.13-1
++- Updated to release 2.1.13.
++
+ * Mon Nov 01 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 2.1.11-1
+ - Updated to release 2.1.11.
+ 
+
+Modified: trunk/rpms/perl-Class-Container/perl-Class-Container.spec
+===================================================================
+--- trunk/rpms/perl-Class-Container/perl-Class-Container.spec	2005-03-30 10:40:46 UTC (rev 3061)
++++ trunk/rpms/perl-Class-Container/perl-Class-Container.spec	2005-03-30 18:14:08 UTC (rev 3062)
+@@ -11,7 +11,7 @@
+ Version: 0.12
+ Release: 1
+ License: GPL or Artistic
+-Group: Development/Perl
++Group: Applications/CPAN
+ URL: <A HREF="http://search.cpan.org/dist/Class-Container/">http://search.cpan.org/dist/Class-Container/</A>
+ 
+ Source: <A HREF="http://www.cpan.org/modules/by-module/Class/Class-Container-%{version">http://www.cpan.org/modules/by-module/Class/Class-Container-%{version</A>}.tar.gz
+
+Added: trunk/rpms/perl-Proc-ProcessTable/perl-Proc-ProcessTable.spec
+===================================================================
+--- trunk/rpms/perl-Proc-ProcessTable/perl-Proc-ProcessTable.spec	2005-03-30 10:40:46 UTC (rev 3061)
++++ trunk/rpms/perl-Proc-ProcessTable/perl-Proc-ProcessTable.spec	2005-03-30 18:14:08 UTC (rev 3062)
+@@ -0,0 +1,66 @@
++# $Id$
++# Authority: dag
++
++%define perl_vendorlib %(eval &quot;`perl -V:installvendorlib`&quot;; echo $installvendorlib)
++%define perl_vendorarch %(eval &quot;`perl -V:installvendorarch`&quot;; echo $installvendorarch)
++
++%define real_name Proc-ProcessTable
++
++Summary: Perl interface to the UNIX process table
++Name: perl-Proc-ProcessTable
++Version: 0.39
++Release: 1
++License: GPL or Artistic
++Group: Applications/CPAN
++URL: <A HREF="http://search.cpan.org/dist/Proc-ProcessTable/">http://search.cpan.org/dist/Proc-ProcessTable/</A>
++
++Source: <A HREF="http://www.cpan.org/modules/by-module/Proc/Proc-ProcessTable-%{version">http://www.cpan.org/modules/by-module/Proc/Proc-ProcessTable-%{version</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}root
++
++BuildRequires: perl
++
++%description
++This module is a first crack at providing a consistent interface to
++Unix (and maybe other multitasking OS's) process table information.
++The impetus for this came about with my frustration at having to parse
++the output of various systems' ps commands to check whether specific
++processes were running on different boxes at a larged mixed UNIX site.
++The output format of ps was different on each OS, and sometimes
++changed with each new release of an OS. Also, running a ps subprocess
++from within a perl or shell script and parsing the output was not a
++very efficient or aesthetic way to do things.
++
++%prep
++%setup -n %{real_name}-%{version}
++
++%build
++CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;
++%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;
++
++%install
++%{__rm} -rf %{buildroot}
++%makeinstall
++
++### Clean up buildroot
++%{__rm} -rf %{buildroot}%{perl_archlib} \
++		%{buildroot}%{perl_vendorarch}/auto/*{,/*{,/*}}/.packlist
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc Changes PORTING README* TODO
++%doc %{_mandir}/man3/*
++%dir %{perl_vendorarch}/Proc/
++%{perl_vendorarch}/Proc/example.pl
++%{perl_vendorarch}/Proc/Killall.pm
++%{perl_vendorarch}/Proc/Killfam.pm
++%{perl_vendorarch}/Proc/ProcessTable/
++%{perl_vendorarch}/Proc/ProcessTable.pm
++%dir %{perl_vendorarch}/auto/Proc/
++%{perl_vendorarch}/auto/Proc/ProcessTable/
++
++%changelog
++* Tue Mar 29 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.39-1
++- Initial package, contributed by Rudolf Kastl.
+
+
+Property changes on: trunk/rpms/perl-Proc-ProcessTable/perl-Proc-ProcessTable.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+Added: trunk/rpms/ripole/ripole-0.1.4-shared.patch
+===================================================================
+--- trunk/rpms/ripole/ripole-0.1.4-shared.patch	2005-03-30 10:40:46 UTC (rev 3061)
++++ trunk/rpms/ripole/ripole-0.1.4-shared.patch	2005-03-30 18:14:08 UTC (rev 3062)
+@@ -0,0 +1,39 @@
++--- Makefile	2004-11-27 11:52:53.000000000 +0100
+++++ Makefile.oden	2004-11-27 18:43:29.924503800 +0100
++@@ -1,18 +1,34 @@
+++CC=gcc
+++MAJOR=0
+++MINOR=1
+++MICRO=4
++ 
++ OBJS= ole.o olestream-unwrap.o bytedecoders.o logger.o pldstr.o bt-int.o
++ CFLAGS=-Wall -g -O2 -I.
++-
+++LIBS=
++ 
++ .c.o:
++ 	$(CC) $(CFLAGS) $(DEFINES) -c $*.c
++ 
++-default: ripole
+++all: shared static ripole
+++ 
+++shared: $(OBJS)
+++	$(CC) $(CFLAGS) -Wl,-soname,libripole.so.$(MAJOR) -shared \
+++	-o libripole.so.$(MAJOR).$(MINOR).$(MICRO) $(OBJS)
+++	ln -snf libripole.so.$(MAJOR).$(MINOR).$(MICRO) libripole.so.$(MAJOR)
+++	ln -snf libripole.so.$(MAJOR).$(MINOR).$(MICRO) libripole.so
+++ 
+++static: $(OBJS)
+++	ar ruvs libripole.a $(OBJS)
++ 
++ clean:
++ 	rm -f *.o ripole
++ 
++ ripole: $(OBJS) ripole.[ch]
++ 		$(CC) $(CFLAGS) $(OBJS) $(DEFINES) ripole.c -o ripole
+++
+++ripole: $(OBJS) shared ripole.[ch]
+++	$(CC) $(CFLAGS) $(COMPONENTS) ripole.c -L./ -lripole -o ripole $(LIBS)
++ 	
++ validate: ripole
++ 		cp ripole validate
+
+Added: trunk/rpms/ripole/ripole.spec
+===================================================================
+--- trunk/rpms/ripole/ripole.spec	2005-03-30 10:40:46 UTC (rev 3061)
++++ trunk/rpms/ripole/ripole.spec	2005-03-30 18:14:08 UTC (rev 3062)
+@@ -0,0 +1,80 @@
++# $Id$
++# Authority: dag
++# Upstream: &lt;pldaniels$pldaniels,com&gt;
++
++Summary: Extracts attachments out of mailpack format emails
++Name: ripole
++Version: 0.1.4
++Release: 1
++License: BSD
++Group: Applications/File
++URL: <A HREF="http://www.pldaniels.com/ripole/">http://www.pldaniels.com/ripole/</A>
++
++Source: <A HREF="http://www.pldaniels.com/ripole/ripole-%{version">http://www.pldaniels.com/ripole/ripole-%{version</A>}.tar.gz
++Patch: ripole-0.1.4-shared.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++%description
++ripOLE is a small program/library designed to pull out attachments
++from OLE2 data files (ie, MS Office documents).  ripOLE is BSD
++licenced meaning that commercial projects can also use the code
++without worry of licence costs or legal liabilities. 
++
++%package devel
++Summary: Header files, libraries and development documentation for %{name}.
++Group: Development/Libraries
++Requires: %{name} = %{version}-%{release}
++
++%description devel
++This package contains the header files, static libraries and development
++documentation for %{name}. If you like to develop programs using %{name},
++you will need to install %{name}-devel.
++
++%prep
++%setup
++%patch0 -p0
++
++%build
++%{__make} shared static ripole \
++	CFLAGS=&quot;%{optflags} -fPIC -D_REENTRANT -I.&quot; \
++	MAJOR=&quot;0&quot; \
++	MINOR=&quot;1&quot; \
++	MICRO=&quot;4&quot;
++
++%install
++%{__rm} -rf %{buildroot}
++%{__install} -Dp -m0755 ripole %{buildroot}%{_bindir}/ripole
++%{__install} -Dp -m0755 libripole.a %{buildroot}%{_libdir}/libripole.a
++
++%{__install} -Dp -m0755 libripole.so.0.1.4 %{buildroot}%{_libdir}/libripole.so.0.1.4
++%{__ln_s} -f libripole.so.0.1.4 %{buildroot}%{_libdir}/libripole.so
++%{__ln_s} -f libripole.so.0.1.4 %{buildroot}%{_libdir}/libripole.so.0
++
++%{__install} -d -m0755 %{buildroot}%{_includedir}/ripole/
++%{__install} -p -m0644 *.h %{buildroot}%{_includedir}/ripole/
++
++
++%post
++/sbin/ldconfig 2&gt;/dev/null
++
++%postun
++/sbin/ldconfig 2&gt;/dev/null
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files
++%defattr(-, root, root, 0755)
++%doc CHANGELOG CONTRIBUTORS INSTALL LICENSE README TODO
++%{_bindir}/ripole
++%{_libdir}/libripole.so*
++
++%files devel
++%defattr(-, root, root, 0755)
++%{_includedir}/ripole/
++%{_libdir}/libripole.a
++%{_libdir}/libripole.so
++
++%changelog
++* Tue Mar 29 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.1.4-1
++- Initial package. (using DAR)
+
+
+Property changes on: trunk/rpms/ripole/ripole.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id Revision
+Name: svn:eol-style
+   + native
+
+Modified: trunk/rpms/smart/smart.spec
+===================================================================
+--- trunk/rpms/smart/smart.spec	2005-03-30 10:40:46 UTC (rev 3061)
++++ trunk/rpms/smart/smart.spec	2005-03-30 18:14:08 UTC (rev 3062)
+@@ -24,14 +24,13 @@
+ 
+ Summary: Next generation package handling tool
+ Name: smart
+-Version: 0.30
++Version: 0.30.2
+ Release: 1
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://www.smartpm.org/">http://www.smartpm.org/</A>
+ 
+ Source: <A HREF="http://linux-br.conectiva.com.br/~niemeyer/smart/files/smart-%{version">http://linux-br.conectiva.com.br/~niemeyer/smart/files/smart-%{version</A>}.tar.bz2
+-Patch0: smart-0.30-x86_64-rpmhelper.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: popt, rpm-devel &gt;= 4.2.1, python-devel
+@@ -75,13 +74,7 @@
+ 
+ %prep
+ %setup
+-%ifarch x86_64
+-%patch -p0 -b .rpmhelper
+-%endif
+ 
+-%{__perl} -pi.orig -e 's|(get_python_lib\()\)|${1}1)|g' setup.py
+-%{__perl} -pi.orig -e 's|int32_t lkey|long lkey|g' python/rpmts-py.c
+-
+ %{?fc3:name=&quot;Fedora Core&quot;; version=&quot;3&quot;; path=&quot;fedora&quot;}
+ %{?fc2:name=&quot;Fedora Core&quot;; version=&quot;2&quot;; path=&quot;fedora&quot;}
+ %{?fc1:name=&quot;Fedora Core&quot;; version=&quot;1&quot;; path=&quot;fedora&quot;}
+@@ -150,6 +143,7 @@
+ disabled = true
+ EOF
+ 
++%ifarch %{ix86}
+ %{__cat} &lt;&lt;EOF &gt;dries.channel
+ ### URL: <A HREF="http://dries.studentenweb.org/ayo/">http://dries.studentenweb.org/ayo/</A>
+ [dries]
+@@ -158,7 +152,9 @@
+ type = rpm-md
+ priority = 10
+ EOF
++%endif
+ 
++%ifarch %{ix86}
+ %{__cat} &lt;&lt;EOF &gt;newrpms.channel
+ ### URL: <A HREF="http://newrpms.sunsite.dk/">http://newrpms.sunsite.dk/</A>
+ [newrpms]
+@@ -167,6 +163,7 @@
+ type = rpm-md
+ priority = 0
+ EOF
++%endif
+ 
+ %{__cat} &lt;&lt;EOF &gt;atrpms.channel
+ ### URL: <A HREF="http://atrpms.net/">http://atrpms.net/</A>
+@@ -257,6 +254,7 @@
+ disabled = true
+ EOF
+ 
++%ifarch %{ix86}
+ %{__cat} &lt;&lt;EOF &gt;fedora.us.channel
+ ### URL: <A HREF="http://fedora.us/">http://fedora.us/</A>
+ [fedora.us]
+@@ -266,6 +264,7 @@
+ priority = -100
+ disabled = true
+ EOF
++%endif
+ 
+ %{__cat} &lt;&lt;EOF &gt;smart-gui.console
+ USER=root
+@@ -310,7 +309,7 @@
+ %{__make} -C contrib/smart-update
+ 
+ %ifarch x86_64
+-cd contrib/rpmhelper
++cd contrib/rpmhelper/
+ %{__python} setup.py build
+ cd -
+ %endif
+@@ -323,7 +322,7 @@
+ %{!?_without_gui:%{__make} install -C contrib/ksmarttray DESTDIR=&quot;%{buildroot}&quot;}
+ 
+ %ifarch x86_64
+-cd contrib/rpmhelper
++cd contrib/rpmhelper/
+ %{__python} setup.py install --root=&quot;%{buildroot}&quot;
+ cd -
+ %endif
+@@ -402,6 +401,9 @@
+ %endif
+ 
+ %changelog
++* Wed Mar 30 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.30.2-1
++- Updated to release 0.30.2.
++
+ * Thu Mar 24 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.30-1
+ - Removed kernel-doc from distro.py. (Ralf Ertzinger)
+ - Updated to release 0.30.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001865.html">[svn] r3061 - trunk/rpms/sylpheed-claws
+</A></li>
+	<LI>Next message: <A HREF="001867.html">[svn] r3063 - in trunk/rpms: . clamtk gaim-meanwhile-ibm gnet gnet2	perl-Apache-ASP perl-Class-DBI-AbstractSearch	perl-Class-Data-Inheritable perl-Devel-StackTrace	perl-Exception-Class perl-File-Which perl-IO-Socket-INET6	perl-Lingua-Stem-Snowball perl-PHP-Perlinfo perl-SQL-Abstract	perl-Socket6 perl-Storable rsync spamassassin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1866">[ date ]</a>
+              <a href="thread.html#1866">[ thread ]</a>
+              <a href="subject.html#1866">[ subject ]</a>
+              <a href="author.html#1866">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,594 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5597 - in trunk/rpms: proftpd taskjuggler
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5597%20-%20in%20trunk/rpms%3A%20proftpd%20taskjuggler&In-Reply-To=%3C20070710202421.54593944A7E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004395.html">
+   <LINK REL="Next"  HREF="004397.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5597 - in trunk/rpms: proftpd taskjuggler</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5597%20-%20in%20trunk/rpms%3A%20proftpd%20taskjuggler&In-Reply-To=%3C20070710202421.54593944A7E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5597 - in trunk/rpms: proftpd taskjuggler">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jul 10 22:24:21 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004395.html">[svn] r5596 - in trunk/rpms: . exiv2 guichan msktutil
+</A></li>
+        <LI>Next message: <A HREF="004397.html">[svn] r5598 - trunk/rpms/mathomatic
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4396">[ date ]</a>
+              <a href="thread.html#4396">[ thread ]</a>
+              <a href="subject.html#4396">[ subject ]</a>
+              <a href="author.html#4396">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2007-07-10 22:24:19 +0200 (Tue, 10 Jul 2007)
+New Revision: 5597
+
+Added:
+   trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165-pam_fixes.patch
+   trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165.patch
+Modified:
+   trunk/rpms/proftpd/proftpd.spec
+   trunk/rpms/taskjuggler/taskjuggler.spec
+Log:
+taskjuggler update, proftpd security fix added
+
+Added: trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165-pam_fixes.patch
+===================================================================
+--- trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165-pam_fixes.patch	                        (rev 0)
++++ trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165-pam_fixes.patch	2007-07-10 20:24:19 UTC (rev 5597)
+@@ -0,0 +1,68 @@
++--- src/auth.c.cve-2007-2165-fix_pam	2007-06-20 12:49:02.000000000 -0600
+++++ src/auth.c	2007-06-20 12:50:50.000000000 -0600
++@@ -429,6 +429,32 @@ int pr_auth_authenticate(pool *p, const 
++ 
++   cmd = make_cmd(p, 2, name, pw);
++ 
+++  /* First, check for the mod_auth_pam.c module.
+++   *
+++   * PAM is a bit of hack in this Auth API, because PAM only provides
+++   * yes/no checks, and is not a source of user information.
+++   */
+++  m = pr_module_get(&quot;mod_auth_pam.c&quot;);
+++  if (m) {
+++    pr_log_debug(DEBUG4,
+++      &quot;using module 'mod_auth_pam.c' to authenticate user '%s'&quot;, name);
+++
+++    mr = dispatch_auth(cmd, &quot;auth&quot;, &amp;m);
+++
+++    if (MODRET_ISHANDLED(mr)) {
+++      res = MODRET_HASDATA(mr) ? PR_AUTH_RFC2228_OK : PR_AUTH_OK;
+++
+++      if (cmd-&gt;tmp_pool) {
+++        destroy_pool(cmd-&gt;tmp_pool);
+++        cmd-&gt;tmp_pool = NULL;
+++      }
+++
+++      return res;
+++    }
+++
+++    m = NULL;
+++  }
+++
++   if (auth_tab) {
++ 
++     /* Fetch the specific module to be used for authenticating this user. */
++@@ -466,6 +492,32 @@ int pr_auth_check(pool *p, const char *c
++ 
++   cmd = make_cmd(p, 3, cpw, name, pw);
++ 
+++  /* First, check for the mod_auth_pam.c module.  
+++   *
+++   * PAM is a bit of hack in this Auth API, because PAM only provides
+++   * yes/no checks, and is not a source of user information.
+++   */
+++  m = pr_module_get(&quot;mod_auth_pam.c&quot;);
+++  if (m) {
+++    pr_log_debug(DEBUG4,
+++      &quot;using module 'mod_auth_pam.c' to authenticate user '%s'&quot;, name);
+++
+++    mr = dispatch_auth(cmd, &quot;check&quot;, &amp;m);
+++
+++    if (MODRET_ISHANDLED(mr)) {
+++      res = MODRET_HASDATA(mr) ? PR_AUTH_RFC2228_OK : PR_AUTH_OK;
+++
+++      if (cmd-&gt;tmp_pool) {
+++        destroy_pool(cmd-&gt;tmp_pool);
+++        cmd-&gt;tmp_pool = NULL;
+++      }
+++
+++      return res;
+++    }
+++
+++    m = NULL;
+++  }
+++
++   if (auth_tab) {
++ 
++     /* Fetch the specific module to be used for authenticating this user. */
+
+Added: trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165.patch
+===================================================================
+--- trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165.patch	                        (rev 0)
++++ trunk/rpms/proftpd/proftpd-1.3.0-CVE-2007-2165.patch	2007-07-10 20:24:19 UTC (rev 5597)
+@@ -0,0 +1,373 @@
++diff --git a/include/auth.h b/include/auth.h
++index 9319d70..aff2dcb 100644
++--- a/include/auth.h
+++++ b/include/auth.h
++@@ -1,6 +1,6 @@
++ /*
++  * ProFTPD - FTP server daemon
++- * Copyright (c) 2004-2005 The ProFTPD Project team
+++ * Copyright (c) 2004-2007 The ProFTPD Project team
++  *
++  * This program is free software; you can redistribute it and/or modify
++  * it under the terms of the GNU General Public License as published by
++@@ -86,6 +86,7 @@ int pr_auth_requires_pass(pool *, const char *);
++ config_rec *pr_auth_get_anon_config(pool *p, char **, char **, char **);
++ 
++ /* For internal use only. */
+++int init_auth(void);
++ int set_groups(pool *, gid_t, array_header *);
++ 
++ #endif /* PR_MODULES_H */
++diff --git a/modules/mod_core.c b/modules/mod_core.c
++index d4f0b7e..586e087 100644
++--- a/modules/mod_core.c
+++++ b/modules/mod_core.c
++@@ -4356,6 +4356,8 @@ static int core_sess_init(void) {
++   config_rec *c = NULL;
++   unsigned int *debug_level = NULL;
++ 
+++  init_auth();
+++
++   /* Check for a server-specific TimeoutIdle. */
++   c = find_config(main_server-&gt;conf, CONF_PARAM, &quot;TimeoutIdle&quot;, FALSE);
++   if (c != NULL)
++diff --git a/src/auth.c b/src/auth.c
++index 56a28c5..7537a3e 100644
++--- a/src/auth.c
+++++ b/src/auth.c
++@@ -2,7 +2,7 @@
++  * ProFTPD - FTP server daemon
++  * Copyright (c) 1997, 1998 Public Flood Software
++  * Copyright (c) 1999, 2000 MacGyver aka Habeeb J. Dihu &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">macgyver at tos.net</A>&gt;
++- * Copyright (c) 2001-2005 The ProFTPD Project team
+++ * Copyright (c) 2001-2007 The ProFTPD Project team
++  *
++  * This program is free software; you can redistribute it and/or modify
++  * it under the terms of the GNU General Public License as published by
++@@ -30,6 +30,10 @@
++ 
++ #include &quot;conf.h&quot;
++ 
+++static pool *auth_pool = NULL;
+++static pr_table_t *auth_tab = NULL;
+++static const char *trace_channel = &quot;auth&quot;;
+++
++ /* The difference between this function, and pr_cmd_alloc(), is that this
++  * allocates the cmd_rec directly from the given pool, whereas pr_cmd_alloc()
++  * will allocate a subpool from the given pool, and allocate its cmd_rec
++@@ -63,7 +67,7 @@ static cmd_rec *make_cmd(pool *cp, int argc, ...) {
++   return c;
++ }
++ 
++-static modret_t *dispatch_auth(cmd_rec *cmd, char *match) {
+++static modret_t *dispatch_auth(cmd_rec *cmd, char *match, module **m) {
++   authtable *authtab = NULL;
++   modret_t *mr = NULL;
++ 
++@@ -71,6 +75,10 @@ static modret_t *dispatch_auth(cmd_rec *cmd, char *match) {
++     &amp;cmd-&gt;stash_index);
++ 
++   while (authtab) {
+++    if (m &amp;&amp; *m &amp;&amp; *m != authtab-&gt;m) {
+++      goto next;
+++    }
+++
++     pr_log_debug(DEBUG6, &quot;dispatching auth request \&quot;%s\&quot; to module mod_%s&quot;,
++       match, authtab-&gt;m-&gt;name);
++ 
++@@ -80,9 +88,18 @@ static modret_t *dispatch_auth(cmd_rec *cmd, char *match) {
++       break;
++ 
++     if (MODRET_ISHANDLED(mr) ||
++-        MODRET_ISERROR(mr))
+++        MODRET_ISERROR(mr)) {
+++      /* Return a pointer, if requested, to the module which answered the
+++       * auth request.  This is used, for example, by auth_getpwnam() for
+++       * associating the answering auth module with the data looked up.
+++       */
+++      if (m)
+++        *m = authtab-&gt;m;
+++
++       break;
+++    }
++ 
+++  next:
++     authtab = pr_stash_get_symbol(PR_SYM_AUTH, match, authtab,
++       &amp;cmd-&gt;stash_index);
++   }
++@@ -95,7 +112,7 @@ void pr_auth_setpwent(pool *p) {
++   modret_t *mr = NULL;
++ 
++   cmd = make_cmd(p, 0);
++-  mr = dispatch_auth(cmd, &quot;setpwent&quot;);
+++  mr = dispatch_auth(cmd, &quot;setpwent&quot;, NULL);
++ 
++   if (cmd-&gt;tmp_pool) {
++     destroy_pool(cmd-&gt;tmp_pool);
++@@ -110,13 +127,20 @@ void pr_auth_endpwent(pool *p) {
++   modret_t *mr = NULL;
++ 
++   cmd = make_cmd(p, 0);
++-  mr = dispatch_auth(cmd, &quot;endpwent&quot;);
+++  mr = dispatch_auth(cmd, &quot;endpwent&quot;, NULL);
++ 
++   if (cmd-&gt;tmp_pool) {
++     destroy_pool(cmd-&gt;tmp_pool);
++     cmd-&gt;tmp_pool = NULL;
++   }
++ 
+++  if (auth_tab) {
+++    pr_log_debug(DEBUG5, &quot;emptying authcache&quot;);
+++    (void) pr_table_empty(auth_tab);
+++    (void) pr_table_free(auth_tab);
+++    auth_tab = NULL;
+++  }
+++
++   return;
++ }
++ 
++@@ -125,7 +149,7 @@ void pr_auth_setgrent(pool *p) {
++   modret_t *mr = NULL;
++ 
++   cmd = make_cmd(p, 0);
++-  mr = dispatch_auth(cmd, &quot;setgrent&quot;);
+++  mr = dispatch_auth(cmd, &quot;setgrent&quot;, NULL);
++ 
++   if (cmd-&gt;tmp_pool) {
++     destroy_pool(cmd-&gt;tmp_pool);
++@@ -140,7 +164,7 @@ void pr_auth_endgrent(pool *p) {
++   modret_t *mr = NULL;
++ 
++   cmd = make_cmd(p, 0);
++-  mr = dispatch_auth(cmd, &quot;endgrent&quot;);
+++  mr = dispatch_auth(cmd, &quot;endgrent&quot;, NULL);
++ 
++   if (cmd-&gt;tmp_pool) {
++     destroy_pool(cmd-&gt;tmp_pool);
++@@ -156,7 +180,7 @@ struct passwd *pr_auth_getpwent(pool *p) {
++   struct passwd *res = NULL;
++ 
++   cmd = make_cmd(p, 0);
++-  mr = dispatch_auth(cmd, &quot;getpwent&quot;);
+++  mr = dispatch_auth(cmd, &quot;getpwent&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr))
++     res = mr-&gt;data;
++@@ -190,7 +214,7 @@ struct group *pr_auth_getgrent(pool *p) {
++   struct group *res = NULL;
++ 
++   cmd = make_cmd(p, 0);
++-  mr = dispatch_auth(cmd, &quot;getgrent&quot;);
+++  mr = dispatch_auth(cmd, &quot;getgrent&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr))
++     res = mr-&gt;data;
++@@ -217,11 +241,13 @@ struct passwd *pr_auth_getpwnam(pool *p, const char *name) {
++   cmd_rec *cmd = NULL;
++   modret_t *mr = NULL;
++   struct passwd *res = NULL;
+++  module *m = NULL;
++ 
++   cmd = make_cmd(p, 1, name);
++-  mr = dispatch_auth(cmd, &quot;getpwnam&quot;);
+++  mr = dispatch_auth(cmd, &quot;getpwnam&quot;, &amp;m);
++ 
++-  if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr))
+++  if (MODRET_ISHANDLED(mr) &amp;&amp;
+++      MODRET_HASDATA(mr))
++     res = mr-&gt;data;
++ 
++   if (cmd-&gt;tmp_pool) {
++@@ -246,6 +272,46 @@ struct passwd *pr_auth_getpwnam(pool *p, const char *name) {
++     return NULL;
++   }
++ 
+++  if (!auth_tab &amp;&amp; auth_pool) {
+++    auth_tab = pr_table_alloc(auth_pool, 0);
+++  }
+++
+++  if (m &amp;&amp; auth_tab) {
+++    int count = 0;
+++    void *value = NULL;
+++
+++    value = palloc(auth_pool, sizeof(module *));
+++    *((module **) value) = m;
+++
+++    count = pr_table_exists(auth_tab, name);
+++    if (count &lt;= 0) {
+++      if (pr_table_add(auth_tab, pstrdup(auth_pool, name), value,
+++          sizeof(module *)) &lt; 0) {
+++        pr_log_debug(DEBUG3,
+++          &quot;error adding module 'mod_%s.c' for user '%s' to the authcache: %s&quot;,
+++          m-&gt;name, name, strerror(errno));
+++
+++      } else {
+++        pr_log_debug(DEBUG5,
+++          &quot;stashed module 'mod_%s.c' for user '%s' in the authcache&quot;,
+++          m-&gt;name, name);
+++      }
+++
+++    } else {
+++      if (pr_table_set(auth_tab, pstrdup(auth_pool, name), value,
+++          sizeof(module *)) &lt; 0) {
+++        pr_log_debug(DEBUG3,
+++          &quot;error setting module 'mod_%s.c' for user '%s' in the authcache: %s&quot;,
+++          m-&gt;name, name, strerror(errno));
+++
+++      } else {
+++        pr_log_debug(DEBUG5,
+++          &quot;stashed module 'mod_%s.c' for user '%s' in the authcache&quot;,
+++          m-&gt;name, name);
+++      }
+++    }
+++  }
+++
++   pr_log_debug(DEBUG10, &quot;retrieved UID %lu for user '%s'&quot;,
++     (unsigned long) res-&gt;pw_uid, name);
++   return res;
++@@ -257,7 +323,7 @@ struct passwd *pr_auth_getpwuid(pool *p, uid_t uid) {
++   struct passwd *res = NULL;
++ 
++   cmd = make_cmd(p, 1, (void *) &amp;uid);
++-  mr = dispatch_auth(cmd, &quot;getpwuid&quot;);
+++  mr = dispatch_auth(cmd, &quot;getpwuid&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr))
++     res = mr-&gt;data;
++@@ -295,7 +361,7 @@ struct group *pr_auth_getgrnam(pool *p, const char *name) {
++   struct group *res = NULL;
++ 
++   cmd = make_cmd(p, 1, name);
++-  mr = dispatch_auth(cmd, &quot;getgrnam&quot;);
+++  mr = dispatch_auth(cmd, &quot;getgrnam&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr))
++     res = mr-&gt;data;
++@@ -328,7 +394,7 @@ struct group *pr_auth_getgrgid(pool *p, gid_t gid) {
++   struct group *res = NULL;
++ 
++   cmd = make_cmd(p, 1, (void *) &amp;gid);
++-  mr = dispatch_auth(cmd, &quot;getgrgid&quot;);
+++  mr = dispatch_auth(cmd, &quot;getgrgid&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr))
++     res = mr-&gt;data;
++@@ -358,10 +424,25 @@ struct group *pr_auth_getgrgid(pool *p, gid_t gid) {
++ int pr_auth_authenticate(pool *p, const char *name, const char *pw) {
++   cmd_rec *cmd = NULL;
++   modret_t *mr = NULL;
+++  module *m = NULL;
++   int res = PR_AUTH_NOPWD;
++ 
++   cmd = make_cmd(p, 2, name, pw);
++-  mr = dispatch_auth(cmd, &quot;auth&quot;);
+++
+++  if (auth_tab) {
+++
+++    /* Fetch the specific module to be used for authenticating this user. */
+++    void *v = pr_table_get(auth_tab, name, NULL);
+++    if (v) {
+++      m = *((module **) v);
+++
+++      pr_log_debug(DEBUG4,
+++        &quot;using module 'mod_%s.c' from authcache to authenticate user '%s'&quot;,
+++        m-&gt;name, name);
+++    }
+++  }
+++
+++  mr = dispatch_auth(cmd, &quot;auth&quot;, m ? &amp;m : NULL);
++ 
++   if (MODRET_ISHANDLED(mr))
++     res = MODRET_HASDATA(mr) ? PR_AUTH_RFC2228_OK : PR_AUTH_OK;
++@@ -380,10 +461,25 @@ int pr_auth_authenticate(pool *p, const char *name, const char *pw) {
++ int pr_auth_check(pool *p, const char *cpw, const char *name, const char *pw) {
++   cmd_rec *cmd = NULL;
++   modret_t *mr = NULL;
+++  module *m = NULL;
++   int res = PR_AUTH_BADPWD;
++ 
++   cmd = make_cmd(p, 3, cpw, name, pw);
++-  mr = dispatch_auth(cmd, &quot;check&quot;);
+++
+++  if (auth_tab) {
+++
+++    /* Fetch the specific module to be used for authenticating this user. */
+++    void *v = pr_table_get(auth_tab, name, NULL);
+++    if (v) {
+++      m = *((module **) v);
+++
+++      pr_log_debug(DEBUG4,
+++        &quot;using module 'mod_%s.c' from authcache to authenticate user '%s'&quot;,
+++        m-&gt;name, name);
+++    }
+++  }
+++
+++  mr = dispatch_auth(cmd, &quot;check&quot;, m ? &amp;m : NULL);
++ 
++   if (MODRET_ISHANDLED(mr))
++     res = MODRET_HASDATA(mr) ? PR_AUTH_RFC2228_OK : PR_AUTH_OK;
++@@ -402,7 +498,7 @@ int pr_auth_requires_pass(pool *p, const char *name) {
++   int res = TRUE;
++ 
++   cmd = make_cmd(p, 1, name);
++-  mr = dispatch_auth(cmd, &quot;requires_pass&quot;);
+++  mr = dispatch_auth(cmd, &quot;requires_pass&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr))
++     res = FALSE;
++@@ -427,7 +523,7 @@ const char *pr_auth_uid2name(pool *p, uid_t uid) {
++   memset(namebuf, '\0', sizeof(namebuf));
++ 
++   cmd = make_cmd(p, 1, (void *) &amp;uid);
++-  mr = dispatch_auth(cmd, &quot;uid2name&quot;);
+++  mr = dispatch_auth(cmd, &quot;uid2name&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr)) {
++     res = mr-&gt;data;
++@@ -452,7 +548,7 @@ const char *pr_auth_gid2name(pool *p, gid_t gid) {
++   memset(namebuf, '\0', sizeof(namebuf));
++ 
++   cmd = make_cmd(p, 1, (void *) &amp;gid);
++-  mr = dispatch_auth(cmd, &quot;gid2name&quot;);
+++  mr = dispatch_auth(cmd, &quot;gid2name&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr)) {
++     res = mr-&gt;data;
++@@ -474,7 +570,7 @@ uid_t pr_auth_name2uid(pool *p, const char *name) {
++   uid_t res = (uid_t) -1;
++ 
++   cmd = make_cmd(p, 1, name);
++-  mr = dispatch_auth(cmd, &quot;name2uid&quot;);
+++  mr = dispatch_auth(cmd, &quot;name2uid&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr))
++     res = *((uid_t *) mr-&gt;data);
++@@ -495,7 +591,7 @@ gid_t pr_auth_name2gid(pool *p, const char *name) {
++   gid_t res = (gid_t) -1;
++ 
++   cmd = make_cmd(p, 1, name);
++-  mr = dispatch_auth(cmd, &quot;name2gid&quot;);
+++  mr = dispatch_auth(cmd, &quot;name2gid&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr))
++     res = *((gid_t *) mr-&gt;data);
++@@ -527,7 +623,7 @@ int pr_auth_getgroups(pool *p, const char *name, array_header **group_ids,
++   cmd = make_cmd(p, 3, name, group_ids ? *group_ids : NULL,
++     group_names ? *group_names : NULL);
++ 
++-  mr = dispatch_auth(cmd, &quot;getgroups&quot;);
+++  mr = dispatch_auth(cmd, &quot;getgroups&quot;, NULL);
++ 
++   if (MODRET_ISHANDLED(mr) &amp;&amp; MODRET_HASDATA(mr)) {
++     res = *((int *) mr-&gt;data);
++@@ -821,3 +917,10 @@ int set_groups(pool *p, gid_t primary_gid, array_header *suppl_gids) {
++   return res;
++ }
++ 
+++/* Internal use only.  To be called in the session process. */
+++int init_auth(void) {
+++  auth_pool = make_sub_pool(permanent_pool);
+++  pr_pool_tag(auth_pool, &quot;Auth API&quot;);
+++
+++  return 0;
+++}
+
+Modified: trunk/rpms/proftpd/proftpd.spec
+===================================================================
+--- trunk/rpms/proftpd/proftpd.spec	2007-07-10 14:44:23 UTC (rev 5596)
++++ trunk/rpms/proftpd/proftpd.spec	2007-07-10 20:24:19 UTC (rev 5597)
+@@ -4,7 +4,7 @@
+ Summary: Flexible, stable and highly-configurable FTP server
+ Name: proftpd
+ Version: 1.3.0a
+-Release: 3
++Release: 4
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://www.proftpd.org/">http://www.proftpd.org/</A>
+@@ -30,6 +30,11 @@
+ BuildRequires: openldap-devel, mysql-devel, zlib-devel, postgresql-devel
+ Provides: ftpserver
+ 
++# Taken from <A HREF="ftp://carroll.cac.psu.edu/pub/linux/distributions/mandrivalinux/official/updates/2007.0/SRPMS/main/updates/proftpd-1.3.0-4.5mdv2007.0.src.rpm">ftp://carroll.cac.psu.edu/pub/linux/distributions/mandrivalinux/official/updates/2007.0/SRPMS/main/updates/proftpd-1.3.0-4.5mdv2007.0.src.rpm</A>
++# <A HREF="http://www.mandriva.com/security/advisories?name=MDKSA-2007:130">http://www.mandriva.com/security/advisories?name=MDKSA-2007:130</A>
++Patch100: proftpd-1.3.0-CVE-2007-2165.patch
++Patch101: proftpd-1.3.0-CVE-2007-2165-pam_fixes.patch
++
+ %description
+ ProFTPD is an enhanced FTP server with a focus toward simplicity, security,
+ and ease of configuration. It features a very Apache-like configuration
+@@ -76,6 +81,8 @@
+ %patch3 -p0 -b .mod_tls
+ %patch4 -p0 -b .ctrls-bug2867
+ 
++%patch100 -p1 -b .CVE-2007-2165
++%patch101 -p0 -b .CVE-2007-2165-pam_fixes
+ 
+ %build
+ # Disable stripping in order to get useful debuginfo packages
+@@ -195,6 +202,9 @@
+ 
+ 
+ %changelog
++* Thu Jul  5 2007 Peter Bieringer &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">pb at bieringer.de</A>&gt; 1.3.0a-4
++- Migrate CVE-2007-2165 patches from Mandrake.
++
+ * Tue Feb  6 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.3.0a-3
+ - Patch to fix local user buffer overflow in controls request handling, rhbz
+   bug #219938, proftpd bug #2867.
+
+Modified: trunk/rpms/taskjuggler/taskjuggler.spec
+===================================================================
+--- trunk/rpms/taskjuggler/taskjuggler.spec	2007-07-10 14:44:23 UTC (rev 5596)
++++ trunk/rpms/taskjuggler/taskjuggler.spec	2007-07-10 20:24:19 UTC (rev 5597)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Project management tool
+ Name: taskjuggler
+-Version: 2.3.0
++Version: 2.4.0
+ Release: 1
+ License: GPL
+ Group: Applications/Utilities
+@@ -65,6 +65,12 @@
+ %{_bindir}/TaskJugglerUI
+ 
+ %changelog
++* Tue Jul 10 2007 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 2.4.0-1
++- Updated to release 2.4.0.
++
++* Tue Apr 17 2007 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 2.3.1-1
++- Updated to release 2.3.1.
++
+ * Sun Nov 12 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 2.3.0-1
+ - Updated to release 2.3.0.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004395.html">[svn] r5596 - in trunk/rpms: . exiv2 guichan msktutil
+</A></li>
+	<LI>Next message: <A HREF="004397.html">[svn] r5598 - trunk/rpms/mathomatic
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4396">[ date ]</a>
+              <a href="thread.html#4396">[ thread ]</a>
+              <a href="subject.html#4396">[ subject ]</a>
+              <a href="author.html#4396">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

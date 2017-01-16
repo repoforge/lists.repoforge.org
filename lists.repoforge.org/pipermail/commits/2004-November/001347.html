@@ -1,0 +1,286 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2542 - trunk/tools/dconf
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2542%20-%20trunk/tools/dconf&In-Reply-To=%3C20041124001236.D316518301%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001346.html">
+   <LINK REL="Next"  HREF="001348.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2542 - trunk/tools/dconf</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2542%20-%20trunk/tools/dconf&In-Reply-To=%3C20041124001236.D316518301%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2542 - trunk/tools/dconf">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Nov 24 01:12:36 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001346.html">[SVN] r2541 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="001348.html">[SVN] r2543 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1347">[ date ]</a>
+              <a href="thread.html#1347">[ thread ]</a>
+              <a href="subject.html#1347">[ subject ]</a>
+              <a href="author.html#1347">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-24 01:12:34 +0100 (Wed, 24 Nov 2004)
+New Revision: 2542
+
+Modified:
+   trunk/tools/dconf/ChangeLog
+   trunk/tools/dconf/Makefile
+   trunk/tools/dconf/TODO
+   trunk/tools/dconf/dconf
+   trunk/tools/dconf/dconf-custom.conf
+   trunk/tools/dconf/dconf.spec
+Log:
+Necessary updates. Sorry I broke it :/
+
+Modified: trunk/tools/dconf/ChangeLog
+===================================================================
+--- trunk/tools/dconf/ChangeLog	2004-11-23 21:25:16 UTC (rev 2541)
++++ trunk/tools/dconf/ChangeLog	2004-11-24 00:12:34 UTC (rev 2542)
+@@ -1,7 +1,13 @@
++* 0.4.1
++- Fixed a bug with md5sum checking
++- Use compression based on the filename extension
++- Split Red Hat and SuSE config files
++
+ * 0.4
+-- Fixed a problem with unowned files. (Alain Rykaert)
+-- Added cups, ltsp, nscd and smbldap config. (Alain Rykaert)
+-- Added rpmdb filter to filter out unchanged config-files.
++- Fixed a problem with unowned files (Alain Rykaert)
++- Added cups, ltsp, nscd and smbldap config (Alain Rykaert)
++- Added rpmdb support to filter out unchanged config-files
++- Now cleanly accept of mails can't be send
+ 
+ * 0.3
+ - Added lots of extra sections (more additions welcome !)
+
+Modified: trunk/tools/dconf/Makefile
+===================================================================
+--- trunk/tools/dconf/Makefile	2004-11-23 21:25:16 UTC (rev 2541)
++++ trunk/tools/dconf/Makefile	2004-11-24 00:12:34 UTC (rev 2542)
+@@ -14,7 +14,7 @@
+ 
+ install:
+ #	-[ ! -f $(DESTDIR)$(sysconfdir)/dconf.conf ] &amp;&amp; install -D -m0644 dconf.conf $(DESTDIR)$(sysconfdir)/dconf.conf
+-	install -D -m0644 dconf.conf $(DESTDIR)$(sysconfdir)/dconf.conf
++	install -D -m0644 dconf-redhat.conf $(DESTDIR)$(sysconfdir)/dconf.conf
+ 	-@[ ! -f $(DESTDIR)$(sysconfdir)/dconf-custom.conf ] &amp;&amp; install -D -m0644 dconf-custom.conf $(DESTDIR)$(sysconfdir)/dconf-custom.conf
+ 	install -D -m0755 dconf $(DESTDIR)$(bindir)/dconf
+ 
+
+Modified: trunk/tools/dconf/TODO
+===================================================================
+--- trunk/tools/dconf/TODO	2004-11-23 21:25:16 UTC (rev 2541)
++++ trunk/tools/dconf/TODO	2004-11-24 00:12:34 UTC (rev 2542)
+@@ -1,3 +1,7 @@
++### Configuration
+++ Add as many config files and important system state info
+++ Split Conectiva/Debian/Mandrake/Red Hat/SuSE config files
++
+ ### Usability
+ + Make mailing diffs smart (keep the headers and diff content)
+ + Add support for (recursive) dirs
+@@ -2,2 +6,3 @@
+ + Rotate snapshots or consolidate snapshots (by removing in-between snapshots)
+++ Add dpkg support
+ 
+@@ -14,3 +19,5 @@
+ 
+ ### Bugs
+ + Dconf needs a very recent python with unified_diff support
+++ Dconf should not fail if RPM is missing
+++ Dconf should not try and cat files it has not permission to read
+
+Modified: trunk/tools/dconf/dconf
+===================================================================
+--- trunk/tools/dconf/dconf	2004-11-23 21:25:16 UTC (rev 2541)
++++ trunk/tools/dconf/dconf	2004-11-24 00:12:34 UTC (rev 2542)
+@@ -4,7 +4,7 @@
+ import ConfigParser, urlparse, pwd, grp, stat, socket
+ import difflib, smtplib, gzip, rpm, md5
+ 
+-VERSION = &quot;0.4&quot;
++VERSION = '0.4.1'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -134,8 +134,18 @@
+ 			pass
+ 		return var
+ 
++def dopen(filename, arg='r'):
++	&quot;Opens a file using compression based on file's extension&quot;
++	if re.compile('^.+\.gz$').match(filename):
++		return gzip.open(filename, arg)
++	elif re.compile('^.+\.bz2$').match(filename):
++		return BZ2File.open(filename, arg)
++	else:
++		return open(filename, arg)
++
+ def md5sum(filename):
+-	md5o = md5.new(); f = open(filename, 'r'); md5o.update(f.read()); f.close()
++	&quot;Return md5 from file&quot;
++	md5o = md5.new(); f = dopen(filename); md5o.update(f.read()); f.close()
+ 	return md5o
+ 
+ def md5check(h, filename):
+@@ -218,11 +228,10 @@
+ 	return ''
+ 
+ def diff(fromfile, tofile):
++	&quot;Create a unified diff from 2 files&quot;
+ 	msg = ''
+-#	fromfd = file(fromfile)
+-#	tofd = file(tofile)
+-	fromfd = open(fromfile)
+-	tofd = open(tofile)
++	fromfd = dopen(fromfile)
++	tofd = dopen(tofile)
+ 	for line in difflib.unified_diff(fromfd.readlines(), tofd.readlines(), fromfile, tofile, os.stat(fromfile).st_mtime, os.stat(tofile).st_mtime):
+ 		msg = msg + line
+ 	tofd.close()
+@@ -254,13 +263,12 @@
+ 		ts = rpm.ts()
+ 		ts.setVSFlags(rpm.RPMVSF_NORSA | rpm.RPMVSF_NODSA)
+ 
+-	extension = ''
+-	if cf.compression == 'bzip2':
+-		from bz2 import BZ2File as open
++	if cf.compression == 'gzip':
++		extension = '.gz'
++	elif cf.compression == 'bzip2':
+ 		extension = '.bz2'
+-	elif cf.compression == 'gzip':
+-		from gzip import open
+-		extension = '.gz'
++	else:
++		extension = ''
+ 
+ #	hostname = os.uname()[1].split('.')[0]
+ 	hostname = socket.gethostbyaddr(socket.gethostname())[0]
+@@ -297,20 +305,19 @@
+ 	else:
+ 		if op.output:
+ 			logfile = op.output
+-   			log = open(logfile, 'w')
++   			log = dopen(logfile, 'w')
+ 		else:
+ 			logfile = os.path.join(cf.logdir, 'dconf-' + hostname + '-' + timestamp + '.log' + extension)
+ 			mkdir(cf.logdir)
+ 			os.chmod(cf.logdir, 0700)
+-#  			log = open(logfile, 'w')
+-			log = open(logfile, 'w')
++			log = dopen(logfile, 'w')
+ 			latestlog = os.path.join(cf.logdir, 'dconf-' + hostname + '-latest.log' + extension)
+ 			previouslog = os.path.join(cf.logdir, 'dconf-' + hostname + '-previous.log' + extension)
+ 			oldestlog = os.path.join(cf.logdir, 'dconf-' + hostname + '-oldest.log' + extension)
+ 
+ 
+ 	info(2, 'Building file: %s' % logfile)
+-	for section in cf.sections:
++	for section in cf.sections.keys():
+ 		stitle = None
+ 
+ 		if cf.sections[section].has_key('cmds'):
+@@ -391,7 +398,7 @@
+ 		symlink(logfile, previouslog)
+ 		symlink(logfile, latestlog)
+ 		if cf.mailto:
+-			mail('initial config for %s' % os.uname()[1], open(logfile, 'r').read())
++			mail('initial config for %s' % os.uname()[1], dopen(logfile, 'r').read())
+ 
+ ### Workaround for python &lt;= 2.2.1
+ try:
+
+Modified: trunk/tools/dconf/dconf-custom.conf
+===================================================================
+--- trunk/tools/dconf/dconf-custom.conf	2004-11-23 21:25:16 UTC (rev 2541)
++++ trunk/tools/dconf/dconf-custom.conf	2004-11-24 00:12:34 UTC (rev 2542)
+@@ -1,8 +1,10 @@
+ ### Customized configuration
+ [main]
+-#mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
+ cron = daily
+ 
++#mailto = <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">root at localhost</A>
++#smtp-server = localhost
++
+ [custom]
+ files =	
+ 	/etc/rc.d/rc.custom
+
+Modified: trunk/tools/dconf/dconf.spec
+===================================================================
+--- trunk/tools/dconf/dconf.spec	2004-11-23 21:25:16 UTC (rev 2541)
++++ trunk/tools/dconf/dconf.spec	2004-11-24 00:12:34 UTC (rev 2542)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Collect a system's hardware and software configuration
+ Name: dconf
+-Version: 0.4
++Version: 0.4.1
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -42,17 +42,23 @@
+ %{__rm} -rf %{buildroot}
+ %makeinstall
+ 
++### Install configfile for this distribution
++%{__install} -D -m0644 dconf-redhat.conf %{buildroot}%{_sysconfdir}/dconf.conf
++
+ %clean
+ %{__rm} -rf %{buildroot}
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING README TODO *.conf
++%doc AUTHORS ChangeLog COPYING README THANKS TODO *.conf
+ %config %{_sysconfdir}/dconf.conf
+ %config(noreplace) %{_sysconfdir}/dconf-custom.conf
+ %{_bindir}/dconf
+ 
+ %changelog
++* Wed Nov 24 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.1-1
++- Updated to release 0.4.1.
++
+ * Sun Nov 21 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4-1
+ - Updated to release 0.4.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001346.html">[SVN] r2541 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="001348.html">[SVN] r2543 - trunk/tools/dconf
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1347">[ date ]</a>
+              <a href="thread.html#1347">[ thread ]</a>
+              <a href="subject.html#1347">[ subject ]</a>
+              <a href="author.html#1347">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

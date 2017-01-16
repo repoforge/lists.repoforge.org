@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] rapidsvn-0.9.6-2 segmentation fault
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20rapidsvn-0.9.6-2%20segmentation%20fault&In-Reply-To=%3C471263.59133.qm%40web110413.mail.gq1.yahoo.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="028421.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] rapidsvn-0.9.6-2 segmentation fault</H1>
+    <B>Abed-nego G. Escobal, Jr.</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20rapidsvn-0.9.6-2%20segmentation%20fault&In-Reply-To=%3C471263.59133.qm%40web110413.mail.gq1.yahoo.com%3E"
+       TITLE="[users] rapidsvn-0.9.6-2 segmentation fault">abednegoyulo at yahoo.com
+       </A><BR>
+    <I>Mon May  2 09:09:20 CEST 2011</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="028421.html">[users] rapidsvn-0.9.6-2 segmentation fault
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28420">[ date ]</a>
+              <a href="thread.html#28420">[ thread ]</a>
+              <a href="subject.html#28420">[ subject ]</a>
+              <a href="author.html#28420">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Thanks Alan. Upon checking the files, I saw the following in /usr/lib/rpm/macros
+
+%_prefix                /usr
+%_exec_prefix           %{_prefix}
+%_bindir                %{_exec_prefix}/bin
+
+So indeed _bindir has /usr/bin. So this leaves the spec file as the culprit, or it seems to be.
+
+So far these are the things that has been verified
+1. No lacking package
+2. _bindir is defined as it should be
+
+Since those two facts are established. I played around with the spec file and finally got it to rebuild. Below is the patch for the spec file in rapidsvn-0.9.6-2.rf.src.rpm
+
+/***********begin patch************/
+
+*** rapidsvn.spec.orig  2011-05-02 14:51:34.000000000 +0800
+--- rapidsvn.spec       2011-05-02 14:52:07.000000000 +0800
+***************
+*** 11,17 ****
+  Summary: Graphical front-end for the Subversion concurrent versioning system.
+  Name: rapidsvn
+  Version: 0.9.6
+! Release: 2.rf
+  License: BSD
+  Group: Development/Tools
+  URL: <A HREF="http://rapidsvn.tigris.org/">http://rapidsvn.tigris.org/</A>
+--- 11,17 ----
+  Summary: Graphical front-end for the Subversion concurrent versioning system.
+  Name: rapidsvn
+  Version: 0.9.6
+! Release: 2.1.rf
+  License: BSD
+  Group: Development/Tools
+  URL: <A HREF="http://rapidsvn.tigris.org/">http://rapidsvn.tigris.org/</A>
+***************
+*** 58,65 ****
+      --disable-no-exceptions \
+      --with-docbook-xsl=&quot;%{_datadir}/sgml/docbook/xsl-stylesheets&quot; \
+      --with-svn-lib=&quot;%{_libdir}&quot; \
+! %{?_with_apr1:--with-apr-config=&quot;%{_bindir}/apr-1-config&quot;} \
+! %{?_with_apu1:--with-apu-config=&quot;%{_bindir}/apu-1-config&quot;}
+  #    --with-svn-include=&quot;%{_includedir}/subversion-1&quot; \
+  #    --with-wx-config=&quot;%{_bindir}/wxgtk-2.4-config&quot; \
+  %{__make} %{?_smp_mflags}
+--- 58,65 ----
+      --disable-no-exceptions \
+      --with-docbook-xsl=&quot;%{_datadir}/sgml/docbook/xsl-stylesheets&quot; \
+      --with-svn-lib=&quot;%{_libdir}&quot; \
+!     --with-apr-config=&quot;%{_bindir}/apr-1-config&quot; \
+!     --with-apu-config=&quot;%{_bindir}/apu-1-config&quot;
+  #    --with-svn-include=&quot;%{_includedir}/subversion-1&quot; \
+  #    --with-wx-config=&quot;%{_bindir}/wxgtk-2.4-config&quot; \
+  %{__make} %{?_smp_mflags}
+
+/************end patch*************/
+
+I am a little puzzled with my solution because, in my understanding, the following lines should enable the --with-apr-config and --with-apu-config options.
+
+%{?el5: %define _with_apr1 1}
+%{?el5: %define _with_apu1 1}
+
+I can only guess that bash does not recognize these lines thus failing to enable the two options. BTW, I forgot to delete those two lines when I created the patch.
+
+Not only I have a working rapidsvn but this also gave me some additional knowledge! Thanks very much to all!
+
+--- On Sat, 4/30/11, Alan Bartlett &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">ajb at elrepo.org</A>&gt; wrote:
+
+&gt;<i> From: Alan Bartlett &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">ajb at elrepo.org</A>&gt;
+</I>&gt;<i> Subject: Re: [users] rapidsvn-0.9.6-2 segmentation fault
+</I>&gt;<i> To: &quot;RPMforge users&quot; &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">users at lists.rpmforge.net</A>&gt;
+</I>&gt;<i> Date: Saturday, 30 April, 2011, 3:43 AM
+</I>&gt;<i> On 29 April 2011 06:53, Abed-nego G.
+</I>&gt;<i> Escobal, Jr.
+</I>&gt;<i> &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">abednegoyulo at yahoo.com</A>&gt;
+</I>&gt;<i> wrote:
+</I>&gt;<i> &gt; Since it is now verified that I don't have any lacking
+</I>&gt;<i> packages, I will now try to modify the spec file. Inspecting
+</I>&gt;<i> the contents of the spec file
+</I>&gt;<i> 
+</I>&gt;<i> &lt;snip&gt;
+</I>&gt;<i> 
+</I>&gt;<i> &gt; I found a fedora 9 bug that dates back to 2009 which
+</I>&gt;<i> indicates that fedora 9 redefines %{_bindir} as /bin instead
+</I>&gt;<i> of /usr/bin. I don't know if it is the case as I am in now
+</I>&gt;<i> but I just want to be sure. How will I know if %{_bindir}
+</I>&gt;<i> has /bin or /usr/bin ?
+</I>&gt;<i> 
+</I>&gt;<i> Off the top of my head, I'll say check in your
+</I>&gt;<i> /usr/lib/rpm/[redhat/]macros files. (Both of them.)
+</I>&gt;<i> 
+</I>&gt;<i> Alan.
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> users mailing list
+</I>&gt;<i> <A HREF="http://lists.repoforge.org/mailman/listinfo/users">users at lists.rpmforge.net</A>
+</I>&gt;<i> <A HREF="http://lists.rpmforge.net/mailman/listinfo/users">http://lists.rpmforge.net/mailman/listinfo/users</A>
+</I>&gt;<i> 
+</I>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="028421.html">[users] rapidsvn-0.9.6-2 segmentation fault
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#28420">[ date ]</a>
+              <a href="thread.html#28420">[ thread ]</a>
+              <a href="subject.html#28420">[ subject ]</a>
+              <a href="author.html#28420">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

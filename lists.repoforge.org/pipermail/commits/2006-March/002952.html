@@ -1,0 +1,250 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4152 - trunk/tools/sarah
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4152%20-%20trunk/tools/sarah&In-Reply-To=%3C20060310191021.981E13180A6%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002951.html">
+   <LINK REL="Next"  HREF="002953.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4152 - trunk/tools/sarah</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4152%20-%20trunk/tools/sarah&In-Reply-To=%3C20060310191021.981E13180A6%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4152 - trunk/tools/sarah">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Mar 10 20:10:21 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002951.html">[svn] r4151 - trunk/tools/sarah
+</A></li>
+        <LI>Next message: <A HREF="002953.html">[svn] r4153 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2952">[ date ]</a>
+              <a href="thread.html#2952">[ thread ]</a>
+              <a href="subject.html#2952">[ subject ]</a>
+              <a href="author.html#2952">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-03-10 20:10:21 +0100 (Fri, 10 Mar 2006)
+New Revision: 4152
+
+Added:
+   trunk/tools/sarah/sarahdbo.py
+Removed:
+   trunk/tools/sarah/sarahdb.py
+Log:
+Rename phase 1
+
+Deleted: trunk/tools/sarah/sarahdb.py
+===================================================================
+--- trunk/tools/sarah/sarahdb.py	2006-03-10 19:09:38 UTC (rev 4151)
++++ trunk/tools/sarah/sarahdb.py	2006-03-10 19:10:21 UTC (rev 4152)
+@@ -1,175 +0,0 @@
+-#!/usr/bin/python
+-
+-import sys, os, glob, sqlite
+-import sarahlib
+-
+-from xml.dom.ext.reader import Sax2
+-from xml.dom.NodeFilter import NodeFilter
+-import xml.sax
+-
+-sys.stdout = os.fdopen(1, 'w', 0)
+-
+-con, cur = sarahlib.opendb()
+-sarahlib.createtb(cur, 'adv')
+-sarahlib.createtb(cur, 'ref')
+-sarahlib.createtb(cur, 'rpm')
+-sarahlib.createtb(cur, 'pro')
+-
+-reader = Sax2.Reader()
+-
+-filelist = glob.glob('advisories/RH?A-*.xml')
+-#filelist = glob.glob('advisories/RHSA-*.xml')
+-#filelist = ['advisories/RHSA-2005-791.xml', ]
+-filelist.sort()
+-
+-for file in filelist:
+-	try:
+-		doc = reader.fromStream(open(file))
+-		walker = doc.createTreeWalker(doc.documentElement, NodeFilter.SHOW_ELEMENT, None, 0)
+-
+-		next = True
+-		advrec = {};
+-		while next is not None:
+-#			print walker.currentNode.tagName
+-	
+-			if walker.currentNode.tagName == 'advisory':
+-				advrec['sender'] = walker.currentNode.getAttribute('sender')
+-				advrec['version'] = walker.currentNode.getAttribute('version')
+-	
+-			elif walker.currentNode.tagName == 'id':
+-				advrec['advid'] = walker.currentNode.firstChild.data
+-	
+-			elif walker.currentNode.tagName == 'pushcount':
+-				advrec['pushcount'] = int(walker.currentNode.firstChild.data)
+-	
+-			elif walker.currentNode.tagName == 'type':
+-				advrec['type'] = walker.currentNode.getAttribute('short')
+-
+-			elif walker.currentNode.tagName == 'keywords':
+-				if hasattr(walker.currentNode.firstChild, 'data'):
+-					advrec['keywords'] = walker.currentNode.firstChild.data
+-
+-			elif walker.currentNode.tagName == 'obsoletes':
+-				advrec['obsoletes'] = walker.currentNode.firstChild.data
+-
+-			elif walker.currentNode.tagName == 'group':
+-				advrec['rhgroup'] = walker.currentNode.getAttribute('name')
+-
+-			elif walker.currentNode.tagName == 'severity':
+-				if walker.currentNode.hasAttribute('level'):
+-					advrec['severity'] = walker.currentNode.getAttribute('level')
+-				elif walker.currentNode.firstChild.data:
+-					advrec['severity'] = walker.currentNode.firstChild.data
+-				else:
+-					advrec['severity'] = 'error'
+-	
+-			elif walker.currentNode.tagName == 'synopsis':
+-				advrec['synopsis'] = walker.currentNode.firstChild.data
+-	
+-			elif walker.currentNode.tagName == 'issued':
+-				advrec['issued'] = walker.currentNode.getAttribute('date')
+-	
+-			elif walker.currentNode.tagName == 'updated':
+-				advrec['updated'] = walker.currentNode.getAttribute('date')
+-	
+-			elif walker.currentNode.tagName == 'references':
+-				next = walker.nextNode()
+-				while walker.currentNode.tagName == 'reference':
+-					refrec = advrec.copy()
+-
+-					if walker.currentNode.hasAttribute('type'):
+-						refrec['reftype'] = walker.currentNode.getAttribute('type')
+-
+-					if walker.currentNode.hasAttribute('href'):
+-						refrec['reference'] = walker.currentNode.getAttribute('href')
+-
+-					next = walker.nextNode()
+-					while walker.currentNode.tagName in ('advisory', 'bugzilla', 'cve', 'summary'):
+-						if walker.currentNode.tagName in ('advisory', 'bugzilla', 'cve'):
+-							refrec['refid'] = walker.currentNode.firstChild.data
+-						elif walker.currentNode.tagName == 'summary':
+-							refrec['summary'] = walker.currentNode.firstChild.data
+-						else:
+-							raise 'Unknown tag &lt;%s&gt; in reference node' % walker.currentNode.tagName
+-						next = walker.nextNode()
+-
+-					if refrec['reftype'] == 'self':
+-						refrec['refid'] = advrec['advid']
+-
+-					if not refrec.has_key('summary'):
+-						refrec['summary'] = None
+-
+-					if not refrec.has_key('id'):
+-						refrec['refid'] = None
+-
+-					sarahlib.insertrec(cur, 'ref', refrec)
+-				con.commit()
+-				continue
+-	
+-			elif walker.currentNode.tagName == 'topic':
+-				advrec['topic'] = walker.currentNode.firstChild.data
+-	
+-			elif walker.currentNode.tagName == 'description':
+-				advrec['description'] = walker.currentNode.firstChild.data
+-	
+-			elif walker.currentNode.tagName == 'rpmlist':
+-				next = walker.nextNode()
+-				while walker.currentNode.tagName == 'product':
+-					prorec = advrec.copy()
+-					prorec['prodshort'] = walker.currentNode.getAttribute('short')
+-					### FIXME: Do proper nested parsing
+-					next = walker.nextNode()
+-					prorec['product'] = walker.currentNode.firstChild.data
+-					### FIXME: Create a unique insert function
+-					try: sarahlib.insertrec(cur, 'pro', prorec)
+-					except: pass
+-					next = walker.nextNode()
+-					while walker.currentNode.tagName == 'file':
+-						rpmrec = advrec.copy()
+-						rpmrec['arch'] = walker.currentNode.getAttribute('arch')
+-						rpmrec['prodshort'] = prorec['prodshort']
+-						rpmrec['channels'] = []
+-						### FIXME: Do proper nested parsing
+-						next = walker.nextNode()
+-						while walker.currentNode.tagName in ('filename', 'sum', 'channel'):
+-							if walker.currentNode.tagName == 'filename':
+-								rpmrec['filename'] = walker.currentNode.firstChild.data
+-							elif walker.currentNode.tagName == 'sum':
+-								rpmrec['md5'] = walker.currentNode.firstChild.data
+-							elif walker.currentNode.tagName == 'channel':
+-								rpmrec['channels'].append(walker.currentNode.getAttribute('name'))
+-							else:
+-								raise 'Unknown tag &lt;%s&gt; in file node' % walker.currentNode.tagName
+-							next = walker.nextNode()
+-						sarahlib.insertrec(cur, 'rpm', rpmrec)
+-				con.commit()
+-				continue
+-
+-			elif walker.currentNode.tagName in ('a', 'contact', 'p', 'product', 'rights', 'rpmtext', 'solution'):
+-				pass
+-
+-			else:
+-				print 'Unknown tag &lt;%s&gt; in advisory node' % str(walker.currentNode.tagName)
+-	
+-			next = walker.nextNode()
+-
+-		### RHBAs and RHEAs do not have a severity level
+-		if advrec['type'] in ('RHBA', 'RHEA'):
+-			advrec['severitylevel'] = None
+-
+-		if not advrec.has_key('severitylevel'): advrec['severitylevel'] = 'unknown'
+-		if not advrec.has_key('rhgroup'): advrec['rhgroup'] = None
+-		if not advrec.has_key('keywords'): advrec['keywords'] = None
+-		if not advrec.has_key('obsoletes'): advrec['obsoletes'] = None
+-	
+-		sarahlib.insertrec(cur, 'adv', advrec)
+-#		con.commit()
+-
+-		print '\033[0;32m%s\033[0;0m' % os.path.basename(file).strip('.xml'),
+-
+-	except (xml.sax._exceptions.SAXParseException, AttributeError, KeyError), e:
+-		print '\033[0;31m%s\033[0;0m' % os.path.basename(file),
+-		print e
+-#		raise
+-		continue
+-con.commit()
+
+Copied: trunk/tools/sarah/sarahdbo.py (from rev 4151, trunk/tools/sarah/sarahdb.py)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002951.html">[svn] r4151 - trunk/tools/sarah
+</A></li>
+	<LI>Next message: <A HREF="002953.html">[svn] r4153 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2952">[ date ]</a>
+              <a href="thread.html#2952">[ thread ]</a>
+              <a href="subject.html#2952">[ subject ]</a>
+              <a href="author.html#2952">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

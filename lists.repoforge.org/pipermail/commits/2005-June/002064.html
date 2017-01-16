@@ -1,0 +1,588 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3262 - in trunk/tools/pydar2: . pydar scripts sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3262%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts%20sql&In-Reply-To=%3C20050531221516.45C831D02A0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="002065.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3262 - in trunk/tools/pydar2: . pydar scripts sql</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3262%20-%20in%20trunk/tools/pydar2%3A%20.%20pydar%20scripts%20sql&In-Reply-To=%3C20050531221516.45C831D02A0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3262 - in trunk/tools/pydar2: . pydar scripts sql">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jun  1 00:15:16 CEST 2005</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="002065.html">[svn] r3263 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2064">[ date ]</a>
+              <a href="thread.html#2064">[ thread ]</a>
+              <a href="subject.html#2064">[ subject ]</a>
+              <a href="author.html#2064">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-06-01 00:15:15 +0200 (Wed, 01 Jun 2005)
+New Revision: 3262
+
+Added:
+   trunk/tools/pydar2/pydar-master-autoqueue.py
+   trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+   trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py
+   trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+Removed:
+   trunk/tools/pydar2/scripts/rpmforgegetsrpmdata.py
+Modified:
+   trunk/tools/pydar2/pydar-buildserver-master.py
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/pydarclient.py
+   trunk/tools/pydar2/pydar/rights.py
+   trunk/tools/pydar2/pydar/target.py
+   trunk/tools/pydar2/sql/master.sql
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/pydar/config.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -32,6 +32,7 @@
+ from acceptcommandscript import AcceptCommandScript
+ from updatesitescript import UpdateSiteScript
+ from buildrootlist import BuildRootList
++from filepathscript import FilePathScript
+ import yumbasedbuildroot
+ import rsyncyumbasedbuildroot
+ import storagefactory
+@@ -142,11 +143,12 @@
+         for i in myParser.sections():
+             name=i
+             t = Target(name)
+-            if myParser.has_option(name,'srpmsdir'):
+-                t.setSrpmsDir(myParser.get(name,'srpmsdir'))
+-            if myParser.has_option(name,'getsrpmdatascript') and myParser.has_option(name,'getsrpmdatafunction'):
+-                t.setGetSrpmDataScript(FilePathScript(myParser.get(name,'getsrpmdatascript'),myParser.get(name,'getsrpmdatafunction')))
++            if myParser.has_option(name,'rpmsdir'):
++                t.setRpmsDir(myParser.get(name,'rpmsdir'))
++            if myParser.has_option(name,'getrpmdatascript') and myParser.has_option(name,'getrpmdatafunction'):
++                t.setGetRpmDataScript(FilePathScript(myParser.get(name,'getrpmdatascript'),myParser.get(name,'getrpmdatafunction')))
+             if myParser.has_option(name,'movecommandresultsscript') and myParser.has_option(name,'movecommandresultsfunction'):
++                self.__cat.debug('movecommandresultsscript &amp; function ok')
+                 t.setMoveCommandResultsScript(FilePathScript(myParser.get(name,'movecommandresultsscript'),myParser.get(name,'movecommandresultsfunction')))
+             if myParser.has_option(name,'preparescript') and myParser.has_option(name,'preparefunction'):
+                 t.appendPrepareSpecFileScript(PrepareSpecFileScript(myParser.get(name,'preparescript'),myParser.get(name,'preparefunction')))
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -62,18 +62,20 @@
+         return retval
+         
+     def updateTargetFile(self, targetObj, fileName, checksum, version, distroarchtag, name):
++        self.__cat.debug(&quot;start, fileName:&quot;  + str(fileName) + &quot;,checksum:&quot; + str(checksum) + &quot;,version:&quot; + str(version) + &quot;,distroarchtag:&quot; + str(distroarchtag) + &quot;,name:&quot; + str(name))
+         conn = self.__getConnection()
+         cursor = conn.cursor()
+-        sql = &quot;insert into pydar2_target_files (targetid, filename, name, version, checksum, distroarchtag) values (&quot; + targetObj.getId() + &quot;,'&quot;+ fileName + &quot;','&quot;+ name + &quot;',&quot; + version + &quot;,'&quot; + str(checksum) + &quot;','&quot;+ distroarchtag+ &quot;')&quot;
++        sql = &quot;insert into pydar2_target_files (targetid, filename, name, version, checksum, distroarchtag) values (&quot; + str(targetObj.getId()) + &quot;,'&quot;+ fileName + &quot;','&quot;+ name + &quot;',&quot; + str(version) + &quot;,'&quot; + str(checksum) + &quot;','&quot;+ distroarchtag+ &quot;')&quot;
+         cursor.execute(sql)
+         conn.commit()
+         cursor.close()
+         self.__releaseConnection(conn)
+     
+     def insertTargetFile(self, targetObj, fileName, checksum, version, distroarchtag, name):
++        self.__cat.debug(&quot;start, fileName:&quot;  + str(fileName) + &quot;,checksum:&quot; + str(checksum) + &quot;,version:&quot; + str(version) + &quot;,distroarchtag:&quot; + str(distroarchtag) + &quot;,name:&quot; + str(name))
+         conn = self.__getConnection()
+         cursor = conn.cursor()
+-        sql = &quot;update pydar2_target_files set targetid=&quot; + targetObj.getId() + &quot;, version=&quot; + version + &quot;,name='&quot;+ str(name) + &quot;',checksum='&quot;+ str(checksum) + &quot;',distroarchtag='&quot;+distroarchtag +&quot;' where fileName='&quot; + fileName + &quot;'&quot;
++        sql = &quot;update pydar2_target_files set targetid=&quot; + str(targetObj.getId()) + &quot;, version=&quot; + str(version )+ &quot;,name='&quot;+ str(name) + &quot;',checksum='&quot;+ str(checksum) + &quot;',distroarchtag='&quot;+distroarchtag +&quot;' where fileName='&quot; + fileName + &quot;'&quot;
+         cursor.execute(sql)
+         conn.commit()
+         cursor.close()
+@@ -88,7 +90,7 @@
+         for row in cursor.fetchall():
+             retval.append(row[0])
+         cursor.close()
+-        self.__releaseConnection(self)
++        self.__releaseConnection(conn)
+         return retval
+     
+     def getSpecRepositoryFileListToIds(self,specRepo):
+@@ -285,11 +287,11 @@
+     def __releaseConnection(self,conn):
+         conn.close()
+     
+-    def getTargetFileListToChecksums(self, targetId):
++    def getTargetFileListToChecksums(self, targetObj):
+         retval = {}
+         conn = self.__getConnection()
+         cursor = conn.cursor()
+-        sql = &quot;select subdir, filename, checksum from pydar2_target_files where targetid=&quot; + str(targetId)
++        sql = &quot;select filename, checksum from pydar2_target_files where targetid=&quot; + str(targetObj.getId())
+         cursor.execute(sql)
+         if cursor.rowcount &gt; 0:
+             arr = cursor.fetchall()
+
+Modified: trunk/tools/pydar2/pydar/pydarclient.py
+===================================================================
+--- trunk/tools/pydar2/pydar/pydarclient.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/pydar/pydarclient.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -54,3 +54,8 @@
+         myserverclient = Server(self.buildmasterurl)
+         retval = myserverclient.getNumberOfNotYetStartedCommands(userId,password)
+         return retval
++
++    def autoQueue(self,userId, password, targetName, mailTo, priority, specRepoName):
++        myserverclient = Server(self.buildmasterurl)
++        retval = myserverclient.autoQueue(userId, password, targetName, mailTo, priority, specRepoName)
++        return retval
+
+Modified: trunk/tools/pydar2/pydar/rights.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rights.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/pydar/rights.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -32,3 +32,5 @@
+     UPDATE_SITE_SCRIPT=&quot;UPDATE_SITE_SCRIPT&quot;
+     UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS = &quot;UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS&quot;
+     GET_NUMBER_OF_NOTYETSTARTED_COMMANDS = &quot;GET_NUMBER_OF_NOTYETSTARTED_COMMANDS&quot;
++    AUTO_QUEUE = &quot;AUTO_QUEUE&quot;
++    
+
+Modified: trunk/tools/pydar2/pydar/target.py
+===================================================================
+--- trunk/tools/pydar2/pydar/target.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/pydar/target.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -20,6 +20,7 @@
+ import storagefactory
+ from log4py import Logger
+ from preparespecfilescriptlist import PrepareSpecFileScriptList
++import posixpath, posix, string, os, sha
+ 
+ class Target:
+     def __init__(self, name):
+@@ -28,22 +29,26 @@
+         self.__id = -1
+         self.__prepareSpecFileScriptList = PrepareSpecFileScriptList()
+         self.__acceptCommandScript = None
+-        self.__srpmsDir = None
+-        self.__getSrpmDataScript = None
++        self.__rpmsDir = None
++        self.__getRpmDataScript = None
+         self.__moveCommandResultsScript = None
+         
+-    def setSrpmsDir(self, srpmsDir):
+-        self.__srpmsDir = srpmsDir
++    def setRpmsDir(self, rpmsDir):
++        self.__rpmsDir = rpmsDir
+         
+-    def getSrpmsDir(self):
+-        return self.__srpmsDir
++    def getRpmsDir(self):
++        return self.__rpmsDir
+     
+     def getName(self):
+         return self.__name
+ 
+     def supportsAutoQueueing(self):
+         retval = False
+-        if self.__srpmsDir == None or self.__acceptCommandScript == None or self.__getSrpmDataScript == None or self.__moveCommandResultsScript == None:
++        self.__cat.debug(&quot;__rpmsDir:&quot; + str(self.__rpmsDir))
++        self.__cat.debug(&quot;__acceptCommandScript:&quot; + str(self.__acceptCommandScript))
++        self.__cat.debug(&quot;__moveCommandResultsScript:&quot; + str(self.__moveCommandResultsScript))
++        
++        if self.__rpmsDir == None or self.__acceptCommandScript == None or self.__getRpmDataScript == None or self.__moveCommandResultsScript == None:
+             retval = False
+         else:
+             retval = True
+@@ -62,8 +67,8 @@
+     def runPrepareSpecFileScripts(self,aCommand,commanddir):
+         self.__prepareSpecFileScriptList.runScripts(aCommand,commanddir)
+ 
+-    def setGetSrpmDataScript(self, newScript):
+-        self.__getSrpmDataScript = newScript
++    def setGetRpmDataScript(self, newScript):
++        self.__getRpmDataScript = newScript
+         
+     def setAcceptCommandScript(self,newScript):
+         self.__acceptCommandScript = newScript
+@@ -72,10 +77,14 @@
+         self.__moveCommandResultsScript = newScript
+ 
+     def autoQueue(self, mailTo, userName, priority, specRepository):
++        self.__cat.debug(&quot;start&quot;)
++        self.__storage = storagefactory.StorageFactory.getStorage()
+         if not self.supportsAutoQueueing():
+             return
+         self.__updateListOfRpms()
++        self.__cat.debug(&quot;updateListOfRpms is done&quot;)
+         for datag in self.__storage.getDistroArchTags():
++            self.__cat.debug(&quot;going to autoqueue for distroarchtag:&quot; + datag)
+             self.__autoQueueByDistroArchTag(datag, mailTo, userName, priority, specRepository)
+             
+     def __autoQueueByDistroArchTag(self,datag, mailTo, userName, priority, specRepository):
+@@ -87,17 +96,28 @@
+         targetRpmsSpecFileIdsToVersions = self.__storage.getTargetRpmsSpecFileIdsToVersions(self, datag,specRepository)
+         
+     # get some data from an srpm
+-    def getSrpmData(self, srpmPath):
+-        if self.__getSrpmDataScript != None:
+-            return self.__getSrpmDataScript.runScript(srpmPath)
++    def getRpmData(self, srpmPath):
++        if self.__getRpmDataScript != None:
++            return self.__getRpmDataScript.runScript(srpmPath)
+         else:
+             return None
+     
++    def __getCheckSum(self,fileName):
++        self.__cat.debug(&quot;fileName: &quot; + fileName)
++        s = sha.new()
++        f = open(os.path.join(self.getRpmsDir(), fileName), 'r')
++        line = f.readline()
++        while line != '':
++            s.update(line)
++            line = f.readline()
++        f.close()
++        return s.hexdigest()
++    
+     # this updates the list of rpms in the database
+     # with this list and the list of specrepositoryspecfiles, it is possible to create a todo list
+     def __updateListOfRpms(self):
+         # recursively check all the rpms
+-        topDir = self.getSrpmsDir()
++        topDir = self.getRpmsDir()
+         arr = self.__recursiveFindFiles(topDir, &quot;&quot;)
+         myFileNameToChecksum = self.__storage.getTargetFileListToChecksums(self)
+         for fileName in arr:
+@@ -105,10 +125,14 @@
+             if fileName in myFileNameToChecksum.keys():
+                 if checksum != myFileNameToChecksum[fileName]:
+                     # rpm has changed?
+-                    (name, version, distroarchtag) = self.getSrpmData(fileName)
++                    self.__cat.debug(&quot;changed rpm&quot;)
++                    (name, version, distroarchtag) = self.getRpmData(os.path.join(self.getRpmsDir(),fileName))
++                    self.__cat.debug(&quot;going to update in db&quot;)
+                     self.__storage.updateTargetFile(self, fileName, checksum, version, distroarchtag, name)
+             else:
+-                (name, version, distroarchtag) = self.getSrpmData(fileName)
++                self.__cat.debug(&quot;new rpm&quot;)
++                (name, version, distroarchtag) = self.getRpmData(os.path.join(self.getRpmsDir(),fileName))
++                self.__cat.debug(&quot;going to insert in db&quot;)
+                 self.__storage.insertTargetFile(self, fileName, checksum, version, distroarchtag, name)
+         # todo remove the data from the database about files which dont exist anymore    
+         
+
+Modified: trunk/tools/pydar2/pydar-buildserver-master.py
+===================================================================
+--- trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/pydar-buildserver-master.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -156,6 +156,20 @@
+         else:
+             raise Exception(&quot;UNKNOWN USERID&quot;)
+ 
++    def autoQueue(self,userId, password, targetName, mailTo, priority, specRepoName):
++        self.__cat.debug(&quot;start,userId=&quot; + str(userId))
++        if self.__storage.checkIfValidUserId(userId, password, Rights.AUTO_QUEUE):
++            target = self.__config.getTargetList().getTargetByName(targetName)
++            specRepo = self.__config.getSpecRepositoryList().getSpecRepositoryByName(specRepoName)
++            if target != None and specRepo != None:
++                target.autoQueue(mailTo, userId, priority, specRepo)
++            else:
++                raise Exception(&quot;target or specrepo unknown&quot;)
++            return self.__config.getSpecRepositoryList().getSpecRepositoriesUpdateCommands()
++        else:
++            raise Exception(&quot;UNKNOWN USERID&quot;)
++
++            
+     def callUpdateSiteScript(self,userId,password, specreponame):
+         self.__cat.debug(&quot;start,userId=&quot; + str(userId))
+         if self.__storage.checkIfValidUserId(userId, password, Rights.UPDATE_SITE_SCRIPT):
+@@ -165,6 +179,8 @@
+             return &quot;&quot;
+         else:
+             raise Exception(&quot;UNKNOWN USERID&quot;)
++            
++    
+ 
+ 
+ class Master:
+
+Added: trunk/tools/pydar2/pydar-master-autoqueue.py
+===================================================================
+--- trunk/tools/pydar2/pydar-master-autoqueue.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/pydar-master-autoqueue.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -0,0 +1,52 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; autoqueue: add new commands automatically &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++import ConfigParser, os, posixpath, sys, commands
++from optparse import OptionParser
++sys.path.append(&quot;.&quot;)
++sys.path.append(&quot;pydar&quot;)
++sys.path.append(&quot;/usr/share/pydar2/pydar&quot;)
++
++
++from pydarclient import PydarClient
++from config import Config
++
++# updates the spec file repositories on the master
++
++# - get the commands to execute from the master
++# - use those commands
++# - informs the master when the update is done -&gt; rechecks spec files
++
++# get  the url of the master and a userId
++
++conf = Config.getInstance()
++
++parser = OptionParser()
++parser.add_option(&quot;-c&quot;, &quot;--clientconfig&quot;, default=None, dest=&quot;clientconfig&quot;, help=&quot;specify configuration file&quot;, metavar=&quot;FILE&quot;)
++(options, args) = parser.parse_args()
++conf.specifyGetOptOptions(options)
++password = conf.getClientPassword()
++
++pc = PydarClient(conf.getBuildMasterUrlClient())
++targetName = &quot;dries&quot;
++mailTo = '<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>'
++priority = 0
++specRepoName = &quot;rpmforge&quot;
++commandlines = pc.autoQueue(conf.getClientUserId(), password, targetName, mailTo, priority, specRepoName)
++
+
+
+Property changes on: trunk/tools/pydar2/pydar-master-autoqueue.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -0,0 +1,27 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; Script which gets some data from a group of rpms &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# this script gets the versionid, name and distroarchtag from an srpm
++# this only works if the versionid is added to the first line of the changelog
++
++def acceptCommand(aCommand):
++    return True
++    
++    
++    
+
+
+Property changes on: trunk/tools/pydar2/scripts/rpmforgeacceptcommand.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Copied: trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py (from rev 3258, trunk/tools/pydar2/scripts/rpmforgegetsrpmdata.py)
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgegetsrpmdata.py	2005-05-30 21:02:25 UTC (rev 3258)
++++ trunk/tools/pydar2/scripts/rpmforgegetrpmdata.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -0,0 +1,60 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; Script which gets some data from a group of rpms &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# this script gets the versionid, name and distroarchtag from an rpm
++# this only works if the versionid is added to the first line of the changelog
++
++import rpmfiletags
++import re, os, commands, posix, posixpath, string
++
++def getRpmData(rpmPath):
++    name = None
++    # this is NOT the version of the rpm, but the version known in the database of the spec file
++    version = None
++    distroarchtag = None
++    
++    if string.find(rpmPath,'1.fc3.rf.i386'):
++        distroarchtag='fc3-i386'
++    if string.find(rpmPath,'1.fc2.rf.i386'):
++        distroarchtag='fc2-i386'
++    if string.find(rpmPath,'1.fc1.rf.i386'):
++        distroarchtag='fc1-i386'
++    
++    rf = rpmfiletags.RpmFileTags(rpmPath,'')
++    # locationid : locationId
++    # rpmname : fileName
++    # path : rpmsDir
++    name = rf.standardtags['NAME']
++    # specrpmname : specRpmName
++    specRpmVersion = rf.standardtags['VERSION']
++    specRpmEpoch = rf.standardtags['EPOCH'];
++    specRpmRelease = rf.standardtags['RELEASE']
++    # specrpmrelease : specRpmRelease
++    fileMd5s = rf.standardtags['FILEMD5S']
++    # filemd5s : fileMd5s
++    chlogLine = rf.standardtags['CHANGELOGNAME']
++    regexp = '.*#([0-9]*)$'
++    regex = re.compile(regexp)
++    result = regex.match(chlogLine)
++    #specFileId = &quot;null&quot;;
++    if result:
++        version = result.group(1)
++    return name, version, distroarchtag
++    
++    
+
+Deleted: trunk/tools/pydar2/scripts/rpmforgegetsrpmdata.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgegetsrpmdata.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/scripts/rpmforgegetsrpmdata.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -1,24 +0,0 @@
+-#!/usr/bin/python
+-
+-&quot;&quot;&quot; Script which gets some data from a group of rpms &quot;&quot;&quot;
+-
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU General Public License as published by
+-# the Free Software Foundation; either version 2 of the License, or
+-# (at your option) any later version.
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-# GNU Library General Public License for more details.
+-#
+-# You should have received a copy of the GNU General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-# Copyright 2004 Dries Verachtert
+-
+-# this script gets the versionid, name and distroarchtag from an srpm
+-# this only works if the versionid is added to the first line of the changelog
+-
+-def getRpmData(srpmPath):
+-    
+
+Added: trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -0,0 +1,26 @@
++#!/usr/bin/python
++
++&quot;&quot;&quot; Script which moves the result of a command (normally 1 or more rpms, a srpm and a buildlog)  &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# this script gets the versionid, name and distroarchtag from an srpm
++# this only works if the versionid is added to the first line of the changelog
++
++def moveCommandResults():
++    todo
++    
++    
+
+
+Property changes on: trunk/tools/pydar2/scripts/rpmforgemovecommandresults.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/pydar2/sql/master.sql
+===================================================================
+--- trunk/tools/pydar2/sql/master.sql	2005-05-31 14:09:04 UTC (rev 3261)
++++ trunk/tools/pydar2/sql/master.sql	2005-05-31 22:15:15 UTC (rev 3262)
+@@ -248,4 +248,5 @@
+ insert into pydar2_rights (id, abbrev, description) values (8, 'UPDATE_SITE_SCRIPT', 'call the script which builds a site');
+ insert into pydar2_rights (id, abbrev, description) values (9, 'UPDATE_ALL_SPEC_REPOSITORIES_FILE_LISTS', 'ask the master to update all spec repositories');
+ insert into pydar2_rights (id, abbrev, description) values (10, 'GET_NUMBER_OF_NOTYETSTARTED_COMMANDS', 'get the number of commands which are not yet reserved or finished');
++insert into pydar2_rights (id, abbrev, description) values (11, 'AUTO_QUEUE', 'auto queue commands');
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="002065.html">[svn] r3263 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2064">[ date ]</a>
+              <a href="thread.html#2064">[ thread ]</a>
+              <a href="subject.html#2064">[ subject ]</a>
+              <a href="author.html#2064">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

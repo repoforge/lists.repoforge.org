@@ -1,0 +1,199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5908 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5908%20-%20trunk/tools/dar&In-Reply-To=%3C20071011113140.C6EC3944A84%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004706.html">
+   <LINK REL="Next"  HREF="004708.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5908 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5908%20-%20trunk/tools/dar&In-Reply-To=%3C20071011113140.C6EC3944A84%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5908 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Oct 11 13:31:40 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004706.html">[svn] r5907 - trunk/rpms/kino
+</A></li>
+        <LI>Next message: <A HREF="004708.html">[svn] r5909 - in trunk/rpms: . perl-ABI perl-ACME-Error	perl-AcePerl perl-Acme-Beatnik perl-Acme-BeyondPerl-ToSQL	perl-Acme-BlahBlahBlah perl-Acme-Bleach	perl-Acme-Bleach-Numerically perl-Acme-BloodType	perl-Acme-BooK-Is-My-Bitch perl-Acpi perl-ActionExporter	perl-CPANPLUS perl-Catalyst-Devel perl-Image-Xbm perl-QWizard	perl-Qmail-Control perl-Qmail-Envelope perl-Qmail-Mysql	perl-Qpsmtpd-Plugin-Quarantine perl-Qt perl-Qt-OpenGL	perl-Qtk-QuickTk perl-Qualys perl-Quantum-ClebschGordan	perl-Quantum-Usrn perl-Querylet perl-Querylet-CGI	perl-Querylet-Output-Excel-OLE perl-Querylet-Output-Excel-XLS	perl-Querylet-Output-Text perl-Queue-Base perl-Queue-Dir	perl-Quilt perl-Quine perl-Quota-OO perl-Tidy	perl-WWW-Google-SiteMap perl-ZM-SSI perl-ZM-Session	perl-ZM-Template perl-ZOOM-IRSpy perl-Zen-Koans perl-Zoidberg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4707">[ date ]</a>
+              <a href="thread.html#4707">[ thread ]</a>
+              <a href="subject.html#4707">[ subject ]</a>
+              <a href="author.html#4707">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-10-11 13:31:40 +0200 (Thu, 11 Oct 2007)
+New Revision: 5908
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Small improvements
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-10-11 10:56:24 UTC (rev 5907)
++++ trunk/tools/dar/dar-perl.py	2007-10-11 11:31:40 UTC (rev 5908)
+@@ -63,32 +63,6 @@
+ ### Add proper epochs to perl-dependencies
+ epochs = ( '5.0.0', '5.6.1', '5.8.0', '5.8.5', '5.8.8' )
+ 
+-class PackageDB:
+-    def __init__(self):
+-        self.db = []
+-
+-    def addpackage(self, name, version, path):
+-        pkg = Package(name, version, path)
+-        self.db.append(pkg)
+-        return pkg
+-
+-    def searchpackage(self, name):
+-        for pkg in self.db:
+-            if name == pkg.name:
+-                return pkg
+-        else:
+-            return None
+-
+-class Package:
+-    def __init__(self, name, version, path):
+-        self.modules = []
+-        self.name = name
+-        self.version = version
+-        self.path = path
+-
+-    def addmodule(self, module):
+-        self.module.append(module)
+-
+ def download(url):
+     filename = os.path.join(tmppath, os.path.basename(url))
+     try:
+@@ -182,6 +156,7 @@
+     if pkgversion != 'undef' and package == pkgname:
+         version = pkgversion
+         module = pkgmodule
++        module_orig = pkgmodule
+         path = pkgpath
+         modules.append(pkgmodule)
+         found = True
+@@ -196,6 +171,8 @@
+     print &gt;&gt;sys.stderr, 'Error: Module', module, 'or package', package, 'not found in CPAN.'
+     sys.exit(1)
+ 
++modules.sort()
++
+ if package_version:
+     version = package_version
+ location = path
+@@ -370,14 +347,22 @@
+         license = 'Artistic/GPL'
+         print &gt;&gt;sys.stderr, 'Warning: License could not be determined.'
+ 
+-if meta.has_key('abstract'):
+-    summary = &quot;%s&quot; % meta['abstract']
+-    description = &quot;%s.&quot; % meta['abstract']
++### FIXME: Get description from website
++if meta.has_key('abstract') and meta['abstract']:
++    summary = rstrip(meta['abstract'])
++    description = rstrip(meta['abstract']) + &quot;.\n&quot;
+ else:
+     summary = &quot;Perl module named %s&quot; % package
+-    description = &quot;perl-%s is a Perl module.&quot; % package
++    description = &quot;perl-%s is a Perl module.\n&quot; % package
+     print &gt;&gt;sys.stderr, 'Warning: No abstract found.'
+ 
++if len(modules) == 1:
++    description = description + &quot;\nThis package contains the following Perl module:\n\n    &quot; + module + &quot;\n&quot;
++else:
++    description = description + &quot;\nThis package contains the following Perl modules:\n\n&quot;
++    for module in modules:
++        description = description + '    ' + module + &quot;\n&quot;
++
+ if meta.has_key('build_requires') and meta['build_requires'] and meta['build_requires'].has_key('perl-Inline'):
+     noarch = False
+ if meta.has_key('requires') and meta['requires'] and meta['requires'].has_key('perl-Inline'):
+@@ -446,7 +431,7 @@
+ if noarch:
+     print &gt;&gt;out, &quot;BuildArch: noarch&quot;
+ 
+-### FIXME: Add BuildRequires from Makefile.PL
++### FIXME: Add BuildRequires from Makefile.PL ?
+ if meta.has_key('requires') and meta['requires'] and meta['requires'].has_key('perl'):
+     ### FIXME: lstrip 'v' from version if it is a string
+     print &gt;&gt;out, &quot;BuildRequires: perl &gt;= %s &quot; % epochify(meta['requires']['perl'])
+@@ -482,7 +467,6 @@
+ 
+ print &gt;&gt;out, &quot;%description&quot;
+ print &gt;&gt;out, description
+-print &gt;&gt;out
+ 
+ print &gt;&gt;out, &quot;%prep&quot;
+ print &gt;&gt;out, &quot;%%setup -n %s&quot; % basedir
+@@ -528,7 +512,7 @@
+ print &gt;&gt;out, '%{__rm} -rf %{buildroot}'
+ print &gt;&gt;out
+ 
+-### FIXME: Create filelist based on test-build or source-tree ?
++### FIXME: Create %files list based on test-build or source-tree ?
+ print &gt;&gt;out, '%files'
+ print &gt;&gt;out, '%defattr(-, root, root, 0755)'
+ ### Check DOCS in archive from &quot;grep -h '^%doc' /dar/rpms/perl*/perl*.spec | grep -v mandir | xargs -n 1 | sort | uniq&quot;
+@@ -537,10 +521,13 @@
+ else:
+     print &gt;&gt;out, '%doc', ' '.join(docs), ' '.join(docsdirs)
+ 
+-#print &gt;&gt;out, '#%doc %{_mandir}/man3/*.3pm*'
+-for module in modules:
+-    print &gt;&gt;out, &quot;%%doc %%{_mandir}/man3/%s.3pm*&quot; % module
++if len(modules) &gt; 4:
++    print &gt;&gt;out, '%doc %{_mandir}/man3/*.3pm*'
++else:
++    for module in modules:
++        print &gt;&gt;out, &quot;%%doc %%{_mandir}/man3/%s.3pm*&quot; % module
+ 
++### FIXME: Use modules and module_orig to create %files list
+ if noarch:
+     ### Print directory entries (if any)
+     if modparts[:-1]:
+@@ -554,7 +541,7 @@
+     for nr, part in enumerate(modparts):
+         str = str + &quot;%s/&quot; % modparts[nr]
+     print &gt;&gt;out, str
+-    
++
+     ### Print module
+     if modparts[:-1]:
+         str = '%{perl_vendorlib}/'
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004706.html">[svn] r5907 - trunk/rpms/kino
+</A></li>
+	<LI>Next message: <A HREF="004708.html">[svn] r5909 - in trunk/rpms: . perl-ABI perl-ACME-Error	perl-AcePerl perl-Acme-Beatnik perl-Acme-BeyondPerl-ToSQL	perl-Acme-BlahBlahBlah perl-Acme-Bleach	perl-Acme-Bleach-Numerically perl-Acme-BloodType	perl-Acme-BooK-Is-My-Bitch perl-Acpi perl-ActionExporter	perl-CPANPLUS perl-Catalyst-Devel perl-Image-Xbm perl-QWizard	perl-Qmail-Control perl-Qmail-Envelope perl-Qmail-Mysql	perl-Qpsmtpd-Plugin-Quarantine perl-Qt perl-Qt-OpenGL	perl-Qtk-QuickTk perl-Qualys perl-Quantum-ClebschGordan	perl-Quantum-Usrn perl-Querylet perl-Querylet-CGI	perl-Querylet-Output-Excel-OLE perl-Querylet-Output-Excel-XLS	perl-Querylet-Output-Text perl-Queue-Base perl-Queue-Dir	perl-Quilt perl-Quine perl-Quota-OO perl-Tidy	perl-WWW-Google-SiteMap perl-ZM-SSI perl-ZM-Session	perl-ZM-Template perl-ZOOM-IRSpy perl-Zen-Koans perl-Zoidberg
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4707">[ date ]</a>
+              <a href="thread.html#4707">[ thread ]</a>
+              <a href="subject.html#4707">[ subject ]</a>
+              <a href="author.html#4707">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

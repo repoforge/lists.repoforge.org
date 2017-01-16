@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5688 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5688%20-%20trunk/tools/dar&In-Reply-To=%3C20070805143341.3C1D7944A8F%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004486.html">
+   <LINK REL="Next"  HREF="004488.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5688 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5688%20-%20trunk/tools/dar&In-Reply-To=%3C20070805143341.3C1D7944A8F%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5688 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Aug  5 16:33:41 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004486.html">[svn] r5687 - in trunk/rpms: . bandwidth
+</A></li>
+        <LI>Next message: <A HREF="004488.html">[svn] r5689 - in trunk/rpms: . perl-AAC-Pvoice	perl-Apache-FastForward perl-DBD-Oracle	perl-DBIx-SearchBuilder perl-abbreviation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4487">[ date ]</a>
+              <a href="thread.html#4487">[ thread ]</a>
+              <a href="subject.html#4487">[ subject ]</a>
+              <a href="author.html#4487">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-08-05 16:33:40 +0200 (Sun, 05 Aug 2007)
+New Revision: 5688
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Important fixes
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-08-05 14:27:18 UTC (rev 5687)
++++ trunk/tools/dar/dar-perl.py	2007-08-05 14:33:40 UTC (rev 5688)
+@@ -21,6 +21,7 @@
+     logname = 'dag'
+ debug = False
+ noarch = True
++module_build = False
+ output = False
+ realversion = None
+ authors = []
+@@ -56,7 +57,7 @@
+     'perl': 'Artistic/GPL',
+ }
+ 
+-### FIXME: Add proper epochs to perl-dependencies
++### Add proper epochs to perl-dependencies
+ epochs = ( '5.0.0', '5.6.1', '5.8.0', '5.8.5', '5.8.8' )
+ 
+ def download(url):
+@@ -160,11 +161,14 @@
+ cdistname = os.path.basename(location)
+ if sdistname != cdistname:
+     realversion = version
+-    ### FIXME: Get the version from the cdistname
++    ### Get the version from the cdistname
+     m = re.match('[^\d]+([\d\.]+).tar.gz', cdistname)
+     if m:
+         l = m.groups()
+-    version = l[0]
++        version = l[0]
++    else:
++        print &gt;&gt;sys.stderr, 'Problem retrieving version from %s for module %s.' % (cdistname, module)
++        sys.exit(1)
+ 
+ if realversion == 'undef':
+     print &gt;&gt;sys.stderr, 'Version is undefined. Distribution %s is not a module.' % module
+@@ -199,6 +203,7 @@
+ l = base.split('.tar.gz')
+ base = l[0]
+ docs = []
++docsdirs = []
+ meta = {}
+ for file in distfd.getnames():
+     ### Remove Name-Version/ from filename
+@@ -216,11 +221,12 @@
+     for docre in docfiles:
+         if re.search(docre, shortfile, re.I):
+             docs.append(shortfile)
++            break
+ 
+     ### Create %docs directorylist
+     for dir in docdirs:
+         if shortfile == dir:
+-            docs.append(shortfile)
++            docsdirs.append(shortfile)
+ 
+     ### Parse META.yml (<A HREF="http://module-build.source-forge.net/META-spec-current.html">http://module-build.source-forge.net/META-spec-current.html</A>)
+     if shortfile == 'META.yml':
+@@ -234,7 +240,12 @@
+         except:
+             pass
+ 
++    ### Check whether we need to use perl(Module::Build)
++#    if shortfile == 'Build.PL':
++#        module_build = True
++
+ docs.sort()
++docsdirs.sort()
+ 
+ if os.path.isfile(archive):
+     os.remove(archive)
+@@ -366,8 +377,18 @@
+ if meta.has_key('requires') and meta['requires'] and meta['requires'].has_key('perl'):
+     print &gt;&gt;out, &quot;BuildRequires: perl &gt;= %s &quot; % epochify(meta['requires']['perl'])
+ else:
+-    print &gt;&gt;out, &quot;BuildRequires: perl&quot;
++    print &gt;&gt;out, 'BuildRequires: perl'
+ 
++if module_build:
++    print &gt;&gt;out, 'BuildRequires: perl(Module::Build)'
++
++if meta.has_key('build_requires'):
++    for key in meta['build_requires']:
++        if meta['build_requires'][key]:
++            print &gt;&gt;out, &quot;BuildRequires: perl(%s) &gt;= %s&quot; % (key, meta['build_requires'][key])
++        else:
++            print &gt;&gt;out, &quot;BuildRequires: perl(%s)&quot; % key
++
+ ### Requires are extracted by RPM itself
+ #print &quot;Requires: perl&quot;
+ #if meta.has_key('requires'):
+@@ -377,12 +398,6 @@
+ #       else:
+ #           print &gt;&gt;out, &quot;Requires: perl(%s)&quot; % key
+ 
+-if meta.has_key('build_requires'):
+-    for key in meta['build_requires']:
+-        if meta['build_requires'][key]:
+-            print &gt;&gt;out, &quot;BuildRequires: perl(%s) &gt;= %s&quot; % (key, meta['build_requires'][key])
+-        else:
+-            print &gt;&gt;out, &quot;BuildRequires: perl(%s)&quot; % key
+ if meta.has_key('conflicts'):
+     for key in meta['conflicts']:
+         print &gt;&gt;out, &quot;Conflict: perl(%s)&quot; % key
+@@ -398,17 +413,27 @@
+ 
+ print &gt;&gt;out, &quot;%build&quot;
+ if noarch:
+-    print &gt;&gt;out, '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
++    if module_build:
++        print &gt;&gt;out, '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; destdir=&quot;%{buildroot}&quot;'
++    else:
++        print &gt;&gt;out, '%{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+     print &gt;&gt;out, '%{__make} %{?_smp_mflags}'
+ else:
+-    print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
++    if module_build:
++        print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; destdir=&quot;%{buildroot}&quot;'
++    else:
++        print &gt;&gt;out, 'CFLAGS=&quot;%{optflags}&quot; %{__perl} Makefile.PL INSTALLDIRS=&quot;vendor&quot; PREFIX=&quot;%{buildroot}%{_prefix}&quot;'
+     print &gt;&gt;out, '%{__make} %{?_smp_mflags} OPTIMIZE=&quot;%{optflags}&quot;'
+ print &gt;&gt;out
+ 
+ print &gt;&gt;out, '%install'
+ print &gt;&gt;out, '%{__rm} -rf %{buildroot}'
+-print &gt;&gt;out, '%{__make} pure_install'
++if module_build:
++    print &gt;&gt;out, '%{__make} install'
++else:
++    print &gt;&gt;out, '%{__make} pure_install'
+ print &gt;&gt;out
++
+ print &gt;&gt;out, '### Clean up buildroot'
+ #if noarch:
+ #   print &gt;&gt;out, '%{__rm} -rf %{buildroot}%{perl_archlib} %{buildroot}%{perl_vendorarch}'
+@@ -417,6 +442,11 @@
+ print &gt;&gt;out, 'find %{buildroot} -name .packlist -exec %{__rm} {} \;'
+ print &gt;&gt;out
+ 
++if docsdirs:
++    print &gt;&gt;out, '### Clean up docs'
++    print &gt;&gt;out, 'find', ' '.join(docsdirs), '-type f -exec %{__chmod} a-x {} \;'
++    print &gt;&gt;out
++
+ print &gt;&gt;out, '%clean'
+ print &gt;&gt;out, '%{__rm} -rf %{buildroot}'
+ print &gt;&gt;out
+@@ -425,9 +455,12 @@
+ print &gt;&gt;out, '%files'
+ print &gt;&gt;out, '%defattr(-, root, root, 0755)'
+ ### Check DOCS in archive from &quot;grep -h '^%doc' /dar/rpms/perl*/perl*.spec | grep -v mandir | xargs -n 1 | sort | uniq&quot;
+-print &gt;&gt;out, '%doc', ' '.join(docs)
++if not docsdirs:
++    print &gt;&gt;out, '%doc', ' '.join(docs)
++else:
++    print &gt;&gt;out, '%doc', ' '.join(docs), ' '.join(docsdirs)
+ print &gt;&gt;out, &quot;%%doc %%{_mandir}/man3/%s.3pm*&quot; % pmodule
+-print &gt;&gt;out, &quot;#%%doc %%{_mandir}/man3/*.3pm*&quot;
++print &gt;&gt;out, '#%doc %{_mandir}/man3/*.3pm*'
+ 
+ if noarch:
+     ### Print directory entries (if any)
+@@ -477,6 +510,7 @@
+     for nr, part in enumerate(modparts):
+         str = str + &quot;%s/&quot; % modparts[nr]
+     print &gt;&gt;out, str
++
+ print &gt;&gt;out
+ 
+ print &gt;&gt;out, '%changelog'
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004486.html">[svn] r5687 - in trunk/rpms: . bandwidth
+</A></li>
+	<LI>Next message: <A HREF="004488.html">[svn] r5689 - in trunk/rpms: . perl-AAC-Pvoice	perl-Apache-FastForward perl-DBD-Oracle	perl-DBIx-SearchBuilder perl-abbreviation
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4487">[ date ]</a>
+              <a href="thread.html#4487">[ thread ]</a>
+              <a href="subject.html#4487">[ subject ]</a>
+              <a href="author.html#4487">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

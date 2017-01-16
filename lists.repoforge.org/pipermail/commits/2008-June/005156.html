@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6357 - in trunk/tools/unoconv: . tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6357%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C200806112356.m5BNuro5013592%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005155.html">
+   <LINK REL="Next"  HREF="005157.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6357 - in trunk/tools/unoconv: . tests</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6357%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C200806112356.m5BNuro5013592%40surya.karan.org%3E"
+       TITLE="[svn] r6357 - in trunk/tools/unoconv: . tests">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jun 12 01:56:53 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005155.html">[svn] r6356 - trunk/tools/unoconv
+</A></li>
+        <LI>Next message: <A HREF="005157.html">[svn] r6358 - in trunk/rpms: apt synaptic
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5156">[ date ]</a>
+              <a href="thread.html#5156">[ thread ]</a>
+              <a href="subject.html#5156">[ subject ]</a>
+              <a href="author.html#5156">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-06-12 00:56:53 +0100 (Thu, 12 Jun 2008)
+New Revision: 6357
+
+Modified:
+   trunk/tools/unoconv/ChangeLog
+   trunk/tools/unoconv/TODO
+   trunk/tools/unoconv/tests/Makefile
+   trunk/tools/unoconv/unoconv
+Log:
+Added support for MediaWiki output (txt)
+
+Modified: trunk/tools/unoconv/ChangeLog
+===================================================================
+--- trunk/tools/unoconv/ChangeLog	2008-06-11 23:44:34 UTC (rev 6356)
++++ trunk/tools/unoconv/ChangeLog	2008-06-11 23:56:53 UTC (rev 6357)
+@@ -5,6 +5,7 @@
+ - Added support for OpenOffice on Windows (Fernando Lucas Rodriguez)
+ - Added -i/--pipe option to communicate with UNO pipe (Fernando Lucas Rodriguez)
+ - Added -o/--outputpath option to modify the output path (Fernando Lucas Rodriguez)
++- Added support for MediaWiki output (txt)
+ 
+ * 0.3 - released 31/08/2007
+ - Determine doctype from input filename (if not specified)
+
+Modified: trunk/tools/unoconv/TODO
+===================================================================
+--- trunk/tools/unoconv/TODO	2008-06-11 23:44:34 UTC (rev 6356)
++++ trunk/tools/unoconv/TODO	2008-06-11 23:56:53 UTC (rev 6357)
+@@ -13,6 +13,7 @@
+ ### Usability
+ - Maybe change the commandline interface to reflect ImageMagick's convert
+ - Add the list of input formats as well, and print that list too
++- Preserve the original timestamp, ownership and permissions
+ 
+ ### Known bugs
+ - On some systems loading OpenOffice is slow and this could lead to random errors
+
+Modified: trunk/tools/unoconv/tests/Makefile
+===================================================================
+--- trunk/tools/unoconv/tests/Makefile	2008-06-11 23:44:34 UTC (rev 6356)
++++ trunk/tools/unoconv/tests/Makefile	2008-06-11 23:56:53 UTC (rev 6357)
+@@ -1,6 +1,6 @@
+ ### Please modify and send me improvements
+ 
+-all: clean bib doc6 doc95 doc docbook html ooxml pdb pdf psw rtf latex sdw3 sdw4 sdw sxw text txt xhtml
++all: clean bib doc6 doc95 doc docbook html mediawiki ooxml pdb pdf psw rtf latex sdw3 sdw4 sdw sxw text txt xhtml
+ 
+ #xml: curriculum-vitae-dag-wieers.txt
+ #	asciidoc -b docbook -d article curriculum-vitae-dag-wieers.txt
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2008-06-11 23:44:34 UTC (rev 6356)
++++ trunk/tools/unoconv/unoconv	2008-06-11 23:56:53 UTC (rev 6357)
+@@ -133,6 +133,7 @@
+ fmts.add('document', 'stw', 'stw', 'Open Office.org 1.0 Text Document Template', 'writer_StarOffice_XML_Writer_Template')
+ fmts.add('document', 'sxw', 'sxw', 'Open Office.org 1.0 Text Document', 'StarOffice XML (Writer)')
+ fmts.add('document', 'text', 'txt', 'Text Encoded', 'Text (encoded)')
++fmts.add('document', 'mediawiki', 'txt', 'Mediawiki', 'Mediawiki')
+ fmts.add('document', 'txt', 'txt', 'Plain Text', 'Text')
+ fmts.add('document', 'vor', 'vor', 'StarWriter 5.0 Template', 'StarWriter 5.0 Vorlage/Template')
+ fmts.add('document', 'vor4', 'vor', 'StarWriter 4.0 Template', 'StarWriter 4.0 Vorlage/Template')
+@@ -280,8 +281,6 @@
+                 self.listener = True
+             elif opt in ['-o', '--outputpath']:
+                 self.outputpath = arg
+-                if not (self.outputpath[len(self.outputpath)] == os.separator):
+-                    self.outputpath = self.outputpath + os.separator
+             elif opt in ['-p', '--port']:
+                 self.port = arg
+             elif opt in ['-s', '--server']:
+@@ -483,10 +482,10 @@
+ 
+             if not op.stdout:
+                 (outputfn, ext) = os.path.splitext(inputfn)
+-                if not self.outputpath:
++                if not op.outputpath:
+                     outputfn = outputfn + '.' + outputfmt.extension
+                 else:
+-                    outputfn = os.path.joint(self.outputpath, os.path.basename(outputfn) + '.' + outputfmt.extension)
++                    outputfn = os.path.join(op.outputpath, os.path.basename(outputfn) + '.' + outputfmt.extension)
+                 outputurl = unohelper.absolutize( self.cwd, unohelper.systemPathToFileUrl(outputfn) )
+                 doc.storeToURL(outputurl, outputprops)
+                 error(1, &quot;Output file: %s&quot; % outputfn)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005155.html">[svn] r6356 - trunk/tools/unoconv
+</A></li>
+	<LI>Next message: <A HREF="005157.html">[svn] r6358 - in trunk/rpms: apt synaptic
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5156">[ date ]</a>
+              <a href="thread.html#5156">[ thread ]</a>
+              <a href="subject.html#5156">[ subject ]</a>
+              <a href="author.html#5156">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

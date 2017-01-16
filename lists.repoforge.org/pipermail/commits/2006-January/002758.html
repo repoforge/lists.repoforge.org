@@ -1,0 +1,315 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3958 - in trunk/tools/dar: . python
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3958%20-%20in%20trunk/tools/dar%3A%20.%20python&In-Reply-To=%3C20060113002457.0B236944B13%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002757.html">
+   <LINK REL="Next"  HREF="002759.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3958 - in trunk/tools/dar: . python</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3958%20-%20in%20trunk/tools/dar%3A%20.%20python&In-Reply-To=%3C20060113002457.0B236944B13%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3958 - in trunk/tools/dar: . python">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jan 13 01:24:57 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002757.html">[svn] r3957 - in trunk/rpms: perl-Config-Tiny perl-Crypt-DH	perl-accessors
+</A></li>
+        <LI>Next message: <A HREF="002759.html">[svn] r3959 - in trunk/rpms: . bmon mcabber multitail	perl-Convert-BinHex perl-Crypt-Lite perl-Digest-HMAC	perl-Digest-SHA1 perl-FreezeThaw perl-Geography-Countries	perl-IO-String perl-IO-stringy perl-Locale-Maketext	perl-MIME-tools perl-MLDBM perl-PatchReader perl-XML-LibXML-Common
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2758">[ date ]</a>
+              <a href="thread.html#2758">[ thread ]</a>
+              <a href="subject.html#2758">[ subject ]</a>
+              <a href="author.html#2758">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-13 01:24:55 +0100 (Fri, 13 Jan 2006)
+New Revision: 3958
+
+Modified:
+   trunk/tools/dar/dar-build
+   trunk/tools/dar/dar-exec
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-sync
+   trunk/tools/dar/dar-update
+   trunk/tools/dar/python/darlib.py
+Log:
+Updates
+
+Modified: trunk/tools/dar/dar-build
+===================================================================
+--- trunk/tools/dar/dar-build	2006-01-13 00:07:53 UTC (rev 3957)
++++ trunk/tools/dar/dar-build	2006-01-13 00:24:55 UTC (rev 3958)
+@@ -128,6 +128,9 @@
+ 			fi
+ 		fi
+ 
++		### Cleaning up nodebug shit
++		perl -pi -e 's|-O2 -g|-O2|' $CHROOTDIR/$DISTNICK/usr/lib/rpm/{macros,*/macros,rpmrc}
++
+ 		### Export RPMVER to rpmconf
+ 		export RPMVER=&quot;$(chroot $CHROOTDIR/$DISTNICK /bin/su -lm $BUILD_USER -c &quot;rpm --version&quot; | cut -d' ' -f3)&quot;
+ 
+@@ -283,7 +286,9 @@
+ 				RPMBUILDOPTS=&quot;$RPMBUILDOPTS --target $arch&quot;
+ 			fi
+ 
+-			echo &quot;Building $dist/$arch [$SPECDIR/_buildlogs/$LOGFILE].&quot;
++			if [ &quot;$FORCE_VERBOSE&quot; == &quot;yes&quot; ]; then
++				echo &quot;Building $dist/$arch [$SPECDIR/_buildlogs/$LOGFILE].&quot;
++			fi
+ 
+ 			### Check for Soapbox
+ 			if [ &quot;$SOAPBOX&quot; == &quot;1&quot; -a -f &quot;/lib/libsoapbox.so&quot; -a -f &quot;$CHROOTDIR/$dist/lib/libsoapbox.so&quot; ]; then
+@@ -301,6 +306,7 @@
+ 					--define \&quot;_sourcedir $SPECDIR\&quot; \
+ 					--define \&quot;_builddir $BUILDDIR\&quot; \
+ 					--define \&quot;_tmppath $TEMPDIR\&quot; \
++					--define \&quot;debug_package %nil\&quot; \
+ 					--define \&quot;dist $DISTNAME\&quot; \
+ 					--define \&quot;disttag ${DISTTAG// *}\&quot; \
+ 					--define \&quot;$DISTNAME 1\&quot; \
+@@ -321,6 +327,7 @@
+ 						--define &quot;_sourcedir $SPECDIR&quot; \
+ 						--define &quot;_builddir $ROOT/build&quot; \
+ 						--define &quot;_buildroot $TEMPDIR/$app-$VERSION-$RELEASE-root&quot; \
++						--define &quot;debug_package %nil&quot; \
+ 						--define &quot;dist $DISTNAME&quot; \
+ 						--define &quot;disttag ${DISTTAG// *}&quot; \
+ 						--define &quot;$DISTNAME 1&quot; \
+@@ -336,6 +343,7 @@
+ 						--define '_builddir $ROOT/build' \
+ 						--define '_tmppath $TEMPDIR' \
+ 						--define '_buildroot $TEMPDIR/$app-$VERSION-$RELEASE-root' \
++						--define 'debug_package %nil' \
+ 						--define 'dist $DISTNAME' \
+ 						--define 'disttag ${DISTTAG// *}' \
+ 						--define '$DISTNAME 1' \
+@@ -377,7 +385,9 @@
+ 
+ 			if [ $RC -eq 0 ]; then
+ 				DARBUILDRC=0
+-				echo &quot;OK for $dist/$arch, file eg. \&quot;$PACKAGEDIR/$app/$RPMFILE\&quot;.&quot;
++				if [ &quot;$FORCE_VERBOSE&quot; == &quot;yes&quot; ]; then
++					echo -e &quot;\033[1;32mSuccess\033[0;0m $app [$dist/$arch], file in [$PACKAGEDIR/$app/]&quot;
++				fi
+ 
+ 				if [ &quot;$RETAIN_LOGS&quot; == &quot;yes&quot; ]; then
+ #					bzip2 -9 -f &quot;$PACKAGEDIR/$app/_buildlogs/$LOGFILE&quot;
+@@ -392,7 +402,7 @@
+ 				fi
+ 			else
+ #				log &quot;Failed building package $app for $dist/$arch.&quot; &gt;&gt; &quot;$LOGDIR/dar.log&quot;
+-				error &quot;Failed building package $app for $dist/$arch, see log. (RC=$RC)&quot;
++				error &quot;\033[1;31mFailed\033[0;0m $app [$dist/$arch], see log [$SPECDIR/_buildlogs/$LOGFILE]&quot;
+ #				bzip2 -9 -f &quot;$PACKAGEDIR/$app/_buildlogs/$LOGFILE&quot;
+ 				gzip -9 --rsyncable -f &quot;$PACKAGEDIR/$app/_buildlogs/$LOGFILE&quot;
+ 			fi
+@@ -401,7 +411,7 @@
+ 	done
+ 
+ 	### Only build when there was a succesful binary build
+-	if [ &quot;$DARBUILDRC&quot; -eq 0 -a &quot;$NOSOURCE&quot; != &quot;true&quot; ]; then
++	if [ &quot;$DARBUILDRC&quot; -eq 0 -a -z &quot;$NOSOURCE&quot; ]; then
+ 
+ 		if [ -z &quot;$SOURCE_DISTS&quot; ]; then SOURCE_DISTS=&quot;$DEFAULT_SOURCE_DISTS&quot;; fi
+ 
+@@ -422,7 +432,9 @@
+ 				source &quot;$script&quot;
+ 			done
+ 
+-			echo &quot;Building source package $app using \&quot;$SPECFILE\&quot; for $dist&quot;
++			if [ &quot;$FORCE_VERBOSE&quot; == &quot;yes&quot; ]; then
++				echo &quot;Building source package $app using \&quot;$SPECFILE\&quot; for $dist&quot;
++			fi
+ 			chroot &quot;$CHROOTDIR/$dist&quot; /usr/bin/rpmbuild -bs \
+ 				--define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; \
+ 				--define &quot;_srcrpmdir $PACKAGEDIR/$app&quot; \
+@@ -431,7 +443,15 @@
+ 				--define &quot;dist $DISTNAME&quot; \
+ 				--define &quot;disttag ${DISTTAG// *}&quot; \
+ 				--define &quot;$DISTNAME 1&quot; \
+-				&quot;$NEWSPECFILE&quot;
++				&quot;$NEWSPECFILE&quot; &amp;&gt;/dev/null
++			RC=$?
++			if [ $RC -eq 0 ]; then
++				if [ &quot;$FORCE_VERBOSE&quot; == &quot;yes&quot; ]; then
++					echo -e &quot;\033[1;32mSuccess\033[0;0m $app [$dist/src], file in [$PACKAGEDIR/$app/]&quot;
++				fi
++			else
++				error &quot;\033[1;31mFailed\033[0;0m $app [$dist/src], see log [$SPECDIR/_buildlogs/$LOGFILE]&quot;
++			fi
+ 
+ 			cp -au &quot;$NEWSPECFILE&quot; &quot;$PACKAGEDIR/$app/&quot;
+ 		done
+
+Modified: trunk/tools/dar/dar-exec
+===================================================================
+--- trunk/tools/dar/dar-exec	2006-01-13 00:07:53 UTC (rev 3957)
++++ trunk/tools/dar/dar-exec	2006-01-13 00:24:55 UTC (rev 3958)
+@@ -28,7 +28,8 @@
+ }
+ 
+ daropts &quot;d:hq&quot; $@
+-CMD=&quot;$OPTS&quot;
++shift $((OPTIND-1))
++CMD=$@
+ 
+ if [ ! -d &quot;$ROOT&quot; ]; then
+ 	echo &quot;ERROR: probably in chroot jail&quot; &gt;&amp;2
+@@ -52,12 +53,14 @@
+ 	### Check for building as user
+ 	if [ $AS_ROOT -eq 1 ]; then
+ #		DO_SU=&quot;/bin/su -l -c&quot;
+-		DO_SU=&quot;/bin/bash -c&quot;
++		DO_SU=&quot;/bin/bash -x -s&quot;
+ 	else
+-		DO_SU=&quot;/bin/su -lm $BUILD_USER -c&quot;
++		DO_SU=&quot;/bin/su -lm $BUILD_USER -- /bin/bash -x -s&quot;
+ 	fi
+ 
+-	chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU &quot;$CMD&quot;
++	echo chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU $CMD
++#	chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU $CMD
++	echo &quot;$CMD&quot; | chroot &quot;$CHROOTDIR/$distname&quot; $DO_SU
+ 	RC=$?
+ 
+ 	if [ $RC -ne 0 ]; then
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2006-01-13 00:07:53 UTC (rev 3957)
++++ trunk/tools/dar/dar-functions	2006-01-13 00:24:55 UTC (rev 3958)
+@@ -55,15 +55,17 @@
+ ### Log and put error-boolean on (so die will escalate the problem)
+ function error {
+ 	ERROR=&quot;yes&quot;
+-	echo -e &quot;ERROR: $*&quot; &gt;&amp;2
++	echo -e &quot;\033[1;31mERROR:\033[0;0m $*&quot; &gt;&amp;2
+ #	log &quot;ERROR: $*&quot;
+ }
+ 
+ ### Log and put warning-boolean on (so die will escalate the problem)
+ function warning {
+ 	ERROR=&quot;yes&quot;
+-	echo &quot;WARNING: $*&quot; &gt;&amp;2
+-#	log &quot;WARNING: $*&quot;
++	if [ &quot;$FORCE_VERBOSE&quot; == &quot;yes&quot; ]; then
++		echo -e &quot;\033[1;33mWARNING:\033[0;0m $*&quot; &gt;&amp;2
++#		log &quot;WARNING: $*&quot;
++	fi
+ }
+ 
+ ### Stop running and escalate if problems
+@@ -158,14 +160,14 @@
+ 		case &quot;$c&quot; in
+ 			(a)	FORCE_ARCHS=&quot;$OPTARG&quot;;;
+ 			(d)	FORCE_DISTS=&quot;$OPTARG&quot;;;
+-			(f)	FORCE_OVERWRITE=&quot;true&quot;;;
++			(f)	FORCE_OVERWRITE=&quot;yes&quot;;;
+ 			(h)	help;;
+-			(n)	NOSOURCE=&quot;true&quot;;;
+-			(r)	CREATE_REPO=&quot;true&quot;;;
++			(n)	NOSOURCE=&quot;yes&quot;;;
++			(r)	CREATE_REPO=&quot;yes&quot;;;
+ 			(s)	FORCE_SOURCE_DISTS=&quot;$OPTARG&quot;;;
+ 			(t)	FORCE_TAG=&quot;$OPTARG&quot;;;
+-			(v)	FORCE_VERBOSE=&quot;true&quot;;;
+-			(q)	QUIET=&quot;true&quot;;;
++			(v)	FORCE_VERBOSE=&quot;yes&quot;;;
++			(q)	QUIET=&quot;yes&quot;;;
+ #			(-)	c=${OPTARG/#-/}; OPTARG=&quot;$(echo $* | cut -d' ' -f$OPTIND)&quot;
+ #			case &quot;$c&quot; in
+ #				(port) port=&quot;$OPTARG&quot;; OPTIND=$((OPTIND+1));;
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2006-01-13 00:07:53 UTC (rev 3957)
++++ trunk/tools/dar/dar-sync	2006-01-13 00:24:55 UTC (rev 3958)
+@@ -27,7 +27,7 @@
+ 	fi
+ fi
+ 
+-if [ &quot;$CREATE_REPO&quot; == &quot;true&quot; ]; then
++if [ &quot;$CREATE_REPO&quot; ]; then
+ 	echo &quot;Building SRPM repository.&quot;
+ 	build_repo_srpms &quot;source&quot;
+ fi
+@@ -40,7 +40,7 @@
+ 		continue
+ 	fi
+ 	
+-	if [ &quot;$CREATE_REPO&quot; == &quot;true&quot; ]; then
++	if [ &quot;$CREATE_REPO&quot; ]; then
+ 		echo &quot;Building $distname repository in $DISTPATH.&quot;
+ 		ln -sf ../../../../source $FTPDIR/$DISTPATH/SRPMS.dag
+ 		if [ &quot;$REPO_APT&quot; == &quot;yes&quot; ]; then
+@@ -76,6 +76,7 @@
+ 
+ echo -n &quot;Building package list.&quot;
+ cat $STATEDIR/packages-*.list | sort | uniq &gt; $STATEDIR/packages.list
++ln -f $STATEDIR/all-packages.list $STATEDIR/../packagelist-dag.txt
+ echo -e &quot;\t($(wc -l $STATEDIR/packages.list))&quot;
+ 
+ echo -n &quot;Building summary list.&quot;
+
+Modified: trunk/tools/dar/dar-update
+===================================================================
+--- trunk/tools/dar/dar-update	2006-01-13 00:07:53 UTC (rev 3957)
++++ trunk/tools/dar/dar-update	2006-01-13 00:24:55 UTC (rev 3958)
+@@ -20,7 +20,7 @@
+                 continue
+         fi
+ 
+-	if [ &quot;$CREATE_REPO&quot; == &quot;true&quot; ]; then
++	if [ &quot;$CREATE_REPO&quot; ]; then
+ 		echo &quot;Building $distname repository in $DISTPATH.&quot;
+ 		build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
+ #		build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
+
+Modified: trunk/tools/dar/python/darlib.py
+===================================================================
+--- trunk/tools/dar/python/darlib.py	2006-01-13 00:07:53 UTC (rev 3957)
++++ trunk/tools/dar/python/darlib.py	2006-01-13 00:24:55 UTC (rev 3958)
+@@ -36,7 +36,7 @@
+ def opendb():
+ 	con = sqlite.connect(dbase)
+ 	cur = con.cursor()
+-	return (con, cur)
++	return con, cur
+ 
+ def createtb(cur, name, create=False):
+ 	'Open a database and return references'
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002757.html">[svn] r3957 - in trunk/rpms: perl-Config-Tiny perl-Crypt-DH	perl-accessors
+</A></li>
+	<LI>Next message: <A HREF="002759.html">[svn] r3959 - in trunk/rpms: . bmon mcabber multitail	perl-Convert-BinHex perl-Crypt-Lite perl-Digest-HMAC	perl-Digest-SHA1 perl-FreezeThaw perl-Geography-Countries	perl-IO-String perl-IO-stringy perl-Locale-Maketext	perl-MIME-tools perl-MLDBM perl-PatchReader perl-XML-LibXML-Common
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2758">[ date ]</a>
+              <a href="thread.html#2758">[ thread ]</a>
+              <a href="subject.html#2758">[ subject ]</a>
+              <a href="author.html#2758">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

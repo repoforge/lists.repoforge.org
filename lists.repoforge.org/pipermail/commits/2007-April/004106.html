@@ -1,0 +1,197 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5307 - in trunk/tools/dstat: . examples
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5307%20-%20in%20trunk/tools/dstat%3A%20.%20examples&In-Reply-To=%3C20070423140901.7DBDE944ACA%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004105.html">
+   <LINK REL="Next"  HREF="004107.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5307 - in trunk/tools/dstat: . examples</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5307%20-%20in%20trunk/tools/dstat%3A%20.%20examples&In-Reply-To=%3C20070423140901.7DBDE944ACA%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5307 - in trunk/tools/dstat: . examples">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Apr 23 16:09:01 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004105.html">[svn] r5306 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="004107.html">[svn] r5308 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4106">[ date ]</a>
+              <a href="thread.html#4106">[ thread ]</a>
+              <a href="subject.html#4106">[ subject ]</a>
+              <a href="author.html#4106">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-04-23 16:09:00 +0200 (Mon, 23 Apr 2007)
+New Revision: 5307
+
+Added:
+   trunk/tools/dstat/examples/devtest.py
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Improved dev() for kernel 2.4 device names. (Filippo Giunchedi)
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2007-04-21 17:22:44 UTC (rev 5306)
++++ trunk/tools/dstat/ChangeLog	2007-04-23 14:09:00 UTC (rev 5307)
+@@ -3,6 +3,7 @@
+ - Fixed a file descriptor problem on kernel 2.4. (Liviu Daia)
+ - Install manpage as part of the make install phase. (Scott Baker)
+ - Use SIG_IGN instead of SIG_DFL to disable alarm signal.
++- Improved dev() for kernel 2.4 device names. (Filippo Giunchedi)
+ 
+ * 0.6.5 - Torrox - released 17/04/2007
+ - Added VMware ESX plugins (Bert de Bruijn)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2007-04-21 17:22:44 UTC (rev 5306)
++++ trunk/tools/dstat/dstat	2007-04-23 14:09:00 UTC (rev 5307)
+@@ -1626,24 +1626,53 @@
+ 		return 'sdX'
+ 	return device
+ 
+-def scsi_dev(nr):
+-	&quot;Convert sequential number into scsi device names&quot;
+-	if nr &lt; 26:
+-		return 'sd' + chr(ord('a') + nr)
+-	else:
+-		return 'sd' + chr(ord('a') - 1 + nr / 26) + chr(ord('a') + nr % 26)
+-
+ def dev(maj, min):
+ 	&quot;Convert major/minor pairs into device names&quot;
++	ram = [1, ]
++	ide = [3, 22, 33, 34, 56, 57, 88, 89, 90, 91]
++	loop = [7, ]
+ 	scsi = [8, 65, 66, 67, 68, 69, 70, 71, 128, 129, 130, 131, 132, 133, 134, 135]
+-	ide = [3, 22, 33, 34, 56, 57, 88, 89, 90, 91]
++	md = [9, ]
++	ida = [72, 73, 74, 75, 76, 77, 78, 79]
++	ubd = [98,]
++	cciss = [104,]
++	dm =  [253,]
+ 	if maj in scsi:
+-		nr = scsi.index(maj) * 16 + min
+-#		nr = scsi.index(maj) * 16 + min / 16
+-		return scsi_dev(nr)
++		disc = chr(ord('a') + scsi.index(maj) * 16 + min / 16)
++		part = min % 16
++		if not part: return 'sd%s' % disc
++		return 'sd%s%d' % (disc, part)
+ 	elif maj in ide:
+-		nr = ide.index(maj) * 2 + min / 64
+-		return 'hd' + chr(ord('a') + nr)
++		disc = chr(ord('a') + ide.index(maj) * 2 + min / 64)
++		part = min % 64
++		if not part: return 'hd%s' % disc
++		return 'hd%s%d' % (disc, part)
++	elif maj in dm:
++		return 'dm-%d' % min
++	elif maj in md:
++		return 'md%d' % min
++	elif maj in loop:
++		return 'loop%d' % min
++	elif maj in ram:
++		return 'ram%d' % min
++	elif maj in cciss:
++		disc = cciss.index(maj) * 16 + min / 16
++		part = min % 16
++		if not part: return 'c0d%d' % disc
++		return 'c0d%dp%d' % (disc, part)
++	elif maj in ida:
++		cont = ida.index(maj)
++		disc = min / 16
++		part = min % 16
++		if not part: return 'ida%d-%d' % (cont, disc)
++		return 'ida%d-%d-%d' % (cont, disc, part)
++	elif maj in ubd:
++		disc = ubd.index(maj) * 16 + min / 16
++		part = min % 16
++		if not part: return 'ubd%d' % disc
++		return 'ubd%d-%d' % (disc, part)
++	else:
++		return 'dev%d-%d' % (maj, min)
+ 
+ #def mountpoint(dev):
+ #	&quot;Return the mountpoint of a mounted device/file&quot;
+
+Added: trunk/tools/dstat/examples/devtest.py
+===================================================================
+--- trunk/tools/dstat/examples/devtest.py	                        (rev 0)
++++ trunk/tools/dstat/examples/devtest.py	2007-04-23 14:09:00 UTC (rev 5307)
+@@ -0,0 +1,32 @@
++#!/usr/bin/python
++
++import sys
++sys.path.insert(0, '/usr/share/dstat/')
++import dstat, time
++
++devices = ( 
++	(  1,   0, 'ram0'),
++	(  1,   1, 'ram1'),
++	(  3,   1, 'hda1'),
++	( 33,   0, 'hde'),
++	(  7,   0, 'loop0'),
++	(  7,   1, 'loop1'),
++	(  8,   0, '/dev/sda'),
++	(  8,   1, '/dev/sda1'),
++	(  8,  18, '/dev/sdb2'),
++	(  8,  37, '/dev/sdc5'),
++	(  9,   0, 'md0'),
++	(  9,   1, 'md1'),
++	(  9,   2, 'md2'),
++	( 74,  16, '/dev/ida/c2d1'),
++	( 77, 241, '/dev/ida/c5d15p1'),
++	( 98,   0, 'ubd/disc0/disc'),
++	( 98,  16, 'ubd/disc1/disc'),
++	(104,   0, 'cciss/c0d0'),
++	(104,   2, 'cciss/c0d0p2'),
++	(253,   0, 'dm-0'),
++	(253,   1, 'dm-1'),
++)
++
++for maj, min, device in devices:
++	print device, '-&gt;', dstat.dev(maj, min)
+
+
+Property changes on: trunk/tools/dstat/examples/devtest.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004105.html">[svn] r5306 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="004107.html">[svn] r5308 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4106">[ date ]</a>
+              <a href="thread.html#4106">[ thread ]</a>
+              <a href="subject.html#4106">[ subject ]</a>
+              <a href="author.html#4106">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

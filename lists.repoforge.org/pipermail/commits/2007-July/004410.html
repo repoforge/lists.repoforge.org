@@ -1,0 +1,361 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5611 - trunk/rpms/nvidia-x11-drv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5611%20-%20trunk/rpms/nvidia-x11-drv&In-Reply-To=%3C20070714184332.9A7B3944A76%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004409.html">
+   <LINK REL="Next"  HREF="004411.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5611 - trunk/rpms/nvidia-x11-drv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5611%20-%20trunk/rpms/nvidia-x11-drv&In-Reply-To=%3C20070714184332.9A7B3944A76%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5611 - trunk/rpms/nvidia-x11-drv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Sat Jul 14 20:43:32 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004409.html">[svn] r5610 - in trunk/rpms: . mugshot
+</A></li>
+        <LI>Next message: <A HREF="004411.html">[svn] r5612 - in trunk/rpms: cyphesis duma guichan segatex smb4k	tintin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4410">[ date ]</a>
+              <a href="thread.html#4410">[ thread ]</a>
+              <a href="subject.html#4410">[ subject ]</a>
+              <a href="author.html#4410">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-07-14 20:43:30 +0200 (Sat, 14 Jul 2007)
+New Revision: 5611
+
+Removed:
+   trunk/rpms/nvidia-x11-drv/NVIDIA-Linux-1.0-9629-xenrt.patch
+   trunk/rpms/nvidia-x11-drv/nvidia-x11-drv-1.0.9755-noxensanitycheck.patch
+Modified:
+   trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec
+Log:
+Update nvidia-x11-drv to 100.14.11.
+
+
+Deleted: trunk/rpms/nvidia-x11-drv/NVIDIA-Linux-1.0-9629-xenrt.patch
+===================================================================
+--- trunk/rpms/nvidia-x11-drv/NVIDIA-Linux-1.0-9629-xenrt.patch	2007-07-14 11:58:36 UTC (rev 5610)
++++ trunk/rpms/nvidia-x11-drv/NVIDIA-Linux-1.0-9629-xenrt.patch	2007-07-14 18:43:30 UTC (rev 5611)
+@@ -1,117 +0,0 @@
+-diff -urN usr/src/nv/nv.c usr/src/nv-xenrt/nv.c
+---- usr/src/nv/nv.c	2006-09-26 21:33:35.000000000 +0200
+-+++ usr/src/nv-xenrt/nv.c	2006-10-03 01:15:42.000000000 +0200
+-@@ -42,8 +42,26 @@
+- 
+- int nv_pat_enabled = 0;
+- 
+-+/*
+-+ * disable PAT support if XEN or PREEMPT_RT is configured in kernel
+-+ */
+-+
+-+#if defined(CONFIG_XEN) || defined(CONFIG_PREEMPT_RT)
+-+static int nv_disable_pat = 1;
+-+#else
+- static int nv_disable_pat = 0;
+-+#endif
+-+
+-+/*
+-+ * you can re-enable PAT support for PREEMPT_RT when applying
+-+ * &quot;nv_disable_pat=0&quot; as kernel parameter for the sake of slightly
+-+ * better 3D performance but at the expense of higher latencies.
+-+ * if XEN is configured, then PAT support can't be enabled!
+-+ */
+-+
+-+#if !defined(CONFIG_XEN)
+- NV_MODULE_PARAMETER(nv_disable_pat);
+-+#endif
+- 
+- #if defined(NVCPU_X86) || defined(NVCPU_X86_64)
+- NvU64 __nv_supported_pte_mask = ~_PAGE_NX;
+-diff -urN usr/src/nv/nv-linux.h usr/src/nv-xenrt/nv-linux.h
+---- usr/src/nv/nv-linux.h	2006-09-26 21:33:37.000000000 +0200
+-+++ usr/src/nv-xenrt/nv-linux.h	2006-10-03 01:15:42.000000000 +0200
+-@@ -226,7 +226,7 @@
+-  * tiny, and the kernel panics when it is exhausted. try to warn the user that
+-  * they need to boost the size of their pool.
+-  */
+--#if defined(CONFIG_SWIOTLB) &amp;&amp; !defined(GFP_DMA32)
+-+#if defined(CONFIG_SWIOTLB) &amp;&amp; !defined(GFP_DMA32) &amp;&amp; !defined(CONFIG_XEN)
+- #define NV_SWIOTLB 1
+- #endif
+- 
+-@@ -734,7 +734,10 @@
+- #define NV_VM_INSERT_PAGE(vma, addr, page) \
+-     vm_insert_page(vma, addr, page)
+- #endif
+--#if defined(NV_REMAP_PFN_RANGE_PRESENT)
+-+#if defined(CONFIG_XEN)
+-+#define NV_REMAP_PAGE_RANGE(from, offset, x...) \
+-+    io_remap_pfn_range(vma, from, ((offset) &gt;&gt; PAGE_SHIFT), x)
+-+#elif defined(NV_REMAP_PFN_RANGE_PRESENT)
+- #define NV_REMAP_PAGE_RANGE(from, offset, x...) \
+-     remap_pfn_range(vma, from, ((offset) &gt;&gt; PAGE_SHIFT), x)
+- #elif defined(NV_REMAP_PAGE_RANGE_5_PRESENT)
+-@@ -746,6 +749,9 @@
+- #define NV_REMAP_PAGE_RANGE(x...) remap_page_range(x)
+- #endif
+- 
+-+#if !defined(CONFIG_XEN)
+-+#define phys_to_machine(x) x
+-+#endif
+- 
+- #define NV_PGD_OFFSET(address, kernel, mm)              \
+-    ({                                                   \
+-diff -urN usr/src/nv/nv-vm.c usr/src/nv-xenrt/nv-vm.c
+---- usr/src/nv/nv-vm.c	2006-09-26 21:33:37.000000000 +0200
+-+++ usr/src/nv-xenrt/nv-vm.c	2006-10-03 01:24:31.000000000 +0200
+-@@ -352,6 +352,9 @@
+- 
+- static void nv_flush_caches(void)
+- {
+-+#if defined(CONFIG_PREEMPT_RT)
+-+    if(!nv_pat_enabled) return;
+-+#endif
+- #if defined(KERNEL_2_4)
+-     // for 2.4 kernels, just automatically flush the caches and invalidate tlbs
+- #ifdef CONFIG_SMP
+-@@ -508,7 +511,7 @@
+-         page_ptr-&gt;phys_addr = phys_addr;
+-         page_ptr-&gt;page_count = NV_GET_PAGE_COUNT(page_ptr);
+-         page_ptr-&gt;virt_addr = virt_addr;
+--        page_ptr-&gt;dma_addr = page_ptr-&gt;phys_addr;
+-+        page_ptr-&gt;dma_addr = phys_to_machine(page_ptr-&gt;phys_addr);
+- 
+-         /* lock the page for dma purposes */
+-         nv_lock_page(page_ptr);
+-diff -urN usr/src/nv/os-agp.c usr/src/nv-xenrt/os-agp.c
+---- usr/src/nv/os-agp.c	2006-09-26 21:33:37.000000000 +0200
+-+++ usr/src/nv-xenrt/os-agp.c	2006-10-03 01:15:42.000000000 +0200
+-@@ -286,7 +286,7 @@
+- 
+-          page_ptr-&gt;phys_addr = (ptr-&gt;memory[i] &amp; PAGE_MASK);
+-          page_ptr-&gt;virt_addr = (unsigned long) __va(page_ptr-&gt;phys_addr);
+--         page_ptr-&gt;dma_addr  = page_ptr-&gt;phys_addr;
+-+         page_ptr-&gt;dma_addr  = phys_to_machine(page_ptr-&gt;phys_addr);
+-     }
+- 
+-     return RM_OK;
+-diff -urN usr/src/nv/os-interface.c usr/src/nv-xenrt/os-interface.c
+---- usr/src/nv/os-interface.c	2006-09-26 21:33:37.000000000 +0200
+-+++ usr/src/nv-xenrt/os-interface.c	2006-10-03 01:15:42.000000000 +0200
+-@@ -527,6 +527,7 @@
+-     MicroSeconds = MilliSeconds * 1000;
+-     tm_end.tv_usec = MicroSeconds;
+-     tm_end.tv_sec = 0;
+-+#if !defined(CONFIG_XEN)
+-     NV_TIMERADD(&amp;tm_aux, &amp;tm_end, &amp;tm_end);
+- 
+-     /* do we have a full jiffie to wait? */
+-@@ -564,6 +565,7 @@
+-                 MicroSeconds = 0;
+-         } while ((jiffies = NV_USECS_TO_JIFFIES(MicroSeconds)) != 0);
+-     }
+-+#endif
+- 
+-     if (MicroSeconds &gt; 1000)
+-     {
+
+Deleted: trunk/rpms/nvidia-x11-drv/nvidia-x11-drv-1.0.9755-noxensanitycheck.patch
+===================================================================
+--- trunk/rpms/nvidia-x11-drv/nvidia-x11-drv-1.0.9755-noxensanitycheck.patch	2007-07-14 11:58:36 UTC (rev 5610)
++++ trunk/rpms/nvidia-x11-drv/nvidia-x11-drv-1.0.9755-noxensanitycheck.patch	2007-07-14 18:43:30 UTC (rev 5611)
+@@ -1,12 +0,0 @@
+-diff -Naupr tmp.orig/usr/src/nv/Makefile.kbuild tmp/usr/src/nv/Makefile.kbuild
+---- usr/src/nv/Makefile.kbuild.orig	2007-02-27 08:59:25.000000000 +0100
+-+++ usr/src/nv/Makefile.kbuild	2007-03-15 13:48:42.000000000 +0100
+-@@ -292,7 +292,7 @@ xen-sanity-check:
+- # the &quot;package-install&quot; target below.
+- #
+- 
+--module: cc-version-check xen-sanity-check rivafb-sanity-check nvidiafb-sanity-check
+-+module: cc-version-check rivafb-sanity-check nvidiafb-sanity-check
+- 	@if [ -z &quot;$(PATCHLEVEL)&quot; ]; then \
+- 	  echo &quot;failed to determine PATCHLEVEL!&quot;; \
+- 	  exit 1; \
+
+Modified: trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec
+===================================================================
+--- trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec	2007-07-14 11:58:36 UTC (rev 5610)
++++ trunk/rpms/nvidia-x11-drv/nvidia-x11-drv.spec	2007-07-14 18:43:30 UTC (rev 5611)
+@@ -3,8 +3,6 @@
+ # Dist: nodist
+ # ExclusiveDist: fc6 el5 fc7
+ 
+-%define majmin          1.0
+-%define relver          9762
+ %define nvidialibdir    %{_libdir}/nvidia
+ %define nvidialib32dir  %{_prefix}/lib/nvidia
+ %define desktop_vendor  rpmforge
+@@ -15,15 +13,15 @@
+ 
+ Summary: Proprietary NVIDIA hardware accelerated OpenGL display driver
+ Name: nvidia-x11-drv
+-Version: %{majmin}.%{relver}
+-Release: 3%{?beta}
++Version: 100.14.11
++Release: 1%{?beta}
+ License: Proprietary
+ Group: User Interface/X Hardware Support
+ URL: <A HREF="http://www.nvidia.com/object/unix.html">http://www.nvidia.com/object/unix.html</A>
+ # i386
+-Source0: <A HREF="http://download.nvidia.com/XFree86/Linux-x86/%{majmin">http://download.nvidia.com/XFree86/Linux-x86/%{majmin</A>}-%{relver}/NVIDIA-Linux-x86-%{majmin}-%{relver}-pkg0.run
++Source0: <A HREF="http://us.download.nvidia.com/XFree86/Linux-x86/%{version">http://us.download.nvidia.com/XFree86/Linux-x86/%{version</A>}/NVIDIA-Linux-x86-%{version}-pkg0.run
+ # x86_64
+-Source1: <A HREF="http://download.nvidia.com/XFree86/Linux-x86_64/%{majmin">http://download.nvidia.com/XFree86/Linux-x86_64/%{majmin</A>}-%{relver}/NVIDIA-Linux-x86_64-%{majmin}-%{relver}-pkg2.run
++Source1: <A HREF="http://us.download.nvidia.com/XFree86/Linux-x86_64/%{version">http://us.download.nvidia.com/XFree86/Linux-x86_64/%{version</A>}/NVIDIA-Linux-x86_64-%{version}-pkg2.run
+ Source2: nvidia.sh
+ Source3: nvidia.csh
+ Source4: nvidia-config-display
+@@ -31,9 +29,6 @@
+ Source6: nvidia.nodes
+ # <A HREF="http://www.nvnews.net/vbulletin/attachment.php?attachmentid=20486&amp;d=1158955681">http://www.nvnews.net/vbulletin/attachment.php?attachmentid=20486&amp;d=1158955681</A>
+ Patch0: NVIDIA_kernel-1.0-9625-NOSMBUS.diff.txt
+-# <A HREF="http://www.nvnews.net/vbulletin/showthread.php?t=77597">http://www.nvnews.net/vbulletin/showthread.php?t=77597</A>
+-Patch1: NVIDIA-Linux-1.0-9629-xenrt.patch
+-Patch2: nvidia-x11-drv-1.0.9755-noxensanitycheck.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ # Required for proper dkms operation
+ Requires: gcc, make
+@@ -57,6 +52,15 @@
+ BUGS BEFORE YOU UNINSTALL THE PACKAGE AND REBOOT THE SYSTEM.
+ 
+ 
++%package 32bit
++Summary: Compatibility 32bit files for the 64bit Proprietary NVIDIA driver
++Group: User Interface/X Hardware Support
++Requires: %{name} = %{version}-%{release}
++
++%description 32bit
++Compatibility 32bit files for the 64bit Proprietary NVIDIA driver.
++
++
+ %prep
+ %setup -T -c
+ # Extract the proper &quot;sources&quot; for the current architecture
+@@ -71,8 +75,6 @@
+ %{__mv} tmp/* .
+ %{__rm} -rf tmp/
+ %patch0 -p0
+-%patch1 -p0
+-%patch2 -p0
+ 
+ 
+ %build
+@@ -241,37 +243,25 @@
+ 
+ %postun -p /sbin/ldconfig
+ 
++%triggerin -- xorg-x11-server-Xorg
++# Enable the proprietary driver
++# Required since xorg-x11-server-Xorg empties the &quot;Files&quot; section
++%{_sbindir}/nvidia-config-display enable || :
+ 
++
+ %files
+-%defattr(-,root,root,0755)
++%defattr(-,root,root,-)
+ %doc LICENSE usr/share/doc/*
+ # Kernel and dkms related bits
+ %config %{_sysconfdir}/modprobe.d/nvidia
+ %{_usrsrc}/%{dkms_name}-%{dkms_vers}/
+ # udev &quot;configuration&quot;
+ %config %{_sysconfdir}/udev/makedev.d/60-nvidia.nodes
+-# Devices for udev to copy directly - No longer needed thanks to the above
+-#attr(0600,root,root) %dev(c,195,0) %{_sysconfdir}/udev/devices/nvidia0
+-#attr(0600,root,root) %dev(c,195,1) %{_sysconfdir}/udev/devices/nvidia1
+-#attr(0600,root,root) %dev(c,195,2) %{_sysconfdir}/udev/devices/nvidia2
+-#attr(0600,root,root) %dev(c,195,3) %{_sysconfdir}/udev/devices/nvidia3
+-#attr(0600,root,root) %dev(c,195,4) %{_sysconfdir}/udev/devices/nvidia4
+-#attr(0600,root,root) %dev(c,195,5) %{_sysconfdir}/udev/devices/nvidia5
+-#attr(0600,root,root) %dev(c,195,6) %{_sysconfdir}/udev/devices/nvidia6
+-#attr(0600,root,root) %dev(c,195,7) %{_sysconfdir}/udev/devices/nvidia7
+-#attr(0600,root,root) %dev(c,195,8) %{_sysconfdir}/udev/devices/nvidia8
+-#attr(0600,root,root) %dev(c,195,9) %{_sysconfdir}/udev/devices/nvidia9
+-#attr(0600,root,root) %dev(c,195,255) %{_sysconfdir}/udev/devices/nvidiactl
+ # Libraries and X modules
+ %config %{_sysconfdir}/ld.so.conf.d/nvidia.conf
+ %dir %{nvidialibdir}/
+ %{nvidialibdir}/*.so.*
+ %{nvidialibdir}/tls/
+-%ifarch x86_64
+-%dir %{nvidialib32dir}/
+-%{nvidialib32dir}/*.so.*
+-%{nvidialib32dir}/tls/
+-%endif
+ %{_libdir}/xorg/modules/drivers/nvidia_drv.so
+ %dir %{_libdir}/xorg/modules/extensions/nvidia/
+ %{_libdir}/xorg/modules/extensions/nvidia/libglx.so
+@@ -283,18 +273,35 @@
+ %{_datadir}/applications/*
+ %{_datadir}/pixmaps/*
+ %{_mandir}/man1/*
+-
+ # Not needed devel but would violate the license not to include them
+ #files devel
+-#defattr(-,root,root,0755)
++#defattr(-,root,root,-)
+ %{nvidialibdir}/*.a
+ %{nvidialibdir}/*.so
++
+ %ifarch x86_64
++%files 32bit
++%defattr(-,root,root,-)
++%dir %{nvidialib32dir}/
++%{nvidialib32dir}/*.so.*
++%{nvidialib32dir}/tls/
++# Not needed devel but would violate the license not to include them
++#files 32bit-devel
++#defattr(-,root,root,-)
+ %{nvidialib32dir}/*.so
+ %endif
+ 
+ 
+ %changelog
++* Sat Jul 14 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 100.14.11-1
++- Update to 100.14.11.
++- Split out 32bit &quot;compat&quot; files to a sub-package on x86_64.
++- Remove Xen patches, as parts seem to be merged (but enough?).
++
++* Wed Jun 13 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 100.14.09-1
++- Update to new 100.14.09 stable release... weird version jump, though.
++- Add triggerin to re-enable driver after xorg-x11-server-Xorg update.
++
+ * Tue Jun  5 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.9762-3
+ - Remove included udev nodes, since they're redundant with the previous change.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004409.html">[svn] r5610 - in trunk/rpms: . mugshot
+</A></li>
+	<LI>Next message: <A HREF="004411.html">[svn] r5612 - in trunk/rpms: cyphesis duma guichan segatex smb4k	tintin
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4410">[ date ]</a>
+              <a href="thread.html#4410">[ thread ]</a>
+              <a href="subject.html#4410">[ subject ]</a>
+              <a href="author.html#4410">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

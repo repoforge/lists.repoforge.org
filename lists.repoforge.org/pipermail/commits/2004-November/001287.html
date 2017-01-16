@@ -1,0 +1,248 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2482 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2482%20-%20trunk/tools/dstat&In-Reply-To=%3C20041113193913.C3DE71A6FF%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001286.html">
+   <LINK REL="Next"  HREF="001288.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2482 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2482%20-%20trunk/tools/dstat&In-Reply-To=%3C20041113193913.C3DE71A6FF%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2482 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sat Nov 13 20:39:13 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001286.html">[SVN] r2481 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="001288.html">[SVN] r2483 - in trunk/rpms: 4g8 amsn apollon apt cacti celestia	devilspie distcc dspam dstat easysok eternallands etherape	imlib2 kernel-module-openswan lib3ds libextractor libgda	libquicktime libsnack libxclass passepartout perl-Net-SSLeay	perl-XML-Parser qalculate rubrica tcptrace tinc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1287">[ date ]</a>
+              <a href="thread.html#1287">[ thread ]</a>
+              <a href="subject.html#1287">[ subject ]</a>
+              <a href="author.html#1287">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-13 20:39:10 +0100 (Sat, 13 Nov 2004)
+New Revision: 2482
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+Log:
+Small updateje
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-13 02:09:19 UTC (rev 2481)
++++ trunk/tools/dstat/ChangeLog	2004-11-13 19:39:10 UTC (rev 2482)
+@@ -1,3 +1,6 @@
++* 0.5.3
++-
++
+ * 0.5.2
+ - Improved disk and net discovery functions (Ville Herva)
+ - Fixed a bug with values when using --noupdate (Pasi Pirhonen)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-13 02:09:19 UTC (rev 2481)
++++ trunk/tools/dstat/dstat	2004-11-13 19:39:10 UTC (rev 2482)
+@@ -15,10 +15,11 @@
+ # Copyright 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+ #from __future__ import generators
++import fcntl, struct, termios
+ import os, sys, re, getopt, time
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = &quot;0.5.2&quot;
++VERSION = &quot;0.5.3&quot;
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -99,9 +100,8 @@
+ 				self.version()
+ 				sys.exit(0)
+ 
+-
+ 		if not self.modlist:
+-			self.modlist = [ 'cpu', 'disk', 'net', 'sys' ]
++			self.modlist = [ 'cpu', 'disk', 'net', 'sys', 'page' ]
+ 
+ 		if len(args) &gt; 0:
+ 			self.delay = int(args[0])
+@@ -200,7 +200,7 @@
+ 
+ 	def title1(self):
+ 		max = self.width()
+-		return ansi['blue'] + self.name[0:max-2].center(max).replace(' ', '-') + ansi['default']
++		return ansi['darkblue'] + self.name[0:max-2].center(max).replace(' ', '-') + ansi['default']
+ 
+ 	def title2(self):
+ 		ret = ''
+@@ -222,8 +222,7 @@
+ 					sys.stdout.write(self.format % conv(self.len, self.val[name]))
+ 			elif self.format in ('%s %s', '%s:%s', '%s-%s'):
+ 					sys.stdout.write(self.format % convlist(self.len, self.val[name]))
+-#					sep = ansi['gray'] + ':' + ansi['default']
+-					sep = ':'
++					sep = '|'
+ 			else:
+ 					sys.stdout.write(self.format % self.val[name])
+ 			if name != self.vars[-1]:
+@@ -729,6 +728,7 @@
+ 	'underline': '\033[4m',
+ 
+ 	'clear': '\033[2J',
++	'clearline': '\033[K',
+ 	'save': '\033[s',
+ 	'restore': '\033[u',
+ 
+@@ -776,13 +776,11 @@
+ 
+ def getwinsize():
+ 	try:
+-		import fcntl, struct, termios
+ 		s = struct.pack(&quot;HHHH&quot;, 0, 0, 0, 0)
+ 		x = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, s)
+-		ret = struct.unpack(&quot;HHHH&quot;, x)[:2]
++		return struct.unpack(&quot;HHHH&quot;, x)[:2]
+ 	except IOError:
+ 		return (25, 80)
+-	return ret
+ 
+ def getcpunr():
+ 	procs = 0
+@@ -890,19 +888,25 @@
+ 		curwidth = 0
+ 		for o in olist:
+ 			curwidth = curwidth + o.width() + 1
+-			if curwidth &lt; cols:
++			if curwidth &lt;= cols:
+ 				plist.append(o)
+ 
+ 		### Check when to display the header
+ 		if (loop == 0 or op.header) and step == op.delay and loop % (rows-2) == 0:
+ 			for o in plist:
+ 				sys.stdout.write(o.title1)
+-				if o != olist[-1]: sys.stdout.write(' ')
++				if o != plist[-1]:
++					sys.stdout.write(' ')
++				elif o != olist[-1]:
++					sys.stdout.write(ansi['darkblue'] + '&gt;' + ansi['default'])
+ 			sys.stdout.write('\n')
+ 
+ 			for o in plist:
+ 				sys.stdout.write(o.title2)
+-				if o != olist[-1]: sys.stdout.write(ansi['silver'] + '|' + ansi['default'])
++				if o != plist[-1]:
++					sys.stdout.write(ansi['silver'] + '|' + ansi['default'])
++				elif o != olist[-1]:
++					sys.stdout.write(ansi['darkblue'] + '&gt;' + ansi['default'])
+ 			sys.stdout.write('\n')
+ 
+ 		### Prepare the colors for intermediate updates, last step in a loop is normal
+@@ -920,7 +924,10 @@
+ 			o.stats()
+ 			if o in plist:
+ 				o.show()
+-				if o != olist[-1]: sys.stdout.write(ansi['silver'] + '|' + ansi['default'])
++				if o != plist[-1]:
++					sys.stdout.write(ansi['default'] + '|' + ansi['default'])
++				elif o != olist[-1]:
++					sys.stdout.write(ansi['default'] + '&gt;' + ansi['default'])
+ 
+ 		### If intermediate results, update increases with 1 sec
+ 		if op.update:
+@@ -937,10 +944,10 @@
+ 
+ 		### The last step in a loop is to show the definitive line on a new line
+ 		if oldstep == op.delay:
+-			sys.stdout.write('\n' + ansi['save'])
++			sys.stdout.write('\n' + ansi['clearline'] + ansi['save'])
+ 		else:
+ #			sys.stdout.write('\n')
+-			sys.stdout.write(ansi['restore'])
++			sys.stdout.write(ansi['restore'] + ansi['clearline'])
+ 
+ ### Unbuffered sys.stdout
+ sys.stdout = os.fdopen(1, 'w', 0)
+@@ -968,14 +975,12 @@
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+-		if step != op.delay:
+-			print
++		print
+ 		print ansi['reset'] + 'Exiting on user request'
+ 		sys.exit(6)
+ 	except OSError, e:
+ #		print e.errno
+-		if step != op.delay:
+-			print
++		print
+ 		print ansi['reset'] + 'OSError: %s' %e
+ 		sys.exit(7)
+ 
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2004-11-13 02:09:19 UTC (rev 2481)
++++ trunk/tools/dstat/dstat.spec	2004-11-13 19:39:10 UTC (rev 2482)
+@@ -4,7 +4,7 @@
+ 
+ Summary: Versatile vmstat, iostat and ifstat replacement
+ Name: dstat
+-Version: 0.5.1
++Version: 0.5.3
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -64,6 +64,12 @@
+ %{_bindir}/dstat
+ 
+ %changelog
++* Sun Nov 14 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.3-1
++- Updated to release 0.5.3.
++
++* Sat Nov 13 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.2-1
++- Updated to release 0.5.2.
++
+ * Thu Nov 11 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.1-1
+ - Updated to release 0.5.1.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001286.html">[SVN] r2481 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="001288.html">[SVN] r2483 - in trunk/rpms: 4g8 amsn apollon apt cacti celestia	devilspie distcc dspam dstat easysok eternallands etherape	imlib2 kernel-module-openswan lib3ds libextractor libgda	libquicktime libsnack libxclass passepartout perl-Net-SSLeay	perl-XML-Parser qalculate rubrica tcptrace tinc
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1287">[ date ]</a>
+              <a href="thread.html#1287">[ thread ]</a>
+              <a href="subject.html#1287">[ subject ]</a>
+              <a href="author.html#1287">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

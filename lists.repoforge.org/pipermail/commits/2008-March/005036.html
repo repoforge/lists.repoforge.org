@@ -1,0 +1,142 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6237 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6237%20-%20trunk/tools/dstat&In-Reply-To=%3C200803271502.m2RF2MaS007987%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005035.html">
+   <LINK REL="Next"  HREF="005037.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6237 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6237%20-%20trunk/tools/dstat&In-Reply-To=%3C200803271502.m2RF2MaS007987%40surya.karan.org%3E"
+       TITLE="[svn] r6237 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Mar 27 16:02:22 CET 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005035.html">[svn] r6236 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="005037.html">[svn] r6238 - in trunk/rpms: . alpine dkms icmpinfo icmpush	imapsync incron inkscape libidn libwpd libwpg mercurial	xine-lib xournal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5036">[ date ]</a>
+              <a href="thread.html#5036">[ thread ]</a>
+              <a href="subject.html#5036">[ subject ]</a>
+              <a href="author.html#5036">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-03-27 15:02:22 +0000 (Thu, 27 Mar 2008)
+New Revision: 6237
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+Log:
+Fixed exception when specifying -I eth0 (Radek Brich)
+dstat_int plugin now allows -I total (Radek Brich)
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2008-03-26 10:58:50 UTC (rev 6236)
++++ trunk/tools/dstat/ChangeLog	2008-03-27 15:02:22 UTC (rev 6237)
+@@ -11,6 +11,8 @@
+ - Fix division by zero problem
+ - Warn when loosing ticks (buffering problems or vmware time sync errors)
+ - Fixed permissions of plugins (Andrew Pollock)
++- Fixed exception when specifying -I eth0 (Radek Brich)
++- dstat_int plugin now allows -I total (Radek Brich)
+ 
+ * 0.6.7 - Cambridge overdue - released 26/02/2008
+ - Only rewrite xterm title when XTERM_SHELL is set to bash
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2008-03-26 10:58:50 UTC (rev 6236)
++++ trunk/tools/dstat/dstat	2008-03-27 15:02:22 UTC (rev 6237)
+@@ -806,7 +806,6 @@
+ #   def show(self):
+ #       return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
+ 
+-### FIXME: Make total work as well
+ class dstat_int(dstat):
+     def __init__(self):
+         self.name = 'interrupts'
+@@ -816,7 +815,7 @@
+         self.intmap = self.intmap()
+         self.vars = self.vars()
+         self.nick = self.vars
+-        self.init(self.vars + ['total'], 1)
++        self.init(self.vars + ['total',], 1)
+ 
+     def intmap(self):
+         ret = {}
+@@ -853,13 +852,13 @@
+         if op.intlist:
+             list = op.intlist
+         else:
+-            list = self.discover + ['total']
++            list = self.discover
+             for name in list:
+                 if name in ('0', '1', '2', '8', 'NMI', 'LOC', 'MIS', 'CPU0'):
+                     list.remove(name)
+             if not op.full and len(list) &gt; 3: list = list[-3:]
+         for name in list:
+-            if name in self.discover:
++            if name in self.discover + ['total',]:
+                 ret.append(name)
+             elif name.lower() in self.intmap.keys():
+                 ret.append(self.intmap[name.lower()])
+@@ -870,9 +869,10 @@
+             l = line.split()
+             if not l or l[0] != 'intr': continue
+             for name in self.vars:
+-                self.cn2[name] = long(l[int(name) + 2])
+-            self.cn2['total'] = self.cn2['total'] + long(l[int(name) + 2])
+-        for name in self.vars + ['total']:
++                if name != 'total':
++                    self.cn2[name] = long(l[int(name) + 2])
++            self.cn2['total'] = long(l[1])
++        for name in self.vars:
+             self.val[name] = (self.cn2[name] - self.cn1[name]) * 1.0 / tick
+         if step == op.delay:
+             self.cn1.update(self.cn2)
+@@ -1915,7 +1915,7 @@
+                     print &gt;&gt;sys.stderr, 'Module %s failed to load. (%s)' % (mod, e)
+                 elif op.debug:
+                     print &gt;&gt;sys.stderr, 'Module %s failed to load, trying another. (%s)' % (mod, e)
+-                if op.debug:
++                if op.debug &gt;= 3:
+                     raise
+ #                tb = sys.exc_info()[2]
+                 continue
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005035.html">[svn] r6236 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="005037.html">[svn] r6238 - in trunk/rpms: . alpine dkms icmpinfo icmpush	imapsync incron inkscape libidn libwpd libwpg mercurial	xine-lib xournal
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5036">[ date ]</a>
+              <a href="thread.html#5036">[ thread ]</a>
+              <a href="subject.html#5036">[ subject ]</a>
+              <a href="author.html#5036">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

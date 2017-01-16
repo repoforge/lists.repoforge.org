@@ -1,0 +1,101 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [suggest] libmpeg2 - SELinux text relocation issues  (CentOS 5.2)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20libmpeg2%20-%20SELinux%20text%20relocation%20issues%20%20%28CentOS%205.2%29&In-Reply-To=%3Cd06df8f85aed5.488b52ec%40shaw.ca%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023504.html">
+   <LINK REL="Next"  HREF="023506.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[suggest] libmpeg2 - SELinux text relocation issues  (CentOS 5.2)</H1>
+    <B>David Savinkoff</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20libmpeg2%20-%20SELinux%20text%20relocation%20issues%20%20%28CentOS%205.2%29&In-Reply-To=%3Cd06df8f85aed5.488b52ec%40shaw.ca%3E"
+       TITLE="[suggest] libmpeg2 - SELinux text relocation issues  (CentOS 5.2)">aye at shaw.ca
+       </A><BR>
+    <I>Sun Jul 27 01:38:04 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023504.html">[suggest] getmsmp3.spec contribution for review (rip MP3 off	MySpace profiles)
+</A></li>
+        <LI>Next message: <A HREF="023506.html">[suggest] awstats 6.8 RPM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23505">[ date ]</a>
+              <a href="thread.html#23505">[ thread ]</a>
+              <a href="subject.html#23505">[ subject ]</a>
+              <a href="author.html#23505">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>libmpeg2  needs to be compiled with -fpic in SELinux to prevent the
+&quot;text relocation&quot; addressing problem in shared libraries.
+
+A solution is to simply add the following to libmpeg2.spec
+CFLAGS=&quot;$CFLAGS -fpic&quot;; export CFLAGS
+
+The problem is caused by the code shown here:
+<A HREF="https://trac.videolan.org/libmpeg2/changeset/1184">https://trac.videolan.org/libmpeg2/changeset/1184</A>
+Note the Message for this code:
+&quot;libmpeg2/configure.incl: only avoid -fPIC on 32-bit x86 platforms, there
+have been too many breakage reports.&quot;
+
+The solution is suggested by the code shown here:
+<A HREF="https://trac.videolan.org/libmpeg2/changeset/1183">https://trac.videolan.org/libmpeg2/changeset/1183</A>
+Note the Message for this code:
+&quot;configure.ac: do not reset user-provided CFLAGS, they should know what
+they are doing.&quot;
+
+libmpeg2-0.5.1/configure and configure.ac contain the
+libtool -prefer-non-pic option to prevent gcc from compiling
+with -fpic . I believe this is an attempt to get more performance, but it
+conflicts with SELinux and the proper use of Dynamic Shared Obects.
+
+# The new patch was built, installed and ran without SELinux text relocation
+errors on CentOS 5.2
+
+The following commands also show no Text Relocations:
+eu-readelf -d libmpeg2.so.0.1.0 | fgrep TEXTREL
+eu-readelf -d libmpeg2convert.so.0.0.0 | fgrep TEXTREL
+
+<A HREF="http://people.redhat.com/drepper/textrelocs.html">http://people.redhat.com/drepper/textrelocs.html</A>
+ has excellent information on shared objects and text relocation.
+
+# The libmpeg2.spec patch is:
+
+--- libmpeg2.spec	2008-07-26 22:07:45.000000000 +0000
++++ libmpeg2.CFLAGS.spec	2008-07-26 22:10:51.000000000 +0000
+@@ -61,6 +61,7 @@
+ %setup
+ 
+ %build
++CFLAGS=&quot;$CFLAGS -fpic&quot;; export CFLAGS
+ %configure \
+ %ifnarch %{ix86}
+     --disable-accel-detect \
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023504.html">[suggest] getmsmp3.spec contribution for review (rip MP3 off	MySpace profiles)
+</A></li>
+	<LI>Next message: <A HREF="023506.html">[suggest] awstats 6.8 RPM
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23505">[ date ]</a>
+              <a href="thread.html#23505">[ thread ]</a>
+              <a href="subject.html#23505">[ subject ]</a>
+              <a href="author.html#23505">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4778 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4778%20-%20trunk/tools/yam&In-Reply-To=%3C20060929092227.EE42131815A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003577.html">
+   <LINK REL="Next"  HREF="003579.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4778 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4778%20-%20trunk/tools/yam&In-Reply-To=%3C20060929092227.EE42131815A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4778 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Sep 29 11:22:27 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003577.html">[svn] r4777 - in trunk/rpms: gnash perl-DBD-SQLite	perl-Image-Imlib2 perl-ldap synbak
+</A></li>
+        <LI>Next message: <A HREF="003579.html">[svn] r4779 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3578">[ date ]</a>
+              <a href="thread.html#3578">[ thread ]</a>
+              <a href="subject.html#3578">[ subject ]</a>
+              <a href="author.html#3578">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-09-29 11:22:26 +0200 (Fri, 29 Sep 2006)
+New Revision: 4778
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/yam
+Log:
+Updates
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-09-28 12:31:11 UTC (rev 4777)
++++ trunk/tools/yam/ChangeLog	2006-09-29 09:22:26 UTC (rev 4778)
+@@ -10,6 +10,10 @@
+ - Mail out repository changes if mailto directive is set
+ - Fixed a bug in Dist() refering to a not-yet-existing cf variable (Gareth Armstrong)
+ - Fixed leftover dist name reference (Gareth Armstrong)
++- Make yam reusable by other python scripts (Oliver Falk)
++- Added alpha architecture (Oliver Falk)
++- Change some informational messages to error messages to improve output
++- Added --type directive to match repos by type (method)
+ 
+ * 0.8.2 - Finally fixed - released 19/09/2006
+ - Use exec in conjunction with system()
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-09-28 12:31:11 UTC (rev 4777)
++++ trunk/tools/yam/yam	2006-09-29 09:22:26 UTC (rev 4778)
+@@ -24,6 +24,7 @@
+ VERSION = '0.8.2svn'
+ 
+ archs = {
++	'alpha': ('alpha', 'alphaev5', 'alphaev56', 'alphaev6', 'alphaev67'),
+ 	'i386': ('i386', 'i486', 'i586', 'i686', 'athlon'),
+ 	'ia64': ('i386', 'i686', 'ia64'),
+ 	'ppc': ('ppc', 'ppc64', 'ppc64pseries', 'ppc64iseries'),
+@@ -53,14 +54,15 @@
+ 		self.quiet = False
+ 		self.remount = False
+ 		self.repos = []
++		self.types = []
+ 		self.umount = False
+ 		self.update = False
+ 		self.verbose = 1
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'c:d:fghnqr:uvx',
++			opts, args = getopt.getopt (args, 'c:d:fghnqr:t:uvx',
+ 				('config=', 'dist=', 'dryrun', 'force', 'generate', 'help', 'quiet', 'repo',
+-				'remount', 'umount', 'unmount', 'update', 'verbose', 'version', 'extras'))
++				'remount', 'type=', 'umount', 'unmount', 'update', 'verbose', 'version', 'extras'))
+ 		except getopt.error, exc:
+ 			print 'yam: %s, try yam -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -88,6 +90,8 @@
+ 				self.repos = self.repos + arg.split(',')
+ 			elif opt in ('--remount', ):
+ 				self.remount = True
++			elif opt in ('-t', '--type'):
++				self.types = self.types + arg.split(',')
+ 			elif opt in ('-u', '--update'):
+ 				self.update = True
+ 			elif opt in ('--umount', '--unmount'):
+@@ -101,6 +105,9 @@
+ 				print 'yam: the use of -x or --extras is deprecated, use -u and -r instead'
+ 				self.update = True
+ 
++		if not self.types:
++			self.types = ['file', 'fish', 'ftp', 'http', 'https', 'mc', 'rhn', 'rhns', 'rsync', 'sftp', 'yam']
++
+ 		for arg in args:
+ 			self.dists = self.dists + arg.split(',')
+ 
+@@ -483,16 +490,22 @@
+ 	def mirror(self):
+ 		&quot;Check URL and pass on to mirror-functions.&quot;
+ 		global exitcode
++
++		### Do not mirror for repository 'all'
+ 		if self.name == 'all':
+ 			return
+ 
+ 		### Make a snapshot of the directory
+ 		self.oldlist = self.rpmlist()
++		self.newlist = self.oldlist
+ 
+ 		for url in self.url.split():
+ 			try:
+ 				info(2, '%s: Mirror packages from %s to %s' % (self.dist.nick, url, self.srcdir))
+ 				s, l, p, q, f, o = urlparse.urlparse(url)
++				if s not in op.types:
++					info(4, 'Ignoring mirror action for type %s' % s)
++					continue
+ 				if s in ('rsync', ):
+ 					mirrorrsync(url, self.srcdir)
+ 				elif s in ('ftp', ):
+@@ -513,7 +526,7 @@
+ 				else:
+ 					error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
+ 			except YamMirrorException, e:
+-				error(2, 'Mirroring failed for %s with message:\n  %s' % (url, e.value))
++				error(0, 'Mirroring failed for %s with message:\n  %s' % (url, e.value))
+ 				exitcode = 2
+ 		else:
+ 			### Create directory in case no URL is given
+@@ -615,14 +628,14 @@
+ 			if os.path.exists(lockfile):
+ 				pid = open(lockfile).read()
+ 				if os.path.exists('/proc/%s' % pid):
+-					info(1, '%s: Found existing lock %s owned by pid %s' % (self.dist.nick, lockfile, pid))
++					error(0, '%s: Found existing lock %s owned by pid %s' % (self.dist.nick, lockfile, pid))
+ 				else:
+ 					info(6, '%s: Removing stale lock %s' % (self.dist.nick, lockfile))
+ 					os.unlink(lockfile)
+ 					self.lock(action)
+ 					return True
+ 			else:
+-				info(1, '%s: Lockfile %s does not exist. Cannot lock. Parallel universe ?' % (self.nick, lockfile))
++				error(0, '%s: Lockfile %s does not exist. Cannot lock. Parallel universe ?' % (self.nick, lockfile))
+ 		return False
+ 
+ 	def unlock(self, action):
+@@ -633,9 +646,9 @@
+ 			if pid == '%s' % os.getpid():
+ 				os.unlink(lockfile)
+ 			else:
+-				info(1, '%s: Existing lock %s found owned by another process with pid %s. This should NOT happen.' % (self.dist.nick, lockfile, pid))
++				error(0, '%s: Existing lock %s found owned by another process with pid %s. This should NOT happen.' % (self.dist.nick, lockfile, pid))
+ 		else:
+-			info(1, '%s: Lockfile %s does not exist. Cannot unlock. Something fishy here ?' % (self.dist.nick, lockfile))
++			error(0, '%s: Lockfile %s does not exist. Cannot unlock. Something fishy here ?' % (self.dist.nick, lockfile))
+ 	
+ 	def createmd(self):
+ 		### Generate repository metadata
+@@ -654,16 +667,16 @@
+ 				elif md in ('apt',):
+ 					self.apt()
+ 				elif md not in index:
+-					info(1, 'The %s metadata is unknown.' % md)
++					error(0, 'The %s metadata is unknown.' % md)
+ 
+ 			### Generate repository index
+ 			for md in self.dist.metadata:
+ 				if md in ('repoview',):
+ 					self.repoview()
+ 				elif md not in metadata: 
+-					info(1, 'The %s index is unknown.' % md)
++					error(0, 'The %s index is unknown.' % md)
+ 		except YamGenerateException, e:
+-			error(2, 'Generating repo failed for %s with message:\n  %s' % (self.name, e.value))
++			error(0, 'Generating repo failed for %s with message:\n  %s' % (self.name, e.value))
+ 			exitcode = 2
+ 		
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003577.html">[svn] r4777 - in trunk/rpms: gnash perl-DBD-SQLite	perl-Image-Imlib2 perl-ldap synbak
+</A></li>
+	<LI>Next message: <A HREF="003579.html">[svn] r4779 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3578">[ date ]</a>
+              <a href="thread.html#3578">[ thread ]</a>
+              <a href="subject.html#3578">[ subject ]</a>
+              <a href="author.html#3578">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

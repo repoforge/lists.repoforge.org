@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5366 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5366%20-%20trunk/tools/dar&In-Reply-To=%3C20070504113312.C960F944ACA%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004164.html">
+   <LINK REL="Next"  HREF="004166.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5366 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5366%20-%20trunk/tools/dar&In-Reply-To=%3C20070504113312.C960F944ACA%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5366 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri May  4 13:33:12 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004164.html">[svn] r5365 - trunk/tools/dar
+</A></li>
+        <LI>Next message: <A HREF="004166.html">[svn] r5367 - trunk/rpms/xine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4165">[ date ]</a>
+              <a href="thread.html#4165">[ thread ]</a>
+              <a href="subject.html#4165">[ subject ]</a>
+              <a href="author.html#4165">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-04 13:33:12 +0200 (Fri, 04 May 2007)
+New Revision: 5366
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Added BuildRequires handling, name check and general cleanup.
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-05-04 10:47:45 UTC (rev 5365)
++++ trunk/tools/dar/dar-perl.py	2007-05-04 11:33:12 UTC (rev 5366)
+@@ -3,18 +3,17 @@
+ ### This python scripts automatically generates an RPMforge SPEC files
+ ### for Perl modules.
+ 
++### Example modules:
++###	perl-Tree-Simple		tests META.yml
++###	perl-Tree-Simple-Visitor	tests sub-modules
++
+ ### TODO:
+-###	- Check that module name is distribution !!
+ ###	- Improve docfiles handling (case-insensitive matching, deflates list)
+-###	- Get build dependencies from META.yml if available
+-###	- Compare name and version with META.yml
+ 
+ import sys, os, time, getopt, urllib2, gzip, re, syck
+ import cElementTree as ElementTree
+ import tarfile
+ 
+-tmppath = '/dar/tmp'
+-
+ args = sys.argv[1:]
+ try:
+ 	logname = os.getlogin()
+@@ -25,6 +24,7 @@
+ realversion = None
+ author = ''
+ email = ''
++tmppath = '/var/tmp'
+ 
+ docfiles = ('Announce', 'ANNOUNCE', 'Artistic', 'ARTISTIC', 'Artistic.txt', 'AUTHORS', 'Bugs', 'BUGS', 'Changelog', 'ChangeLog', 'CHANGELOG', 'Changes', 'CHANGES', 'Changes.pod', 'CHANGES.TXT', 'Copying', 'COPYING', 'COPYRIGHT', 'Credits', 'CREDITS', 'CREDITS.txt', 'FAQ', 'GNU_GPL.txt', 'GNU_LGPL.txt', 'GNU_LICENSE', 'HACKING', 'HISTORY', 'INFO', 'INSTALL', 'INSTALLING', 'INSTALL.txt', 'LICENCE', 'LICENSE', 'MANIFEST', 'META.yml', 'NEWS', 'NOTES', 'NOTICE', 'PORTING', 'readme', 'README', 'readme.txt', 'README.txt', 'README.TXT', 'RELEASE_NOTES', 'SIGNATURE', 'THANKS', 'TODO', 'UPGRADE', 'VERSION', '.txt')
+ 
+@@ -39,7 +39,7 @@
+ }
+ 
+ def download(url):
+-	filename = os.path.join('/dar/tmp', os.path.basename(url))
++	filename = os.path.join(tmppath, os.path.basename(url))
+ 	if not os.path.exists(filename):
+ 		try:
+ 			req = urllib2.Request(url)
+@@ -55,7 +55,7 @@
+ 	opts, args = getopt.getopt (args, 'dhnv',
+ 		['debug', 'help', 'version'])
+ except getopt.error, exc:
+-	print 'dar-perl: %s, try dstat -h for a list of all the options' % str(exc)
++	print 'dar-perl: %s, try dar-perl.py -h for a list of all the options' % str(exc)
+ 	sys.exit(1)
+ 
+ for opt, arg in opts:
+@@ -167,42 +167,37 @@
+ 	### Remove Name-Version/ from filename
+ 	l = file.split(base+'/')
+ 	shortfile = l[1]
++
++	### Check if this is a noarch or arch package
+ 	if file.endswith('.c') or file.endswith('.h') or file.endswith('.cc') or file.endswith('.xs'):
+ 		noarch = False
++
++	### Create %docs list
+ 	for docfile in docfiles:
+ 		if shortfile == docfile:
+ 			docs.append(shortfile)
++
+ 	### Parse META.yml (<A HREF="http://module-build.sourceforge.net/META-spec-v1.2.html">http://module-build.sourceforge.net/META-spec-v1.2.html</A>)
+-### Example:
+-#name -&gt; SVN-Notify-Mirror
+-#license -&gt; perl
+-#author -&gt; ['John Peacock &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">jpeacock at cpan.org</A>&gt;']
+-#meta-spec -&gt; {'url': '<A HREF="http://module-build.sourceforge.net/META-spec-v1.2.html">http://module-build.sourceforge.net/META-spec-v1.2.html</A>', 'version': 1.2}
+-#abstract -&gt; Keep a mirrored working copy of a repository path
+-#generated_by -&gt; Module::Build version 0.2806
+-#version -&gt; 0.036
+-#provides -&gt; {'SVN::Notify::Mirror::Rsync': {'version': '', 'file': 'lib/SVN/Notify/Mirror/Rsync.pm'}, 'SVN::Notify::Mirror::SSH': {'version': '', 'file': 'lib/SVN/Notify/Mirror/SSH.pm'}, 'SVN::Notify::Mirror': {'version': 0.035999999999999997, 'file': 'lib/SVN/Notify/Mirror.pm'}}
+-#requires -&gt; {'Module::Build': 0.28050000000000003, 'SVN::Notify': 2.6200000000000001}
+-#resources -&gt; {'license': '<A HREF="http://dev.perl.org/licenses/">http://dev.perl.org/licenses/</A>'}
+-
+ 	if shortfile == 'META.yml':
+ 		member = distfd.getmember(file)
+ 		meta = syck.load(distfd.extractfile(member).read())
++		if debug:
++			print &gt;&gt;sys.stderr, 'META.yml contains the following info:'
++			for key in meta.keys():
++				print &gt;&gt;sys.stderr, '   %s: %s' % (key, meta[key])
+ 
+-		for key in meta.keys():
+-		        print &gt;&gt;sys.stderr, key, '-&gt;', meta[key]
++docs.sort()
+ 
+-	### Parse README
+-#	if shortfile == 'README':
+-#		member = distfd.getmember(file)
+-#		meta = distfd.extractfile(member)
+-#		for line in meta.readlines():
+-#			print &gt;&gt;sys.stderr, line
++if os.path.isfile(archive):
++	os.remove(archive)
+ 
+-docs.sort()
++if meta.has_key('name') and meta['name'] != module:
++	print &gt;&gt;sys.stderr, 'Module %s is part of distribution %s. Please us that instead.' % (module, meta['name'])
++	sys.exit(1)
+ 
+-#if os.path.isfile(archive):
+-#	os.remove(archive)
++if meta.has_key('version') and str(meta['version']) != version:
++	print &gt;&gt;sys.stderr, 'Module %s has version mismatch between archive (%s) and META.yml (%s).' % (module, version, meta['version'])
++	print repr(version), repr(meta['version'])
+ 
+ if meta.has_key('author') and not email or not author:
+ 	author = meta['author']
+@@ -223,9 +218,8 @@
+ 		print &gt;&gt;sys.stderr, 'License could not be determined.'
+ 
+ if meta.has_key('abstract'):
+-	meta['abstract'] = meta['abstract'][0].lower() + meta['abstract'][1:]
+-	summary = &quot;Perl module to %s&quot; % meta['abstract']
+-	description = &quot;perl-%s is a Perl module to %s.&quot; % (module, meta['abstract'])
++	summary = &quot;%s&quot; % meta['abstract']
++	description = &quot;%s.&quot; % meta['abstract']
+ else:
+ 	summary = &quot;Perl module named %s&quot; % module
+ 	description = &quot;perl-%s is a Perl module.&quot; % module
+@@ -244,8 +238,6 @@
+ 	for file in distfd.getnames():
+ 		print &gt;&gt;sys.stderr, '  ', file
+ 
+-#print &gt;&gt;sys.stderr, &quot;<A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+-
+ print '# $Id$'
+ print '# Authority:', logname
+ 
+@@ -279,16 +271,26 @@
+ 	print &quot;BuildArch: noarch&quot;
+ 
+ ### FIXME: Add BuildRequires from Makefile.PL
+-print &quot;BuildRequires: perl&quot;
+-#print &quot;Requires: perl&quot;
++if meta.has_key('requires') and meta['requires'].has_key('perl'):
++	print &quot;BuildRequires: perl &gt;= %s &quot; % meta['requires']['perl']
++else:
++	print &quot;BuildRequires: perl&quot;
+ 
+ ### Requires are extracted by RPM itself
++#print &quot;Requires: perl&quot;
+ #if meta.has_key('requires'):
+ #	for key in meta['requires']:
+ #		if meta['requires'][key]:
+ #			print &quot;Requires: perl(%s) &gt;= %s&quot; % (key, meta['requires'][key])
+ #		else:
+ #			print &quot;Requires: perl(%s)&quot; % key
++
++if meta.has_key('build_requires'):
++	for key in meta['build_requires']:
++		if meta['build_requires'][key]:
++			print &quot;BuildRequires: perl(%s) &gt;= %s&quot; % (key, meta['build_requires'][key])
++		else:
++			print &quot;BuildRequires: perl(%s)&quot; % key
+ print
+ 
+ print &quot;%description&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004164.html">[svn] r5365 - trunk/tools/dar
+</A></li>
+	<LI>Next message: <A HREF="004166.html">[svn] r5367 - trunk/rpms/xine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4165">[ date ]</a>
+              <a href="thread.html#4165">[ thread ]</a>
+              <a href="subject.html#4165">[ subject ]</a>
+              <a href="author.html#4165">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

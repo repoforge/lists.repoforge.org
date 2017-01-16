@@ -1,0 +1,291 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5600 - in trunk/rpms: vlc vobcopy
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5600%20-%20in%20trunk/rpms%3A%20vlc%20vobcopy&In-Reply-To=%3C20070711034004.07A2E944AB9%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004398.html">
+   <LINK REL="Next"  HREF="004400.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5600 - in trunk/rpms: vlc vobcopy</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5600%20-%20in%20trunk/rpms%3A%20vlc%20vobcopy&In-Reply-To=%3C20070711034004.07A2E944AB9%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5600 - in trunk/rpms: vlc vobcopy">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jul 11 05:40:04 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004398.html">[svn] r5599 - in trunk/rpms: . perl-Thread-Conveyor	perl-Thread-Conveyor-Monitored perl-Thread-Pool	perl-Thread-Serialize perl-Thread-Tie perl-load
+</A></li>
+        <LI>Next message: <A HREF="004400.html">[svn] r5601 - in trunk/rpms: clamav fuse-iso httping msktutil
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4399">[ date ]</a>
+              <a href="thread.html#4399">[ thread ]</a>
+              <a href="subject.html#4399">[ subject ]</a>
+              <a href="author.html#4399">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-07-11 05:40:02 +0200 (Wed, 11 Jul 2007)
+New Revision: 5600
+
+Removed:
+   trunk/rpms/vlc/vlc-0.8.6a-flac-1.1.3.patch
+Modified:
+   trunk/rpms/vlc/vlc.spec
+   trunk/rpms/vobcopy/vobcopy.spec
+Log:
+Minor cleanups.
+
+
+Deleted: trunk/rpms/vlc/vlc-0.8.6a-flac-1.1.3.patch
+===================================================================
+--- trunk/rpms/vlc/vlc-0.8.6a-flac-1.1.3.patch	2007-07-10 21:45:12 UTC (rev 5599)
++++ trunk/rpms/vlc/vlc-0.8.6a-flac-1.1.3.patch	2007-07-11 03:40:02 UTC (rev 5600)
+@@ -1,132 +0,0 @@
+---- vlc-0.8.6-clean/modules/codec/flac.c	2006-12-09 01:12:20.000000000 +0000
+-+++ vlc-0.8.6/modules/codec/flac.c	2006-12-24 01:34:54.000000000 +0000
+-@@ -40,6 +40,10 @@
+- 
+- #define MAX_FLAC_HEADER_SIZE 16
+- 
+-+#if defined(FLAC_API_VERSION_CURRENT) &amp;&amp; FLAC_API_VERSION_CURRENT &gt;= 8
+-+#   define USE_NEW_FLAC_API
+-+#endif
+-+
+- /*****************************************************************************
+-  * decoder_sys_t : FLAC decoder descriptor
+-  *****************************************************************************/
+-@@ -225,6 +229,25 @@
+-         return VLC_EGENERIC;
+-     }
+- 
+-+#ifdef USE_NEW_FLAC_API
+-+    if( FLAC__stream_decoder_init_stream( p_sys-&gt;p_flac,
+-+                                          DecoderReadCallback,
+-+                                          NULL,
+-+                                          NULL,
+-+                                          NULL,
+-+                                          NULL,
+-+                                          DecoderWriteCallback,
+-+                                          DecoderMetadataCallback,
+-+                                          DecoderErrorCallback,
+-+                                          p_dec )
+-+        != FLAC__STREAM_DECODER_INIT_STATUS_OK )
+-+    {
+-+        msg_Err( p_dec, &quot;FLAC__stream_decoder_init_stream() failed&quot; );
+-+        FLAC__stream_decoder_delete( p_sys-&gt;p_flac );
+-+        free( p_sys );
+-+        return VLC_EGENERIC;
+-+    }
+-+#else
+-     FLAC__stream_decoder_set_read_callback( p_sys-&gt;p_flac,
+-                                             DecoderReadCallback );
+-     FLAC__stream_decoder_set_write_callback( p_sys-&gt;p_flac,
+-@@ -237,6 +260,7 @@
+- 
+-     FLAC__stream_decoder_init( p_sys-&gt;p_flac );
+- #endif
+-+#endif
+- 
+-     /* Set output properties */
+-     p_dec-&gt;fmt_out.i_cat = AUDIO_ES;
+-@@ -730,16 +754,27 @@
+-     case FLAC__STREAM_DECODER_END_OF_STREAM:
+-         msg_Dbg( p_dec, &quot;the decoder has reached the end of the stream.&quot; );
+-         break;
+-+#ifdef USE_NEW_FLAC_API
+-+    case FLAC__STREAM_DECODER_OGG_ERROR:
+-+        msg_Err( p_dec, &quot;error occurred in the Ogg layer.&quot; );
+-+        break;
+-+    case FLAC__STREAM_DECODER_SEEK_ERROR:
+-+        msg_Err( p_dec, &quot;error occurred while seeking.&quot; );
+-+        break;
+-+#endif
+-     case FLAC__STREAM_DECODER_ABORTED:
+-         msg_Warn( p_dec, &quot;the decoder was aborted by the read callback.&quot; );
+-         break;
+-+#ifndef USE_NEW_FLAC_API
+-     case FLAC__STREAM_DECODER_UNPARSEABLE_STREAM:
+-         msg_Warn( p_dec, &quot;the decoder encountered reserved fields in use &quot;
+-                  &quot;in the stream.&quot; );
+-         break;
+-+#endif
+-     case FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR:
+-         msg_Err( p_dec, &quot;error when allocating memory.&quot; );
+-         break;
+-+#ifndef USE_NEW_FLAC_API
+-     case FLAC__STREAM_DECODER_ALREADY_INITIALIZED:
+-         msg_Err( p_dec, &quot;FLAC__stream_decoder_init() was called when the &quot;
+-                  &quot;decoder was already initialized, usually because &quot;
+-@@ -749,6 +784,7 @@
+-         msg_Err( p_dec, &quot;FLAC__stream_decoder_init() was called without &quot;
+-                  &quot;all callbacks being set.&quot; );
+-         break;
+-+#endif
+-     case FLAC__STREAM_DECODER_UNINITIALIZED:
+-         msg_Err( p_dec, &quot;decoder in uninitialized state.&quot; );
+-         break;
+-@@ -1183,7 +1219,12 @@
+-     p_sys-&gt;i_samples_delay = 0;
+- 
+-     /* Create flac encoder */
+--    p_sys-&gt;p_flac = FLAC__stream_encoder_new();
+-+    if( !(p_sys-&gt;p_flac = FLAC__stream_encoder_new()) )
+-+    {
+-+        msg_Err( p_enc, &quot;FLAC__stream_encoder_new() failed&quot; );
+-+        free( p_sys );
+-+        return VLC_EGENERIC;
+-+    }
+- 
+-     FLAC__stream_encoder_set_streamable_subset( p_sys-&gt;p_flac, 1 );
+-     FLAC__stream_encoder_set_channels( p_sys-&gt;p_flac,
+-@@ -1193,15 +1234,32 @@
+-     FLAC__stream_encoder_set_bits_per_sample( p_sys-&gt;p_flac, 16 );
+-     p_enc-&gt;fmt_in.i_codec = AOUT_FMT_S16_NE;
+- 
+-+    /* Get and store the STREAMINFO metadata block as a p_extra */
+-+    p_sys-&gt;p_chain = 0;
+-+
+-+#ifdef USE_NEW_FLAC_API
+-+    if( FLAC__stream_encoder_init_stream( p_sys-&gt;p_flac,
+-+                                          EncoderWriteCallback,
+-+                                          NULL,
+-+                                          NULL,
+-+                                          EncoderMetadataCallback,
+-+                                          p_enc )
+-+        != FLAC__STREAM_ENCODER_INIT_STATUS_OK )
+-+    {
+-+        msg_Err( p_enc, &quot;FLAC__stream_encoder_init_stream() failed&quot; );
+-+        FLAC__stream_encoder_delete( p_sys-&gt;p_flac );
+-+        free( p_sys );
+-+        return VLC_EGENERIC;
+-+    }
+-+#else
+-     FLAC__stream_encoder_set_write_callback( p_sys-&gt;p_flac,
+-         EncoderWriteCallback );
+-     FLAC__stream_encoder_set_metadata_callback( p_sys-&gt;p_flac,
+-         EncoderMetadataCallback );
+-     FLAC__stream_encoder_set_client_data( p_sys-&gt;p_flac, p_enc );
+- 
+--    /* Get and store the STREAMINFO metadata block as a p_extra */
+--    p_sys-&gt;p_chain = 0;
+-     FLAC__stream_encoder_init( p_sys-&gt;p_flac );
+-+#endif
+- 
+-     return VLC_SUCCESS;
+- }
+
+Modified: trunk/rpms/vlc/vlc.spec
+===================================================================
+--- trunk/rpms/vlc/vlc.spec	2007-07-10 21:45:12 UTC (rev 5599)
++++ trunk/rpms/vlc/vlc.spec	2007-07-11 03:40:02 UTC (rev 5600)
+@@ -110,7 +110,6 @@
+ Patch0: vlc-0.8.6-ffmpegX11.patch
+ Patch1: vlc-0.8.6-wx28.patch
+ Patch2: vlc-0.8.6a-faad2.patch
+-Patch3: vlc-0.8.6a-flac-1.1.3.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ BuildRequires: gcc-c++, libpng-devel, libxml2-devel, libtiff-devel
+ BuildRequires: libgcrypt-devel, gnutls-devel, libtar-devel
+@@ -209,7 +208,6 @@
+ %patch0 -p1 -b .ffmpegX11
+ %patch1 -p1 -b .wx28
+ %patch2 -p1 -b .faad2
+-#patch3 -p1 -b .flac-1.1.3
+ # Fix PLUGIN_PATH path for lib64
+ %{__perl} -pi -e 's|/lib/vlc|/%{_lib}/vlc|g' vlc-config.in.in configure*
+ 
+@@ -336,6 +334,9 @@
+ 
+ 
+ %changelog
++* Wed Jul 11 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.8.6c-1
++- Remove no longer needed flac patch.
++
+ * Mon Jun 18 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.8.6c-1
+ - Updated to release 0.8.6c.
+ 
+
+Modified: trunk/rpms/vobcopy/vobcopy.spec
+===================================================================
+--- trunk/rpms/vobcopy/vobcopy.spec	2007-07-10 21:45:12 UTC (rev 5599)
++++ trunk/rpms/vobcopy/vobcopy.spec	2007-07-11 03:40:02 UTC (rev 5600)
+@@ -11,7 +11,6 @@
+ Source: <A HREF="http://vobcopy.org/download/vobcopy-%{version">http://vobcopy.org/download/vobcopy-%{version</A>}.tar.bz2
+ Patch0: vobcopy-1.0.1-Makefile.patch
+ Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-Requires: libdvdread
+ BuildRequires: libdvdread-devel
+ 
+ %description
+@@ -46,7 +45,7 @@
+ 
+ 
+ %files
+-%defattr(-, root, root, 0755)
++%defattr(-,root,root,-)
+ %doc Changelog COPYING README Release-Notes TODO
+ %doc alternative_programs.txt
+ %{_bindir}/vobcopy
+@@ -74,7 +73,7 @@
+ 
+ * Fri Jul 29 2005 Robos  &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">robos at muon.de</A>&gt;
+ - 0.5.15: -option to skip already present files with -m.
+-  	  copying of dvd's with files ending in &quot;;?&quot; should work now.
++  copying of dvd's with files ending in &quot;;?&quot; should work now.
+ 
+ * Sun Oct 24 2004 Robos  &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">robos at muon.de</A>&gt;
+ - 0.5.14-rc1: - misc *bsd fixes and first straight OSX support
+@@ -84,17 +83,16 @@
+ 
+ * Mon Jan 19 2004 Robos &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">robos at muon.de</A>&gt;
+ - 0.5.10-1: -O now works
+-  	    cleanup
++  cleanup
+ 
+-
+-
+ * Wed Nov 13 2003 Robos &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">robos at muon.de</A>&gt;
+ - 0.5.9-1: -F now accepts factor number
+-  	   cleanups and small bugfix
+-  	   new vobcopy.spec
++  cleanups and small bugfix
++  new vobcopy.spec
+ 
+ * Sun Nov 09 2003 Florin Andrei &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">florin at andrei.myip.org</A>&gt;
+ - 0.5.8-2: libdvdread is now a pre-requisite
+ 
+ * Sun Nov 09 2003 Florin Andrei &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">florin at andrei.myip.org</A>&gt;
+ - first package, 0.5.8-1
++
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004398.html">[svn] r5599 - in trunk/rpms: . perl-Thread-Conveyor	perl-Thread-Conveyor-Monitored perl-Thread-Pool	perl-Thread-Serialize perl-Thread-Tie perl-load
+</A></li>
+	<LI>Next message: <A HREF="004400.html">[svn] r5601 - in trunk/rpms: clamav fuse-iso httping msktutil
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4399">[ date ]</a>
+              <a href="thread.html#4399">[ thread ]</a>
+              <a href="subject.html#4399">[ subject ]</a>
+              <a href="author.html#4399">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

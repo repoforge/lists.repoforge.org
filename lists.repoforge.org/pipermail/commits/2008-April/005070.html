@@ -1,0 +1,129 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6271 - trunk/tools/dstat/plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6271%20-%20trunk/tools/dstat/plugins&In-Reply-To=%3C200804181012.m3IACImQ022171%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005069.html">
+   <LINK REL="Next"  HREF="005071.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6271 - trunk/tools/dstat/plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6271%20-%20trunk/tools/dstat/plugins&In-Reply-To=%3C200804181012.m3IACImQ022171%40surya.karan.org%3E"
+       TITLE="[svn] r6271 - trunk/tools/dstat/plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Apr 18 12:12:18 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005069.html">[svn] r6270 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="005071.html">[svn] r6272 - trunk/rpms/artwiz-aleczapka-fonts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5070">[ date ]</a>
+              <a href="thread.html#5070">[ thread ]</a>
+              <a href="subject.html#5070">[ subject ]</a>
+              <a href="author.html#5070">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-04-18 11:12:18 +0100 (Fri, 18 Apr 2008)
+New Revision: 6271
+
+Added:
+   trunk/tools/dstat/plugins/dstat_net_packets.py
+Log:
+Added external dstat_net_packets plugin to show the number of packets per inte
+rface
+
+Added: trunk/tools/dstat/plugins/dstat_net_packets.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_net_packets.py	                        (rev 0)
++++ trunk/tools/dstat/plugins/dstat_net_packets.py	2008-04-18 10:12:18 UTC (rev 6271)
+@@ -0,0 +1,57 @@
++class dstat_net_packets(dstat):
++    def __init__(self):
++        self.format = ('f', 5, 1000)
++        self.open('/proc/net/dev')
++        self.nick = ('recv', 'send')
++        self.discover = self.discover()
++        self.vars = self.vars()
++        self.name = ['net/'+name for name in self.vars]
++        self.init(self.vars + ['total',], 2)
++
++    def discover(self, *list):
++        ret = []
++        for line in self.readlines():
++            l = line.replace(':', ' ').split()
++            if len(l) &lt; 17: continue
++            if l[2] == '0' and l[10] == '0': continue
++            name = l[0]
++            if name not in ('lo', 'face'):
++                ret.append(name)
++        ret.sort()
++        for item in list: ret.append(item)
++        return ret
++
++    def vars(self):
++        ret = []
++        if op.netlist:
++            list = op.netlist
++        elif not op.full:
++            list = ('total',)
++        else:
++            list = self.discover
++#           if len(list) &gt; 2: list = list[0:2]
++            list.sort()
++        for name in list:
++            if name in self.discover + ['total', 'lo']:
++                ret.append(name)
++        return ret
++
++    def extract(self):
++        self.cn2['total'] = [0, 0]
++        for line in self.readlines():
++            l = line.replace(':', ' ').split()
++            if len(l) &lt; 17: continue
++            if l[2] == '0' and l[10] == '0': continue
++            name = l[0]
++            if name in self.vars :
++                self.cn2[name] = ( long(l[2]), long(l[10]) )
++            if name not in ('lo','face'):
++                self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[10]))
++        if update:
++            for name in self.cn2.keys():
++                self.val[name] = (
++                    (self.cn2[name][0] - self.cn1[name][0]) * 1.0 / tick,
++                    (self.cn2[name][1] - self.cn1[name][1]) * 1.0 / tick,
++                 )
++        if step == op.delay:
++            self.cn1.update(self.cn2)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005069.html">[svn] r6270 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="005071.html">[svn] r6272 - trunk/rpms/artwiz-aleczapka-fonts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5070">[ date ]</a>
+              <a href="thread.html#5070">[ thread ]</a>
+              <a href="subject.html#5070">[ subject ]</a>
+              <a href="author.html#5070">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

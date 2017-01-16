@@ -1,0 +1,601 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3537 - in trunk/tools/pydar2: pydar scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3537%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050826185237.F180E318033%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002337.html">
+   <LINK REL="Next"  HREF="002339.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3537 - in trunk/tools/pydar2: pydar scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3537%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050826185237.F180E318033%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3537 - in trunk/tools/pydar2: pydar scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Aug 26 20:52:37 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002337.html">[svn] r3536 - in trunk/tools/dconf: . config scripts
+</A></li>
+        <LI>Next message: <A HREF="002339.html">[svn] r3538 - in trunk/rpms: . gscanbus k3dsurf libdc1394
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2338">[ date ]</a>
+              <a href="thread.html#2338">[ thread ]</a>
+              <a href="subject.html#2338">[ subject ]</a>
+              <a href="author.html#2338">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-08-26 20:52:36 +0200 (Fri, 26 Aug 2005)
+New Revision: 3537
+
+Modified:
+   trunk/tools/pydar2/pydar/specrepositoryspecfile.py
+   trunk/tools/pydar2/pydar/tagsfile.py
+   trunk/tools/pydar2/scripts/rpmforgesite.py
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/specrepositoryspecfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepositoryspecfile.py	2005-08-26 08:30:56 UTC (rev 3536)
++++ trunk/tools/pydar2/pydar/specrepositoryspecfile.py	2005-08-26 18:52:36 UTC (rev 3537)
+@@ -35,6 +35,7 @@
+         self.rpmfilenames = []
+         self.srpmfilenames = []
+         self.binaryrpms = []
++        self.sourcerpms = []
+         #self.cat.debug(&quot;start, specRepositoryName=&quot; + self.specRepositoryName + &quot;,specRepositoryRootDir=&quot; + self.specRepositoryRootDir + &quot;,subDir=&quot; + self.subDir + &quot;,fileName=&quot; + self.fileName)
+ 
+     def getCheckSum(self):
+
+Modified: trunk/tools/pydar2/pydar/tagsfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/tagsfile.py	2005-08-26 08:30:56 UTC (rev 3536)
++++ trunk/tools/pydar2/pydar/tagsfile.py	2005-08-26 18:52:36 UTC (rev 3537)
+@@ -33,15 +33,15 @@
+         self.addToCommandLine = addToCommandLine
+         self.defineargs = defineargs
+         self.cat.debug(&quot;defineargs: &quot; + defineargs)
++        self.__formatStringBeginTag = &quot;::QFBEGINTAG::&quot;
++        self.__formatStringEndTag = &quot;::QFENDTAG::&quot;
++        self.subpackageStandardTags = {}
+         self.rpmforgetags = {}
+         self.standardtags = {}
+         self.queryformattags = (&quot;PKGID&quot;,&quot;NAME&quot;,&quot;VERSION&quot;,&quot;RELEASE&quot;,&quot;EPOCH&quot;,&quot;SERIAL&quot;,&quot;SUMMARY&quot;,&quot;DESCRIPTION&quot;,&quot;DISTRIBUTION&quot;,&quot;VENDOR&quot;,&quot;LICENSE&quot;,&quot;PACKAGER&quot;,&quot;GROUP&quot;,&quot;URL&quot;,&quot;ARCH&quot;,&quot;EXCLUDEARCH&quot;,&quot;EXCLUDEOS&quot;,&quot;EXCLUSIVEARCH&quot;,&quot;EXCLUSIVEOS&quot;,&quot;BUILDARCHS&quot;,&quot;DISTURL&quot;,&quot;FILEMD5S&quot;,&quot;CHANGELOGNAME&quot;)
+         self.getStandardTags()
+         self.parseRpmForgeTags()
+-        self.subpackageStandardTags = {}
+         
+-        self.__formatStringBeginTag = &quot;::QFBEGINTAG::&quot;
+-        self.__formatStringEndTag = &quot;::QFENDTAG::&quot;
+         
+     def getStandardTags(self):
+         self.cat.debug(&quot;start&quot;)
+
+Modified: trunk/tools/pydar2/scripts/rpmforgesite.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgesite.py	2005-08-26 08:30:56 UTC (rev 3536)
++++ trunk/tools/pydar2/scripts/rpmforgesite.py	2005-08-26 18:52:36 UTC (rev 3537)
+@@ -157,6 +157,9 @@
+         self.__packager = packager
+         self.__localFile = localFile
+     
++    def getAdditionalPaths(self):
++        return self.__additionalPaths
++    
+     def getNumberOfBinaryRpms(self):
+         return len(self.__binaryRpms)
+       
+@@ -215,7 +218,7 @@
+         self.__specRepo = specRepo
+         self.__Driesfullcontentstemplate = None
+         self.__RFfullcontentstemplate = None
+-        self.__Driessiterootdir =  &quot;/tmp/packages/&quot;
++        self.__Driessiterootdir =  &quot;/tmp/packages/rpm/&quot;
+         self.__RFsiterootdir = &quot;/tmp/rpmforgesite/&quot;
+         self.__storage = storagefactory.StorageFactory.getStorage()
+         self.__timer(&quot;distArchPackagerLists init&quot;)
+@@ -238,37 +241,41 @@
+         self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dries&quot;, &quot;au1.92 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/RPMS.dries/</A>&quot;, &quot;Aurora 1.92 for sparc&quot;, addPaths, &quot;scripts/cache/au1.92-sparc-dries.html&quot;, &quot;au1.92-sparc&quot;))
+         addPaths = ['aurora/1.91/sparc']
+         self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dries&quot;, &quot;au1.91 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/RPMS.dries/</A>&quot;, &quot;Aurora 1.91 for sparc&quot;, addPaths, &quot;scripts/cache/au1.91-sparc-dries.html&quot;, &quot;au1.91-sparc&quot;))
+-        #dag:
+-        #<A HREF="http://apt.sw.be/fedora/3/en/i386/RPMS.dag/">http://apt.sw.be/fedora/3/en/i386/RPMS.dag/</A>
+-        #<A HREF="http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/">http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/</A>
++        
++        if self.__buildRpmforgeSite:
++            #dag:
++            #<A HREF="http://apt.sw.be/fedora/3/en/i386/RPMS.dag/">http://apt.sw.be/fedora/3/en/i386/RPMS.dag/</A>
++            #<A HREF="http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/">http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/</A>
++            addPaths = []
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh6 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/6.2/en/i386/RPMS.dag/">http://apt.sw.be/redhat/6.2/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat 6.2 for i386&quot;, addPaths, &quot;scripts/cache/rh6-i386-dag.html&quot;, &quot;rh6-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh7 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/7.3/en/i386/RPMS.dag/">http://apt.sw.be/redhat/7.3/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat 7.3 for i386&quot;, addPaths, &quot;scripts/cache/rh7-i386-dag.html&quot;, &quot;rh7-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh8 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/8.0/en/i386/RPMS.dag/">http://apt.sw.be/redhat/8.0/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat 8.0 for i386&quot;, addPaths, &quot;scripts/cache/rh8-i386-dag.html&quot;, &quot;rh8-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh9 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/9/en/i386/RPMS.dag/">http://apt.sw.be/redhat/9/en/i386/RPMS.dag/</A>&quot;,&quot;Red Hat 9 for i386&quot;, addPaths, &quot;scripts/cache/rh9-i386-dag.html&quot;, &quot;rh9-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el2 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el2.1/en/i386/RPMS.dag/">http://apt.sw.be/redhat/el2.1/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 2.1 for i386&quot;, addPaths, &quot;scripts/cache/el2-i386-dag.html&quot;, &quot;el2-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el3 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el3/en/i386/RPMS.dag/">http://apt.sw.be/redhat/el3/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 3 for i386&quot;, addPaths, &quot;scripts/cache/el3-i386-dag.html&quot;, &quot;el3-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el3 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el3/en/x86_64/RPMS.dag/">http://apt.sw.be/redhat/el3/en/x86_64/RPMS.dag/</A>&quot;,&quot;Red Hat Enterprise Linux 3 for x86_64&quot;, addPaths, &quot;scripts/cache/el3-x86_64-dag.html&quot;, &quot;el3-x86_64&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el4 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el4/en/i386/RPMS.dag/">http://apt.sw.be/redhat/el4/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 4 for i386&quot;, addPaths, &quot;scripts/cache/el4-i386-dag.html&quot;, &quot;el4-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el4 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el4/en/x86_64/RPMS.dag/">http://apt.sw.be/redhat/el4/en/x86_64/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 4 for x86_64&quot;, addPaths, &quot;scripts/cache/el4-x86_64-dag.html&quot;, &quot;el4-x86_64&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc1 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/1/en/i386/RPMS.dag/">http://apt.sw.be/fedora/1/en/i386/RPMS.dag/</A>&quot;, &quot;Fedora Core 1 for i386&quot;, addPaths, &quot;scripts/cache/fc1-i386-dag.html&quot;, &quot;fc1-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc2 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/2/en/i386/RPMS.dag/">http://apt.sw.be/fedora/2/en/i386/RPMS.dag/</A>&quot;, &quot;Fedora Core 2 for i386&quot;, addPaths, &quot;scripts/cache/fc2-i386-dag.html&quot;, &quot;fc2-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc2 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/2/en/x86_64/RPMS.dag/">http://apt.sw.be/fedora/2/en/x86_64/RPMS.dag/</A>&quot;, &quot;Fedora Core 2 for x86_64&quot;, addPaths, &quot;scripts/cache/fc2-x86_64-dag.html&quot;, &quot;fc2-x86_64&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc3 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/3/en/i386/RPMS.dag/">http://apt.sw.be/fedora/3/en/i386/RPMS.dag/</A>&quot;, &quot;Fedora Core 3 for i386&quot;, addPaths, &quot;scripts/cache/fc3-i386-dag.html&quot;, &quot;fc3-i386&quot;))
++            self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc3 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/">http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/</A>&quot;, &quot;Fedora Core 3 for x86_64&quot;, addPaths, &quot;scripts/cache/fc3-x86_64-dag.html&quot;, &quot;fc3-x86_64&quot;))
++        
++        # sources
++        self.__distArchPackagerListsSource = []
+         addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh6 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/6.2/en/i386/RPMS.dag/">http://apt.sw.be/redhat/6.2/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat 6.2 for i386&quot;, addPaths, &quot;scripts/cache/rh6-i386-dag.html&quot;, &quot;rh6-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh7 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/7.3/en/i386/RPMS.dag/">http://apt.sw.be/redhat/7.3/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat 7.3 for i386&quot;, addPaths, &quot;scripts/cache/rh7-i386-dag.html&quot;, &quot;rh7-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh8 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/8.0/en/i386/RPMS.dag/">http://apt.sw.be/redhat/8.0/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat 8.0 for i386&quot;, addPaths, &quot;scripts/cache/rh8-i386-dag.html&quot;, &quot;rh8-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;rh9 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/9/en/i386/RPMS.dag/">http://apt.sw.be/redhat/9/en/i386/RPMS.dag/</A>&quot;,&quot;Red Hat 9 for i386&quot;, addPaths, &quot;scripts/cache/rh9-i386-dag.html&quot;, &quot;rh9-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el2 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el2.1/en/i386/RPMS.dag/">http://apt.sw.be/redhat/el2.1/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 2.1 for i386&quot;, addPaths, &quot;scripts/cache/el2-i386-dag.html&quot;, &quot;el2-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el3 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el3/en/i386/RPMS.dag/">http://apt.sw.be/redhat/el3/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 3 for i386&quot;, addPaths, &quot;scripts/cache/el3-i386-dag.html&quot;, &quot;el3-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el3 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el3/en/x86_64/RPMS.dag/">http://apt.sw.be/redhat/el3/en/x86_64/RPMS.dag/</A>&quot;,&quot;Red Hat Enterprise Linux 3 for x86_64&quot;, addPaths, &quot;scripts/cache/el3-x86_64-dag.html&quot;, &quot;el3-x86_64&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el4 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el4/en/i386/RPMS.dag/">http://apt.sw.be/redhat/el4/en/i386/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 4 for i386&quot;, addPaths, &quot;scripts/cache/el4-i386-dag.html&quot;, &quot;el4-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;el4 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/redhat/el4/en/x86_64/RPMS.dag/">http://apt.sw.be/redhat/el4/en/x86_64/RPMS.dag/</A>&quot;, &quot;Red Hat Enterprise Linux 4 for x86_64&quot;, addPaths, &quot;scripts/cache/el4-x86_64-dag.html&quot;, &quot;el4-x86_64&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc1 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/1/en/i386/RPMS.dag/">http://apt.sw.be/fedora/1/en/i386/RPMS.dag/</A>&quot;, &quot;Fedora Core 1 for i386&quot;, addPaths, &quot;scripts/cache/fc1-i386-dag.html&quot;, &quot;fc1-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc2 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/2/en/i386/RPMS.dag/">http://apt.sw.be/fedora/2/en/i386/RPMS.dag/</A>&quot;, &quot;Fedora Core 2 for i386&quot;, addPaths, &quot;scripts/cache/fc2-i386-dag.html&quot;, &quot;fc2-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc2 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/2/en/x86_64/RPMS.dag/">http://apt.sw.be/fedora/2/en/x86_64/RPMS.dag/</A>&quot;, &quot;Fedora Core 2 for x86_64&quot;, addPaths, &quot;scripts/cache/fc2-x86_64-dag.html&quot;, &quot;fc2-x86_64&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc3 i386 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/3/en/i386/RPMS.dag/">http://apt.sw.be/fedora/3/en/i386/RPMS.dag/</A>&quot;, &quot;Fedora Core 3 for i386&quot;, addPaths, &quot;scripts/cache/fc3-i386-dag.html&quot;, &quot;fc3-i386&quot;))
+-        addPaths = []
+-        self.__distArchPackagerLists.append(DistArchPackagerList(&quot;dag&quot;, &quot;fc3 x86_64 rpms&quot;, &quot;<A HREF="http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/">http://apt.sw.be/fedora/3/en/x86_64/RPMS.dag/</A>&quot;, &quot;Fedora Core 3 for x86_64&quot;, addPaths, &quot;scripts/cache/fc3-x86_64-dag.html&quot;, &quot;fc3-x86_64&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;el4 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el4/en/i386/SRPMS.dries/</A>&quot;, &quot;Red Hat Enterprise Linux 4 for i386&quot;, addPaths, &quot;scripts/cache/srpms/el4-i386-dries.html&quot;, &quot;el4-i386&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;el3 i386 rpms&quot;,&quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/redhat/el3/en/i386/SRPMS.dries/</A>&quot;, &quot;Red Hat Enterprise Linux 3 for i386&quot;, addPaths, &quot;scripts/cache/srpms/el3-i386-dries.html&quot;, &quot;el3-i386&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;fc3 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc3/i386/SRPMS.dries/</A>&quot;, &quot;Fedora Core 3 for i386&quot;, addPaths, &quot;scripts/cache/srpms/fc3-i386-dries.html&quot;, &quot;fc3-i386&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;fc2 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc2/i386/SRPMS.dries/</A>&quot;, &quot;Fedora Core 2 for i386&quot;, addPaths, &quot;scripts/cache/srpms/fc2-i386-dries.html&quot;, &quot;fc2-i386&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;fc1 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc1/i386/SRPMS.dries/</A>&quot;, &quot;Fedora Core 1 for i386&quot;, addPaths, &quot;scripts/cache/srpms/fc1-i386-dries.html&quot;, &quot;fc1-i386&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;fc4 i386 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/i386/SRPMS.dries/</A>&quot;, &quot;Fedora Core 4 for i386&quot;, addPaths, &quot;scripts/cache/srpms/fc4-i386-dries.html&quot;, &quot;fc4-i386&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;fc4 x86_64 rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/fedora/fc4/x86_64/SRPMS.dries/</A>&quot;, &quot;Fedora Core 4 for x86_64&quot;, addPaths, &quot;scripts/cache/srpms/fc4-x86_64-dries.html&quot;, &quot;fc4-x86_64&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;au1.92 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.92/sparc/SRPMS.dries/</A>&quot;, &quot;Aurora 1.92 for sparc&quot;, addPaths, &quot;scripts/cache/srpms/au1.92-sparc-dries.html&quot;, &quot;au1.92-sparc&quot;))
++        self.__distArchPackagerListsSource.append(DistArchPackagerList(&quot;dries&quot;, &quot;au1.91 sparc rpms&quot;, &quot;<A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/SRPMS.dries/">http://ftp.belnet.be/packages/dries.ulyssis.org/aurora/1.91/sparc/SRPMS.dries/</A>&quot;, &quot;Aurora 1.91 for sparc&quot;, addPaths, &quot;scripts/cache/srpms/au1.91-sparc-dries.html&quot;, &quot;au1.91-sparc&quot;))
++        
++        
+         self.__timer(&quot;distArchPackagerLists init&quot;)
+         
+         self.__rpmNameToSpecSubDirName = {}
+@@ -290,23 +297,33 @@
+         totsrpms = 0
+         totrpmsdries = 0
+         totrpmsdag = 0
++        totsrpmsdries = 0
++        totsrpmsdag = 0
+         for d in self.__distArchPackagerLists:
+             totrpms = totrpms + d.getNumberOfBinaryRpms()
+-            totsrpms = totsrpms + d.getNumberOfSourceRpms()
++            #totsrpms = totsrpms + d.getNumberOfSourceRpms()
+             if d.getPackager() == &quot;dries&quot;:
+                 totrpmsdries = totrpmsdries + d.getNumberOfBinaryRpms()
+             if d.getPackager() == &quot;dag&quot;:
+                 totrpmsdag = totrpmsdag + d.getNumberOfBinaryRpms()
++        for d in self.__distArchPackagerListsSource:
++            totsrpms = totsrpms + d.getNumberOfBinaryRpms()
++            if d.getPackager() == &quot;dries&quot;:
++                totsrpmsdries = totsrpmsdries + d.getNumberOfBinaryRpms()
++            if d.getPackager() == &quot;dag&quot;:
++                totsrpmsdag = totsrpmsdag + d.getNumberOfBinaryRpms()
+         self.__siteValues[&quot;TOTALRPMS&quot;] = totrpms
+         self.__siteValues[&quot;TOTALSRPMS&quot;] = totsrpms
+         self.__siteValues[&quot;TOTAL-RPMS-DRIES&quot;] = totrpmsdries
++        self.__siteValues[&quot;TOTAL-SRPMS-DAG&quot;] = totsrpmsdag
++        self.__siteValues[&quot;TOTAL-SRPMS-DRIES&quot;] = totsrpmsdries
+         self.__siteValues[&quot;TOTAL-RPMS-DAG&quot;] = totrpmsdag
+         for k in self.__siteValues.keys():
+           print &quot;siteval,k:&quot; + k + &quot;,v:&quot; + str(self.__siteValues[k])
+         
+     def __completeRpmsLists(self):
+         self.__completeBinaryRpmsLists()
+-        #self.__completeSourceRpmsLists()
++        self.__completeSourceRpmsLists()
+     
+     lastTimerTimestamp = {}
+     totalTimerTimestamp = {}
+@@ -405,7 +422,83 @@
+             self.__siteValues[listje.getDistArchPackager().upper() + &quot;-RPMS&quot;] = listje.getNumberOfBinaryRpms()
+         self.__timer(&quot;__completeBinaryRpmsLists&quot;)    
+             
+-    def completeSourceRpmsLists(self):    
++    def __completeSourceRpmsLists(self):
++        self.__timer(&quot;__completeSourceRpmsLists&quot;)
++        # list of packagenames
++        extendedPackagenames = self.__getPackageNameListSortedByLength()
++        # make a hash packagename -&gt; specrepospecfile
++        nametospecrepospecfile = {}
++        for srsf in self.__specRepo.getSpecRepositorySpecFiles():
++            nametospecrepospecfile[srsf.getSubDir()] = srsf
++        #firstre = re.compile('&lt;A HREF=&quot;.*\.rpm&lt;\/A&gt;')
++        secondre = re.compile('&lt;[Aa] [Hh][Rr][Ee][Ff]=&quot;(.*\.rpm)&quot;&gt;.*\.rpm&lt;/[Aa]&gt; *([0-9]*)-([A-Za-z]*)-([0-9]*) ')
++        for listje in self.__distArchPackagerListsSource:
++            # ok get the list of rpms and srpms of this list
++            f = None
++            nbrOfLines = 0
++            if not self.__useLocalFilesOnly:
++                f = urllib.urlopen(listje.getRpmsUrl())
++            else:
++                print &quot;localFile: &quot; + listje.getLocalFile()
++                f = open(listje.getLocalFile())
++            #print f.info()
++            print  &quot;start, &quot; + listje.getRpmsUrl()
++            lijn = f.readline()
++            while lijn != &quot;&quot;:
++                nbrOfLines = nbrOfLines + 1
++                #print l
++                # some stuff which should not get into the lists...
++                lijn = lijn.replace(&quot;gcc-c++-3.2.2-5.i386.rpm&quot;,&quot;&quot;)
++                mo = secondre.search(lijn)
++                if mo != None:
++                    rpm = mo.group(1)
++                    #listje.rpms.append(rpm)
++                    bo = RpmPackage(listje,rpm)
++                    listje.addBinaryRpm(bo)
++                    i = 0
++                    #self.__timer(&quot;search in packagenames&quot;)
++                    #print &quot;rpm: &quot; + rpm
++                    searchrpm = rpm
++                    # certain packages don't have normal subpackage names, for example clamd is a subpackage of clamav
++                    
++                    specials = {}
++                    specials['clamd'] = 'clamav'
++                    specials['gpsmap'] = 'gpsmap'
++                    for k in specials.keys():
++                        searchrpm = searchrpm.replace(k,specials[k])
++                    
++                    start = searchrpm[0:2]
++                    if start in extendedPackagenames.keys():
++                        packagenames = extendedPackagenames[start]
++                        while ((i &lt; len(packagenames)) and (not searchrpm.startswith(packagenames[i]))):
++                            i = i + 1
++                            #print i, len(packagenames), packagenames[i]
++                        #self.__timer(&quot;search in packagenames&quot;)
++                        if i&lt;len(packagenames):
++                            #print &quot;match: &quot; + rpm + &quot;, package=&quot; + packagenames[i]
++                            #nametospecrepospecfile[packagenames[i]].rpmfilenames.append(listje.getRpmsUrl() + rpm)
++                            #print &quot;adding: &quot; + rpm
++                            nametospecrepospecfile[packagenames[i]].sourcerpms.append(bo)
++                            bo.setSpecRepoSpecFile(nametospecrepospecfile[packagenames[i]])
++                            #self.__rpmNameToSpecSubDirName[rpm] = packagenames[i]
++                        else:
++                            print &quot;not adding: &quot; + rpm
++                    else:
++                        print &quot;not in keys: &quot;+ start
++                else:
++                    badLines = 1
++                    #print &quot;bad line: &quot; + lijn
++                lijn = f.readline()
++            f.close()
++            if nbrOfLines &lt; 100:
++                print &quot;nbrOflines &lt; 100 !! not normal..&quot;
++                os.exit(1)
++            self.__siteValues[listje.getDistArchPackager().upper() + &quot;-SRPMS&quot;] = listje.getNumberOfBinaryRpms()
++        self.__timer(&quot;__completeSourceRpmsLists&quot;)    
++             
++            
++            
++    def OLDOLDcompleteSourceRpmsLists(self):    
+         # the same for the sprms
+         for listje in self.__rpmlists:
+             # ok get the list of rpms and srpms of this list
+@@ -485,7 +578,7 @@
+                     for v in versions:
+                       self.generateOnePackagePageVersionPage(specRepoSpecFile, v)
+                     
+-                if self.__buildRpmforgeSite:        
++                if self.__buildRpmforgeSite:
+                     #self.RFgenerateSpecPages(specRepoSpecFile)
+                     self.RFgenerateUserPackagePage(specRepoSpecFile, hash)
+                     self.RFgenerateDeveloperPackagePage(specRepoSpecFile, hash)
+@@ -496,10 +589,11 @@
+             self.RFgeneratePackagesPages()
+         print &quot;start, distropages&quot;
+         if self.__buildDriesSite:
++            self.DriesgeneratePackagesPages()
+             for i in self.__distArchPackagerLists:
+                 if i.getPackager() == &quot;dries&quot;:
+-                    self.generateDistroArchPageRpm(i)
+-                    self.generateDistroArchPageSrpm(i)
++                    self.DriesgenerateDistroArchPageRpmRedirect(i)
++                    self.DriesgenerateDistroArchPageSrpmRedirect(i)
+             # also create some directory indexes
+             dirs = [&quot;fedora&quot;, &quot;redhat&quot;, &quot;aurora&quot;]
+             for i in dirs:
+@@ -618,6 +712,72 @@
+         contents = contents + subcontents
+         self.DriesgenerateFullPage(contents,[],&quot;recentchanges.html&quot;, &quot;Updated and new rpms: Dries RPM Repository&quot;)
+         
++    def DriesgenerateDistroArchPageRpmRedirect(self,distroArch):
++        contents = &quot;&lt;html&gt;&lt;head&gt;\n&quot;
++        contents = contents + &quot;&lt;meta http-equiv=\&quot;refresh\&quot; content=\&quot;0;/rpm/packages/index.html\&quot;&gt;\n&quot;
++        contents = contents + &quot;&lt;/head&gt;&lt;/html&gt;&quot;
++        self.createFile(distroArch.getDistArchPackager() + &quot;-rpms.html&quot;,contents)
++        # also generate a page in redhat/el4/i386/ for example
++        for path in distroArch.getAdditionalPaths():
++            # 1 create a .htaccess file which links release.* files in this DIR
++            # 2 create a dir DIR/dries , DIR/dries/headers , DIR/base, DIR/RPMS.dries, DIR/SRPMS.dries DIR/RPMS.dries/repodata DIR/SRPMS.dries/repodata
++            # 3 create a symbolic link: DIR/dries/RPMS -&gt; ../RPMS.dries
++            # 4 create a symbolic link: DIR/dries/SRPMS -&gt; ../SRPMS.dries
++            # 5 create a DIR/dries/headers/.htaccess which redirects all .hdr files and the header.info file
++            # 6 create a DIR/base/.htaccess  which redirects all pkglist.* release.* and srclist.* files
++            # 7 create a DIR/RPMS.dries/.htaccess which redirects all  .*\.rpm files
++            # 8 create a DIR/RPMS.dries/repodata/.htaccess which redirects all filelist* other* primary* repomd* files
++            # 9 create a DIR/SRPMS.dries/.htaccess which redirects all .*\.rpm files
++            # 10 create a DIR/SRPMS.dries/repodata/.htaccess which redirects all filelist* other* primary* repomd* files
++            # 11 create dirindexes in DIR, DIR/dries, DIR/dries/headers, DIR/base
++            # 1
++            htcontents = &quot;RewriteEngine on\n&quot; + 'RewriteRule ^(release.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/$1' + &quot;\n&quot;
++            self.createFile(os.path.join(path,&quot;.htaccess&quot;), htcontents)
++            # 2
++            self.createDirHierarchy(os.path.join(path,&quot;dries/headers&quot;))
++            self.createDirHierarchy(os.path.join(path,&quot;base&quot;))
++            self.createDirHierarchy(os.path.join(path,&quot;RPMS.dries/repodata&quot;))
++            self.createDirHierarchy(os.path.join(path,&quot;SRPMS.dries/repodata&quot;))
++            # 3
++            self.createSymbolicLink(os.path.join(path,&quot;dries/RPMS&quot;), &quot;../RPMS.dries&quot;)
++            # 4
++            self.createSymbolicLink(os.path.join(path,&quot;dries/SRPMS&quot;), &quot;../SRPMS.dries&quot;)
++            # 5
++            htcontents = &quot;RewriteEngine on\n&quot; + 'RewriteRule ^(.*hdr)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/dries/headers/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(header.info)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/dries/headers/$1' + &quot;\n&quot;
++            self.createFile(os.path.join(path,&quot;dries/headers/.htaccess&quot;), htcontents)
++            # 6
++            htcontents = &quot;RewriteEngine on\n&quot; + 'RewriteRule ^(pkglist.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/base/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(release.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/base/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(srclist.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/base/$1' + &quot;\n&quot;
++            self.createFile(os.path.join(path,&quot;base/.htaccess&quot;), htcontents)
++            # 7
++            htcontents = &quot;RewriteEngine on\n&quot; + 'RewriteRule ^(.*.rpm)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/RPMS.dries/$1' + &quot;\n&quot;
++            self.createFile(os.path.join(path,&quot;RPMS.dries/.htaccess&quot;), htcontents)
++            # 8
++            htcontents = &quot;RewriteEngine on\n&quot; + 'RewriteRule ^(filelist.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/RPMS.dries/repodata/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(other.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/RPMS.dries/repodata/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(primary.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/RPMS.dries/repodata/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(repomd.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/RPMS.dries/repodata/$1' + &quot;\n&quot;
++            self.createFile(os.path.join(path,&quot;RPMS.dries/repodata/.htaccess&quot;), htcontents)
++            # 9
++            htcontents = &quot;RewriteEngine on\n&quot; + 'RewriteRule ^(.*.rpm)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/SRPMS.dries/$1' + &quot;\n&quot;
++            self.createFile(os.path.join(path,&quot;SRPMS.dries/.htaccess&quot;), htcontents)
++            # 10
++            htcontents = &quot;RewriteEngine on\n&quot; + 'RewriteRule ^(filelist.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/SRPMS.dries/repodata/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(other.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/SRPMS.dries/repodata/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(primary.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/SRPMS.dries/repodata/$1' + &quot;\n&quot;
++            htcontents = htcontents + 'RewriteRule ^(repomd.*)$ <A HREF="http://ftp.belnet.be/packages/dries.ulyssis.org/">http://ftp.belnet.be/packages/dries.ulyssis.org/</A>' + path + '/SRPMS.dries/repodata/$1' + &quot;\n&quot;
++            self.createFile(os.path.join(path,&quot;SRPMS.dries/repodata/.htaccess&quot;), htcontents)
++            # 11
++            self.generateDirectoryView(path)
++            self.generateDirectoryView(path + &quot;/dries&quot;)
++            self.generateDirectoryView(path + &quot;/dries/headers&quot;)
++            self.generateDirectoryView(path + &quot;/base&quot;)
++            
++            contents = &quot;This page now contains links to the rpms on one of the mirrors because the page is generating way too much traffic for this server.&lt;br /&gt;&lt;br /&gt;&quot; + contents
++            self.DriesgenerateFullPage(contents, [distroArch.getDisplayShortName()], path + &quot;/RPMS.dries/index.html&quot;,distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;): Dries RPM Repository&quot;)
++        
+     def generateDistroArchPageRpm(self,distroArch):
+         contents = &quot;&quot;
+         contents = &quot;&lt;h2&gt;Rpms for &quot; + distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;)&lt;/h2&gt;&quot;
+@@ -630,7 +790,7 @@
+             contents = contents + &quot;&lt;a href=\&quot;&quot; + r.getFullUrl() + &quot;\&quot;&gt;&quot; + r.getName() + &quot;&lt;/a&gt;&quot; + linkToPackage + &quot;&lt;br /&gt;&quot;
+         self.DriesgenerateFullPage(contents, [distroArch.getDisplayShortName()], distroArch.getDistArchPackager() + &quot;-rpms.html&quot;,distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;): Dries RPM Repository&quot;)
+         # also generate a page in redhat/el4/i386/ for example
+-        for path in distroArch.additionalPaths:
++        for path in distroArch.getAdditionalPaths():
+             # 1 create a .htaccess file which links release.* files in this DIR
+             # 2 create a dir DIR/dries , DIR/dries/headers , DIR/base, DIR/RPMS.dries, DIR/SRPMS.dries DIR/RPMS.dries/repodata DIR/SRPMS.dries/repodata
+             # 3 create a symbolic link: DIR/dries/RPMS -&gt; ../RPMS.dries
+@@ -688,7 +848,7 @@
+             self.generateDirectoryView(path + &quot;/base&quot;)
+             
+             contents = &quot;This page now contains links to the rpms on one of the mirrors because the page is generating way too much traffic for this server.&lt;br /&gt;&lt;br /&gt;&quot; + contents
+-            self.DriesgenerateFullPage(contents, [distroArch.displayName], path + &quot;/RPMS.dries/index.html&quot;,distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;): Dries RPM Repository&quot;)
++            self.DriesgenerateFullPage(contents, [distroArch.getDisplayShortName()], path + &quot;/RPMS.dries/index.html&quot;,distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;): Dries RPM Repository&quot;)
+     
+     def createSymbolicLink(self, filename, target):
+         (tempdir, fname) = os.path.split(filename)
+@@ -728,7 +888,17 @@
+         except:
+             errors = errors + 1
+             
+-    def generateDistroArchPageSrpm(self,distroArch):
++    def DriesgenerateDistroArchPageSrpmRedirect(self,distroArch):
++        contents = &quot;&lt;html&gt;&lt;head&gt;\n&quot;
++        contents = contents + &quot;&lt;meta http-equiv=\&quot;refresh\&quot; content=\&quot;0;/rpm/packages/index.html\&quot;&gt;\n&quot;
++        contents = contents + &quot;&lt;/head&gt;&lt;/html&gt;&quot;
++        self.createFile(distroArch.getDistArchPackager() + &quot;-srpms.html&quot;,contents)
++        for path in distroArch.getAdditionalPaths():
++            contents = &quot;This page now contains links to the source rpms on one of the mirrors because the page is generating way too much traffic for this server.&lt;br /&gt;&lt;br /&gt;&quot; + contents
++            self.DriesgenerateFullPage(contents, [distroArch.getDisplayShortName()], path + &quot;/SRPMS.dries/index.html&quot;,distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;): Dries RPM Repository&quot;)
++            
++            
++    def OLDOLDgenerateDistroArchPageSrpm(self,distroArch):
+         contents = &quot;&quot;
+         url = distroArch.rpmsUrl.replace(&quot;RPMS&quot;,&quot;SRPMS&quot;)
+         contents = &quot;&lt;h2&gt;Srpms for &quot; + distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;)&lt;/h2&gt;&quot;
+@@ -738,7 +908,7 @@
+                 linkToPackage = &quot;&amp;nbsp;-&amp;nbsp&lt;a href=\&quot;/rpm/packages/&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;/info.html\&quot;&gt;&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;&lt;/a&gt;&quot;
+             contents = contents + &quot;&lt;a href=\&quot;&quot; + url + r + &quot;\&quot;&gt;&quot; + r + &quot;&lt;/a&gt;&quot; + linkToPackage + &quot;&lt;br /&gt;&quot;
+         self.DriesgenerateFullPage(contents, [distroArch.displayName], distroArch.getDistArchPackager() + &quot;-srpms.html&quot;,distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;): Dries RPM Repository&quot;)
+-        for path in distroArch.additionalPaths:
++        for path in distroArch.getAdditionalPaths():
+             contents = &quot;This page now contains links to the source rpms on one of the mirrors because the page is generating way too much traffic for this server.&lt;br /&gt;&lt;br /&gt;&quot; + contents
+             self.DriesgenerateFullPage(contents, [distroArch.displayName], path + &quot;/SRPMS.dries/index.html&quot;,distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;): Dries RPM Repository&quot;)
+             
+@@ -773,19 +943,19 @@
+         menu = menu + &quot;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/\&quot;&gt;Start&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/clientconfig.html\&quot;&gt;APT/YUM/Smart config&lt;/a&gt;&lt;br /&gt;&quot;
+-        menu = menu + &quot;&lt;a href=\&quot;/rpm/packages.html\&quot;&gt;List of packages&lt;/a&gt;&lt;br /&gt;&quot;
++        menu = menu + &quot;&lt;a href=\&quot;/rpm/packages/index.html\&quot;&gt;List of packages&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/RPM-GPG-KEY.dries.html\&quot;&gt;GPG key&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/mirrors.html\&quot;&gt;Mirrors&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/recentchanges.html\&quot;&gt;Recent changes&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/pydar2/index.html\&quot;&gt;Pydar2&lt;/a&gt;&lt;br /&gt;&quot;
+-        menu = menu + &quot;&lt;strong&gt;Rpms:&lt;/strong&gt;&lt;br /&gt;&quot;
+-        for k in self.__distArchPackagerLists:
+-            if k.getPackager() == &quot;dries&quot;:
+-                menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.getDistArchPackager() + &quot;-rpms.html\&quot;&gt;&quot; + k.getDisplayShortName() + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+-        menu = menu + &quot;&lt;strong&gt;Srpms:&lt;/strong&gt;&lt;br /&gt;&quot;
+-        for k in self.__distArchPackagerLists:
+-            if k.getPackager() == &quot;dries&quot;:
+-                menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.getDistArchPackager() + &quot;-srpms.html\&quot;&gt;&quot; + k.getDisplayShortName().replace(&quot;rpms&quot;,&quot;srpms&quot;) + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++        #menu = menu + &quot;&lt;strong&gt;Rpms:&lt;/strong&gt;&lt;br /&gt;&quot;
++        #for k in self.__distArchPackagerLists:
++        #    if k.getPackager() == &quot;dries&quot;:
++        #        menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.getDistArchPackager() + &quot;-rpms.html\&quot;&gt;&quot; + k.getDisplayShortName() + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++        #menu = menu + &quot;&lt;strong&gt;Srpms:&lt;/strong&gt;&lt;br /&gt;&quot;
++        #for k in self.__distArchPackagerLists:
++        #    if k.getPackager() == &quot;dries&quot;:
++        #        menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.getDistArchPackager() + &quot;-srpms.html\&quot;&gt;&quot; + k.getDisplayShortName().replace(&quot;rpms&quot;,&quot;srpms&quot;) + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;strong&gt;Thanks:&lt;/strong&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;Buildsystem hosted at &lt;a href=\&quot;<A HREF="http://www.ithomi.com/\">http://www.ithomi.com/\</A>&quot;&gt;ithomi&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;Static site hosted at &lt;a href=\&quot;<A HREF="http://www.ulyssis.org/\">http://www.ulyssis.org/\</A>&quot;&gt;ULYSSIS&lt;/a&gt;&lt;br /&gt;&quot;
+@@ -854,6 +1024,10 @@
+         
+     def RFgroupTagToPageName(self,groupTag):
+         urlpart = groupTag.replace('/','-').replace(' ','').lower()
++        return &quot;group-&quot; + urlpart + &quot;.html&quot;
++
++    def DriesgroupTagToPageName(self,groupTag):
++        urlpart = groupTag.replace('/','-').replace(' ','').lower()
+         return &quot;group-&quot; + urlpart + &quot;.php&quot;
+         
+     def RFgeneratePackagesPages(self):
+@@ -919,7 +1093,73 @@
+                             
+         self.RFgenerateFullPage(contents,[&quot;Packages&quot;,&quot;User track: list of packages&quot;], &quot;user/packages/index.php&quot;,&quot;RPM packages for Red Hat / Fedora / Aurora&quot;)
+         self.__timer(&quot;RFgeneratePackagesPages&quot;)    
++    
++
++    def DriesgeneratePackagesPages(self):
++        # 1 pagina met daarop:
++        #  - de lijst van groepen
++        #  - de lijst van beginletters
++        # 1 pagina per beginletter
++        # 1 pagina per groep
++        self.__timer(&quot;DriesgeneratePackagesPages&quot;)
++        groupcount = {}
++        grouppages = {}
++        letterpages = {}
+         
++        specArr = self.__storage.getNameSummaryAndGroupOfLastVersionsOfSpecFiles('rpmforge')        
++        for specHash in specArr:
++            name = specHash['name']
++            summary = specHash['summary']
++            group = specHash['group']
++            #print &quot;name: &quot; + str(name)
++            beginletter = name[0].capitalize()
++            #print &quot;name: &quot;+ name + &quot;,beginletter:&quot;+ beginletter + &quot;,group:&quot;+ group
++        
++            currentgroupcontents = &quot;&quot;
++            if group in grouppages.keys():
++                currentgroupcontents = grouppages[group]
++                groupcount[group] = groupcount[group] + 1
++            else:
++                currentgroupcontents = &quot;&lt;h2&gt;Group &quot; + group + &quot;&lt;/h2&gt;&quot;
++                groupcount[group] = 1
++            currentgroupcontents = currentgroupcontents + &quot;&lt;a href=\&quot;&quot; + name + &quot;/info.html\&quot;&gt;&quot; + name + &quot;&lt;/a&gt;: &quot; + summary + &quot;&lt;br /&gt;&quot;
++            grouppages[group] = currentgroupcontents
++            
++            currentlettercontents = &quot;&quot;
++            if beginletter in letterpages.keys():
++                currentlettercontents = letterpages[beginletter]
++            else:
++                currentlettercontents = &quot;&lt;h2&gt;Letter &quot; + beginletter + &quot;&lt;/h2&gt;&quot;
++            currentlettercontents = currentlettercontents + &quot;&lt;a href=\&quot;&quot; + name + &quot;/info.html\&quot;&gt;&quot; + name + &quot;&lt;/a&gt;: &quot; + summary + &quot;&lt;br /&gt;&quot;
++            letterpages[beginletter] = currentlettercontents
++            
++        contents = &quot;&quot;
++        
++        contents = contents + &quot;&lt;h2&gt;Packages sorted by group&lt;/h2&gt;&quot;
++        
++        groupcnt = 0
++        keys = grouppages.keys()
++        keys.sort()
++        for key in keys:
++            contents = contents + &quot;&lt;a href=\&quot;&quot; + self.DriesgroupTagToPageName(key) + &quot;\&quot;&gt;&quot; + key + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++            self.DriesgenerateFullPage(grouppages[key],[&quot;Packages&quot;,&quot;list of packages&quot;], &quot;packages/&quot; + self.DriesgroupTagToPageName(key),key + &quot; RPM packages for Red Hat / Fedora / Aurora&quot;)
++            groupcnt = groupcnt + 1
++                       
++        contents = contents + &quot;&lt;h2&gt;Packages sorted by first letter&lt;/h2&gt;&quot;
++
++        lettercnt = 0
++        keys = letterpages.keys()
++        keys.sort()
++        for key in keys:
++            contents = contents + &quot;&lt;a href=\&quot;packages-&quot; + key.lower() + &quot;.html\&quot;&gt;&quot; + key + &quot;&lt;/a&gt; &quot;
++            self.DriesgenerateFullPage(letterpages[key],[&quot;Packages&quot;,&quot;User track: list of packages&quot;], &quot;packages/packages-&quot; + key.lower() + &quot;.html&quot;,&quot;Packages starting with &quot; + key + &quot;: RPM packages for Red Hat / Fedora / Aurora&quot;)
++            lettercnt = lettercnt + 1
++        contents = contents + &quot;&lt;br /&gt;&quot;
++                            
++        self.DriesgenerateFullPage(contents,[&quot;Packages&quot;,&quot;User track: list of packages&quot;], &quot;packages/index.html&quot;,&quot;RPM packages for Red Hat / Fedora / Aurora&quot;)
++        self.__timer(&quot;DriesgeneratePackagesPages&quot;)    
++    
++    
+     def RFgenerateUserPackagePage(self, specRepoSpecFile, distNameValueHash):
+         shortName = specRepoSpecFile.getSubDir()
+         contents = &quot;&quot;
+@@ -1158,8 +1398,16 @@
+                     contents = contents + &quot;&lt;h4&gt;&quot; + lastdadesc + &quot; (&quot; + lastda + &quot;)&lt;/h4&gt;\n&quot;
+                 url = b.getDistArchPackagerList().getRpmsUrl() + b.getName()
+                 contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.getName() + &quot;&lt;/a&gt;&lt;br /&gt;\n&quot; # (&quot; + b.getDistArchPackagerList().getPackager() + &quot;)&lt;br /&gt;\n&quot;
+-            
+         
++        if len(specRepoSpecFile.sourcerpms) &gt; 0:
++            contents = contents + &quot;&lt;h2&gt;Source rpms:&lt;/h2&gt;&quot;
++        
++        for b in specRepoSpecFile.sourcerpms:
++            if b.getDistArchPackagerList().getPackager() == &quot;dries&quot;:
++                url = b.getDistArchPackagerList().getRpmsUrl() + b.getName()
++                contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.getName() + &quot;&lt;/a&gt; (&quot; + b.getDistArchPackagerList().getDistArch() + &quot;)&lt;br /&gt;\n&quot;
++                
++        
+ #         for f in specRepoSpecFile.rpmfilenames:
+ #             #print f.rfind(&quot;/&quot;) , len(f)
+ #             short = f[f.rfind(&quot;/&quot;) +1: len(f)]
+@@ -1191,4 +1439,4 @@
+ c.specifyGetOptOptions(TmpOptions())
+ c.getSpecRepositoryList().updateAllFileLists()
+ r = c.getSpecRepositoryList().getSpecRepositoryByName(&quot;rpmforge&quot;)
+-RpmforgeSite(r,False,False,True)
++RpmforgeSite(r,True,True,False)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002337.html">[svn] r3536 - in trunk/tools/dconf: . config scripts
+</A></li>
+	<LI>Next message: <A HREF="002339.html">[svn] r3538 - in trunk/rpms: . gscanbus k3dsurf libdc1394
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2338">[ date ]</a>
+              <a href="thread.html#2338">[ thread ]</a>
+              <a href="subject.html#2338">[ subject ]</a>
+              <a href="author.html#2338">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

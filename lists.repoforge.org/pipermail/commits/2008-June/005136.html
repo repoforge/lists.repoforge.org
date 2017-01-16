@@ -1,0 +1,170 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6337 - trunk/tools/dwscan
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6337%20-%20trunk/tools/dwscan&In-Reply-To=%3C200806031735.m53HZ4BW032129%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005135.html">
+   <LINK REL="Next"  HREF="005137.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6337 - trunk/tools/dwscan</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6337%20-%20trunk/tools/dwscan&In-Reply-To=%3C200806031735.m53HZ4BW032129%40surya.karan.org%3E"
+       TITLE="[svn] r6337 - trunk/tools/dwscan">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Jun  3 19:35:04 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005135.html">[svn] r6336 - trunk/tools/dwscan
+</A></li>
+        <LI>Next message: <A HREF="005137.html">[svn] r6338 - trunk/tools/dwscan
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5136">[ date ]</a>
+              <a href="thread.html#5136">[ thread ]</a>
+              <a href="subject.html#5136">[ subject ]</a>
+              <a href="author.html#5136">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-06-03 18:35:04 +0100 (Tue, 03 Jun 2008)
+New Revision: 6337
+
+Modified:
+   trunk/tools/dwscan/dwscan
+Log:
+Various improvements.
+
+Modified: trunk/tools/dwscan/dwscan
+===================================================================
+--- trunk/tools/dwscan/dwscan	2008-06-03 17:32:56 UTC (rev 6336)
++++ trunk/tools/dwscan/dwscan	2008-06-03 17:35:04 UTC (rev 6337)
+@@ -22,7 +22,8 @@
+ 
+ ### Scan delay in milliseconds
+ #delay = 30
+-delay = 200
++#delay = 200
++delay = 500
+ 
+ ansi = {
+     'default': '\033[0;0m',
+@@ -69,6 +70,7 @@
+     'clear': '\033[2J',
+     'cleareol': '\033[K',
+     'clearline': '\033[2K',
++    'cleareos': '\033[J',
+ #   'save': '\033[s',
+ #   'restore': '\033[u',
+     'save': '\0337',
+@@ -236,9 +238,16 @@
+             }
+ 
+             ### Create Access Point mapping
+-            scanresults = ifobj.scan()
++            scanresults = []
++            try:
++                scanresults = ifobj.scan()
++            except:
++                pass
+             for result in scanresults:
+                 bssid = result.bssid
++                if not bssid:
++                    print 'Error...'
++                    continue
+                 try:
+                     beacon = int(re.match('.*Last beacon: ([0-9]+)ms ago', result.custom[1]).group(1))
+                 except:
+@@ -268,6 +277,12 @@
+ #               print result.frequency.getChannel(result.frequency.getFrequency(), result.rate)
+ #               print result.frequency.getFrequency()
+ 
++#               print
++#               print '----'
++#               print result.frequency.getFrequency()
++#               print result.range.frequencies
++#               print dir(result.range.frequencies)
++
+                 aps[iface+bssid] = {
+                     'active': True,
+                     'avgquality': avgquality,
+@@ -288,18 +303,25 @@
+                 }
+ 
+         ### Display Association information
+-        print ansi['home'] + ansi['blue'] + ' %(iface)-5s  %(module)-10s  %(essid)-20s  %(ip)-15s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4s  %(avgsnr15)4s  %(signalname)-10s' % { 'iface': 'Iface', 'module': 'Module', 'essid': 'ESSID/Name', 'ip': 'IP address', 'signal': 'Sgnl', 'noise': 'Nois', 'snr': 'SNR', 'avgsnr': 'Avg', 'avgsnr15': 'Av15', 'bitrate': 'Cur rate', 'missed_beacon': 'Mis', 'signalname': 'Strength' }
+-#       print ansi['blue'] + &quot;%-5s  %-20s  %4s  %4s  %3s  %8s  %3s  %-10s&quot; % ('Iface', 'ESSID/Name', 'Sgnl', 'Nois', 'SNR', 'Cur rate', 'Mis', 'Strength')
++        print ansi['home'] + ansi['blue'] + ansi['underline'] + ' %(iface)-5s  %(module)-10s  %(essid)-20s  %(ip)-15s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4s  %(avgsnr15)4s  %(signalname)-10s' % { 'iface': 'Iface', 'module': 'Module', 'essid': 'ESSID/Name', 'ip': 'IP address', 'signal': 'Sgnl', 'noise': 'Nois', 'snr': 'SNR', 'avgsnr': 'Avg', 'avgsnr15': 'Av15', 'bitrate': 'Cur rate', 'missed_beacon': 'Mis', 'signalname': 'Strength' } + ansi['cleareol']
++#       print ansi['blue'] + &quot;%-5s  %-20s  %4s  %4s  %3s  %8s  %3s  %-10s&quot; % ('Iface', 'ESSID/Name', 'Sgnl', 'Nois', 'SNR', 'Cur rate', 'Mis', 'Strength') + ansi['cleareol']
+         ifaces = assaps.keys()
+         ifaces.sort()
+         for iface in ifaces:
+             obj = assaps[iface]
+-            print ansi['default'] + (' %(iface)-5s  %(module)-10s  %(essid)-20s  %(ip)-15s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4.1f  %(avgsnr15)4.1f  %(strength)-10s' % obj) + ansi['silver'] + ansi['cleareol']
++            color = 'default'
++            if obj['bssid'] != '00:00:00:00:00:00' and obj['ip']:
++                color = 'green'
++            elif obj['bssid'] != '00:00:00:00:00:00':
++                color = 'green'
++            elif obj['ip']:
++                color = 'red'
++            print ansi['default'] + (' %(iface)-5s  %(module)-10s  %(essid)-20s  %(ip)-15s  %(signal)4s  %(noise)4s  %(bitrate)8s  %(missed_beacon)3s  %(snr)3s  %(avgsnr)4.1f  %(avgsnr15)4.1f  %(strength)-10s' % obj) + ansi['default'] + ansi['cleareol']
+ 
+         print ansi['clearline']
+ 
+         ### Display Access Point information
+-        print ansi['blue'] + &quot; %-20s  %2s  %-17s  %-5s  %-8s  %8s  %3s  %4s  %4s&quot; % ('ESSID/Name', 'Ch', 'BSSID/HW address', 'Iface', 'Max rate', 'Last bcn', 'Qua', 'Avg', 'Av15')
++        print ansi['blue'] + ansi['underline'] + &quot; %-22s  %2s  %-17s  %-5s  %-8s  %8s  %3s  %4s  %4s &quot; % ('ESSID/Name', 'Ch', 'BSSID/HW address', 'Iface', 'Max rate', 'Last bcn', 'Qua', 'Avg', 'Av15') + ansi['cleareol']
+         for obj in sorted(aps):
+             if obj['bssid'] == assaps[obj['iface']]['bssid']:
+                 symbol = '+'
+@@ -328,16 +350,16 @@
+ 
+             beacon = timestr(obj['timestamp'])
+ 
+-            print ansi[color] + symbol + ansi[ecolor] + ('%(essid)-20s ' % obj) + ansi[color] + (' %(channel)2s  %(bssid)-17s  %(iface)-5s  %(maxrate)8s ' % obj) + beacon + (' %(quality)3s  %(avgquality)4.1f  %(avgquality15)4.1f ' % obj) + ansi['silver'] + ansi['cleareol']
++            print ansi['default'] + ansi[color] + symbol + ansi[ecolor] + ('%(essid)-22s ' % obj) + ansi[color] + (' %(channel)2s  %(bssid)-17s  %(iface)-5s  %(maxrate)8s  ' % obj) + beacon + (' %(quality)3s  %(avgquality)4.1f  %(avgquality15)4.1f' % obj) + ansi['silver'] + ansi['cleareol']
+ 
+ #           if obj['bssid'] == ifobj.getAPaddr():
+ #               print '%4s  %4s  %3s  %8s  %3s' % (qual.signallevel, qual.noiselevel, qual.signallevel - qual.noiselevel, ifobj.getBitrate(), missed_beacon),
+ #           else:
+ #               print ansi['gray'] + '%4s  %4s  %3s  %8s  %3s' % (obj['signal'], obj['noise'], int(obj['signal']) - int(obj['noise']), '-', '-'),
+-                
++
+         active = len([x for x in aps.keys() if aps[x]['active']])
+-        print ansi['blue'] + ' %s access points (%s active and %s inactive)' % (len(aps), active, len(aps) - active) + ansi['cleareol']
+-        print ansi['clearline'],
++        print ansi['clearline']
++#        print ansi['clearline'] + ansi['default'] + ansi['blue'] + ' %s access points (%s active and %s inactive)' % (len(aps), active, len(aps) - active) + ansi['cleareos']
+ 
+         for key in aps.keys():
+             aps[key]['active'] = False
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005135.html">[svn] r6336 - trunk/tools/dwscan
+</A></li>
+	<LI>Next message: <A HREF="005137.html">[svn] r6338 - trunk/tools/dwscan
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5136">[ date ]</a>
+              <a href="thread.html#5136">[ thread ]</a>
+              <a href="subject.html#5136">[ subject ]</a>
+              <a href="author.html#5136">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

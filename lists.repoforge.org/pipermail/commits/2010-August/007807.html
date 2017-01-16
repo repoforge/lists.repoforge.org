@@ -1,0 +1,524 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9013 - in /trunk/rpms/gparted: gparted-0.3.3.spec gparted-test.spec gparted.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9013%20-%20in%20/trunk/rpms/gparted%3A%20gparted-0.3.3.spec%0A%20gparted-test.spec%20gparted.spec&In-Reply-To=%3C201008021107.o72B73jF023675%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007806.html">
+   <LINK REL="Next"  HREF="007808.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9013 - in /trunk/rpms/gparted: gparted-0.3.3.spec gparted-test.spec gparted.spec</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9013%20-%20in%20/trunk/rpms/gparted%3A%20gparted-0.3.3.spec%0A%20gparted-test.spec%20gparted.spec&In-Reply-To=%3C201008021107.o72B73jF023675%40surya.karan.org%3E"
+       TITLE="[svn] r9013 - in /trunk/rpms/gparted: gparted-0.3.3.spec gparted-test.spec gparted.spec">dag at wieers.com
+       </A><BR>
+    <I>Mon Aug  2 13:07:03 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007806.html">[svn] r9012 - /trunk/rpms/psinfo/psinfo.spec
+</A></li>
+        <LI>Next message: <A HREF="007808.html">[svn] r9014 - /trunk/rpms/mtr/mtr.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7807">[ date ]</a>
+              <a href="thread.html#7807">[ thread ]</a>
+              <a href="subject.html#7807">[ subject ]</a>
+              <a href="author.html#7807">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Mon Aug  2 12:07:02 2010
+New Revision: 9013
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9013&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9013&amp;view=rev</A>
+Log:
+Updated to 0.4.8
+
+Added:
+    trunk/rpms/gparted/gparted-0.3.3.spec   (with props)
+    trunk/rpms/gparted/gparted-test.spec   (with props)
+Modified:
+    trunk/rpms/gparted/gparted.spec
+
+Added: trunk/rpms/gparted/gparted-0.3.3.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/gparted/gparted-0.3.3.spec?rev=9013&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/gparted/gparted-0.3.3.spec?rev=9013&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/gparted/gparted-0.3.3.spec (added)
++++ trunk/rpms/gparted/gparted-0.3.3.spec Mon Aug  2 12:07:02 2010
+@@ -1,0 +1,116 @@
++# $Id$
++# Authority: dag
++
++%{?el5:%define _without_hallock 1}
++%{?el4:%define _without_hallock 1}
++%{?el3:%define _without_hallock 1}
++
++Summary: Gnome Partition Editor
++Name: gparted
++Version: 0.3.3
++Release: 2%{?dist}
++License: GPL
++Group: Applications/System
++URL: <A HREF="http://gparted.sourceforge.net/">http://gparted.sourceforge.net/</A>
++
++Source: <A HREF="http://dl.sf.net/sourceforge/gparted/gparted-%{version">http://dl.sf.net/sourceforge/gparted/gparted-%{version</A>}.tar.bz2
++Patch0: gparted-dont-lock-hal.patch
++Patch1: gparted-devices.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: desktop-file-utils
++BuildRequires: e2fsprogs-devel
++BuildRequires: gettext
++BuildRequires: gtkmm24-devel
++BuildRequires: parted-devel 
++BuildRequires: perl(XML::Parser) 
++
++%{!?_without_hallock:Requires: hal &gt;= 0.5.9}
++
++%description
++GParted stands for Gnome Partition Editor and is a graphical frontend to
++libparted. Among other features it supports creating, resizing, moving
++and copying of partitions. Also several (optional) filesystem tools provide
++support for filesystems not included in libparted. These optional packages
++will be detected at runtime and don't require a rebuild of GParted
++
++%prep
++%setup
++%patch0 -p0 -b .hal
++%patch1 -p0 -b .devs
++
++%if %{?_without_hallock:1}0
++%{__cat} &lt;&lt;EOF &gt;run-gparted
++%{_sbindir}/gparted
++EOF
++%else
++%{__cat} &lt;&lt;EOF &gt;run-gparted
++#!/bin/bash
++%{_bindir}/hal-lock --interface org.freedesktop.Hal.Device.Storage  --exclusive --run %{_sbindir}/gparted
++EOF
++%endif
++
++%{__cat} &lt;&lt;EOF &gt;gparted.pam
++#%PAM-1.0
++auth       sufficient   pam_rootok.so
++auth       sufficient   pam_timestamp.so
++auth       include      system-auth
++session	   required     pam_permit.so
++session	   optional     pam_xauth.so
++session	   optional     pam_timestamp.so
++account	   required     pam_permit.so
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;gparted.console-apps
++USER=root
++PROGRAM=%{_bindir}/run-gparted
++SESSION=true
++EOF
++
++%build
++%configure
++%{__make} %{?_smp_mflags} 
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++%find_lang %{name}
++
++### Create a helper script to launch gparted using hal-lock
++%{__install} -Dp -m0755 run-gparted %{buildroot}%{_bindir}/run-gparted
++
++### consolehelper stuff
++%{__install} -Dp -m0755 %{buildroot}%{_bindir}/gparted %{buildroot}%{_sbindir}/gparted
++%{__ln_s} -f consolehelper %{buildroot}%{_bindir}/gparted
++
++%{__install} -Dp -m0644 gparted.console-apps %{buildroot}%{_sysconfdir}/security/console.apps/gparted
++%{__install} -Dp -m0644 gparted.pam %{buildroot}%{_sysconfdir}/pam.d/gparted
++
++%preun
++if [ $1 -ge 0 ]; then
++    if [ -a %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi ]; then
++        %{__rm} -rf %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi
++    fi
++fi
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files -f %{name}.lang
++%defattr(-, root, root, 0755)
++%doc AUTHORS ChangeLog COPYING README
++%config(noreplace) %{_sysconfdir}/pam.d/gparted
++%config(noreplace) %{_sysconfdir}/security/console.apps/gparted
++%{_bindir}/gparted
++%{_bindir}/run-gparted
++%{_datadir}/applications/gparted.desktop
++%{_datadir}/pixmaps/gparted.png
++%{_sbindir}/gparted
++
++%changelog
++* Wed Sep 19 2007 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.3.3-2
++- Only use hal-lock on recent distributions.
++
++* Thu Jun 28 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.3.3-1
++- Added Fedora patches.
++- Initial package. (using DAR)
+
+Propchange: trunk/rpms/gparted/gparted-0.3.3.spec
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/rpms/gparted/gparted-0.3.3.spec
+------------------------------------------------------------------------------
+    svn:keywords = Id Revision
+
+Added: trunk/rpms/gparted/gparted-test.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/gparted/gparted-test.spec?rev=9013&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/gparted/gparted-test.spec?rev=9013&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/gparted/gparted-test.spec (added)
++++ trunk/rpms/gparted/gparted-test.spec Mon Aug  2 12:07:02 2010
+@@ -1,0 +1,132 @@
++# $Id$
++# Authority: dag
++
++# Tag: test
++
++%define desktop_vendor rpmforge
++
++Summary: Gnome Partition Editor
++Name: gparted
++Version: 0.5.2
++Release: 1%{?dist}
++License: GPLv2+
++Group: Applications/System
++URL: <A HREF="http://gparted.sourceforge.net/">http://gparted.sourceforge.net/</A>
++
++Source: <A HREF="http://dl.sf.net/gparted/gparted-%{version">http://dl.sf.net/gparted/gparted-%{version</A>}.tar.bz2
++Patch0: gparted-0.4.8-icon.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++
++BuildRequires: desktop-file-utils
++BuildRequires: e2fsprogs-devel
++BuildRequires: gettext
++BuildRequires: gnome-doc-utils
++BuildRequires: gtkmm24-devel
++BuildRequires: parted-devel 
++BuildRequires: perl(XML::Parser) 
++BuildRequires: scrollkeeper
++Requires: scrollkeeper
++
++%description
++GParted stands for Gnome Partition Editor and is a graphical frontend to
++libparted. Among other features it supports creating, resizing, moving
++and copying of partitions. Also several (optional) filesystem tools provide
++support for filesystems not included in libparted. These optional packages
++will be detected at runtime and don't require a rebuild of GParted
++
++%prep
++%setup
++%patch0 -p0 -b .icon
++
++### Fails to build
++%{__rm} -rf po/lv.po
++
++%{__perl} -pi -e '
++        s|\bsbin\b|\bbin\b|;
++        s|_X-GNOME-FullName|X-GNOME-FullName|;
++    ' gparted.desktop
++
++%{__cat} &lt;&lt;EOF &gt;gparted.pam
++#%PAM-1.0
++auth       sufficient   /%{_lib}/security/pam_rootok.so
++auth       sufficient   /%{_lib}/security/pam_timestamp.so
++auth       required     /%{_lib}/security/pam_stack.so service=system-auth
++session    required     /%{_lib}/security/pam_permit.so
++session    optional     /%{_lib}/security/pam_xauth.so
++session    optional     /%{_lib}/security/pam_timestamp.so
++account    required     /%{_lib}/security/pam_permit.so
++EOF
++
++%{__cat} &lt;&lt;EOF &gt;gparted.console-apps
++USER=root
++PROGRAM=%{_sbindir}/gparted
++SESSION=true
++FALLBACK=false
++EOF
++
++%build
++%configure
++%{__make} %{?_smp_mflags} 
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=&quot;%{buildroot}&quot;
++%find_lang %{name}
++
++desktop-file-install --delete-original             \
++        --vendor %{desktop_vendor}                 \
++        --dir %{buildroot}%{_datadir}/applications \
++        --mode 0644                                \
++        %{buildroot}%{_datadir}/applications/gparted.desktop
++
++#### consolehelper stuff
++%{__install} -d -m0755 %{buildroot}%{_bindir}
++%{__ln_s} -f consolehelper %{buildroot}%{_bindir}/gparted
++%{__install} -Dp -m0644 gparted.console-apps %{buildroot}%{_sysconfdir}/security/console.apps/gparted
++%{__install} -Dp -m0644 gparted.pam %{buildroot}%{_sysconfdir}/pam.d/gparted
++
++%preun
++if [ $1 -ge 0 ]; then
++    if [ -a %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi ]; then
++        %{__rm} -rf %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi
++    fi
++fi
++
++%post
++scrollkeeper-update -q -o %{_datadir}/omf/gparted || :
++touch --no-create %{_datadir}/icons/hicolor || :
++%{_bindir}/gtk-update-icon-cache --quiet %{_datadir}/icons/hicolor &amp;&gt;/dev/null || :
++
++%postun
++scrollkeeper-update -q || :
++touch --no-create %{_datadir}/icons/hicolor || :
++%{_bindir}/gtk-update-icon-cache --quiet %{_datadir}/icons/hicolor &amp;&gt;/dev/null || :
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%files -f %{name}.lang
++%defattr(-, root, root, 0755)
++%doc AUTHORS ChangeLog COPYING README
++%doc %{_mandir}/man8/gparted.*
++%config(noreplace) %{_sysconfdir}/pam.d/gparted
++%config(noreplace) %{_sysconfdir}/security/console.apps/gparted
++%{_bindir}/gparted
++%{_datadir}/applications/%{desktop_vendor}-gparted.desktop
++%{_datadir}/icons/hicolor/*/apps/gparted.*
++%{_datadir}/gnome/help/gparted/
++%{_datadir}/omf/gparted/
++%{_sbindir}/gparted
++%{_sbindir}/gpartedbin
++%exclude %{_localstatedir}/lib/scrollkeeper/
++
++%changelog
++* Fri Jul 30 2010 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.1-1
++- Updated to release 0.6.1.
++
++* Wed Sep 19 2007 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.3.3-2
++- Only use hal-lock on recent distributions.
++
++* Thu Jun 28 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.3.3-1
++- Added Fedora patches.
++- Initial package. (using DAR)
+
+Propchange: trunk/rpms/gparted/gparted-test.spec
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/rpms/gparted/gparted-test.spec
+------------------------------------------------------------------------------
+    svn:keywords = Id Revision
+
+Modified: trunk/rpms/gparted/gparted.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/gparted/gparted.spec?rev=9013&amp;r1=9012&amp;r2=9013&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/gparted/gparted.spec?rev=9013&amp;r1=9012&amp;r2=9013&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/gparted/gparted.spec (original)
++++ trunk/rpms/gparted/gparted.spec Mon Aug  2 12:07:02 2010
+@@ -1,39 +1,29 @@
+ # $Id$
+ # Authority: dag
+ 
+-
+-%{?el5:%define _without_hallock 1}
+-%{?el4:%define _without_hallock 1}
+-%{?el3:%define _without_hallock 1}
+-%{?el2:%define _without_hallock 1}
+-%{?fc6:%define _without_hallock 1}
+-%{?fc5:%define _without_hallock 1}
+-%{?fc4:%define _without_hallock 1}
+-%{?fc3:%define _without_hallock 1}
+-%{?fc2:%define _without_hallock 1}
+-%{?fc1:%define _without_hallock 1}
++%define desktop_vendor rpmforge
+ 
+ Summary: Gnome Partition Editor
+ Name: gparted
+-Version: 0.3.3
+-Release: 2%{?dist}
+-License: GPL
++Version: 0.4.8
++Release: 1%{?dist}
++License: GPLv2+
+ Group: Applications/System
+ URL: <A HREF="http://gparted.sourceforge.net/">http://gparted.sourceforge.net/</A>
+ 
+-Source0: <A HREF="http://dl.sf.net/sourceforge/gparted/gparted-%{version">http://dl.sf.net/sourceforge/gparted/gparted-%{version</A>}.tar.bz2
+-Source1: run-gparted
+-Source2: gparted-console.apps
+-Source3: gparted-pam.d
+-Patch0: gparted-dont-lock-hal.patch
+-Patch1: gparted-devices.patch
++Source: <A HREF="http://dl.sf.net/gparted/gparted-%{version">http://dl.sf.net/gparted/gparted-%{version</A>}.tar.bz2
++Patch0: gparted-0.4.8-icon.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-BuildRequires: gtkmm24-devel, parted-devel 
+-BuildRequires: e2fsprogs-devel, gettext perl(XML::Parser) 
+ BuildRequires: desktop-file-utils
+-
+-%{!?_without_hallock:Requires: hal &gt;= 0.5.9}
++BuildRequires: e2fsprogs-devel
++BuildRequires: gettext
++BuildRequires: gnome-doc-utils
++BuildRequires: gtkmm24-devel
++BuildRequires: parted-devel 
++BuildRequires: perl(XML::Parser) 
++BuildRequires: scrollkeeper
++Requires: scrollkeeper
+ 
+ %description
+ GParted stands for Gnome Partition Editor and is a graphical frontend to
+@@ -44,35 +34,29 @@
+ 
+ %prep
+ %setup
+-%patch0 -p0 -b .hal
+-%patch1 -p0 -b .devs
++%patch0 -p0 -b .icon
+ 
+-%if %{?_without_hallock:1}0
+-%{__cat} &lt;&lt;EOF &gt;run-gparted
+-%{_sbindir}/gparted
+-EOF
+-%else
+-%{__cat} &lt;&lt;EOF &gt;run-gparted
+-#!/bin/bash
+-%{_bindir}/hal-lock --interface org.freedesktop.Hal.Device.Storage  --exclusive --run %{_sbindir}/gparted
+-EOF
+-%endif
++%{__perl} -pi -e '
++        s|\bsbin\b|\bbin\b|;
++        s|_X-GNOME-FullName|X-GNOME-FullName|;
++    ' gparted.desktop
+ 
+ %{__cat} &lt;&lt;EOF &gt;gparted.pam
+ #%PAM-1.0
+-auth       sufficient   pam_rootok.so
+-auth       sufficient   pam_timestamp.so
+-auth       include      system-auth
+-session	   required     pam_permit.so
+-session	   optional     pam_xauth.so
+-session	   optional     pam_timestamp.so
+-account	   required     pam_permit.so
++auth       sufficient   /%{_lib}/security/pam_rootok.so
++auth       sufficient   /%{_lib}/security/pam_timestamp.so
++auth       required     /%{_lib}/security/pam_stack.so service=system-auth
++session    required     /%{_lib}/security/pam_permit.so
++session    optional     /%{_lib}/security/pam_xauth.so
++session    optional     /%{_lib}/security/pam_timestamp.so
++account    required     /%{_lib}/security/pam_permit.so
+ EOF
+ 
+ %{__cat} &lt;&lt;EOF &gt;gparted.console-apps
+ USER=root
+-PROGRAM=%{_bindir}/run-gparted
++PROGRAM=%{_sbindir}/gparted
+ SESSION=true
++FALLBACK=false
+ EOF
+ 
+ %build
+@@ -84,22 +68,34 @@
+ %{__make} install DESTDIR=&quot;%{buildroot}&quot;
+ %find_lang %{name}
+ 
+-### Create a helper script to launch gparted using hal-lock
+-%{__install} -Dp -m0755 run-gparted %{buildroot}%{_bindir}/run-gparted
++desktop-file-install --delete-original             \
++        --vendor %{desktop_vendor}                 \
++        --dir %{buildroot}%{_datadir}/applications \
++        --mode 0644                                \
++        %{buildroot}%{_datadir}/applications/gparted.desktop
+ 
+ #### consolehelper stuff
+-%{__install} -Dp -m0755 %{buildroot}%{_bindir}/gparted %{buildroot}%{_sbindir}/gparted
++%{__install} -d -m0755 %{buildroot}%{_bindir}
+ %{__ln_s} -f consolehelper %{buildroot}%{_bindir}/gparted
+-
+ %{__install} -Dp -m0644 gparted.console-apps %{buildroot}%{_sysconfdir}/security/console.apps/gparted
+ %{__install} -Dp -m0644 gparted.pam %{buildroot}%{_sysconfdir}/pam.d/gparted
+ 
+ %preun
+ if [ $1 -ge 0 ]; then
+     if [ -a %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi ]; then
+-       %{__rm} -rf %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi
++        %{__rm} -rf %{_datadir}/hal/fdi/policy/gparted-disable-automount.fdi
+     fi
+ fi
++
++%post
++scrollkeeper-update -q -o %{_datadir}/omf/gparted || :
++touch --no-create %{_datadir}/icons/hicolor || :
++%{_bindir}/gtk-update-icon-cache --quiet %{_datadir}/icons/hicolor &amp;&gt;/dev/null || :
++
++%postun
++scrollkeeper-update -q || :
++touch --no-create %{_datadir}/icons/hicolor || :
++%{_bindir}/gtk-update-icon-cache --quiet %{_datadir}/icons/hicolor &amp;&gt;/dev/null || :
+ 
+ %clean
+ %{__rm} -rf %{buildroot}
+@@ -107,15 +103,22 @@
+ %files -f %{name}.lang
+ %defattr(-, root, root, 0755)
+ %doc AUTHORS ChangeLog COPYING README
++%doc %{_mandir}/man8/gparted.*
+ %config(noreplace) %{_sysconfdir}/pam.d/gparted
+ %config(noreplace) %{_sysconfdir}/security/console.apps/gparted
+ %{_bindir}/gparted
+-%{_bindir}/run-gparted
+-%{_datadir}/applications/gparted.desktop
+-%{_datadir}/pixmaps/gparted.png
++%{_datadir}/applications/%{desktop_vendor}-gparted.desktop
++%{_datadir}/icons/hicolor/*/apps/gparted.*
++%{_datadir}/gnome/help/gparted/
++%{_datadir}/omf/gparted/
+ %{_sbindir}/gparted
++%{_sbindir}/gpartedbin
++%exclude %{_localstatedir}/lib/scrollkeeper/
+ 
+ %changelog
++* Fri Jul 30 2010 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.4.8-1
++- Updated to release 0.4.8.
++
+ * Wed Sep 19 2007 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dries at ulyssis.org</A>&gt; - 0.3.3-2
+ - Only use hal-lock on recent distributions.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007806.html">[svn] r9012 - /trunk/rpms/psinfo/psinfo.spec
+</A></li>
+	<LI>Next message: <A HREF="007808.html">[svn] r9014 - /trunk/rpms/mtr/mtr.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7807">[ date ]</a>
+              <a href="thread.html#7807">[ thread ]</a>
+              <a href="subject.html#7807">[ subject ]</a>
+              <a href="author.html#7807">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

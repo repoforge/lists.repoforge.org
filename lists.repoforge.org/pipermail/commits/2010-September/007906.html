@@ -1,0 +1,332 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9122 - /trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9122%20-%20/trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch&In-Reply-To=%3C201009220845.o8M8jGso014243%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007905.html">
+   <LINK REL="Next"  HREF="007907.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9122 - /trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch</H1>
+    <B>Yury V. Zaytsev</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9122%20-%20/trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch&In-Reply-To=%3C201009220845.o8M8jGso014243%40surya.karan.org%3E"
+       TITLE="[svn] r9122 - /trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch">yury at shurup.com
+       </A><BR>
+    <I>Wed Sep 22 10:45:16 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007905.html">[svn] r9119 - in /trunk/rpms/python-django: ./ django.spec python-django.conf python-django.spec
+</A></li>
+        <LI>Next message: <A HREF="007907.html">[svn] r9123 - in /trunk/rpms/cvsps: cvsps-2.1-cflags.patch	cvsps.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7906">[ date ]</a>
+              <a href="thread.html#7906">[ thread ]</a>
+              <a href="subject.html#7906">[ subject ]</a>
+              <a href="author.html#7906">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: yury
+Date: Wed Sep 22 09:45:15 2010
+New Revision: 9122
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9122&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9122&amp;view=rev</A>
+Log:
+Added patch that was never committed to the SCM
+
+
+Added:
+    trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch
+
+Added: trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch?rev=9122&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch?rev=9122&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch (added)
++++ trunk/rpms/cinelerra/cinelerra-2.1-zyv.patch Wed Sep 22 09:45:15 2010
+@@ -1,0 +1,257 @@
++diff -Naupr cinelerra-2.1-orig/cinelerra/ffmpeg.C cinelerra-2.1-new/cinelerra/ffmpeg.C
++--- cinelerra-2.1-orig/cinelerra/ffmpeg.C	2004-12-19 09:33:25.000000000 +0300
+++++ cinelerra-2.1-new/cinelerra/ffmpeg.C	2009-07-11 15:01:56.000000000 +0400
++@@ -5,6 +5,12 @@
++ #include &quot;ffmpeg.h&quot;
++ #include &quot;guicast.h&quot;
++ 
+++// ZYV
+++extern &quot;C&quot; {
+++    #include &lt;libswscale/swscale.h&gt;
+++};
+++
+++
++ FFMPEG::FFMPEG(Asset *asset) {
++ 	this-&gt;asset = asset;
++ 	codec = 0;
++@@ -147,12 +153,26 @@ int FFMPEG::convert_cmodel(VFrame *frame
++ 		init_picture_from_frame(&amp;picture_in, frame_in);
++ 		init_picture_from_frame(&amp;picture_out, frame_out);
++ 
++-		int result = img_convert(&amp;picture_out,
++-					 pix_fmt_out,
++-					 &amp;picture_in,
++-					 pix_fmt_in,
++-					 frame_in-&gt;get_w(),
++-					 frame_out-&gt;get_h());
+++		// ZYV
+++		struct SwsContext *img_convert_ctx;
+++
+++		img_convert_ctx = sws_getContext(
+++					frame_in-&gt;get_w(), frame_in-&gt;get_h(), pix_fmt_in,
+++					frame_out-&gt;get_w(), frame_out-&gt;get_h(), pix_fmt_out,
+++					SWS_BICUBIC, NULL, NULL, NULL);
+++
+++		if (img_convert_ctx == NULL) {
+++			printf(&quot;FFMPEG::convert_cmodel sws_getContext() failed\n&quot;);
+++			return 1;
+++		}
+++
+++		int result = sws_scale(img_convert_ctx,
+++						picture_in.data, picture_in.linesize,
+++						frame_in-&gt;get_w(), frame_in-&gt;get_h(),
+++						picture_out.data, picture_out.linesize);
+++
+++		sws_freeContext(img_convert_ctx);
+++
++ 		if (result) {
++ 			printf(&quot;FFMPEG::convert_cmodel img_convert() failed\n&quot;);
++ 		}
++@@ -209,12 +229,27 @@ int FFMPEG::convert_cmodel(AVPicture *pi
++ 
++ 	// do conversion within libavcodec if possible
++ 	if (pix_fmt_out != PIX_FMT_NB) {
++-		int result = img_convert(&amp;picture_out,
++-					 pix_fmt_out,
++-					 picture_in,
++-					 pix_fmt_in,
++-					 width_in,
++-					 height_in);
+++
+++		// ZYV
+++		struct SwsContext *img_convert_ctx;
+++
+++		img_convert_ctx = sws_getContext(
+++					width_in, height_in, pix_fmt_in,
+++					frame_out-&gt;get_w(), frame_out-&gt;get_h(), pix_fmt_out,
+++					SWS_BICUBIC, NULL, NULL, NULL);
+++
+++		if (img_convert_ctx == NULL) {
+++			printf(&quot;FFMPEG::convert_cmodel sws_getContext() failed\n&quot;);
+++			return 1;
+++		}
+++
+++		int result = sws_scale(img_convert_ctx,
+++						picture_in-&gt;data, picture_in-&gt;linesize,
+++						width_in, height_in,
+++						picture_out.data, picture_out.linesize);
+++
+++		sws_freeContext(img_convert_ctx);
+++
++ 		if (result) {
++ 			printf(&quot;FFMPEG::convert_cmodel img_convert() failed\n&quot;);
++ 		}
++diff -Naupr cinelerra-2.1-orig/cinelerra/ffmpeg.h cinelerra-2.1-new/cinelerra/ffmpeg.h
++--- cinelerra-2.1-orig/cinelerra/ffmpeg.h	2006-03-30 01:02:53.000000000 +0400
+++++ cinelerra-2.1-new/cinelerra/ffmpeg.h	2009-07-11 15:02:00.000000000 +0400
++@@ -1,11 +1,14 @@
++ #ifndef FFMPEG_H
++ #define FFMPEG_H
++ 
++-#include &quot;ffmpeg/libavcodec/avcodec.h&quot;
++-
++ #include &quot;asset.h&quot;
++ #include &quot;guicast.h&quot;
++ 
+++// ZYV
+++extern &quot;C&quot; {
+++    #include &lt;libavcodec/avcodec.h&gt;
+++};
+++
++ #define FFMPEG_LATENCY -9
++ 
++ class FFMPEG
++diff -Naupr cinelerra-2.1-orig/cinelerra/fileac3.h cinelerra-2.1-new/cinelerra/fileac3.h
++--- cinelerra-2.1-orig/cinelerra/fileac3.h	2006-03-30 01:02:53.000000000 +0400
+++++ cinelerra-2.1-new/cinelerra/fileac3.h	2009-07-11 15:00:46.000000000 +0400
++@@ -2,7 +2,11 @@
++ #define FILEAC3_H
++ 
++ 
++-#include &quot;ffmpeg/libavcodec/avcodec.h&quot;
+++// ZYV
+++extern &quot;C&quot; {
+++    #include &lt;libavcodec/avcodec.h&gt;
+++};
+++
++ #include &quot;filebase.h&quot;
++ #include &lt;stdio.h&gt;
++ 
++diff -Naupr cinelerra-2.1-orig/cinelerra/filedv.h cinelerra-2.1-new/cinelerra/filedv.h
++--- cinelerra-2.1-orig/cinelerra/filedv.h	2006-03-30 01:02:53.000000000 +0400
+++++ cinelerra-2.1-new/cinelerra/filedv.h	2009-07-11 15:00:30.000000000 +0400
++@@ -6,7 +6,10 @@
++ #include &quot;file.inc&quot;
++ 
++ #ifdef DV_USE_FFMPEG
++-#include &quot;ffmpeg/libavcodec/avcodec.h&quot;
+++// ZYV
+++extern &quot;C&quot; {
+++    #include &lt;libavcodec/avcodec.h&gt;
+++};
++ #endif
++ 
++ #include &lt;libdv/dv.h&gt;
++diff -Naupr cinelerra-2.1-orig/cinelerra/Makefile.am cinelerra-2.1-new/cinelerra/Makefile.am
++--- cinelerra-2.1-orig/cinelerra/Makefile.am	2006-10-29 02:54:57.000000000 +0400
+++++ cinelerra-2.1-new/cinelerra/Makefile.am	2009-07-11 16:29:05.000000000 +0400
++@@ -342,8 +342,10 @@ AM_CXXFLAGS = \
++ 	$(XIPH_CFLAGS) \
++ 	$(MJPEG_CFLAGS) \
++ 	$(OPENEXR_CFLAGS) \
+++	$(FFMPEG_CFLAGS) \
++ 	$(LIBDV_CFLAGS) \
++ 	-DPLUGIN_DIR=\&quot;$(plugindir)\&quot;
+++# ZYV
++ 
++ AM_LDFLAGS = -export-dynamic
++ 
++@@ -674,7 +676,10 @@ cinelerra_LDADD = \
++ 	$(SOUND_LDFLAGS) \
++ 	$(FIREWIRE_LDFLAGS) \
++ 	$(LIBDV_LIBS) \
+++	$(FFMPEG_LIBS) \
++ 	-luuid \
++ 	$(MJPEG_LIBS)
++ 
+++# ZYV
+++
++ EXTRA_DIST = gen-feather-h
++diff -Naupr cinelerra-2.1-orig/configure.in cinelerra-2.1-new/configure.in
++--- cinelerra-2.1-orig/configure.in	2006-12-30 20:37:50.000000000 +0300
+++++ cinelerra-2.1-new/configure.in	2009-07-11 15:06:52.000000000 +0400
++@@ -297,7 +297,9 @@ AC_ARG_ENABLE(altivec, 
++ AC_ARG_WITH([external-ffmpeg], AC_HELP_STRING([--with-external-ffmpeg], [use external ffmpeg library]))
++ 
++ if test &quot;x$with_external_ffmpeg&quot; = &quot;xyes&quot;; then
++-     PKG_CHECK_MODULES([FFMPEG], [libavcodec libpostproc])
+++# ZYV
+++#     PKG_CHECK_MODULES([FFMPEG], [libavcodec libpostproc])
+++     PKG_CHECK_MODULES([FFMPEG], [libavcodec libswscale libpostproc])
++      FFMPEG_FOLDER=&quot;&quot;
++      FFMPEG_EXTERNALTEXT=&quot;External ffmpeg&quot;
++ else
++diff -Naupr cinelerra-2.1-orig/quicktime/mpeg4.c cinelerra-2.1-new/quicktime/mpeg4.c
++--- cinelerra-2.1-orig/quicktime/mpeg4.c	2006-10-29 02:54:57.000000000 +0400
+++++ cinelerra-2.1-new/quicktime/mpeg4.c	2009-07-11 15:28:37.000000000 +0400
++@@ -7,7 +7,9 @@
++ 
++ 
++ 
++-#include &quot;avcodec.h&quot;
+++// ZYV
+++#include &lt;libavcodec/avcodec.h&gt;
+++
++ #include &quot;colormodels.h&quot;
++ #include &quot;funcprotos.h&quot;
++ #include &quot;qtffmpeg.h&quot;
++@@ -671,7 +673,9 @@ static int encode(quicktime_t *file, uns
++ 
++         	context-&gt;b_quant_factor = 1.25;
++         	context-&gt;b_quant_offset = 1.25;
++-			context-&gt;error_resilience = FF_ER_CAREFUL;
+++// ZYV
+++			context-&gt;error_recognition = FF_ER_CAREFUL;
+++//			context-&gt;error_resilience = FF_ER_CAREFUL;
++ 			context-&gt;error_concealment = 3;
++ 			context-&gt;frame_skip_cmp = FF_CMP_DCTMAX;
++ 			context-&gt;ildct_cmp = FF_CMP_VSAD;
++diff -Naupr cinelerra-2.1-orig/quicktime/qtffmpeg.h cinelerra-2.1-new/quicktime/qtffmpeg.h
++--- cinelerra-2.1-orig/quicktime/qtffmpeg.h	2005-09-28 23:11:18.000000000 +0400
+++++ cinelerra-2.1-new/quicktime/qtffmpeg.h	2009-07-11 15:14:31.000000000 +0400
++@@ -16,8 +16,8 @@
++ // Heroine Virtual.
++ 
++ 
++-
++-#include &quot;avcodec.h&quot;
+++// ZYV
+++#include &lt;libavcodec/avcodec.h&gt;
++ #include &quot;qtprivate.h&quot;
++ 
++ 
++diff -Naupr cinelerra-2.1-orig/quicktime/qth264.c cinelerra-2.1-new/quicktime/qth264.c
++--- cinelerra-2.1-orig/quicktime/qth264.c	2006-09-12 06:10:57.000000000 +0400
+++++ cinelerra-2.1-new/quicktime/qth264.c	2009-07-11 15:15:04.000000000 +0400
++@@ -1,4 +1,6 @@
++-#include &quot;avcodec.h&quot;
+++// ZYV
+++#include &lt;libavcodec/avcodec.h&gt;
+++
++ #include &quot;colormodels.h&quot;
++ #include &quot;funcprotos.h&quot;
++ #include &lt;pthread.h&gt;
++diff -Naupr cinelerra-2.1-orig/quicktime/wma.c cinelerra-2.1-new/quicktime/wma.c
++--- cinelerra-2.1-orig/quicktime/wma.c	2006-09-01 00:25:39.000000000 +0400
+++++ cinelerra-2.1-new/quicktime/wma.c	2009-07-11 16:16:24.000000000 +0400
++@@ -1,4 +1,6 @@
++-#include &quot;avcodec.h&quot;
+++// ZYV
+++#include &lt;libavcodec/avcodec.h&gt;
+++
++ #include &quot;funcprotos.h&quot;
++ #include &quot;quicktime.h&quot;
++ #include &lt;string.h&gt;
++@@ -187,11 +189,22 @@ printf(&quot;decode 2 %x %llx %llx\n&quot;, chunk_
++ 
++ // Decode chunk into work buffer.
++ 		pthread_mutex_lock(&amp;ffmpeg_lock);
+++
+++// ZYV
+++		bytes_decoded = AVCODEC_MAX_AUDIO_FRAME_SIZE;
+++		result = avcodec_decode_audio2(codec-&gt;decoder_context,
+++				(int16_t*)(codec-&gt;work_buffer + codec-&gt;output_size * sample_size),
+++				&amp;bytes_decoded,
+++				codec-&gt;packet_buffer,
+++				chunk_size);
+++
+++/*
++ 		result = avcodec_decode_audio(codec-&gt;decoder_context, 
++ 			(int16_t*)(codec-&gt;work_buffer + codec-&gt;output_size * sample_size), 
++             &amp;bytes_decoded,
++             codec-&gt;packet_buffer, 
++ 			chunk_size);
+++*/
++ 		pthread_mutex_unlock(&amp;ffmpeg_lock);
++ 		if(bytes_decoded &lt;= 0)
++ 		{
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007905.html">[svn] r9119 - in /trunk/rpms/python-django: ./ django.spec python-django.conf python-django.spec
+</A></li>
+	<LI>Next message: <A HREF="007907.html">[svn] r9123 - in /trunk/rpms/cvsps: cvsps-2.1-cflags.patch	cvsps.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7906">[ date ]</a>
+              <a href="thread.html#7906">[ thread ]</a>
+              <a href="subject.html#7906">[ subject ]</a>
+              <a href="author.html#7906">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

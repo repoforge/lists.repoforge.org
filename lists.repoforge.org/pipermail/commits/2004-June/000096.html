@@ -1,0 +1,204 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1287 - in trunk/rpms: audacity portaudio starfighter wxGTK
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1287%20-%20in%20trunk/rpms%3A%20audacity%20portaudio%20starfighter%20wxGTK&In-Reply-To=%3C20040610014221.F41F31FC8B%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000095.html">
+   <LINK REL="Next"  HREF="000097.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1287 - in trunk/rpms: audacity portaudio starfighter wxGTK</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1287%20-%20in%20trunk/rpms%3A%20audacity%20portaudio%20starfighter%20wxGTK&In-Reply-To=%3C20040610014221.F41F31FC8B%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1287 - in trunk/rpms: audacity portaudio starfighter wxGTK">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Jun 10 03:42:21 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000095.html">[SVN] r1286 - trunk/rpms/cacti
+</A></li>
+        <LI>Next message: <A HREF="000097.html">[SVN] r1288 - trunk/rpms/pixieplus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#96">[ date ]</a>
+              <a href="thread.html#96">[ thread ]</a>
+              <a href="subject.html#96">[ subject ]</a>
+              <a href="author.html#96">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-06-10 03:42:19 +0200 (Thu, 10 Jun 2004)
+New Revision: 1287
+
+Modified:
+   trunk/rpms/audacity/audacity.spec
+   trunk/rpms/portaudio/portaudio.spec
+   trunk/rpms/starfighter/starfighter.spec
+   trunk/rpms/wxGTK/wxGTK.spec
+Log:
+Fixes for x86_64.
+
+
+Modified: trunk/rpms/audacity/audacity.spec
+===================================================================
+--- trunk/rpms/audacity/audacity.spec	2004-06-10 01:41:32 UTC (rev 1286)
++++ trunk/rpms/audacity/audacity.spec	2004-06-10 01:42:19 UTC (rev 1287)
+@@ -1,6 +1,11 @@
+ # $Id$
+ # Authority: matthias
+ 
++%{?fc1:%define _without_alsa 1}
++%{?el3:%define _without_alsa 1}
++%{?rh9:%define _without_alsa 1}
++%{?rh8:%define _without_alsa 1}
++
+ #define prever         pre3
+ %define desktop_vendor freshrpms
+ 
+@@ -17,8 +22,9 @@
+ Requires: libmad, flac, libsndfile
+ BuildRequires: gcc-c++, zip, zlib-devel, gettext, desktop-file-utils
+ BuildRequires: wxGTK-devel &gt;= 2.4.0, libogg-devel, libvorbis-devel
+-BuildRequires: libmad-devel, flac-devel, libsndfile-devel, alsa-lib-devel
++BuildRequires: libmad-devel, flac-devel, libsndfile-devel
+ BuildRequires: autoconf
++%{!?_without_alsa:BuildRequires: alsa-lib-devel}
+ 
+ %description
+ Audacity is a free audio editor. You can record sounds, play sounds, import
+@@ -41,6 +47,7 @@
+     --with-libsndfile=system \
+     --with-portaudio=v19 \
+     --without-portmixer
++%{__perl} -pi.orig -e 's|^(CFLAGS) = -g |$1 = -fPIC |' lib-src/portaudio-v19/Makefile
+ %{__make} %{?_smp_mflags}
+ 
+ 
+
+Modified: trunk/rpms/portaudio/portaudio.spec
+===================================================================
+--- trunk/rpms/portaudio/portaudio.spec	2004-06-10 01:41:32 UTC (rev 1286)
++++ trunk/rpms/portaudio/portaudio.spec	2004-06-10 01:42:19 UTC (rev 1287)
+@@ -7,7 +7,7 @@
+ Summary: Free, cross platform, open-source, audio I/O library.
+ Name: portaudio
+ Version: 18.1
+-Release: 0
++Release: 1
+ License: distributable
+ Group: System Environment/Libraries
+ URL: <A HREF="http://www.portaudio.com/">http://www.portaudio.com/</A>
+@@ -16,7 +16,7 @@
+ Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+ 
+ Source: <A HREF="http://www.portaudio.com/archives/portaudio_%{rversion">http://www.portaudio.com/archives/portaudio_%{rversion</A>}.zip
+-BuildRoot: %{_tmppath}/root-%{name}-%{version}
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ %description
+ PortAudio is a portable audio I/O library designed for cross-platform
+@@ -27,15 +27,14 @@
+ %prep
+ %setup -n %{name}_%{rversion} 
+ 
+-%{__perl} -pi.orig -e 's|^(LIBINST =) /usr/local/lib|$1 %{_libdir}|' Makefile.linux
++%{__perl} -pi.orig -e 's|^(LIBINST) = /usr/local/lib|$1 = %{_libdir}|' Makefile.linux
+ 
+ %build
+-%{__make} %{?_smp_mflags} -f Makefile.linux sharedlib
+-#%{__make} %{?_smp_mflags} -C pa_unix_oss
++%{__make} %{?_smp_mflags} -f Makefile.linux sharedlib \
++	CFLAGS=&quot;-fPIC&quot;
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-#%{__install} -D -m0755 pa_unix_oss/patest %{buildroot}%{_bindir}/patest
+ %{__install} -D -m0755 pa_unix_oss/libportaudio.so %{buildroot}%{_libdir}/libportaudio.so
+ %{__install} -D -m0644 pa_common/portaudio.h %{buildroot}%{_includedir}/portaudio.h
+ 
+@@ -45,10 +44,12 @@
+ %files
+ %defattr(0644, root, root, 0755)
+ %doc LICENSE.txt README.txt docs/
+-#%{_bindir}/patest
+ %{_libdir}/*.so
+ %{_includedir}/*.h
+ 
+ %changelog
++* Thu Jun 10 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 18.1-1
++- Added -fPIC for x86_64.
++
+ * Sat Sep 13 2003 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 18.1-0
+ - Initial package. (using DAR)
+
+Modified: trunk/rpms/starfighter/starfighter.spec
+===================================================================
+--- trunk/rpms/starfighter/starfighter.spec	2004-06-10 01:41:32 UTC (rev 1286)
++++ trunk/rpms/starfighter/starfighter.spec	2004-06-10 01:42:19 UTC (rev 1287)
+@@ -13,7 +13,7 @@
+ License: GPL
+ Group: Amusements/Games
+ URL: <A HREF="http://www.parallelrealities.co.uk/starfighter.php">http://www.parallelrealities.co.uk/starfighter.php</A>
+-Source0: starfighter-%{version}-1.tar.bz2
++Source0: starfighter-%{version}-1.tar.gz
+ Source1: starfighter.png
+ Patch: starfighter-1.1-makefile.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+@@ -40,7 +40,9 @@
+ 
+ 
+ %build
+-%{__make} %{?_smp_mflags} PREFIX=&quot;%{_prefix}&quot; OPTFLAGS=&quot;%{optflags}&quot;
++%{__make} %{?_smp_mflags} \
++	PREFIX=&quot;%{_prefix}&quot; \
++	OPTFLAGS=&quot;%{optflags}&quot;
+ 
+ 
+ %install
+
+Modified: trunk/rpms/wxGTK/wxGTK.spec
+===================================================================
+--- trunk/rpms/wxGTK/wxGTK.spec	2004-06-10 01:41:32 UTC (rev 1286)
++++ trunk/rpms/wxGTK/wxGTK.spec	2004-06-10 01:42:19 UTC (rev 1287)
+@@ -65,9 +65,12 @@
+ %prep
+ %setup
+ 
++%{__perl} -pi.orig -e 's| /usr/lib| %{_libdir} %{_prefix}/X11R6/%{_lib}|g' configure
++
+ %build
+ # For the shared libs
+ %configure \
++    --x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot; \
+     --enable-soname \
+     --enable-optimise \
+     --with-opengl
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000095.html">[SVN] r1286 - trunk/rpms/cacti
+</A></li>
+	<LI>Next message: <A HREF="000097.html">[SVN] r1288 - trunk/rpms/pixieplus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#96">[ date ]</a>
+              <a href="thread.html#96">[ thread ]</a>
+              <a href="subject.html#96">[ subject ]</a>
+              <a href="author.html#96">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

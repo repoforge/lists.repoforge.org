@@ -1,0 +1,182 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6355 - in trunk/tools/unoconv: . tests
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6355%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C200806112321.m5BNLqwb013367%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005153.html">
+   <LINK REL="Next"  HREF="005155.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6355 - in trunk/tools/unoconv: . tests</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6355%20-%20in%20trunk/tools/unoconv%3A%20.%20tests&In-Reply-To=%3C200806112321.m5BNLqwb013367%40surya.karan.org%3E"
+       TITLE="[svn] r6355 - in trunk/tools/unoconv: . tests">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Jun 12 01:21:52 CEST 2008</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005153.html">[svn] r6354 - trunk/tools/dar
+</A></li>
+        <LI>Next message: <A HREF="005155.html">[svn] r6356 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5154">[ date ]</a>
+              <a href="thread.html#5154">[ thread ]</a>
+              <a href="subject.html#5154">[ subject ]</a>
+              <a href="author.html#5154">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2008-06-12 00:21:52 +0100 (Thu, 12 Jun 2008)
+New Revision: 6355
+
+Modified:
+   trunk/tools/unoconv/ChangeLog
+   trunk/tools/unoconv/README
+   trunk/tools/unoconv/TODO
+   trunk/tools/unoconv/tests/Makefile
+   trunk/tools/unoconv/unoconv
+Log:
+Added -S/--sleep option to influence waiting for OpenOffice to be ready (default: 2 secs)
+
+Modified: trunk/tools/unoconv/ChangeLog
+===================================================================
+--- trunk/tools/unoconv/ChangeLog	2008-06-11 21:41:12 UTC (rev 6354)
++++ trunk/tools/unoconv/ChangeLog	2008-06-11 23:21:52 UTC (rev 6355)
+@@ -1,6 +1,7 @@
+ * 0.3svn - released 10/04/2008
+ - Now properly check if there is a GUI attached and terminate() or -unaccept instance
+ - Added official OpenOffice path '/opt/openoffice*/program'
++- Added -S/--sleep option to influence waiting for OpenOffice to be ready (default: 2 secs)
+ 
+ * 0.3 - released 31/08/2007
+ - Determine doctype from input filename (if not specified)
+
+Modified: trunk/tools/unoconv/README
+===================================================================
+--- trunk/tools/unoconv/README	2008-06-11 21:41:12 UTC (rev 6354)
++++ trunk/tools/unoconv/README	2008-06-11 23:21:52 UTC (rev 6355)
+@@ -34,6 +34,7 @@
+ same version of python that you are using to load it. A lot of people that
+ run into problems loading pyuno are actually using a precompiled OpenOffice
+ that they downloaded somewhere and is incompatible with their python version.
++(Sometimes the OpenOffice comes with its own python wrapper.)
+ 
+ 
+ Other tools that are useful or similar in operation:
+
+Modified: trunk/tools/unoconv/TODO
+===================================================================
+--- trunk/tools/unoconv/TODO	2008-06-11 21:41:12 UTC (rev 6354)
++++ trunk/tools/unoconv/TODO	2008-06-11 23:21:52 UTC (rev 6355)
+@@ -13,3 +13,7 @@
+ ### Usability
+ - Maybe change the commandline interface to reflect ImageMagick's convert
+ - Add the list of input formats as well, and print that list too
++
++### Known bugs
++- On some systems loading OpenOffice is slow and this could lead to random errors
++-
+
+Modified: trunk/tools/unoconv/tests/Makefile
+===================================================================
+--- trunk/tools/unoconv/tests/Makefile	2008-06-11 21:41:12 UTC (rev 6354)
++++ trunk/tools/unoconv/tests/Makefile	2008-06-11 23:21:52 UTC (rev 6355)
+@@ -11,7 +11,7 @@
+ 
+ %:
+ #	-killall ooffice soffice.bin
+-	-../unoconv -vv -f $@ document-example.odt
++	-../unoconv -vvvv -f $@ document-example.odt
+ #	@ps aux | grep office
+ #	-unoconv -f $@ dag.gif
+ #	docbook2pdf -d curriculum-vitae.dsl#print curriculum-vitae-dag-wieers.xml
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2008-06-11 21:41:12 UTC (rev 6354)
++++ trunk/tools/unoconv/unoconv	2008-06-11 23:21:52 UTC (rev 6355)
+@@ -244,6 +244,7 @@
+         self.listener = False
+         self.format = None
+         self.verbose = 0
++        self.sleep = 3
+         self.doctype = None
+         self.server = 'localhost'
+         self.port = '2002'
+@@ -252,8 +253,8 @@
+ 
+         ### Get options from the commandline
+         try:
+-            opts, args = getopt.getopt (args, 'c:d:f:hLlp:s:t:v',
+-                ['connection=', 'doctype=', 'format=', 'help', 'listener', 'port=', 'server=', 'show', 'stdout', 'verbose', 'version'] )
++            opts, args = getopt.getopt (args, 'c:d:f:hLlp:s:S:t:v',
++                ['connection=', 'doctype=', 'format=', 'help', 'listener', 'port=', 'server=', 'sleep=', 'show', 'stdout', 'verbose', 'version'] )
+         except getopt.error, exc:
+             print 'unoconv: %s, try unoconv -h for a list of all the options' % str(exc)
+             sys.exit(255)
+@@ -278,6 +279,8 @@
+                 self.port = arg
+             elif opt in ['-s', '--server']:
+                 self.server = arg
++            elif opt in ['-S', '--sleep']:
++                self.sleep = int(arg)
+             elif opt in ['--stdout']:
+                 self.stdout = True
+             elif opt in ['-v', '--verbose']:
+@@ -344,13 +347,14 @@
+ unoconv options:
+   -c, --connection=string  use a custom connection string
+   -d, --doctype=type       specify document type
+-                           (document, graphics, presentation, spreadsheet)
++                             (document, graphics, presentation, spreadsheet)
+   -f, --format=format      specify the output format
+   -l, --listener           start a listener to use by unoconv clients
+   -p, --port               specify the port (default: 2002) 
+-                           to be used by client or listener
++                             to be used by client or listener
+   -s, --server             specify the server address (default: localhost)
+-                           to be used by client or listener
++                             to be used by client or listener
++  -S, --sleep=secs         sleep longer in case OpenOffice loads too slow
+       --show               list the available output formats
+       --stdout             write output to stdout
+   -v, --verbose            be more and more verbose
+@@ -376,7 +380,7 @@
+                 error(2, &quot;Trying to launch our own listener using %s.&quot; % bin)
+                 try:
+                     oopid = os.spawnvp(os.P_NOWAIT, bin, [bin, &quot;-nologo&quot;, &quot;-nodefault&quot;, &quot;-headless&quot;, &quot;-accept=%s&quot; % op.connection]);
+-                    time.sleep(1)
++                    time.sleep(op.sleep)
+                     unocontext = resolver.resolve(&quot;uno:%s&quot; % op.connection)
+                     break
+                 except Exception, e:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005153.html">[svn] r6354 - trunk/tools/dar
+</A></li>
+	<LI>Next message: <A HREF="005155.html">[svn] r6356 - trunk/tools/unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5154">[ date ]</a>
+              <a href="thread.html#5154">[ thread ]</a>
+              <a href="subject.html#5154">[ subject ]</a>
+              <a href="author.html#5154">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

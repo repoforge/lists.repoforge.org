@@ -1,0 +1,541 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6713 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6713%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903050247.n252lxGX010353%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005511.html">
+   <LINK REL="Next"  HREF="005513.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6713 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6713%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903050247.n252lxGX010353%40surya.karan.org%3E"
+       TITLE="[svn] r6713 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Mar  5 03:47:59 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005511.html">[svn] r6712 - trunk/tools/wiipresent
+</A></li>
+        <LI>Next message: <A HREF="005513.html">[svn] r6714 - trunk/rpms/cfengine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5512">[ date ]</a>
+              <a href="thread.html#5512">[ thread ]</a>
+              <a href="subject.html#5512">[ subject ]</a>
+              <a href="author.html#5512">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-03-05 02:47:59 +0000 (Thu, 05 Mar 2009)
+New Revision: 6713
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/TODO
+   trunk/tools/wiipresent/wiipresent.c
+   trunk/tools/wiipresent/wiipresent.spec
+Log:
+Added -i/--infrared and -t/--tilt options. Added support for yelp.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-03-05 00:00:10 UTC (rev 6712)
++++ trunk/tools/wiipresent/ChangeLog	2009-03-05 02:47:59 UTC (rev 6713)
+@@ -1,6 +1,9 @@
+ * Thu Mar 05 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Up/Down keys loop through links instead of scrolling in Firefox/Opera
+ - Make mouse buttons work reliably
++- Added -i/--infrared option to enable infrared sensor
++- Added -t/--tilt option to enable tilt sensors
++- Added support for yelp
+ 
+ * Mon Mar 02 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Detect application focus and adapt key-combinations
+
+Modified: trunk/tools/wiipresent/TODO
+===================================================================
+--- trunk/tools/wiipresent/TODO	2009-03-05 00:00:10 UTC (rev 6712)
++++ trunk/tools/wiipresent/TODO	2009-03-05 02:47:59 UTC (rev 6713)
+@@ -18,7 +18,7 @@
+ - 2: blank screen/mute audio
+ - A: Play/Pause
+ - B: enable mouse pointer
+-- home: exit
++- home: back/home
+ - exit: unavailable
+ 
+ == Bugs
+@@ -26,5 +26,4 @@
+   - vlc when going into fullscreen
+ - Applications loosing focus
+   - qiv in fullscreen
+-- Mouse buttons do not work (yet)
+ - Battery status updates do not seem to work ?
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-03-05 00:00:10 UTC (rev 6712)
++++ trunk/tools/wiipresent/wiipresent.c	2009-03-05 02:47:59 UTC (rev 6713)
+@@ -38,7 +38,7 @@
+ #include &quot;wiimote_api.h&quot;
+ 
+ static char NAME[] = &quot;wiipresent&quot;;
+-static char VERSION[] = &quot;0.6&quot;;
++static char VERSION[] = &quot;0.7&quot;;
+ 
+ static char *displayname = NULL;
+ static Display *display = NULL;
+@@ -174,7 +174,6 @@
+     wmote-&gt;rumble = 0;
+ }
+ 
+-/*
+ // Is this a valid point ?
+ int valid_point(wiimote_ir_t *point) {
+     if (point == NULL)
+@@ -201,11 +200,12 @@
+     }
+     return new;
+ }
+-*/
+ 
+ int main(int argc, char **argv) {
+     int length = 0;
+     char *btaddress = NULL;
++    int infrared = False;
++    int tilt = True;
+     wmote = (wiimote_t) WIIMOTE_INIT;
+ 
+     int c;
+@@ -219,13 +219,16 @@
+             {&quot;bluetooth&quot;, 1, 0, 'b'},
+             {&quot;display&quot;, 1, 0, 'd'},
+             {&quot;help&quot;, 0, 0, 'h'},
++            {&quot;ir&quot;, 0, 0, 'i'},
++            {&quot;infrared&quot;, 0, 0, 'i'},
+             {&quot;length&quot;, 1, 0, 'l'},
++            {&quot;tilt&quot;, 0, 0, 't'},
+             {&quot;verbose&quot;, 0, 0, 'v'},
+             {&quot;version&quot;, 0, 0, 'V'},
+             {0, 0, 0, 0}
+         };
+ 
+-        c = getopt_long (argc, argv, &quot;b:d:hl:v&quot;, long_options, &amp;option_index);
++        c = getopt_long (argc, argv, &quot;b:d:hil:tvV&quot;, long_options, &amp;option_index);
+         if (c == -1)
+             break;
+ 
+@@ -240,9 +243,11 @@
+                 printf(&quot;Nintendo Wiimote presentation controller\n\
+ \n\
+ %s options:\n\
+-  -b, --bluetooth=btaddress      Wiimote bluetooth address (use hcitool scan)\n\
++  -b, --bluetooth=btaddress      wiimote bluetooth address (use hcitool scan)\n\
+   -d, --display=name             X display to use\n\
++  -i, --infrared                 use infrared sensor to move mouse pointer\n\
+   -l, --length=minutes           presentation length in minutes\n\
++  -t, --tilt                     use tilt sensors to move mouse pointer\n\
+ \n\
+   -h, --help                     display this help and exit\n\
+   -v, --verbose                  increase verbosity\n\
+@@ -250,9 +255,17 @@
+ \n\
+ Report bugs to &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;.\n&quot;, NAME);
+                 exit(0);
++            case 'i':
++                infrared = True;
++                tilt = False;
++                continue;
+             case 'l':
+                 length = atoi(optarg) * 60;
+                 continue;
++            case 't':
++                tilt = True;
++                infrared = False;
++                continue;
+             case 'v':
+                 verbose += 1;
+                 continue;
+@@ -293,6 +306,13 @@
+     signal(SIGHUP, exit_clean);
+     signal(SIGQUIT, exit_clean);
+ 
++    if (tilt)
++        fprintf(stderr, &quot;Mouse movement controlled by tilting wiimote.\n&quot;);
++    else if (infrared)
++        fprintf(stderr, &quot;Mouse movement controlled by infrared reception emitted from sensor bar.\n&quot;);
++    else
++        fprintf(stderr, &quot;Mouse movement disabled.\n&quot;);
++
+     if (length) fprintf(stderr, &quot;Presentation length is %dmin divided in 5 slots of %dmin.\n&quot;, length/60, length/60/5);
+ 
+     // Obtain the X11 display.
+@@ -318,13 +338,13 @@
+     time_t start = 0, now = 0, duration = 0;
+     int phase = 0, oldphase = 0;
+     uint16_t keys = 0;
+-/*
++
+     int x = 0, y = 0;
+     int prev1x = 0, prev1y = 0;
+     int prev2x = 0, prev2y = 0;
+     int dots = 0;
+     wiimote_ir_t *point1 = &amp;wmote.ir1, *point2 = &amp;wmote.ir2;
+-*/
++
+     int oldbattery = 0;
+     Window oldwindow = window;
+     int playertoggle = False;
+@@ -411,69 +431,73 @@
+                 if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse enabled.\n&quot;);
+                 mouse = ! mouse;
+ 
+-                wmote.mode.ir = 1;
+-                wmote.mode.acc = 1;
++                if (tilt) {
++                    wmote.mode.acc = 1;
++                } else if (infrared) {
++                    wmote.mode.ir = 1;
++                }
+             }
+ 
+-
+             // Tilt method
+-            XMovePointer(display, wmote.tilt.x / 4, wmote.tilt.y / 4, 1);
++            if (tilt) {
++                XMovePointer(display, wmote.tilt.x / 4, wmote.tilt.y / 4, 1);
+ 
+-/*
+-            if (!valid_point(point1) || (point1 == point2)) {
+-                point1 = search_newpoint(&amp;wmote, point2);
+-            } else {
+-                fprintf(stderr, &quot;Point 1 is valid %4d %4d %2d\n&quot;, point1-&gt;x, point1-&gt;y, point1-&gt;size);
+-            }
++            // Infrared method
++            } else if (infrared) {
+ 
+-            if (!valid_point(point2) || (point1 == point2)) {
+-                point2 = search_newpoint(&amp;wmote, point1);
+-            } else {
+-                fprintf(stderr, &quot;Point 2 is valid %4d %4d %2d\n&quot;, point2-&gt;x, point2-&gt;y, point2-&gt;size);
+-            }
++                if (!valid_point(point1) || (point1 == point2)) {
++                    point1 = search_newpoint(&amp;wmote, point2);
++                } else {
++                    fprintf(stderr, &quot;Point 1 is valid %4d %4d %2d\n&quot;, point1-&gt;x, point1-&gt;y, point1-&gt;size);
++                }
+ 
+-//            if (valid_point(point1) &amp;&amp; ! valid_point(point2))
+-//                XMovePointer(display, 1280 * (prev1x - point1-&gt;x) / 1791,
+-//                                     -800 * (prev1y - point1-&gt;y) / 1791, 1);
+-//            else if (valid_point(point1) &amp;&amp; ! valid_point(point2))
+-//                MovePointer(display, 1280 * (prev2x - point2-&gt;x) / 1791,
+-//                                     -800 * (prev2y - point2-&gt;y) / 1791, 1);
+-//            else if (point1 == point2)
+-//                MovePointer(display, 1280 * (prev1x - point1-&gt;x) / 1791,
+-//                                     -800 * (prev1y - point1-&gt;y) / 1791, 1);
+-//            else
+-//                MovePointer(display, 1280 * (prev1x - point1-&gt;x &gt; prev2x - point2-&gt;x ? prev2x - point2-&gt;x : prev1x - point1-&gt;x) / 1791,
+-//                                     -800 * (prev1y - point1-&gt;y &gt; prev2y - point2-&gt;y ? prev2y - point2-&gt;y : prev1y - point1-&gt;y) / 1791, 1);
++                if (!valid_point(point2) || (point1 == point2)) {
++                    point2 = search_newpoint(&amp;wmote, point1);
++                } else {
++                    fprintf(stderr, &quot;Point 2 is valid %4d %4d %2d\n&quot;, point2-&gt;x, point2-&gt;y, point2-&gt;size);
++                }
+ 
+-            prev1x = point1-&gt;x;
+-            prev1y = point1-&gt;y;
+-            prev2x = point2-&gt;x;
+-            prev2y = point2-&gt;y;
++                if (valid_point(point1) &amp;&amp; ! valid_point(point2))
++                    XMovePointer(display, 1280 * (prev1x - point1-&gt;x) / 1791,
++                                         -800 * (prev1y - point1-&gt;y) / 1791, 1);
++                else if (valid_point(point1) &amp;&amp; ! valid_point(point2))
++                    XMovePointer(display, 1280 * (prev2x - point2-&gt;x) / 1791,
++                                         -800 * (prev2y - point2-&gt;y) / 1791, 1);
++                else if (point1 == point2)
++                    XMovePointer(display, 1280 * (prev1x - point1-&gt;x) / 1791,
++                                         -800 * (prev1y - point1-&gt;y) / 1791, 1);
++                else
++                    XMovePointer(display, 1280 * (prev1x - point1-&gt;x &gt; prev2x - point2-&gt;x ? prev2x - point2-&gt;x : prev1x - point1-&gt;x) / 1791,
++                                         -800 * (prev1y - point1-&gt;y &gt; prev2y - point2-&gt;y ? prev2y - point2-&gt;y : prev1y - point1-&gt;y) / 1791, 1);
+ 
+-            // Infrared method
+-            dots = (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? 1 : 0) +
+-                   (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? 1 : 0) +
+-                   (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? 1 : 0) +
+-                   (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? 1 : 0);
+-            if (dots &gt; 0) {
+-                x = ( (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? wmote.ir1.x : 0) +
+-                      (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? wmote.ir2.x : 0) +
+-                      (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? wmote.ir3.x : 0) +
+-                      (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? wmote.ir4.x : 0) ) / dots;
+-                y = ( (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? wmote.ir1.y : 0) +
+-                      (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? wmote.ir2.y : 0) +
+-                      (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? wmote.ir3.y : 0) +
+-                      (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? wmote.ir4.y : 0) ) / dots;
+-                MovePointer(display, 1280 * (1791 - x) / 1791, 800 * y / 1791, 0);
+-                prevx = x;
+-                prevy = y;
+-            } else {
+-                x = 0;
+-                y = 0;
++/*
++                prev1x = point1-&gt;x;
++                prev1y = point1-&gt;y;
++                prev2x = point2-&gt;x;
++                prev2y = point2-&gt;y;
++
++                dots = (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? 1 : 0) +
++                       (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? 1 : 0) +
++                       (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? 1 : 0) +
++                       (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? 1 : 0);
++                if (dots &gt; 0) {
++                    x = ( (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? wmote.ir1.x : 0) +
++                          (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? wmote.ir2.x : 0) +
++                          (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? wmote.ir3.x : 0) +
++                          (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? wmote.ir4.x : 0) ) / dots;
++                    y = ( (wmote.ir1.x !=0 &amp;&amp; wmote.ir1.x != 1791 ? wmote.ir1.y : 0) +
++                          (wmote.ir2.x !=0 &amp;&amp; wmote.ir2.x != 1791 ? wmote.ir2.y : 0) +
++                          (wmote.ir3.x !=0 &amp;&amp; wmote.ir3.x != 1791 ? wmote.ir3.y : 0) +
++                          (wmote.ir4.x !=0 &amp;&amp; wmote.ir4.x != 1791 ? wmote.ir4.y : 0) ) / dots;
++                    XMovePointer(display, 1280 * (1791 - x) / 1791, 800 * y / 1791, 0);
++                } else {
++                    x = 0;
++                    y = 0;
++                }
++*/
++                if (verbose &gt;= 2) fprintf(stderr, &quot;%d: ( %4d , %4d ) - [ %4d, %4d, %4d, %4d ] [ %4d, %4d, %4d, %4d ] [%2d, %2d, %2d, %2d ]\n&quot;, dots, x, y, wmote.ir1.x, wmote.ir2.x,wmote.ir3.x, wmote.ir4.x, wmote.ir1.y, wmote.ir2.y, wmote.ir3.y, wmote.ir4.y, wmote.ir1.size, wmote.ir2.size, wmote.ir3.size, wmote.ir4.size);
+             }
+-            if (verbose &gt;= 2) fprintf(stderr, &quot;%d: ( %4d , %4d ) - [ %4d, %4d, %4d, %4d ] [ %4d, %4d, %4d, %4d ] [%2d, %2d, %2d, %2d ]\n&quot;, dots, x, y, wmote.ir1.x, wmote.ir2.x,wmote.ir3.x, wmote.ir4.x, wmote.ir1.y, wmote.ir2.y, wmote.ir3.y, wmote.ir4.y, wmote.ir1.size, wmote.ir2.size, wmote.ir3.size, wmote.ir4.size);
+ 
+-*/
+             // Block repeating keys
+             if (keys == wmote.keys.bits) {
+                 continue;
+@@ -509,13 +533,28 @@
+                 }
+             }
+ 
++            if (wmote.keys.up) {
++                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Up
++                    XFakeKeycode(XK_Page_Up, 0);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_Page_Up, 0);
++                }
++            }
++
++            if (wmote.keys.down) {
++                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Up
++                    XFakeKeycode(XK_Page_Down, 0);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_Page_Down, 0);
++                }
++            }
+         } else {
+             if (mouse) {
+                 if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse disabled.\n&quot;);
+                 mouse = ! mouse;
+ 
++                wmote.mode.acc = 0;
+                 wmote.mode.ir = 0;
+-                wmote.mode.acc = 0;
+             }
+ 
+ 
+@@ -524,13 +563,6 @@
+                 continue;
+             }
+ 
+-            // Disconnect the device
+-            // TODO: Exit application too
+-            if (wmote.keys.home) {
+-                if (verbose) printf(&quot;Exit on user request.\n&quot;);
+-                exit_clean(0);
+-            }
+-
+             // Goto to previous workspace
+             if (wmote.keys.plus) {
+                 XFakeKeycode(XK_Right, ControlMask | Mod1Mask);
+@@ -541,12 +573,36 @@
+                 XFakeKeycode(XK_Left, ControlMask | Mod1Mask);
+             }
+ 
++            // Go home/back
++            if (wmote.keys.home) {
++                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Enter
++                    XFakeKeycode(XK_Home, 0);
++                } else if (strcasestr(name, &quot;yelp&quot;) == name) {
++                    XFakeKeycode(XK_Home, 0);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_Home, 0);
++                } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
++                    XFakeKeycode(XK_BackSpace, ShiftMask);
++                } else if (strcasestr(name, &quot;openoffice&quot;) == name ||
++                           strcasestr(name, &quot;soffice&quot;) == name) {
++                    XFakeKeycode(XK_Home, 0);
++                } else {
++                    if (verbose)
++                        fprintf(stderr, &quot;No home-key support for application %s.\n&quot;, name);
++                }
++            }
++
+             if (wmote.keys.a) {
+-                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Fullscreen
++                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Enter
+                     XFakeKeycode(XK_Return, 0);
++                } else if (strcasestr(name, &quot;yelp&quot;) == name) {
++                    XFakeKeycode(XK_Return, 0);
+                 } else if (strcasestr(name, &quot;opera&quot;) == name) {
+                     XFakeKeycode(XK_Return, 0);
+-                } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) {    // Play/Pause
++                } else if (strcasestr(name, &quot;openoffice&quot;) == name ||
++                           strcasestr(name, &quot;soffice&quot;) == name) {
++                    XFakeKeycode(XK_Page_Down, 0);
++                } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) { // Play/Pause
+                     XFakeKeycode(XK_space, ControlMask); 
+                 } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                     XFakeKeycode(XK_p, 0);
+@@ -557,11 +613,10 @@
+                 } else if (strcasestr(name, &quot;qiv&quot;) == name) {       // Maximize
+                     XFakeKeycode(XK_m, 0);
+                 } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+-                    XFakeKeycode(XK_Return, 0);
++                    XFakeKeycode(XK_Return, ShiftMask);
+                 } else {
+-                    XFakeKeycode(XF86XK_AudioPlay, 0);
+                     if (verbose)
+-                        fprintf(stderr, &quot;No A-key support for application %s. (Sending play/mute to X)\n&quot;, name);
++                        fprintf(stderr, &quot;No A-key support for application %s.\n&quot;, name);
+                 }
+                 playertoggle = ! playertoggle;
+             }
+@@ -631,6 +686,8 @@
+                     XFakeKeycode(XK_Tab, ShiftMask);
+                 } else if (strcasestr(name, &quot;opera&quot;) == name) {
+                     XFakeKeycode(XK_Up, ControlMask);
++                } else if (strcasestr(name, &quot;yelp&quot;) == name) {
++                    XFakeKeycode(XK_Tab, ShiftMask);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Page_Up, 0);
+                 } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) { // Volume Up
+@@ -654,8 +711,7 @@
+                 } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+                     XFakeKeycode(XK_Up, 0);
+                 } else {
+-                    XFakeKeycode(XF86XK_AudioRaiseVolume, 0);
+-                    if (verbose) fprintf(stderr, &quot;No up-key for application %s. (Sending volume up to X)\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No up-key for application %s.\n&quot;, name);
+                 }
+             }
+ 
+@@ -664,6 +720,8 @@
+                     XFakeKeycode(XK_Tab, 0);
+                 } else if (strcasestr(name, &quot;opera&quot;) == name) {
+                     XFakeKeycode(XK_Down, ControlMask);
++                } else if (strcasestr(name, &quot;yelp&quot;) == name) {
++                    XFakeKeycode(XK_Tab, 0);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Page_Down, 0);
+                 } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) {
+@@ -688,8 +746,7 @@
+                 } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+                     XFakeKeycode(XK_Down, 0);
+                 } else {
+-                    XFakeKeycode(XF86XK_AudioLowerVolume, 0);
+-                    if (verbose) fprintf(stderr, &quot;No down-key support for application %s. (Sending volume down to X)\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No down-key support for application %s.\n&quot;, name);
+                 }
+             }
+ 
+@@ -698,6 +755,8 @@
+                     XFakeKeycode(XK_Page_Down, ControlMask);
+                 } else if (strcasestr(name, &quot;opera&quot;) == name) {
+                     XFakeKeycode(XK_F6, ControlMask);
++                } else if (strcasestr(name, &quot;yelp&quot;) == name) {
++                    XFakeKeycode(XK_Right, Mod1Mask);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Tab, ControlMask);
+                 } else if (strcasestr(name, &quot;evince&quot;) == name) {        // Next Slide
+@@ -728,8 +787,7 @@
+                 } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+                     XFakeKeycode(XK_Right, 0);
+                 } else {
+-                    XFakeKeycode(XF86XK_AudioNext, 0);
+-                    if (verbose) fprintf(stderr, &quot;No right-key support for application %s. (Sending play next to X)\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No right-key support for application %s.\n&quot;, name);
+                 }
+             }
+ 
+@@ -738,6 +796,8 @@
+                     XFakeKeycode(XK_Page_Up, ControlMask);
+                 } else if (strcasestr(name, &quot;opera&quot;) == name) {
+                     XFakeKeycode(XK_F6, ControlMask | ShiftMask);
++                } else if (strcasestr(name, &quot;yelp&quot;) == name) {
++                    XFakeKeycode(XK_Left, Mod1Mask);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Tab, ControlMask | ShiftMask);
+                 } else if (strcasestr(name, &quot;evince&quot;) == name) {        // Previous Slide
+@@ -768,14 +828,14 @@
+                 } else if (strcasestr(name, &quot;nautilus&quot;) == name) {
+                     XFakeKeycode(XK_Left, 0);
+                 } else {
+-                    XFakeKeycode(XF86XK_AudioPrev, 0);
+-                    if (verbose) fprintf(stderr, &quot;No left-key support for application %s. (Sending play previous to X)\n&quot;, name);
++                    if (verbose) fprintf(stderr, &quot;No left-key support for application %s.\n&quot;, name);
+                 }
+             }
+ 
+-            // Save the keys state for next run
+-            keys = wmote.keys.bits;
+         }
++
++        // Save the keys state for next run
++        keys = wmote.keys.bits;
+     }
+     XCloseDisplay(display);
+ 
+
+Modified: trunk/tools/wiipresent/wiipresent.spec
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.spec	2009-03-05 00:00:10 UTC (rev 6712)
++++ trunk/tools/wiipresent/wiipresent.spec	2009-03-05 02:47:59 UTC (rev 6713)
+@@ -6,7 +6,7 @@
+ 
+ Summary: Giving presentations with your Wiimote (or control applications with the Wiimote)
+ Name: wiipresent
+-Version: 0.6
++Version: 0.7
+ Release: 1
+ License: GPL
+ Group: Applications/Productivity
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005511.html">[svn] r6712 - trunk/tools/wiipresent
+</A></li>
+	<LI>Next message: <A HREF="005513.html">[svn] r6714 - trunk/rpms/cfengine
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5512">[ date ]</a>
+              <a href="thread.html#5512">[ thread ]</a>
+              <a href="subject.html#5512">[ subject ]</a>
+              <a href="author.html#5512">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

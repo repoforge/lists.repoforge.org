@@ -1,0 +1,481 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3927 - trunk/tools/sarah
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3927%20-%20trunk/tools/sarah&In-Reply-To=%3C20060111022321.456C094502E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002726.html">
+   <LINK REL="Next"  HREF="002728.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3927 - trunk/tools/sarah</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3927%20-%20trunk/tools/sarah&In-Reply-To=%3C20060111022321.456C094502E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3927 - trunk/tools/sarah">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jan 11 03:23:21 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002726.html">[svn] r3926 - in trunk/rpms: allegro apt fann gip gksu libg3d	libnxml mercator perl-HTTP-CryptoCookie perl-Net-Google	perl-OpenGL-Simple perl-SOAP-Lite xnee
+</A></li>
+        <LI>Next message: <A HREF="002728.html">[svn] r3928 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2727">[ date ]</a>
+              <a href="thread.html#2727">[ thread ]</a>
+              <a href="subject.html#2727">[ subject ]</a>
+              <a href="author.html#2727">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-01-11 03:23:19 +0100 (Wed, 11 Jan 2006)
+New Revision: 3927
+
+Added:
+   trunk/tools/sarah/sarahinfo.py
+Removed:
+   trunk/tools/sarah/sarahprint.py
+Modified:
+   trunk/tools/sarah/README
+   trunk/tools/sarah/TODO
+   trunk/tools/sarah/sarahdb.py
+   trunk/tools/sarah/sarahlib.py
+Log:
+Updates
+
+Modified: trunk/tools/sarah/README
+===================================================================
+--- trunk/tools/sarah/README	2006-01-10 22:04:21 UTC (rev 3926)
++++ trunk/tools/sarah/README	2006-01-11 02:23:19 UTC (rev 3927)
+@@ -10,18 +10,21 @@
+ And issuing the following script:
+ 
+ 	cd aerrate
+-	for release in rh{21,el3,el4}as rh{21,el3,el4}es rh{21,el3,el4}ws rhel3{cluster,devsuite} rhel{3,4}-extras rh-desktop-{3,4} rh21aw rhshas; do
+-		./aerrate.py --source=site --type=security --release=$release
++	for release in rh{el4,el3,21}{as,es,ws} rhel{4,3}-extras rh-desktop-{4,3} rhel3{cluster,devsuite} rh21aw rhshas; do
++		for type in security bugs enhancements; do
++			echo &quot;== $release / $type ==&quot;
++			./aerrate.py -r --source=site --type=$type --release=$release
++		done
+ 	done
+ 	cd -
+ 
+-This will copy all errata as XML files into ./advisories/
++This will copy all errata as XML files into ./aerrata/advisories/
+ 
+ 
+ USING SARAH
+ ^^^^^^^^^^^
+-sarah currently expects the advisories to be available from ./advisories/ as well. So making
+-a symlink from aerrate.advisories to sarah/advisories is probably easiest.
++sarah currently expects the advisories to be available from ./advisories/. So making
++a symlink from aerrate/advisories to ./advisories is probably easiest.
+ 
+ 	ln -sf aerrate/advisories .
+ 
+@@ -32,12 +35,16 @@
+ You should now have a sarahdb.sqlite file in your current directory.
+ To create some statistics from this database, use:
+ 
+-	./sarahprint.py
++	./sarahinfo.py
+ 
+-The sarahprint utility currently shows how to query the database(s). Not all information
+-is currently available from the XML files or from RHN. Help is welcome.
++The sarahinfo utility currently shows how to query the database. Not all information
++is currently available in the XML files. Red Hat will be releasing these XML files
++in the future with much more info.
+ 
++Help is welcome to extend sarah much further. The TODO file is the first stop for
++interesting parties.
+ 
++
+ PROXY PROBLEMS ?
+ ^^^^^^^^^^^^^^^^
+ If you're behind a proxy that only allows SSL Proxy access (CONNECT method) for HTTPS sites,
+
+Modified: trunk/tools/sarah/TODO
+===================================================================
+--- trunk/tools/sarah/TODO	2006-01-10 22:04:21 UTC (rev 3926)
++++ trunk/tools/sarah/TODO	2006-01-11 02:23:19 UTC (rev 3927)
+@@ -12,16 +12,22 @@
+ + A lot of files do not include &lt;severity&gt;
+ 
+ 
+-sarahdb.py
+-^^^^^^^^^^
++sarahdb.py: advisory database
++^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ + Define interesting queries
+ + Command-line model for browsing the databases
+ + Export to CSV
+ 
+ 
+-sarahprint
+-^^^^^^^^^^
++sarahinfo: statistical information
++^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+++ Show errata per architecture
++
++
++sarahquery: query advisory database
++^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ + Compare package-list against eratta (sqlite database)
+ + Create change-request reports (containing all required updates,
+   technical information, urgency, ...)
+ + Report alien packages (packages not coming from Red Hat)
+++ Search for strings (like CAN or keywords)
+
+Modified: trunk/tools/sarah/sarahdb.py
+===================================================================
+--- trunk/tools/sarah/sarahdb.py	2006-01-10 22:04:21 UTC (rev 3926)
++++ trunk/tools/sarah/sarahdb.py	2006-01-11 02:23:19 UTC (rev 3927)
+@@ -1,12 +1,12 @@
+ #!/usr/bin/python
+ 
+ import glob, sqlite, sys, re, os, string, shutil
++import sarahlib
++
+ from xml.dom.ext.reader import Sax2
+ from xml.dom.NodeFilter import NodeFilter
+ import xml.sax
+ 
+-import sarahlib
+-
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+ con, cur = sarahlib.opendb()
+@@ -19,6 +19,7 @@
+ reader = Sax2.Reader()
+ 
+ filelist = glob.glob('advisories/RHSA-*.xml')
++#filelist = glob.glob('advisories/RHSA-2005-812.xml')
+ filelist.sort()
+ 
+ for file in filelist:
+@@ -26,27 +27,28 @@
+ 		doc = reader.fromStream(open(file))
+ 		walker = doc.createTreeWalker(doc.documentElement, NodeFilter.SHOW_ELEMENT, None, 0)
+ 	except xml.sax._exceptions.SAXParseException:
+-		print '**%s**' % os.path.basename(file),
++		print '\033[0;31m%s\033[0;0m' % os.path.basename(file),
+ 		continue
+ 
+-	print os.path.basename(file),
++	print os.path.basename(file).strip('.xml'),
+ 
+ 	next = True
+-	advrec = {}; prorec ={}; typrec = {}
++	advrec = {};
+ 	while next is not None:
+ #		print walker.currentNode.tagName
+ 
+-		if walker.currentNode.tagName == 'id':
+-			advrec['advid'] = walker.currentNode.firstChild.data
+-
+-		elif walker.currentNode.tagName == 'advisory':
++		if walker.currentNode.tagName == 'advisory':
+ 			advrec['sender'] = walker.currentNode.getAttribute('sender')
+ 			advrec['version'] = walker.currentNode.getAttribute('version')
+ 
++		elif walker.currentNode.tagName == 'id':
++			advrec['advid'] = walker.currentNode.firstChild.data
++
+ 		elif walker.currentNode.tagName == 'pushcount':
+ 			advrec['pushcount'] = int(walker.currentNode.firstChild.data)
+ 
+ 		elif walker.currentNode.tagName == 'type':
++			typrec = advrec.copy()
+ 			typrec['type'] = walker.currentNode.firstChild.data
+ 			advrec['typeshort'] = typrec['typeshort'] = walker.currentNode.getAttribute('short')
+ 			cur.execute('select type from typ where typeshort = &quot;%(typeshort)s&quot;' % typrec)
+@@ -55,7 +57,7 @@
+ 				sarahlib.insertrec(cur, 'typ', typrec)
+ 				con.commit()
+ 			elif typrec['type'] not in typelist:
+-				print &quot;ERROR: Wrong type exists (%s not in %s)&quot; % (typrec['type'], typelist)
++				print 'ERROR: Wrong type exists (%s not in %s)' % (typrec['type'], typelist)
+ 
+ 		elif walker.currentNode.tagName == 'severity':
+ 			if walker.currentNode.firstChild.data:
+@@ -75,7 +77,20 @@
+ 			advrec['updatedate'] = walker.currentNode.getAttribute('date')
+ 
+ 		elif walker.currentNode.tagName == 'references':
+-			pass
++			next = walker.nextNode()
++			while walker.currentNode.tagName == 'reference':
++				refrec = advrec.copy()
++				refrec['reftype'] = walker.currentNode.getAttribute('type')
++				if refrec['reftype'] == 'self':
++					refrec['reference'] = walker.currentNode.firstChild.data
++					refrec['cve'] = None
++				elif refrec['reftype'] == 'cve':
++					refrec['reference'] = walker.currentNode.getAttribute('href')
++					refrec['cve'] = walker.currentNode.firstChild.firstChild.data
++				sarahlib.insertrec(cur, 'ref', refrec)
++				con.commit()
++				next = walker.nextNode()
++			continue
+ 
+ 		elif walker.currentNode.tagName == 'topic':
+ 			advrec['topic'] = walker.currentNode.firstChild.data
+@@ -84,26 +99,35 @@
+ 			advrec['description'] = walker.currentNode.firstChild.data
+ 
+ 		elif walker.currentNode.tagName == 'rpmlist':
+-			pass
++			next = walker.nextNode()
++			while walker.currentNode.tagName == 'product':
++				prorec = advrec.copy()
++				prorec['prodshort'] = walker.currentNode.getAttribute('short')
++				### FIXME: Do proper nested parsing
++				next = walker.nextNode()
++				prorec['product'] = walker.currentNode.firstChild.data
++				### FIXME: Create a unique insert function
++				try: sarahlib.insertrec(cur, 'pro', prorec)
++				except: pass
++				next = walker.nextNode()
++				while walker.currentNode.tagName == 'file':
++					rpmrec = advrec
++					rpmrec['arch'] = walker.currentNode.getAttribute('arch')
++					rpmrec['prodshort'] = prorec['prodshort']
++					next = walker.nextNode()
++					while walker.currentNode.tagName == 'filename':
++						rpmrec['filename'] = walker.currentNode.firstChild.data
++						next = walker.nextNode()
++					while walker.currentNode.tagName == 'sum':
++						rpmrec['md5'] = walker.currentNode.firstChild.data
++						next = walker.nextNode()
++					### FIXME: Create a unique insert function
++					sarahlib.insertrec(cur, 'rpm', rpmrec)
++				continue
++				con.commit()
++			continue
+ 
+-		elif walker.currentNode.tagName == 'product':
+-			prorec['product'] = ''
+-			advrec['productshort'] = ''
+-
+-		elif walker.currentNode.tagName == 'product':
+-			prorec['product'] = walker.currentNode.firstChild.data
+-			advrec['productshort'] = pro['productshort'] = walker.currentNode.getAttribute('short')
+-			procur.execute('select product, productshort from pro where productshort = &quot;%(productshort)s&quot;' % prorec)
+-			if procur.fetchall():
+-				for productshort, product in procur.fetchall():
+-					if product != prorec['product']:
+-						print &quot;ERROR: Wrong product exists (%s != %s)&quot; % prorec['product'], product
+-			else:
+-				sarahlib.insertrec(cur, 'pro', prorec)
+-				con.commit()
+ 		next = walker.nextNode()
+ 
+-#	print advrec
+-
+ 	sarahlib.insertrec(cur, 'adv', advrec)
+ 	con.commit()
+
+Copied: trunk/tools/sarah/sarahinfo.py (from rev 3925, trunk/tools/sarah/sarahprint.py)
+===================================================================
+--- trunk/tools/sarah/sarahprint.py	2006-01-10 21:36:38 UTC (rev 3925)
++++ trunk/tools/sarah/sarahinfo.py	2006-01-11 02:23:19 UTC (rev 3927)
+@@ -0,0 +1,84 @@
++#!/usr/bin/python
++
++import glob, sqlite, sys, re, os, string, shutil
++import sarahlib
++
++from xml.dom.ext.reader import Sax2
++from xml.dom.NodeFilter import NodeFilter
++
++sys.stdout = os.fdopen(1, 'w', 0)
++con, cur = sarahlib.opendb()
++
++cur.execute('select severitylevel from adv')
++advlist = cur.fetchall()
++print 'Number of advisories:', len(advlist)
++count = {}
++for adv, in advlist:
++	if not count.has_key(adv): count[adv] = 0
++	count[adv] += 1
++print '  ', 
++for key in ('critical', 'important', 'moderate', 'low', 'unknown'):
++	if key in count.keys():
++		print '%s: %s  ' % (key, count[key]),
++print
++print
++
++cur.execute('select typeshort from typ order by typeshort')
++typelist = [e for e, in cur.fetchall()]
++print 'Number of types:', len(typelist)
++print '  ', string.join(typelist, ', ')
++print
++
++cur.execute('select prodshort from pro order by prodshort')
++prodlist = [e for e, in cur.fetchall()]
++print 'Number of products:', len(prodlist)
++print '  ', string.join(prodlist, ', ')
++print
++
++print 'Distribution of advisories:'
++for prod in prodlist:
++	cur.execute('select distinct advid from rpm where prodshort == &quot;%s&quot;' % prod)
++	print '  ', prod, 'has', len(cur.fetchall()), 'advisories'
++print
++
++cur.execute('select distinct filename from rpm order by filename')
++print 'Number of files:', len(cur.fetchall())
++print
++
++cur.execute('select reftype from ref')
++reflist = cur.fetchall()
++print 'Number of references:', len(reflist)
++count = {}
++for ref, in reflist:
++	if not count.has_key(ref): count[ref] = 0
++	count[ref] += 1
++print '  ', 
++for key in count.keys():
++	print '%s: %s  ' % (key, count[key]),
++print
++print
++
++### Calculate average length of datatypes
++#for table in ('adv', 'ref', 'rpm', 'pro', 'typ'):
++#	for header in sarahlib.headers[table]:
++#		cur.execute('select %s from %s' % (header, table))
++#		list = cur.fetchall()
++#		lenght = 0
++#		for value, in list:
++#			lenght += len(value)
++#		print table, header, lenght / len(list)
++
++### Debug database
++#cur.execute('select * from adv order by advid')
++#for all in cur.fetchall():
++#	print all
++
++#cur.execute('select distinct advid from adv where severitylevel = &quot;unknown&quot; order by advid')
++#print cur.fetchall()
++
++#cur.execute('select * from pro')
++#print cur.fetchall()
++
++#cur.execute('select * from rpm where advid == &quot;RHSA-2005:812&quot; order by advid, filename')
++#for all in cur.fetchall():
++#	print all
+
+Modified: trunk/tools/sarah/sarahlib.py
+===================================================================
+--- trunk/tools/sarah/sarahlib.py	2006-01-10 22:04:21 UTC (rev 3926)
++++ trunk/tools/sarah/sarahlib.py	2006-01-11 02:23:19 UTC (rev 3927)
+@@ -5,25 +5,28 @@
+ headers = {
+ #	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'typeshort', 'synopsis', 'description', 'topic', 'sender', 'version'),
+ 	'adv': ('advid', 'pushcount', 'severitylevel', 'issuedate', 'updatedate', 'typeshort', 'synopsis', 'description', 'topic'),
+-	'ref': ('advid', 'reftype', 'reference'),
++	'ref': ('advid', 'reftype', 'reference', 'cve'),
+ 	'rpm': ('advid', 'prodshort', 'arch', 'filename', 'md5'),
+-	'pro': ('productshort', 'product'),
++	'pro': ('prodshort', 'product'),
+ 	'typ': ('typeshort', 'type'),
+ }
+ 
+-dataset = {
+-	'spec': { 'name': 'varchar(10) unique primary key', },
+-	'info': { 'name': 'varchar(10) unique primary key', },
++dataopts = {
++	'adv': { 'advid': 'unique primary key', },
++#	'ref': { 'reftype': 'unique primary key', },
++#	'rpm': { 'filename': 'unique primary key', },
++	'pro': { 'prodshort': 'unique primary key', },
++	'typ': { 'typeshort': 'unique primary key', },
+ }
+ 
+ def sqlcreate(name):
+ 	'Return a database create SQL statement'
+ 	str = 'create table %s ( ' % name
+ 	for key in headers[name]:
+-		if dataset.has_key(name) and dataset[name].has_key(key):
+-			str += '%s %s,' % (key, dataset[name][key])
+-		else:   
+-			str += '%s varchar(10), ' % key
++		ds = ''
++		if dataopts.has_key(name) and dataopts[name].has_key(key):
++			ds = dataopts[name][key]
++		str += '%s varchar(10) %s,' % (key, ds)
+ 	return str.rstrip(', ') + ' )'
+ 
+ def sqlinsert(name):
+
+Deleted: trunk/tools/sarah/sarahprint.py
+===================================================================
+--- trunk/tools/sarah/sarahprint.py	2006-01-10 22:04:21 UTC (rev 3926)
++++ trunk/tools/sarah/sarahprint.py	2006-01-11 02:23:19 UTC (rev 3927)
+@@ -1,37 +0,0 @@
+-#!/usr/bin/python
+-
+-import glob, sqlite, sys, re, os, string, shutil
+-import sarahlib
+-
+-from xml.dom.ext.reader import Sax2
+-from xml.dom.NodeFilter import NodeFilter
+-
+-con, cur = sarahlib.opendb()
+-
+-### Unbuffered sys.stdout
+-sys.stdout = os.fdopen(1, 'w', 0)
+-
+-cur.execute('select distinct advid from adv order by advid')
+-print 'Number of advisories:', len(cur.fetchall())
+-
+-cur.execute('select distinct advid from adv where severitylevel = &quot;critical&quot;')
+-print '\tcritical:', len(cur.fetchall()), '/',
+-cur.execute('select distinct advid from adv where severitylevel = &quot;important&quot;')
+-print 'important:', len(cur.fetchall()), '/',
+-cur.execute('select distinct advid from adv where severitylevel = &quot;moderate&quot;')
+-print 'moderate:', len(cur.fetchall()), '/',
+-cur.execute('select distinct advid from adv where severitylevel = &quot;low&quot;')
+-print 'low:', len(cur.fetchall()), '/',
+-cur.execute('select distinct advid from adv where severitylevel = &quot;unknown&quot;')
+-print 'unknown:', len(cur.fetchall())
+-
+-cur.execute('select typeshort from typ order by typeshort')
+-print 'Number of types:', len(cur.fetchall())
+-
+-### Debug database
+-#cur.execute('select * from adv order by advid')
+-#for all in cur.fetchall():
+-#	print all
+-
+-#cur.execute('select distinct advid from adv where severitylevel = &quot;unknown&quot; order by advid')
+-#print cur.fetchall()
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002726.html">[svn] r3926 - in trunk/rpms: allegro apt fann gip gksu libg3d	libnxml mercator perl-HTTP-CryptoCookie perl-Net-Google	perl-OpenGL-Simple perl-SOAP-Lite xnee
+</A></li>
+	<LI>Next message: <A HREF="002728.html">[svn] r3928 - trunk/tools/sarah
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2727">[ date ]</a>
+              <a href="thread.html#2727">[ thread ]</a>
+              <a href="subject.html#2727">[ subject ]</a>
+              <a href="author.html#2727">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

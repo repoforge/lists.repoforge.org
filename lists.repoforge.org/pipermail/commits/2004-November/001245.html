@@ -1,0 +1,476 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2439 - in trunk/tools/dar: . dists/el3a dists/el3i dists/fc2a
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2439%20-%20in%20trunk/tools/dar%3A%20.%20dists/el3a%20dists/el3i%20dists/fc2a&In-Reply-To=%3C20041108012837.1AAF517F7E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001244.html">
+   <LINK REL="Next"  HREF="001246.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2439 - in trunk/tools/dar: . dists/el3a dists/el3i dists/fc2a</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2439%20-%20in%20trunk/tools/dar%3A%20.%20dists/el3a%20dists/el3i%20dists/fc2a&In-Reply-To=%3C20041108012837.1AAF517F7E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2439 - in trunk/tools/dar: . dists/el3a dists/el3i dists/fc2a">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Mon Nov  8 02:28:37 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001244.html">[SVN] r2438 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="001246.html">[SVN] r2440 - in trunk/rpms: gentoo ogmtools
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1245">[ date ]</a>
+              <a href="thread.html#1245">[ thread ]</a>
+              <a href="subject.html#1245">[ subject ]</a>
+              <a href="author.html#1245">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-08 02:28:35 +0100 (Mon, 08 Nov 2004)
+New Revision: 2439
+
+Added:
+   trunk/tools/dar/dar-repo
+Modified:
+   trunk/tools/dar/ChangeLog
+   trunk/tools/dar/Makefile
+   trunk/tools/dar/README
+   trunk/tools/dar/dar-functions
+   trunk/tools/dar/dar-kickoff
+   trunk/tools/dar/dar-sync
+   trunk/tools/dar/dar-update
+   trunk/tools/dar/dar.conf
+   trunk/tools/dar/dists/el3a/config
+   trunk/tools/dar/dists/el3i/config
+   trunk/tools/dar/dists/fc2a/config
+Log:
+Older updates.
+
+Modified: trunk/tools/dar/ChangeLog
+===================================================================
+--- trunk/tools/dar/ChangeLog	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/ChangeLog	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -25,6 +25,8 @@
+ - dar-sync: Added i386 packages to x86_64 (could be done without hardcoding it)
+ - dar-build: Added SETARCH supprt (Ralf Ertzinger)
+ - dar-sync: Added createrepo metadata generation
++- dar.conf: ROOT now defaults to /dar
++- dar-sync: Added -r switch to specify/skip creating repo metadata
+ 
+ Version 0.6.0
+ - dar.conf: Removed DISTSMAP, added it to dists specific section
+
+Modified: trunk/tools/dar/Makefile
+===================================================================
+--- trunk/tools/dar/Makefile	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/Makefile	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -10,7 +10,7 @@
+ libdir=/usr/lib
+ sbindir=/usr/sbin
+ 
+-DIST_SCRIPTS=dar-build dar-dotty dar-exec dar-kickoff dar-new dar-prepare dar-sync dar-update
++DIST_SCRIPTS=dar-build dar-dotty dar-exec dar-kickoff dar-new dar-prepare dar-repo dar-sync dar-update
+ DIST_LIBS=dar-functions compartment.sh
+ 
+ DESTDIR=
+
+Modified: trunk/tools/dar/README
+===================================================================
+--- trunk/tools/dar/README	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/README	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -17,12 +17,12 @@
+     /etc/dar/config		Location for extra package information
+     /etc/dar/dists		Location for extra distribution information
+ 
+-    /mnt/dar/build		Location for building
+-    /mnt/dar/chroot		Location for build-environments
+-    /mnt/dar/packages		Location for binary and source packages
+-    /mnt/dar/pub		Location for apt/yum repositories
+-    /mnt/dar/rpms		Location for SPEC files and patches
+-    /mnt/dar/tmp		Location for temporary files and buildroot
++    /dar/build			Location for building
++    /dar/chroot			Location for build-environments
++    /dar/packages		Location for binary and source packages
++    /dar/pub			Location for apt/yum repositories
++    /dar/rpms			Location for SPEC files and patches
++    /dar/tmp			Location for temporary files and buildroot
+ 
+     /usr/share/dar		Location for extra files
+     /usr/lib/dar		Location of library
+
+Modified: trunk/tools/dar/dar-functions
+===================================================================
+--- trunk/tools/dar/dar-functions	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dar-functions	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -135,6 +135,7 @@
+ 			(d)	FORCE_DISTS=&quot;$OPTARG&quot;;;
+ 			(f)	FORCE_OVERWRITE=&quot;true&quot;;;
+ 			(n)	NOSOURCE=&quot;true&quot;;;
++			(r)	CREATE_REPO=&quot;true&quot;;;
+ 			(s)	FORCE_SOURCE_DISTS=&quot;$OPTARG&quot;;;
+ 			(t)	FORCE_TAG=&quot;$OPTARG&quot;;;
+ 			(v)	FORCE_VERBOSE=&quot;true&quot;;;
+@@ -322,14 +323,13 @@
+ 	local REPO=&quot;$DEFAULT_TAG&quot;
+ 
+ 	### Creating directories
+-	mkdir -p $FTPDIR/$DISTPATH/{base,RPMS.$REPO,SRPMS.$REPO}/
++	mkdir -p $FTPDIR/$DISTPATH/{base,RPMS.$REPO}/
+ 
+ 	### Make SPEC files readable
+ 	echo $PACKAGEDIR/*/*.spec | xargs chmod +r
+ 
+ 	### Removing old packages
+ 	echo $FTPDIR/$DISTPATH/RPMS.$REPO/*.rpm | xargs rm -f
+-	echo $FTPDIR/$DISTPATH/SRPMS.$REPO/*.rpm | xargs rm -f
+ 
+ 	### FIXME: This should not be done hardcoded, rather have a list of archs inside the dist-config
+ 	### FIXME: And iterate through that list
+@@ -345,7 +345,6 @@
+ 				;;
+ 		esac
+ 	done
+-	echo $PACKAGEDIR/*/*.$REPO.src.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/SRPMS.$REPO/ &amp;&gt;/dev/null
+ 
+ 	### Build Apt repository
+ 	genbasedir --flat --bloat --bz2only $FTPDIR/$DISTPATH $REPO
+@@ -387,15 +386,25 @@
+ 	yum-arch -q -z $FTPDIR/$DISTPATH/$REPO/ &amp;&gt;/dev/null
+ }
+ 
+-function build_repo_yum {
++function build_repo {
+ 	local DISTPATH=&quot;$1&quot;
+ 	REPO=&quot;$DEFAULT_TAG&quot;
+ 
+ 	createrepo -q $FTPDIR/$DISTPATH/$REPO/
+ }
+ 
+-export LD_ASSUME_KERNEL=&quot;2.4.1&quot;
++function build_repo_srpms {
++	REPO=&quot;$DEFAULT_TAG&quot;
+ 
++	mkdir -p $FTPDIR/extra/SRPMS.$REPO/
++	echo $FTPDIR/$DISTPATH/SRPMS.$REPO/*.rpm | xargs rm -f
++	echo $PACKAGEDIR/*/*.$REPO.src.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/extra/SRPMS.$REPO/ &amp;&gt;/dev/null
++
++	genbasedir --bloat --bz2only $FTPDIR/extra/ dag
++}
++
++export LD_ASSUME_KERNEL=&quot;2.4.9&quot;
++
+ ### Main
+ if [ -r &quot;$DARCONFIG&quot; ]; then
+ 	clean_env
+
+Modified: trunk/tools/dar/dar-kickoff
+===================================================================
+--- trunk/tools/dar/dar-kickoff	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dar-kickoff	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -18,7 +18,7 @@
+ : -&lt;&lt;EOF
+ adduser dag
+ 
+-chown dag.dag -R /usr/src/redhat/BUILD /mnt/dar/packages/ /mnt/dar/logs/
++chown dag.dag -R /usr/src/redhat/BUILD /dar/packages/ /dar/logs/
+ 
+ rpm --root -ihvU %
+ Install 
+@@ -36,14 +36,14 @@
+ 
+ : -&lt;&lt;EOF #$ROOT$DIST/etc/apt/sources.list
+ ### Dag Apt Repository for Red Hat 8.0
+-rpm <A HREF="file:///mnt/dar/apt">file:///mnt/dar/apt</A> redhat/8.0/en/i386 dag
++rpm <A HREF="file:///dar/apt">file:///dar/apt</A> redhat/8.0/en/i386 dag
+ 
+ ### Red Hat Linux 8.0
+ rpm <A HREF="http://apt.ccl.kuleuven.ac.be">http://apt.ccl.kuleuven.ac.be</A> redhat/8.0/en/i386 os updates
+ EOF
+ 
+ ### Disable symbols in builds (for rh90) -g
+-# perl -pi.orig -e 's|-O2 -g|-O2|' /mnt/dar/rh90/usr/lib/rpm/macros /mnt/dar/rh90/usr/lib/rpm/*/macros /mnt/dar/rh90/usr/lib/rpm/rpmrc
++# perl -pi.orig -e 's|-O2 -g|-O2|' /dar/rh90/usr/lib/rpm/macros /dar/rh90/usr/lib/rpm/*/macros /dar/rh90/usr/lib/rpm/rpmrc
+ 
+ cp -auvx /etc/sysconfig/network $ROOT/$DIST/etc/sysconfig/network
+ cp -auvx /usr/share/dar/skel/* $ROOT/$DIST
+
+Added: trunk/tools/dar/dar-repo
+===================================================================
+--- trunk/tools/dar/dar-repo	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dar-repo	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -0,0 +1,45 @@
++#!/bin/bash
++
++source &quot;/usr/lib/dar/dar-functions&quot;
++
++daropts &quot;:a:d:s:&quot; $@
++
++DISTS=&quot;$DEFAULT_DISTS&quot;
++TAG=&quot;$DEFAULT_TAG&quot;
++
++if pidof rsync &amp;&gt;/dev/null; then
++	exit 0
++fi
++
++chkconfig rsync off
++service xinetd restart
++
++find $PACKAGEDIR -newer $FTPDIR/extra/state/dar-repo -name &quot;*.rpm&quot; -type f
++
++if [ $? -eq 0 ]; then
++	touch $FTPDIR/extra/state/dar-repo
++elif [ $? -gt 1 ]; then
++	chkconfig rsync on
++	service xinetd restart
++	exit 0
++fi
++
++for dist in $DISTS; do
++	if [ -r &quot;$CONFIGDIR/dists/$dist/config&quot; ]; then
++		source &quot;$CONFIGDIR/dists/$dist/config&quot;
++	else
++		warning &quot;Configfile $CONFIGDIR/dists/$dist/config missing. Aborting.&quot;
++		continue
++	fi
++
++	echo &quot;Building $dist repository in $DISTPATH.&quot;
++	build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++	build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++	build_repo &quot;$DISTPATH&quot;
++	build_content &quot;$DISTNAME&quot; &quot;$DISTPATH&quot;
++done
++
++chkconfig rsync on
++service xinetd restart
++
++exit 0
+
+
+Property changes on: trunk/tools/dar/dar-repo
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/dar/dar-sync
+===================================================================
+--- trunk/tools/dar/dar-sync	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dar-sync	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -2,7 +2,7 @@
+ 
+ source &quot;/usr/lib/dar/dar-functions&quot;
+ 
+-daropts &quot;:a:d:s:&quot; $@
++daropts &quot;:a:d:rs:&quot; $@
+ 
+ DISTS=&quot;$DEFAULT_DISTS&quot;
+ TAG=&quot;$DEFAULT_TAG&quot;
+@@ -24,21 +24,25 @@
+ 	fi
+ fi
+ 
+-for dist in $DISTS; do
+-	if [ -r &quot;$CONFIGDIR/dists/$dist/config&quot; ]; then
+-		source &quot;$CONFIGDIR/dists/$dist/config&quot;
+-	else
+-		warning &quot;Configfile $CONFIGDIR/dists/$dist/config missing. Aborting.&quot;
+-		continue
+-	fi
++if [ &quot;$CREATE_REPO&quot; == &quot;true&quot; ]; then
++	for dist in $DISTS; do
++		if [ -r &quot;$CONFIGDIR/dists/$dist/config&quot; ]; then
++			source &quot;$CONFIGDIR/dists/$dist/config&quot;
++		else
++			warning &quot;Configfile $CONFIGDIR/dists/$dist/config missing. Aborting.&quot;
++			continue
++		fi
++	
++		echo &quot;Building $dist repository in $DISTPATH.&quot;
++		build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++		build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++		build_repo &quot;$DISTPATH&quot;
++		build_env &quot;$DISTNICK&quot; &quot;$DISTNAME&quot;
++		build_content &quot;$DISTNAME&quot; &quot;$DISTPATH&quot;
++	done
+ 
+-	echo &quot;Building $dist repository in $DISTPATH.&quot;
+-	build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
+-	build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
+-	build_repo &quot;$DISTPATH&quot;
+-	build_env &quot;$DISTNICK&quot; &quot;$DISTNAME&quot;
+-	build_content &quot;$DISTNAME&quot; &quot;$DISTPATH&quot;
+-done
++	build_repo_srpms
++fi
+ 
+ echo -n &quot;Building source package list.&quot;
+ find $PACKAGEDIR/ -name &quot;*.$TAG.src.rpm&quot; | sed -e &quot;s|.\+/\(.\+\)-[0-9].\+-[0-9].*\.$TAG\.src\.rpm|\1|&quot; | sort | uniq &gt;$FTPDIR/extra/state/packages-src.list
+@@ -51,7 +55,6 @@
+ echo -n &quot;Building summary list.&quot;
+ rm -f $FTPDIR/extra/state/summaries.list
+ 
+-#echo $PACKAGEDIR/*/*.$REPO.src.rpm | xargs -n 1 | xargs -i ln -f {} $FTPDIR/$DISTPATH/SRPMS.$REPO/ &amp;&gt;/dev/null
+ for app in $(echo $PACKAGEDIR/*/); do
+ 	app=&quot;$(basename $app)&quot;
+ 	SPECFILE=&quot;$PACKAGEDIR/$app/$app.spec&quot;
+@@ -68,8 +71,9 @@
+ echo -n &quot;Press enter to start remote synchronisation.&quot;
+ read
+ echo &quot;Starting remote synchronisation.&quot;
+-if [ $RSYNC_LIMIT ]; then
+-	RSYNC_OPTIONS=&quot;$RSYNC_OPTIONS --bwlimit=\&quot;$RSYNC_LIMIT\&quot;&quot;
++if [ &quot;$RSYNC_LIMIT&quot; ]; then
++	RSYNC_OPTIONS=&quot;$RSYNC_OPTIONS --bwlimit=$RSYNC_LIMIT&quot;
+ fi
+ #rsync -anvzHL --progress --delete-after $RSYNC_OPTIONS -e /usr/bin/ssh $PACKAGEDIR $FTPDIR $RSYNC_TARGET
+-rsync -avHL --progress --delete-after $RSYNC_OPTIONS -e &quot;/usr/bin/ssh -oCompression=no&quot; $PACKAGEDIR $FTPDIR/ $RSYNC_TARGET
++#rsync -avHL --progress --delete-after $RSYNC_OPTIONS -e &quot;/usr/bin/ssh -oCompression=no&quot; $PACKAGEDIR $FTPDIR/ $RSYNC_TARGET
++rsync -avHl --progress --delete-after $RSYNC_OPTIONS -e &quot;/usr/bin/ssh -oCompression=no&quot; $PACKAGEDIR $FTPDIR/ $RSYNC_TARGET
+
+Modified: trunk/tools/dar/dar-update
+===================================================================
+--- trunk/tools/dar/dar-update	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dar-update	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -4,7 +4,7 @@
+ 
+ source &quot;/usr/lib/dar/dar-functions&quot;
+ 
+-daropts &quot;:a:d:s:&quot; $@
++daropts &quot;:a:d:r:s:&quot; $@
+ PKGS=&quot;$OPTS&quot;
+ 
+ DISTS=&quot;$DEFAULT_DISTS&quot;
+@@ -18,9 +18,11 @@
+                 continue
+         fi
+ 
+-	echo &quot;Building $distname repository in $DISTPATH.&quot;
+-	build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
+-#	build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++	if [ &quot;$CREATE_REPO&quot; == &quot;true&quot; ]; then
++		echo &quot;Building $distname repository in $DISTPATH.&quot;
++		build_repo_apt &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++#		build_repo_yum &quot;$DISTTAG&quot; &quot;$DISTPATH&quot;
++	fi
+ 
+ 	echo &quot;Updating $distname.&quot;
+ 	if [ &quot;$UPDATECMD&quot; ]; then
+@@ -34,10 +36,10 @@
+ 
+ 	if [ &quot;$INSTALLCMD&quot; ]; then
+ 		for pkg in $PKGS; do
+-			local instcmd=&quot;$(echo $INSTALLCMD | sed -e &quot;s|%p|$pkg|g&quot;)&quot;
++			instcmd=&quot;$(echo $INSTALLCMD | sed -e &quot;s|%p|$pkg|g&quot;)&quot;
+ 	
+ 			echo &quot;Installing $pkg in $distname.&quot;
+-			chroot $CHROOTDIR/$distname &quot;$instcmd&quot;
++			chroot $CHROOTDIR/$distname $instcmd
+ 		done
+ 	fi
+ 	echo
+
+Modified: trunk/tools/dar/dar.conf
+===================================================================
+--- trunk/tools/dar/dar.conf	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dar.conf	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -1,5 +1,5 @@
+ ### Global variables
+-ROOT=&quot;/mnt/dar&quot;
++ROOT=&quot;/dar&quot;
+ CONFIGDIR=&quot;/etc/dar&quot;
+ PACKAGEDIR=&quot;$ROOT/packages&quot;
+ FTPDIR=&quot;$ROOT/pub&quot;
+@@ -26,9 +26,9 @@
+ DISTCC_HOSTS=&quot;emyn localhost&quot;
+ 
+ ### Variables for dar-sync
+-RSYNC_OPTIONS=&quot;--exclude dries/&quot;
+-RSYNC_TARGET=&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>:dag.wieers.com/pub/&quot;
++RSYNC_OPTIONS=&quot;--exclude bert/ --exclude dries/&quot;
++RSYNC_TARGET=&quot;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at rsync.sw.be</A>:dag.wieers.com/pub/&quot;
+ ### Use wondershaper
+-#RSYNC_LIMIT=&quot;8&quot;
++RSYNC_LIMIT=&quot;12&quot;
+ GPG_PATH=&quot;/home/dag/.gnupg&quot;
+ GPG_NAME=&quot;Dag Wieers (Dag Apt Repository v1.0)&quot;
+
+Modified: trunk/tools/dar/dists/el3a/config
+===================================================================
+--- trunk/tools/dar/dists/el3a/config	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dists/el3a/config	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -7,8 +7,8 @@
+ UPDATECMD=&quot;up2date -u&quot;
+ #UPDATECMD=&quot;apt-get -qq update&quot;
+ #UPGRADECMD=&quot;apt-get -qq -f -y upgrade&quot;
+-#INSTALLCMD=&quot;up2date -i %p&quot;
+-INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
++INSTALLCMD=&quot;up2date -i %p&quot;
++#INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
+ 
+ DISTNAME=&quot;el3&quot;
+ DISTNICK=&quot;el3a&quot;
+
+Modified: trunk/tools/dar/dists/el3i/config
+===================================================================
+--- trunk/tools/dar/dists/el3i/config	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dists/el3i/config	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -7,8 +7,8 @@
+ UPDATECMD=&quot;up2date -u&quot;
+ #UPDATECMD=&quot;apt-get -qq update&quot;
+ #UPGRADECMD=&quot;apt-get -qq -f -y upgrade&quot;
+-#INSTALLCMD=&quot;up2date -i %p&quot;
+-INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
++INSTALLCMD=&quot;up2date -i %p&quot;
++#INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
+ 
+ DISTNAME=&quot;el3&quot;
+ DISTNICK=&quot;el3i&quot;
+
+Modified: trunk/tools/dar/dists/fc2a/config
+===================================================================
+--- trunk/tools/dar/dists/fc2a/config	2004-11-07 23:43:42 UTC (rev 2438)
++++ trunk/tools/dar/dists/fc2a/config	2004-11-08 01:28:35 UTC (rev 2439)
+@@ -4,9 +4,11 @@
+ #DISTCC_CC=&quot;i386-redhat-linux-gcc-3.3.3&quot;
+ #DISTCC_CXX=&quot;i386-redhat-linux-g++-3.3.3&quot;
+ 
+-UPDATECMD=&quot;apt-get -qq update&quot;
+-UPGRADECMD=&quot;apt-get -qq -f -y upgrade&quot;
+-INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
++UPDATECMD=&quot;yum update&quot;
++#UPDATECMD=&quot;apt-get -qq update&quot;
++#UPGRADECMD=&quot;apt-get -qq -f -y upgrade&quot;
++INSTALLCMD=&quot;yum install %p&quot;
++#INSTALLCMD=&quot;apt-get -qq -y -m install %p&quot;
+ 
+ DISTNAME=&quot;fc2&quot;
+ DISTNICK=&quot;fc2a&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001244.html">[SVN] r2438 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="001246.html">[SVN] r2440 - in trunk/rpms: gentoo ogmtools
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1245">[ date ]</a>
+              <a href="thread.html#1245">[ thread ]</a>
+              <a href="subject.html#1245">[ subject ]</a>
+              <a href="author.html#1245">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

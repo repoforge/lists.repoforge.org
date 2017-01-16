@@ -1,0 +1,284 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5776 - trunk/tools/dstat/plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5776%20-%20trunk/tools/dstat/plugins&In-Reply-To=%3C20070827234056.EC007944A98%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004574.html">
+   <LINK REL="Next"  HREF="004576.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5776 - trunk/tools/dstat/plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5776%20-%20trunk/tools/dstat/plugins&In-Reply-To=%3C20070827234056.EC007944A98%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5776 - trunk/tools/dstat/plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Aug 28 01:40:56 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004574.html">[svn] r5775 - trunk/tools/dstat/plugins
+</A></li>
+        <LI>Next message: <A HREF="004576.html">[svn] r5777 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4575">[ date ]</a>
+              <a href="thread.html#4575">[ thread ]</a>
+              <a href="subject.html#4575">[ subject ]</a>
+              <a href="author.html#4575">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-08-28 01:40:56 +0200 (Tue, 28 Aug 2007)
+New Revision: 5776
+
+Modified:
+   trunk/tools/dstat/plugins/dstat_topbio.py
+   trunk/tools/dstat/plugins/dstat_topcpu.py
+   trunk/tools/dstat/plugins/dstat_topio.py
+   trunk/tools/dstat/plugins/dstat_topmem.py
+Log:
+More improvements.
+
+Modified: trunk/tools/dstat/plugins/dstat_topbio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topbio.py	2007-08-27 21:59:32 UTC (rev 5775)
++++ trunk/tools/dstat/plugins/dstat_topbio.py	2007-08-27 23:40:56 UTC (rev 5776)
+@@ -26,17 +26,28 @@
+         self.val['usage'] = 0.0
+         for pid in os.listdir('/proc/'):
+             try:
++                ### Is it a pid ?
+                 int(pid)
++
++                ### Filter out dstat
+                 if pid == self.pid: continue
++
++                ### Reset values
+                 if not self.cn2.has_key(pid):
+                     self.cn2[pid] = {'read_bytes:': 0, 'write_bytes:': 0}
+                 if not self.cn1.has_key(pid):
+                     self.cn1[pid] = {'read_bytes:': 0, 'write_bytes:': 0}
+ 
++                ### Extract name
++                l = string.split(open('/proc/%s/stat' % pid).read())
++                name = l[1][1:-1]
++
++                ### Extract counters
+                 for line in open('/proc/%s/io' % pid).readlines():
+                     l = string.split(line)
+                     if len(l) != 2: continue
+                     self.cn2[pid][l[0]] = int(l[1])
++
+             except ValueError:
+                 continue
+ 
+@@ -50,13 +61,12 @@
+                 self.val['read_usage'] = read_usage
+                 self.val['write_usage'] = write_usage
+                 self.val['pid'] = pid
++                self.val['name'] = name
+                 st = os.stat(&quot;/proc/%s&quot; % pid)
+ 
+         if self.val['usage'] == 0.0:
+             self.val['process'] = ''
+         else:
+-            l = string.split(open('/proc/%s/stat' % self.val['pid']).read())
+-            self.val['name'] = l[1][1:-1]
+             ### If the name is a known interpreter, take the second argument from the cmdline
+             if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
+                 ### Using dopen() will cause too many open files
+
+Modified: trunk/tools/dstat/plugins/dstat_topcpu.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topcpu.py	2007-08-27 21:59:32 UTC (rev 5775)
++++ trunk/tools/dstat/plugins/dstat_topcpu.py	2007-08-27 23:40:56 UTC (rev 5776)
+@@ -18,43 +18,43 @@
+     def extract(self):
+         self.val['usage'] = 0.0
+         for pid in os.listdir('/proc/'):
+-            try: int(pid)
+-            except: continue
+-            if os.path.exists('/proc/%s/stat' % pid):
++            try:
++                ### Is it a pid ?
++                int(pid)
+ 
+-		### Filter out dstat
++                ### Filter out dstat
+                 if pid == self.pid: continue
+ 
+                 ### Using dopen() will cause too many open files
+ #               l = string.split(dopen('/proc/%s/stat' % pid).read())
+-                try:
+-                    l = string.split(open('/proc/%s/stat' % pid).read())
+-                except:
+-                    continue
++                l = string.split(open('/proc/%s/stat' % pid).read())
+ 
+                 if len(l) &lt; 15: continue
+ 
+-		### Reset previous value if it doesn't exist
++                ### Reset previous value if it doesn't exist
+                 if not self.cn1.has_key(pid):
+                     self.cn1[pid] = 0
+ 
+                 self.cn2[pid] = int(l[13]) + int(l[14])
+                 usage = (self.cn2[pid] - self.cn1[pid]) * 1.0 / tick
+ 
+-                ### Get the process that spends the most jiffies
+-                if usage &gt;= self.val['usage']:
+-                    self.val['usage'] = usage
+-                    self.val['name'] = l[1][1:-1]
+-                    self.val['pid'] = pid
+-                    st = os.stat(&quot;/proc/%s&quot; % pid)
+-#                    if st:
+-#                        pw = pwd.getpwuid(st.st_uid)
+-#                        if pw:
+-#                            self.val['user'] = pw[0]
+-#                        else:
+-#                            self.val['user'] = stat.st_uid
++            except ValueError:
++                continue
++
++            ### Get the process that spends the most jiffies
++            if usage &gt;= self.val['usage']:
++                self.val['usage'] = usage
++                self.val['name'] = l[1][1:-1]
++                self.val['pid'] = pid
++                st = os.stat(&quot;/proc/%s&quot; % pid)
++#                if st:
++#                    pw = pwd.getpwuid(st.st_uid)
++#                    if pw:
++#                        self.val['user'] = pw[0]
+ #                    else:
+-#                        self.val['user'] = 'none'
++#                        self.val['user'] = stat.st_uid
++#                else:
++#                    self.val['user'] = 'none'
+ 
+         if self.val['usage'] == 0.0:
+             self.val['process'] = ''
+
+Modified: trunk/tools/dstat/plugins/dstat_topio.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topio.py	2007-08-27 21:59:32 UTC (rev 5775)
++++ trunk/tools/dstat/plugins/dstat_topio.py	2007-08-27 23:40:56 UTC (rev 5776)
+@@ -26,17 +26,28 @@
+         self.val['usage'] = 0.0
+         for pid in os.listdir('/proc/'):
+             try:
++                ### Is it a pid ?
+                 int(pid)
++
++                ### Filter out dstat
+                 if pid == self.pid: continue
++
++                ### Reset values
+                 if not self.cn2.has_key(pid):
+                     self.cn2[pid] = {'rchar:': 0, 'wchar:': 0}
+                 if not self.cn1.has_key(pid):
+                     self.cn1[pid] = {'rchar:': 0, 'wchar:': 0}
+ 
++                ### Extract name
++                l = string.split(open('/proc/%s/stat' % pid).read())
++                name = l[1][1:-1]
++
++                ### Extract counters
+                 for line in open('/proc/%s/io' % pid).readlines():
+                     l = string.split(line)
+                     if len(l) != 2: continue
+                     self.cn2[pid][l[0]] = int(l[1])
++
+             except ValueError:
+                 continue
+ 
+@@ -52,13 +63,12 @@
+                 self.val['read_usage'] = read_usage
+                 self.val['write_usage'] = write_usage
+                 self.val['pid'] = pid
++                self.val['name'] = name
+                 st = os.stat(&quot;/proc/%s&quot; % pid)
+ 
+         if self.val['usage'] == 0.0:
+             self.val['process'] = ''
+         else:
+-            l = string.split(open('/proc/%s/stat' % self.val['pid']).read())
+-            self.val['name'] = l[1][1:-1]
+             ### If the name is a known interpreter, take the second argument from the cmdline
+             if self.val['name'] in ('bash', 'csh', 'ksh', 'perl', 'python', 'sh'):
+                 ### Using dopen() will cause too many open files
+
+Modified: trunk/tools/dstat/plugins/dstat_topmem.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_topmem.py	2007-08-27 21:59:32 UTC (rev 5775)
++++ trunk/tools/dstat/plugins/dstat_topmem.py	2007-08-27 23:40:56 UTC (rev 5776)
+@@ -18,27 +18,29 @@
+     def extract(self):
+         self.val['usage'] = 0.0
+         for pid in os.listdir('/proc/'):
+-            try: int(pid)
+-            except: continue
+-            if os.path.exists('/proc/%s/stat' % pid):
++            try:
++                ### Is it a pid ?
++                int(pid)
++
++                ### Filter out dstat
+                 if pid == self.pid: continue
+ 
+                 ### Using dopen() will cause too many open files
+ #               l = string.split(dopen('/proc/%s/stat' % pid).read())
+-                try:
+-                    l = string.split(open('/proc/%s/stat' % pid).read())
+-                except:
+-                    continue
++                l = string.split(open('/proc/%s/stat' % pid).read())
+ 
+                 if len(l) &lt; 23: continue
+                 usage = int(l[23]) * pagesize
+ 
+-                ### Get the process that spends the most jiffies
+-                if usage &gt; self.val['usage']:
+-                    self.val['usage'] = usage
+-                    self.val['name'] = l[1][1:-1]
+-                    self.val['pid'] = pid
++            except ValueError:
++                continue
+ 
++            ### Get the process that uses the most memory
++            if usage &gt;= self.val['usage']:
++                self.val['usage'] = usage
++                self.val['name'] = l[1][1:-1]
++                self.val['pid'] = pid
++
+         if self.val['usage'] == 0.0:
+             self.val['process'] = ''
+         else:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004574.html">[svn] r5775 - trunk/tools/dstat/plugins
+</A></li>
+	<LI>Next message: <A HREF="004576.html">[svn] r5777 - trunk/tools/dstat/plugins
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4575">[ date ]</a>
+              <a href="thread.html#4575">[ thread ]</a>
+              <a href="subject.html#4575">[ subject ]</a>
+              <a href="author.html#4575">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

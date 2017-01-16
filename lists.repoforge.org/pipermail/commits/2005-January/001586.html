@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2781 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2781%20-%20trunk/tools/dstat&In-Reply-To=%3C20050105122056.24B3C17F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001585.html">
+   <LINK REL="Next"  HREF="001587.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2781 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2781%20-%20trunk/tools/dstat&In-Reply-To=%3C20050105122056.24B3C17F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2781 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Jan  5 13:20:56 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001585.html">[SVN] r2780 - in trunk/rpms: . autopano-sift bash-completion	ddclient doodle libds libextractor sound-juicer xmms
+</A></li>
+        <LI>Next message: <A HREF="001587.html">[SVN] r2782 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1586">[ date ]</a>
+              <a href="thread.html#1586">[ thread ]</a>
+              <a href="subject.html#1586">[ subject ]</a>
+              <a href="author.html#1586">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-01-05 13:20:54 +0100 (Wed, 05 Jan 2005)
+New Revision: 2781
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1
+   trunk/tools/dstat/dstat.spec
+Log:
+Added user stat
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-01-05 10:51:03 UTC (rev 2780)
++++ trunk/tools/dstat/ChangeLog	2005-01-05 12:20:54 UTC (rev 2781)
+@@ -3,6 +3,8 @@
+ - Fixed another crash caused by /proc instability
+ - Added --csv option to output Comma-Seperated-Value output
+ - If output is not a tty, don't care about line-width
++- Added user stats using python-utmp
++- Bail out if all requested stats fail
+ 
+ * 0.5.6
+ - Made sys and int stats unit-aware (so 10000 int/sec -&gt; 10.0k) (Anton Blanchard)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-01-05 10:51:03 UTC (rev 2780)
++++ trunk/tools/dstat/dstat	2005-01-05 12:20:54 UTC (rev 2781)
+@@ -43,9 +43,9 @@
+ 		self.header = True
+ 
+ 		try:
+-			opts, args = getopt.getopt (args, 'acdfghilmnpstvyC:D:I:M:N:',
+-				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net', 'page',
+-				'proc', 'swap', 'sys', 'tcp', 'time', 'udp', 'version', 'vmstat',
++			opts, args = getopt.getopt (args, 'acdfghilmnpstuvyC:D:I:M:N:',
++				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net', 'page', 'proc',
++				'swap', 'sys', 'tcp', 'time', 'udp', 'user', 'version', 'vmstat',
+ 				'csv', 'full', 'integer', 'mods', 'modules', 'nocolor', 'noheader', 'noupdate'])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+@@ -86,6 +86,8 @@
+ 				self.modlist.append('tcp')
+ 			elif opt in ['-t', '--time']:
+ 				self.modlist.append('time')
++			elif opt in ['-u', '--user']:
++				self.modlist.append('user')
+ 			elif opt in ['--udp']:
+ 				self.modlist.append('udp')
+ 			elif opt in ['-y', '--sys']:
+@@ -914,7 +916,7 @@
+ 				self.val['processes'] = 0
+ 				self.cn2[name] = long(l[1])
+ 			elif name == 'procs_running':
+-				self.cn2[name] = self.cn2[name] + long(l[1]) - 2
++				self.cn2[name] = self.cn2[name] + long(l[1]) - 1
+ 			elif name == 'procs_blocked':
+ 				self.cn2[name] = self.cn2[name] + long(l[1])
+ 		if update:
+@@ -1038,6 +1040,35 @@
+ 			l = line.split()
+ 			if l[3] == '07': self.val['connections'] = self.val['connections'] + 1
+ 
++class dstat_user(dstat):
++	def __init__(self):
++		self.name = 'users'
++		self.format = '%is'
++		self.len = 3
++		self.nick = ('usr', 'adm' )
++		self.vars = ('users', 'root')
++		self.init()
++
++	def check(self):
++		try:
++			import utmp
++			return True
++		except:
++			print 'The user stat needs the python-utmp module.'
++			return False
++
++	def stats(self):
++		import utmp
++		u = utmp.UtmpRecord()
++		self.val['users'] = 0
++		self.val['root'] = 0
++		for i in u:
++			if i.ut_type == utmp.USER_PROCESS:
++				self.val['users'] = self.val['users'] + 1
++				if i.ut_user == 'root':
++					self.val['root'] = self.val['root'] + 1
++			
++
+ ansi = {
+ 	'black': '\033[0;30m',
+ 	'darkred': '\033[0;31m',
+@@ -1246,6 +1277,7 @@
+ 		elif mod == 'tcp':	olist.append(dstat_tcp())
+ 		elif mod == 'time':	olist.append(dstat_time())
+ 		elif mod == 'udp':	olist.append(dstat_udp())
++		elif mod == 'user':	olist.append(dstat_user())
+ 		else:
+ 			info(1, 'Module \'%s\' does not exist or failed to load.' % mod)
+ 
+@@ -1276,6 +1308,9 @@
+ 		else:
+ 			olist.remove(o)
+ 
++	if not olist:
++		die(8, 'None of the stats you selected are available.')
++
+ 	if not op.nolimit:
+ 		if linewidth &gt; cols:
+ 			print 'Screen width too small, trimming output.'
+
+Modified: trunk/tools/dstat/dstat.1
+===================================================================
+--- trunk/tools/dstat/dstat.1	2005-01-05 10:51:03 UTC (rev 2780)
++++ trunk/tools/dstat/dstat.1	2005-01-05 12:20:54 UTC (rev 2781)
+@@ -7,6 +7,8 @@
+ .SH DESCRIPTION
+ Dstat is a versatile replacement for vmstat, iostat and ifstat. Dstat overcomes some of the limitations and adds some extra features.
+ 
++For Debian users of Sleuthkit, /usr/bin/dstat has been renamed to /usr/bin/datastat to avoid a name conflict. See bug #283709 for more information.
++
+ Dstat allows you to view all of your system resources instantly, you can eg. compare disk usage in combination with interrupts from your IDE controller, or compare the network bandwidth numbers directly with the disk throughput (in the same interval).
+ .TP
+ \fB\-c\fR, \fB\-\-cpu\fR
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2005-01-05 10:51:03 UTC (rev 2780)
++++ trunk/tools/dstat/dstat.spec	2005-01-05 12:20:54 UTC (rev 2781)
+@@ -72,7 +72,7 @@
+ %{_bindir}/dstat
+ 
+ %changelog
+-* Tue Dec 21 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.7-1
++* Fri Dec 31 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.7-1
+ - Updated to release 0.5.7.
+ 
+ * Mon Dec 20 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.6-1
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001585.html">[SVN] r2780 - in trunk/rpms: . autopano-sift bash-completion	ddclient doodle libds libextractor sound-juicer xmms
+</A></li>
+	<LI>Next message: <A HREF="001587.html">[SVN] r2782 - trunk/tools/dstat
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1586">[ date ]</a>
+              <a href="thread.html#1586">[ thread ]</a>
+              <a href="subject.html#1586">[ subject ]</a>
+              <a href="author.html#1586">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

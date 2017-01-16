@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] amavisd-new package missing helper programs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20amavisd-new%20package%20missing%20helper%20programs&In-Reply-To=%3C20071102142020.GC22110%40br-online.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023295.html">
+   <LINK REL="Next"  HREF="025860.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] amavisd-new package missing helper programs</H1>
+    <B>Ralph Angenendt</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20amavisd-new%20package%20missing%20helper%20programs&In-Reply-To=%3C20071102142020.GC22110%40br-online.de%3E"
+       TITLE="[users] amavisd-new package missing helper programs">ra+rpmforge at br-online.de
+       </A><BR>
+    <I>Fri Nov  2 15:20:20 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023295.html">[suggest] gnome-password-generator
+</A></li>
+        <LI>Next message: <A HREF="025860.html">[users] amavisd-new package missing helper programs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25820">[ date ]</a>
+              <a href="thread.html#25820">[ thread ]</a>
+              <a href="subject.html#25820">[ subject ]</a>
+              <a href="author.html#25820">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Moin,
+
+when trying to troubleshoot one of our amavisd-new setups, I found out
+that amavisd-nanny and amavisd-agent are missing from the amavisd-new
+package in rpmforge.
+
+So I split out an additional package &quot;amavisd-new-utils&quot; out of the spec
+file which contains amavisd-nanny, amavisd-agent, amavisd-release and
+p0f-analyzer.pl.
+
+Patch for the spec file is attached.
+
+Cheers,
+
+Ralph
+-- 
+Ralph <A HREF="http://lists.repoforge.org/mailman/listinfo/users">Angenendt......ra at br-online.de</A> | ..&quot;Text processing has made it possible
+Bayerischer Rundfunk...80300 M&#252;nchen | ....to right-justify any idea, even one
+Programmbereich.Bayern 3, Jugend und | .which cannot be justified on any other
+Multimedia.........Tl:089.5900.16023 | ..........grounds.&quot; -- J. Finnegan, USC
+-------------- next part --------------
+--- amavisd-new.spec.org	2007-11-02 14:17:40.000000000 +0100
++++ amavisd-new.spec	2007-11-02 15:18:15.000000000 +0100
+@@ -12,7 +12,7 @@
+ Summary: Mail virus-scanner
+ Name: amavisd-new
+ Version: 2.5.2
+-Release: 1.rf
++Release: 2.rf
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://www.ijs.si/software/amavisd/">http://www.ijs.si/software/amavisd/</A>
+@@ -56,6 +56,14 @@
+ %description milter
+ The Amavisd-new sendmail-milter Daemon
+ 
++%package utils
++Summary: amavisd-new helper programs
++Group: Applications/System
++Requires: amavisd-new = %{version}-%{release}
++
++%description utils
++Helper programs for amavisd new to monitor your running amavisd-new installation.
++
+ %prep
+ %setup -n amavisd-new-%{version}
+ 
+@@ -226,10 +234,26 @@
+ 		s|^#* *(\$db_home\s+=.*)$|$1|;
+ 	' amavisd.conf
+ 
++%{__perl} -pi.orig -e '
++        s|^(my\(\$db_home\))\s*=.*$|$1 = &quot;%{_localstatedir}/amavis/db&quot;;|;
++    ' amavisd-nanny
++
++%{__perl} -pi.orig -e '
++        s|/var/amavis/db|%{_localstatedir}/amavis/db|;
++    ' amavisd-agent
++
++%{__perl} -pi.orig -e '
++        s|^(\s\$socketname)\s*=.*$|$1 = &quot;%{_localstatedir}/amavis/amavisd.sock&quot;;|;
++    ' amavisd-release
++
+ %{__install} -d -m0700 %{buildroot}%{_localstatedir}/virusmails/
+ %{__install} -d -m0755 %{buildroot}%{_localstatedir}/amavis/{db,tmp,var}/
+ 
+ %{__install} -Dp -m0755 amavisd %{buildroot}%{_sbindir}/amavisd
++%{__install} -Dp -m0755 amavisd-nanny %{buildroot}%{_sbindir}/amavisd-nanny
++%{__install} -Dp -m0755 amavisd-agent %{buildroot}%{_sbindir}/amavisd-agent
++%{__install} -Dp -m0755 amavisd-release %{buildroot}%{_sbindir}/amavisd-release
++%{__install} -Dp -m0755 p0f-analyzer.pl %{buildroot}%{_sbindir}/p0f-analyzer.pl
+ %{__install} -Dp -m0755 amavisd.sysv %{buildroot}%{_initrddir}/amavisd
+ %{__install} -Dp -m0700 amavisd.conf %{buildroot}%{_sysconfdir}/amavisd.conf
+ %{__install} -Dp -m0644 LDAP.schema %{buildroot}%{_sysconfdir}/openldap/schema/amavisd-new.schema
+@@ -315,6 +339,13 @@
+ %{_sbindir}/amavis
+ %{_sbindir}/amavis-milter
+ 
++%files utils
++%defattr(-, root, root, 0755)
++%{_sbindir}/amavisd-nanny
++%{_sbindir}/amavisd-agent
++%{_sbindir}/amavisd-release
++%{_sbindir}/p0f-analyzer.pl
++
+ %changelog
+ * Thu Jun 28 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">dag at wieers.com</A>&gt; - 2.5.2-1 - 5469+/dag
+ - Updated to release 2.5.2.
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: not available
+Type: application/pgp-signature
+Size: 189 bytes
+Desc: not available
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/users/attachments/20071102/2dca28a2/attachment.sig">http://lists.repoforge.org/pipermail/users/attachments/20071102/2dca28a2/attachment.sig</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023295.html">[suggest] gnome-password-generator
+</A></li>
+	<LI>Next message: <A HREF="025860.html">[users] amavisd-new package missing helper programs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25820">[ date ]</a>
+              <a href="thread.html#25820">[ thread ]</a>
+              <a href="subject.html#25820">[ subject ]</a>
+              <a href="author.html#25820">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

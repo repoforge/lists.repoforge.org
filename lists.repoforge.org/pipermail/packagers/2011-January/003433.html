@@ -1,0 +1,244 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] openvpn package suggestions
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20openvpn%20package%20suggestions&In-Reply-To=%3CAANLkTi%3DBv3RvG9j4nMBZhQSsRR7xJSEQN-ym55uV5KK%3D%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003435.html">
+   <LINK REL="Next"  HREF="003436.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] openvpn package suggestions</H1>
+    <B>Denis Fateyev</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20openvpn%20package%20suggestions&In-Reply-To=%3CAANLkTi%3DBv3RvG9j4nMBZhQSsRR7xJSEQN-ym55uV5KK%3D%40mail.gmail.com%3E"
+       TITLE="[packagers] openvpn package suggestions">denis at fateyev.com
+       </A><BR>
+    <I>Fri Jan 21 08:07:08 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003435.html">[packagers] Packager request
+</A></li>
+        <LI>Next message: <A HREF="003436.html">[packagers] openvpn package suggestions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3433">[ date ]</a>
+              <a href="thread.html#3433">[ thread ]</a>
+              <a href="subject.html#3433">[ subject ]</a>
+              <a href="author.html#3433">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hello all,
+
+There are some suggestions to openvpn package spec in RPMForge.
+
+In details, the changes are following:
+
+1) Explicit build without pkcs#11 support. It's used very rarely and
+requires pkcs11-helper libs on the server, even if this functionality is not
+in use. Additionally, there is another and more important issue: during
+build, `configure` detects, if `pkcs11-helper` devel package installed and
+openvpn build options will depend from this circumstance. It will be
+forcibly built with or without pkcs#11 support, depending from build host
+configuration only.
+
+This options allows clearly set pkcs#11 support or disable it in any case
+(by default).
+
+2) Enable `password-save` option in openvpn, very handy feature, allows to
+store password in external file.
+I see, it's enabled in latest fedora rpms.
+
+3) Initscript patch collection, taken from fedora rpms. The original
+initscript, shipped with openvpn, is a bit outdated and doesn't provide some
+parameters, such `script-security`. Certainly, it works in most cases, but
+it's not compliant with rhel5/fedora initscript standards.
+
+4) Adding openvpn user and group, during install. Just wondering, why it
+wasn't done earlier.
+
+[<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">denis at nas</A> sandbox]$ diff -u openvpn.spec.dag openvpn.spec.denf
+---------- &lt; cut here &gt; ----------
+--- openvpn.spec.dag    2010-12-02 23:26:33.000000000 +0600
++++ openvpn.spec.denf    2011-01-16 18:31:45.000000000 +0600
+@@ -2,18 +2,22 @@
+ # Authority: dag
+ # Upstream: James Yonan &lt;jim$yonan,net&gt;
+
++### PKCS#11 support (optional)
++%define with_pkcs11 0
++
+ Summary: Robust and highly flexible VPN daemon
+ Name: openvpn
+ Version: 2.1.4
+-Release: 1%{?dist}
++Release: 2%{?dist}
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://openvpn.net/">http://openvpn.net/</A>
+
+-Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">dag at wieers.com</A>&gt;
+ Vendor: Dag Apt Repository, <A HREF="http://dag.wieers.com/apt/">http://dag.wieers.com/apt/</A>
+
+ Source:
+<A HREF="http://swupdate.openvpn.net/community/releases/%{name">http://swupdate.openvpn.net/community/releases/%{name</A>}-%{version}.tar.gz
++Patch:  openvpn-initscript.patch
++
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+
+ BuildRequires: lzo-devel &gt;= 1.07
+@@ -22,6 +26,10 @@
+ BuildRequires: pam-devel
+ Requires: lzo
+ Requires: openssl
++%if 0%{?with_pkcs11}
++BuildRequires: pkcs11-helper-devel
++Requires: pkcs11-helper
++%endif
+
+ %description
+ OpenVPN is a robust and highly flexible tunneling application.
+@@ -34,6 +42,9 @@
+ %prep
+ %setup
+
++### Fix provided initscript
++%patch -p0
++
+ %build
+ if pkg-config openssl; then
+     export CFLAGS=&quot;%{optflags} $(pkg-config --cflags openssl)&quot;
+@@ -42,6 +53,12 @@
+ %configure \
+     --program-prefix=&quot;%{?_program_prefix}&quot; \
+     --enable-iproute2 \
++    %if 0%{?with_pkcs11}
++    --enable-pkcs11 \
++    %else
++    --disable-pkcs11 \
++    %endif
++    --enable-password-save \
+     --enable-pthread
+ %{__make} %{?_smp_mflags}
+
+@@ -73,6 +90,12 @@
+ %clean
+ %{__rm} -rf %{buildroot}
+
++%pre
++getent group openvpn &amp;&gt;/dev/null || groupadd -r openvpn
++getent passwd openvpn &amp;&gt;/dev/null || \
++    /usr/sbin/useradd -r -g openvpn -s /sbin/nologin \
++    -c OpenVPN -d /etc/openvpn openvpn
++
+ %post
+ /sbin/chkconfig --add openvpn
+
+@@ -96,6 +119,9 @@
+ %{_sbindir}/openvpn
+
+ %changelog
++* Sun Jan 16 2011 Denis Fateyev &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">denis at fateyev.com</A>&gt; - 2.1.4-2.el5.denf
++- Some spec cleanup, added some patches from Fedora
++
+ * Tue Nov 30 2010 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">cmaser at gmx.de</A>&gt; - 2.1.4-1
+ - Updated to version 2.1.4.
+
+---------- &lt; cut here &gt; ----------
+
+[<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">denis at nas</A> sandbox]$ cat openvpn-initscript.patch
+---------- &lt; cut here &gt; ----------
+--- sample-scripts/openvpn.init.orig    2010-10-21 23:37:51.000000000 +0600
++++ sample-scripts/openvpn.init        2011-01-16 14:55:37.000000000 +0600
+@@ -3,13 +3,28 @@
+ # openvpn       This shell script takes care of starting and stopping
+ #               openvpn on RedHat or other chkconfig-based system.
+ #
+-# chkconfig: 345 24 76
+-#
+-# description: OpenVPN is a robust and highly flexible tunneling
+application that
+-#              uses all of the encryption, authentication, and
+certification features
+-#              of the OpenSSL library to securely tunnel IP networks over a
+single
+-#              UDP port.
++# chkconfig: - 24 76
+ #
++# processname: openvpn
++# description: OpenVPN is a robust and highly flexible tunneling \
++#              application that uses all of the encryption, \
++#              authentication, and certification features of the OpenSSL \
++#              library to securely tunnel IP networks over a single UDP \
++#              port.
++#
++
++### BEGIN INIT INFO
++# Provides: openvpn
++# Required-Start: $network
++# Required-Stop: $network
++# Short-Description: start and stop openvpn
++# Description: OpenVPN is a robust and highly flexible tunneling \
++#              application that uses all of the encryption, \
++#              authentication, and certification features of the OpenSSL \
++#              library to securely tunnel IP networks over a single UDP \
++#              port.
++### END INIT INFO
++
+
+ # Contributed to the OpenVPN project by
+ # Douglas Keller &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/packagers">doug at voidstar.dyndns.org</A>&gt;
+@@ -148,10 +163,15 @@
+     for c in `/bin/ls *.conf 2&gt;/dev/null`; do
+         bn=${c%%.conf}
+         if [ -f &quot;$bn.sh&quot; ]; then
+-        . $bn.sh
++        . ./$bn.sh
+         fi
+         rm -f $piddir/$bn.pid
+-        $openvpn --daemon --writepid $piddir/$bn.pid --config $c --cd $work
++            # Handle backward compatibility, see Red Hat Bugzilla ID
+#458594
++            script_security=''
++            if [ -z &quot;$( grep '^[[:space:]]*script-security[[:space:]]' $c
+)&quot; ]; then
++                script_security=&quot;--script-security 2&quot;
++            fi
++        $openvpn --daemon --writepid $piddir/$bn.pid --config $c --cd $work
+$script_security
+         if [ $? = 0 ]; then
+         successes=1
+         else
+
+---------- &lt; cut here &gt; ----------
+
+---
+wbr, Denis.
+-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/packagers/attachments/20110121/bb9edead/attachment-0001.html">http://lists.repoforge.org/pipermail/packagers/attachments/20110121/bb9edead/attachment-0001.html</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003435.html">[packagers] Packager request
+</A></li>
+	<LI>Next message: <A HREF="003436.html">[packagers] openvpn package suggestions
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3433">[ date ]</a>
+              <a href="thread.html#3433">[ thread ]</a>
+              <a href="subject.html#3433">[ subject ]</a>
+              <a href="author.html#3433">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

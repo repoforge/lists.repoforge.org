@@ -1,0 +1,223 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2674 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2674%20-%20trunk/tools/dstat&In-Reply-To=%3C20041214143300.E680817F5E%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001478.html">
+   <LINK REL="Next"  HREF="001480.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2674 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2674%20-%20trunk/tools/dstat&In-Reply-To=%3C20041214143300.E680817F5E%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2674 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Dec 14 15:33:00 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001478.html">[SVN] r2673 - in trunk/rpms: inkscape ocaml orsa
+</A></li>
+        <LI>Next message: <A HREF="001480.html">[SVN] r2675 - trunk/rpms/inkscape
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1479">[ date ]</a>
+              <a href="thread.html#1479">[ thread ]</a>
+              <a href="subject.html#1479">[ subject ]</a>
+              <a href="author.html#1479">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-12-14 15:32:59 +0100 (Tue, 14 Dec 2004)
+New Revision: 2674
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+conv() update and proc stat changes
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-12-14 13:24:07 UTC (rev 2673)
++++ trunk/tools/dstat/ChangeLog	2004-12-14 14:32:59 UTC (rev 2674)
+@@ -14,6 +14,8 @@
+ - proc stats now show averages
+ - Check if output is a tty, else disable colors and updates
+ - Fixed bug in interrupt stats on smp systems
++- Improvement in output, 10.0k or 5.0 will be displayed simply as 10k or 5
++- proc stats now show floats
+ 
+ * 0.5.5
+ - In fact, round() was not the problem, use str() instead. (Anton Blanchard)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-12-14 13:24:07 UTC (rev 2673)
++++ trunk/tools/dstat/TODO	2004-12-14 14:32:59 UTC (rev 2674)
+@@ -3,8 +3,9 @@
+ + Allow to force to given magnitude
+ + Look at possibilities to show deviation (on second line ?)
+ + Improve manpage
+-+ I should be able to detect when terminal has no ANSI capabilities (anyone?)
+-+ Implement -I eth0,eth1 again
+++ Detect terminal capabilities (colors, ANSI) using curses (?)
+++ Find a way to use curses without the flickering and tty clearing in screen
+++ Re-implement -I eth0,eth1
+ 
+ ### Export/Graph
+ + Add -o/--output option to save directly to a file
+@@ -14,20 +15,15 @@
+ ### Extending statistics (help welcome!)
+ + Add all stats to seperate modules and allow people to plugin their own modules
+ + Add application stats (-a or -A pid,cmd)
+-+ Add icmp stats ?
+-+ Add ntp stats
+-+ Add nfs stats
+++ Add icmp, nfs, ntp stats ?
+ + Add user stats (number of users logged on)
+ + Look into interfacing with apps (bind, sendmail, postfix, squid, amavisd, laus, samba)
+ + Look into interfacing with specific HW counters in /proc
+ 
+ ### General bugs
+-+ If you have 2 devices with the same name, -I will only work on the first one
+-+ When using -D foo, -I 99, -N eth9 dstat should fail when it does not exist 
+ + Timer is not accurate on 2.6 kernel, every second there's a 1ms deviation (every 17mins -&gt; 1sec)
+-+ Find a way to use curses without the flickering and clearing tty in screen
+ 
+ ### Stat bugs
+-+ tcp stat is very slow and generates lots of siq (on some systems)
+++ tcp stat is very slow and generates lots of softirqs (on some systems)
+ + proc stat seems to be off by one, no clue why
+ + Implement better (?) protection against counter rollovers
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-12-14 13:24:07 UTC (rev 2673)
++++ trunk/tools/dstat/dstat	2004-12-14 14:32:59 UTC (rev 2674)
+@@ -274,10 +274,10 @@
+ 				sys.stdout.write('%s' % conv(self.len, self.val[name], 1000))
+ 			elif self.format == '%ps':
+ 				sys.stdout.write('%s' % conv(self.len, self.val[name], 100))
++			elif self.format == '%is':
++				sys.stdout.write('%s' % conv(self.len, self.val[name], 10))
+ 			elif self.format == '%f':
+ 				sys.stdout.write('%s' % conv(self.len, self.val[name], 1))
+-			elif self.format == '%is':
+-				sys.stdout.write('%s' % conv(self.len, self.val[name], 0))
+ 			elif self.format in ('%s %s', '%s:%s', '%s-%s'):
+ 				sys.stdout.write(self.format % convlist(self.len, self.val[name]))
+ 				sep = ansi['default'] + ':'
+@@ -796,13 +796,14 @@
+ 			if name == 'processes':
+ 				self.val['processes'] = 0
+ 				self.cn2[name] = long(l[1])
+-			elif name in ('procs_running', 'procs_blocked'):
++			elif name == 'procs_running':
++				self.cn2[name] = self.cn2[name] + long(l[1]) - 1
++			elif name == 'procs_blocked':
+ 				self.cn2[name] = self.cn2[name] + long(l[1])
+-		self.cn2['procs_running'] = self.cn2['procs_running'] - 1
+ 		if update:
+-			self.val['processes'] = (self.cn2['processes'] - self.cn1['processes']) / step
++			self.val['processes'] = (self.cn2['processes'] - self.cn1['processes']) * 1.0 / step
+ 			for name in ('procs_running', 'procs_blocked'):
+-				self.val[name] = self.cn2[name] / step
++				self.val[name] = self.cn2[name] * 1.0 / step
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 			for name in ('procs_running', 'procs_blocked'):
+@@ -979,6 +980,7 @@
+ #def convlist(max, list):
+ #	return map(conv, list)
+ 
++### Use capabilities like: float=true, base=nr, color=true
+ def conv(max, var, base = 1024):
+ 	if var &lt; 0:
+ 		return ansi['default'] + '- '.rjust(max)
+@@ -988,32 +990,29 @@
+ 	else:
+ 		color = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'green')
+ 
+-	if base == 0:
+-		if round(var) == 0:
+-			return ansi['default'] + '0'.rjust(max)
+-		else:
+-			return ansi[color[long(round(var)/1000)]] + str(long(round(var))).rjust(max)
++	if base in (0, 1, 10):
++		unit = ('', '', '', '', '', '', '', '', '', '', '')
+ 	elif base == 100:
+ 		if round(var) == 0:
+ 			return ansi['default'] + '0'.rjust(max)
+ 		else:
+ 			return ansi[color[long(round(var)/34)]] + str(long(round(var))).rjust(max)
+-	elif base == 1:
+-		unit = ('', '', '')
+ 	elif base == 1000:
+ 		unit = (' ', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+-	else:
++	elif base == 1024:
+ 		### lowercase (b) is better for the eyes than uppercase
+ 		unit = ('B', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
++	else:
++		return ansi['default'] + '? '.rjust(max)
+ 
+ 	c = 0
+ 	while True:
+ 		repr = str(long(round(var))) + unit[c]
+ 		if len(repr) &lt;= max:
+-			if not op.integer and ( base != 1000 or c &gt; 0):
+-				if len('%1.2f' % var + unit[c]) &lt;= max:
++			if not op.integer and (base != 1000 or c &gt; 0):
++				if var != round(var) and len('%1.2f' % var + unit[c]) &lt;= max:
+ 					repr = '%1.2f' % var + unit[c]
+-				elif len('%1.1f' % var + unit[c]) &lt;= max:
++				elif var != round(var) and len('%1.1f' % var + unit[c]) &lt;= max:
+ 					repr = '%1.1f' % var + unit[c]
+ 			else:
+ 				var = long(round(var))
+@@ -1021,12 +1020,9 @@
+ 		var = var / base
+ 		c = c + 1
+ 
+-	if type(var) == int and long(round(var)) != 0:
+-	 	return ansi[color[c]] + repr.rjust(max)
+-	elif var != 0:
+-	 	return ansi[color[c]] + repr.rjust(max)
+-	else:
+-		return ansi['default'] + '0 '.rjust(max)
++	if var == 0:
++		return ansi['default'] + ('0' + ' ' * len(unit[0])).rjust(max)
++	return ansi[color[c]] + repr.rjust(max)
+ 
+ def info(level, str):
+ 	&quot;Output info message&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001478.html">[SVN] r2673 - in trunk/rpms: inkscape ocaml orsa
+</A></li>
+	<LI>Next message: <A HREF="001480.html">[SVN] r2675 - trunk/rpms/inkscape
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1479">[ date ]</a>
+              <a href="thread.html#1479">[ thread ]</a>
+              <a href="subject.html#1479">[ subject ]</a>
+              <a href="author.html#1479">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

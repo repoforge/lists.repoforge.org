@@ -1,0 +1,200 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4574 - trunk/tools/dwscan
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4574%20-%20trunk/tools/dwscan&In-Reply-To=%3C20060712003448.3D4C6945279%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003373.html">
+   <LINK REL="Next"  HREF="003375.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4574 - trunk/tools/dwscan</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4574%20-%20trunk/tools/dwscan&In-Reply-To=%3C20060712003448.3D4C6945279%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4574 - trunk/tools/dwscan">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jul 12 02:34:48 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003373.html">[svn] r4573 - trunk/rpms/bmpx
+</A></li>
+        <LI>Next message: <A HREF="003375.html">[svn] r4575 - trunk/tools/dwscan
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3374">[ date ]</a>
+              <a href="thread.html#3374">[ thread ]</a>
+              <a href="subject.html#3374">[ subject ]</a>
+              <a href="author.html#3374">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-07-12 02:34:46 +0200 (Wed, 12 Jul 2006)
+New Revision: 4574
+
+Modified:
+   trunk/tools/dwscan/ChangeLog
+   trunk/tools/dwscan/Makefile
+   trunk/tools/dwscan/dwscan
+   trunk/tools/dwscan/dwscan.spec
+Log:
+Updates
+
+Modified: trunk/tools/dwscan/ChangeLog
+===================================================================
+--- trunk/tools/dwscan/ChangeLog	2006-07-11 15:47:06 UTC (rev 4573)
++++ trunk/tools/dwscan/ChangeLog	2006-07-12 00:34:46 UTC (rev 4574)
+@@ -1,2 +1,6 @@
+-* 0.1
++* 0.1svn - .... - release ../../2006
++- Added asciify to get rid of unprintable characters in ESSID
++- Improved beacon timestamp
++
++* 0.1 - Rome - released 10/07/2006
+ - Initial release
+
+Modified: trunk/tools/dwscan/Makefile
+===================================================================
+--- trunk/tools/dwscan/Makefile	2006-07-11 15:47:06 UTC (rev 4573)
++++ trunk/tools/dwscan/Makefile	2006-07-12 00:34:46 UTC (rev 4574)
+@@ -24,7 +24,7 @@
+ 
+ dist: clean
+ #	$(MAKE) -C docs dist
+-	find . ! -wholename '*/.svn*' | pax -d -w -x ustar -s ,^,$(name)-$(version)/, | bzip2 &gt;../$(name)-$(version).tar.bz2
++	find . ! -path '*/.svn*' | sort | pax -d -w -x ustar -s ',^.,$(name)-$(version),' | bzip2 &gt;../$(name)-$(version).tar.bz2
+ 
+ rpm: dist
+ 	rpmbuild -tb --clean --rmsource --rmspec --define &quot;_rpmfilename %%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm&quot; --define &quot;_rpmdir ../&quot; ../$(name)-$(version).tar.bz2
+
+Modified: trunk/tools/dwscan/dwscan
+===================================================================
+--- trunk/tools/dwscan/dwscan	2006-07-11 15:47:06 UTC (rev 4573)
++++ trunk/tools/dwscan/dwscan	2006-07-12 00:34:46 UTC (rev 4574)
+@@ -14,7 +14,7 @@
+ ### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ### Copyright 2004, 2005, 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+-import sys, signal, re, time
++import sys, signal, re, time, string
+ from pythonwifi import iwlibs
+ 
+ VERSION = '0.1svn'
+@@ -80,28 +80,41 @@
+ 	else:
+ 		return cmp(b['timestamp'], a['timestamp'])
+ 
++a = ''; b = ''
++for i in range(0, 255):
++	a = a + chr(i)
++	if i &lt; 32 or i &gt; 127:
++		b = b + '.'
++	else:
++		b = b + chr(i)
++asciitrans = string.maketrans(a, b)
++
++def asciify(str):
++	return str.translate(asciitrans)
++
+ print ansi['clear']
+ 
+-apsidx = {}
+ aps = []
+ try:
+ 	while True:
+-		print ansi['home'] + ansi['blue'] + &quot; %-14s  %4s  %-17s  %-5s  %-8s  %8s  %3s  %4s  %4s  %3s  %8s  %3s&quot; % ('Essid', 'Chan', 'HW address', 'Iface', 'Max rate', 'Last bcn', 'Qua', 'Sgnl', 'Nois', 'S/N', 'Cur rate', 'Mis')
++		print ansi['home'] + ansi['blue'] + &quot; %-20s  %4s  %-17s  %-5s  %-8s  %8s  %3s  %4s  %4s  %3s  %8s  %3s&quot; % ('ESSID/Name', 'Chan', 'BSSID/HW address', 'Iface', 'Max rate', 'Last bcn', 'Qua', 'Sgnl', 'Nois', 'S/N', 'Cur rate', 'Mis')
+ 
+ 		for iface in iwlibs.getNICnames():
+ 			ifobj = iwlibs.Wireless(iface)
+ 			scanresults = ifobj.scan()
+ 			for result in scanresults:
+ 				idx = [x for x, y in enumerate(aps) if y['bssid'] == result.bssid]
+-				beacon = int(re.match('.*Last beacon: ([0-9]+)ms ago', result.custom[1]).group(1))
++				try:
++					beacon = int(re.match('.*Last beacon: ([0-9]+)ms ago', result.custom[1]).group(1))
++				except:
++					beacon = int(re.match('.*Last beacon: ([0-9]+)ms ago', result.custom[0]).group(1))
+ 				obj = {
+-					'essid': result.essid, 
++					'essid': asciify(result.essid),
+ 					'bssid': result.bssid, 
+ 					'quality': result.quality.quality, 
+ 					'signal': result.quality.getSignallevel(), 
+ 					'noise': result.quality.getNoiselevel(), 
+-					'lastbeacon': beacon, 
+-					'timestamp': time.time() - beacon/1000, 
++					'timestamp': time.time() * 1000.0 - beacon,
+ 					'encode': result.encode, 
+ 					'channel': result.frequency.getChannel(result.frequency.getFrequency(), result.range), 
+ 					'maxrate': result.rate[-1], 
+@@ -137,23 +150,23 @@
+ 				if not obj['active']: ecol = ansi['darkgreen']
+ 
+ 			if obj['active']:
+-				beacon = (' %5d ms ' % obj['lastbeacon'])
++				beacon = (' %5d ms ' % (time.time() * 1000.0 - obj['timestamp']))
+ 			else:
+-				beacon = ('  %5d s ' % (time.time() - obj['timestamp']))
++				beacon = ('  %5d s ' % (time.time() - obj['timestamp'] / 1000.0))
+ 
+-			print bcol + ecol + ('%-14s ' % obj['essid'].encode('ascii', 'replace')) + fcol + (' %(channel)4s  %(bssid)-17s ' % obj) + (' %-5s ' % iface) + (' %8s ' % obj['maxrate']) + beacon + (' %3s ' % obj['quality']),
++			print bcol + ecol + ('%-20s ' % obj['essid']) + fcol + (' %(channel)4s  %(bssid)-17s ' % obj) + (' %-5s ' % iface) + (' %8s ' % obj['maxrate']) + beacon + (' %3s ' % obj['quality']),
+ 
+ 			if obj['bssid'] == ifobj.getAPaddr():
+ 				print '%4s  %4s  %3s  %8s  %3s' % (qual.signallevel, qual.noiselevel, qual.signallevel - qual.noiselevel, ifobj.getBitrate(), missed_beacon),
+ #			else:
+ #				print ansi['gray'] + '%4s  %4s  %3s  %8s  %3s' % (obj['signal'], obj['noise'], int(obj['signal']) - int(obj['noise']), '-', '-'),
+ 				
+-			print ansi['silver']+ansi['cleareol']
++			print ansi['silver'] + ansi['cleareol']
+ 
+ 			aps[idx]['active'] = False
+ 
+ 		print ansi['blue'] + ' %s access points (%s active and %s inactive)' % (len(aps), len(scanresults), len(aps) - len(scanresults))
+-		time.sleep(0.04)
++		time.sleep(0.03)
+ 
+ except KeyboardInterrupt, e:
+ 	print
+
+Modified: trunk/tools/dwscan/dwscan.spec
+===================================================================
+--- trunk/tools/dwscan/dwscan.spec	2006-07-11 15:47:06 UTC (rev 4573)
++++ trunk/tools/dwscan/dwscan.spec	2006-07-12 00:34:46 UTC (rev 4574)
+@@ -43,5 +43,8 @@
+ %{_sbindir}/dwscan
+ 
+ %changelog
++* Wed Jul 12 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.1svn-1
++- Updated to release 0.1svn.
++
+ * Mon Jul 10 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.1-1
+ - Initial package. (using DAR)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003373.html">[svn] r4573 - trunk/rpms/bmpx
+</A></li>
+	<LI>Next message: <A HREF="003375.html">[svn] r4575 - trunk/tools/dwscan
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3374">[ date ]</a>
+              <a href="thread.html#3374">[ thread ]</a>
+              <a href="subject.html#3374">[ subject ]</a>
+              <a href="author.html#3374">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

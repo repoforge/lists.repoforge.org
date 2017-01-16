@@ -1,0 +1,274 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3171 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3171%20-%20trunk/tools/dstat&In-Reply-To=%3C20050502002829.059EB94CB4C%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001972.html">
+   <LINK REL="Next"  HREF="001974.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3171 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3171%20-%20trunk/tools/dstat&In-Reply-To=%3C20050502002829.059EB94CB4C%40lists.rpmforge.net%3E"
+       TITLE="[svn] r3171 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon May  2 02:28:29 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001972.html">[svn] r3170 - in trunk/tools/pydar2: . pydar
+</A></li>
+        <LI>Next message: <A HREF="001974.html">[svn] r3172 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1973">[ date ]</a>
+              <a href="thread.html#1973">[ thread ]</a>
+              <a href="subject.html#1973">[ subject ]</a>
+              <a href="author.html#1973">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-05-02 02:28:28 +0200 (Mon, 02 May 2005)
+New Revision: 3171
+
+Modified:
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.1
+   trunk/tools/dstat/dstat.conf
+   trunk/tools/dstat/dstat15
+Log:
+Updates
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2005-05-01 20:29:32 UTC (rev 3170)
++++ trunk/tools/dstat/Makefile	2005-05-02 00:28:28 UTC (rev 3171)
+@@ -28,6 +28,7 @@
+ 			next if (s|self\.intmap\[(\S+)\.strip\(\)\.lower\(\)\]|self.intmap[string.strip(string.lower($$1))]|g); \
+ 			next if (s|\((.0.) \+ (. .) \* len\((\S+)\)\)\.rjust\((\S+)\)|string.rjust($$1 + $$2 * len($$3), $$4)|g); \
+ 			next if (s|(\S+)\.replace\((.:.), (. .)\)\.split\(\)|string.split(string.replace($$1, $$2, $$3))|g); \
++			next if (s|ret\[name\.strip\(\)\.lower\(\)\]|name = string.lower(string.strip(name))\n				ret[name]|g); \
+ 			s|(\S+)\.replace\((.+), (.+)\)|string.replace($$1, $$2, $$3)|g; \
+ 			s|(\S+)\.rjust\((.+)\)|string.rjust($$1, $$2)|g; \
+ 			s|(\S+)\.center\((.+)\)|string.center($$1, $$2)|g; \
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-05-01 20:29:32 UTC (rev 3170)
++++ trunk/tools/dstat/TODO	2005-05-02 00:28:28 UTC (rev 3171)
+@@ -2,6 +2,7 @@
+ + Add --config option and use /etc/dstat.conf and ~/.dstat to influence output (see example dstat.conf)
+ + Allow to force to given magnitude (--unit=kilo)
+ + Look at possibilities to show deviation (on second line ?)
+++ Check for dark/light background color and change colors accordingly (see dstat.conf)
+ 
+ ### Export/Graph
+ + Interface with rrdtool (python-rrd ?)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-05-01 20:29:32 UTC (rev 3170)
++++ trunk/tools/dstat/dstat	2005-05-02 00:28:28 UTC (rev 3171)
+@@ -19,6 +19,8 @@
+ try:
+ 	import sys, signal, os, re, time
+ 	import types, curses, signal, resource
++	sys.path.insert(0, '.')
++	sys.path.insert(0, './stats/')
+ 	sys.path.insert(0, '/usr/share/dstat/')
+ except KeyboardInterrupt, e:
+ 	pass
+@@ -27,7 +29,7 @@
+ 	sys.exit('error: Python 2.2 or later required, try dstat15 instead')
+ 
+ ### Workaround for python &lt; 2.3
+-if not callable(enumerate):
++if not callable('enumerate'):
+ 	if sys.version_info &lt; (2, 3) and sys.version_info &gt;= (2, 2):
+ 		def enumerate(sequence):
+ 			index = 0
+@@ -44,7 +46,7 @@
+ 			return list
+ 
+ ### Workaround for python &lt; 2.3
+-if not callable(sum):
++if not callable('sum'):
+ 	def sum(sequence):
+ 		ret = 0
+ 		for i in sequence:
+@@ -551,7 +553,7 @@
+ 			list = ('total', )
+ 		else:
+ 			list = self.discover()
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+ 			if name in self.discover('total') + op.diskset.keys():
+@@ -615,7 +617,7 @@
+ 			list = ('total', )
+ 		else:
+ 			list = self.discover()
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+ 			if name in self.discover('total') + op.diskset.keys():
+@@ -678,7 +680,7 @@
+ 			list = ('total', )
+ 		else:
+ 			list = self.discover()
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+ 			if name in self.discover('total') + op.diskset.keys():
+@@ -964,7 +966,7 @@
+ 			list = ('total', )
+ 		else:
+ 			list = self.discover()
+-			if len(list) &gt; 2: list = list[0:2]
++#			if len(list) &gt; 2: list = list[0:2]
+ 			list.sort()
+ 		for name in list:
+ 			if name in self.discover('total', 'lo'):
+@@ -980,9 +982,9 @@
+ 			if l[2] == '0' and l[10] == '0': continue
+ 			name = l[0]
+ 			if name in self.vars :
+-				self.cn2[name] = ( long(l[2]), long(l[10]) )
++				self.cn2[name] = ( long(l[1]), long(l[9]) )
+ 			if name not in ('lo','face'):
+-				self.cn2['total'] = ( self.cn2['total'][0] + long(l[2]), self.cn2['total'][1] + long(l[10]))
++				self.cn2['total'] = ( self.cn2['total'][0] + long(l[1]), self.cn2['total'][1] + long(l[9]))
+ 		if update:
+ 			for name in self.cn2.keys():
+ 				self.val[name] = ( 
+@@ -1272,8 +1274,8 @@
+ def dopen(file):
+ 	global fds
+ 	if not os.path.exists(file): return None
+-	if not 'fds' in globals(): fds = {}
+-	if not file in fds:
++	if 'fds' not in globals(): fds = {}
++	if file not in fds:
+ 		fds[file] = open(file, 'r', 0)
+ 	else:
+ 		fds[file].seek(0)
+@@ -1294,6 +1296,8 @@
+ 			break
+ 		var = var / base
+ 		c = c + 1
++	else:
++		c = -1
+ 	return ret, c
+ 
+ def fchg(var, max, base):
+@@ -1313,6 +1317,8 @@
+ 			break
+ 		var = var / base
+ 		c = c + 1
++	else:
++		c = -1
+ 	return ret, c
+ 
+ def cprintlist(list, format):
+@@ -1323,7 +1329,7 @@
+ 	return ret
+ 
+ def cprint(var, format = ('f', 4, 1000)):
+-	c = 0
++	c = -1
+ 	type = format[0]
+ 	max = format[1]
+ 	mp = format[2]
+@@ -1372,7 +1378,7 @@
+ 	ret = ansi[color] + ret.rjust(max)
+ 
+ 	if unit:
+-		if c:
++		if c != -1 and var != 0:
+ 			ret = ret + units[c]
+ 		else:
+ 			ret = ret + ' '
+
+Modified: trunk/tools/dstat/dstat.1
+===================================================================
+--- trunk/tools/dstat/dstat.1	2005-05-01 20:29:32 UTC (rev 3170)
++++ trunk/tools/dstat/dstat.1	2005-05-02 00:28:28 UTC (rev 3171)
+@@ -131,6 +131,8 @@
+ .SH INTERMEDIATE UPDATES
+ When invoking dstat with a \fBdelay\fR greater than 1 and without the \fB--noupdate\fR option, it will show intermediate updates, ie. the first time a 1 sec average, the second update a 2 second average, etc. until the delay has been reached.
+ 
++\fBSo the 9 intermediate updates are NOT snapshots\fR, they are averages over the time that passed since the last final update. The end result is that you get a 10 second average on a new line, just like vmstat.      
++
+ .SH BUGS
+ Since it's practically impossible to test dstat on every possible permutation of kernel , python or distribution version, I need your help and your feedback to fix the remaining problems. If you have improvements or bugreports, please send them to: <A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>
+ 
+
+Modified: trunk/tools/dstat/dstat.conf
+===================================================================
+--- trunk/tools/dstat/dstat.conf	2005-05-01 20:29:32 UTC (rev 3170)
++++ trunk/tools/dstat/dstat.conf	2005-05-02 00:28:28 UTC (rev 3171)
+@@ -12,6 +12,8 @@
+ noupdate = true
+ default-options = -cdns
+ unit = k
++background = light
++update-method = interval-average # snapshot total-average
+ 
+ [colors]
+ default = red yellow green blue magenta cyan white darkred darkgreen
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-05-01 20:29:32 UTC (rev 3170)
++++ trunk/tools/dstat/dstat15	2005-05-02 00:28:28 UTC (rev 3171)
+@@ -27,7 +27,7 @@
+ #	sys.exit('error: Python 1.5 or later required')
+ 
+ ### Workaround for python &lt; 2.3 (FIXME: check for sys.version_info existence)
+-if not callable(enumerate):
++if not callable('enumerate'):
+ 	if sys.version_info &lt; (2, 3) and sys.version_info &gt;= (2, 2):
+ 		def enumerate(sequence):
+ 			index = 0
+@@ -44,7 +44,7 @@
+ 			return list
+ 
+ ### Workaround for python &lt; 2.3
+-if not callable(sum):
++if not callable('sum'):
+ 	def sum(sequence):
+ 		ret = 0
+ 		for i in sequence:
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001972.html">[svn] r3170 - in trunk/tools/pydar2: . pydar
+</A></li>
+	<LI>Next message: <A HREF="001974.html">[svn] r3172 - trunk/tools/yam
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1973">[ date ]</a>
+              <a href="thread.html#1973">[ thread ]</a>
+              <a href="subject.html#1973">[ subject ]</a>
+              <a href="author.html#1973">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,790 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3141 - in trunk/tools/pydar2: pydar sql
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3141%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20050419212451.8B36E5C4027%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001942.html">
+   <LINK REL="Next"  HREF="001944.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3141 - in trunk/tools/pydar2: pydar sql</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3141%20-%20in%20trunk/tools/pydar2%3A%20pydar%20sql&In-Reply-To=%3C20050419212451.8B36E5C4027%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3141 - in trunk/tools/pydar2: pydar sql">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Apr 19 23:24:51 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001942.html">[svn] r3140 - trunk/rpms/libdvdread
+</A></li>
+        <LI>Next message: <A HREF="001944.html">[svn] r3142 - in trunk/rpms: amule bbkeys blackbox mplayer-fonts	pdflib pearpc perl-SDL python-imaging videolan-client xplanet-maps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1943">[ date ]</a>
+              <a href="thread.html#1943">[ thread ]</a>
+              <a href="subject.html#1943">[ subject ]</a>
+              <a href="author.html#1943">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-04-19 23:24:50 +0200 (Tue, 19 Apr 2005)
+New Revision: 3141
+
+Added:
+   trunk/tools/pydar2/pydar/rpmfiletags.py
+   trunk/tools/pydar2/pydar/specfiletags.py
+Removed:
+   trunk/tools/pydar2/pydar/rpmfile.py
+   trunk/tools/pydar2/pydar/specfile.py
+Modified:
+   trunk/tools/pydar2/pydar/config.py
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/specrepository.py
+   trunk/tools/pydar2/pydar/specrepositoryspecfile.py
+   trunk/tools/pydar2/pydar/storage.py
+   trunk/tools/pydar2/pydar/svnbasedspecrepository.py
+   trunk/tools/pydar2/pydar/svncheck.py
+   trunk/tools/pydar2/sql/svncheck.sql
+Log:
+update, saving the tags doesnt work yet
+
+Modified: trunk/tools/pydar2/pydar/config.py
+===================================================================
+--- trunk/tools/pydar2/pydar/config.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/config.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -90,6 +90,8 @@
+         self.buildmachineid = myParser.get('slave','buildmachineid')
+         self.dirtestbuilds = myParser.get('slave','dirtestbuilds')
+ 
++        self.__savespecrepositoryspecfiletags = True
++
+         self.sleeptime = 5
+ 
+         # get the supported machroots
+@@ -132,3 +134,7 @@
+         self.__fullInit()
+         return self.__specRepositoryList
+         
++    def getSaveSpecRepositorySpecFileTags(self):
++        self.__fullInit()
++        return self.__savespecrepositoryspecfiletags
++        
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -30,11 +30,8 @@
+ 
+ class PostgresqlStorage(Storage):
+     def __init__(self):
+-        self.cat = Logger().get_instance(self)
+-        self.cat.debug(&quot;initialized&quot;)
+-    
+-    def getConfig():
+-        raise Exception(&quot;todo getConfig&quot;)
++        self.__cat = Logger().get_instance(self)
++        self.__cat.debug(&quot;initialized&quot;)
+ 
+     def getSpecRepositoryFileListToIds(self,specRepo):
+         retval = {}
+@@ -75,7 +72,7 @@
+             sql = sql + &quot;'&quot; + str(specRepoSpecFile.getCheckSum()) + &quot;')&quot;
+             cursor.execute(sql)
+             conn.commit()
+-        # now get the id so we can return it
++        # now get the id so we can return it at the end
+         cursor.execute(&quot;select id from pydar2_specfile where filename='&quot; + str(specRepoSpecFile.getFileName()) + &quot;' and subdir='&quot; + str(specRepoSpecFile.getSubDir()) + &quot;' and specrepoid=&quot; + str(specRepo.getId()))
+         retval = None
+         if cursor.rowcount &gt; 0:
+@@ -84,8 +81,54 @@
+                 retval = row[0]
+         cursor.close()
+         self.__releaseConnection(conn)
++        specRepoSpecFile.setId(retval)
++        # now check if we also have to save all tags of this spec file
++        if self.getConfig().getSaveSpecRepositorySpecFileTags():
++            self.__saveSpecRepositorySpecFileTags(specRepo,specRepoSpecFile)
+         return retval
+     
++    def __isSpecRepositorySpecFileVersionInfoPresent(self,specfileid,currentversion):
++        conn = self.__getConnection()
++        cursor = self.dbconnection.cursor()
++        cursor.execute(&quot;select * from pydar2_specfile_version where specfileid=&quot; + specfileid + &quot; and version=&quot; + currentversion)
++        retval = 0
++        if cursor.rowcount &gt; 0: 
++            retval = 1
++        cursor.close()
++        self.__releaseConnection(conn)
++        return retval
++    
++    def __insertSpecRepositorySpecfileVersion(self,specfileid,currentversion):
++        conn = self.__getConnection()
++        cursor = conn.cursor()
++        cursor.execute(&quot;insert into pydar2_specfile_version (specfileid,version) values (&quot; + specfileid + &quot;,&quot; + version + &quot;)&quot;)
++        conn.commit()
++        cursor.close()
++        self.__releaseConnection(conn)
++    
++    def __saveSpecRepositorySpecFileTags(self,specRepo,specRepoSpecFile):
++        self.__cat.debug(&quot;start&quot;)
++        specfileid = specRepoSpecFile.getId()
++        currentversion = specRepoSpecFile.getVersion()
++        self.__cat.debug(&quot;current version is &quot; + currentversion)
++        alreadyImported = self.__isSpecRepositorySpecFileVersionInfoPresent(specfileid,currentversion)
++        if alreadyImported:
++            # strange.. this function is normally only called when the file is changed
++            # but the cvs or svn or .. version is not changed =&gt; somebody changed the file in the privat e
++            self.__cat.debug(&quot;already imported in db&quot;)
++        else:
++            self.__cat.debug(&quot;need to import all the variables..&quot;)
++            self.__insertSpecRepositorySpecfileVersion(specfileid,currentversion)
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'fc3', specDir,fullRpmDir,fileName, ' --define &quot;fc3 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'fc2', specDir,fullRpmDir,fileName, ' --define &quot;fc2 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'fc1', specDir,fullRpmDir,fileName, ' --define &quot;fc1 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'rh9', specDir,fullRpmDir,fileName, ' --define &quot;rh9 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'rh8', specDir,fullRpmDir,fileName, ' --define &quot;rh8 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'rh7', specDir,fullRpmDir,fileName, ' --define &quot;rh7 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'rh6', specDir,fullRpmDir,fileName, ' --define &quot;rh6 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'el3', specDir,fullRpmDir,fileName, ' --define &quot;el3 1&quot;')
++            self.__insertSpecRepositorySpecFileTags(specfileid, currentversion, 'el2', specDir,fullRpmDir,fileName, ' --define &quot;el2 1&quot;') 
++    
+     def saveSpecRepository(self,specRepo):
+         conn = self.__getConnection()
+         cursor = conn.cursor()
+@@ -140,7 +183,7 @@
+         
+     def createCommand(self,commandName,userId,specName,toEmail,releaseTag,machRoot,priority):
+         # spec name can also be the contents of a specfile...
+-        self.cat.debug(&quot;start&quot;)
++        self.__cat.debug(&quot;start&quot;)
+         aCommand = Command(commandName,userId,specName,toEmail,releaseTag,machRoot,priority)
+         conn = pgdb.connect(self.config.dbconnectstring)
+         cursor = conn.cursor()
+@@ -157,7 +200,7 @@
+         conn.close()
+ 
+     def checkIfValidUserId(self, userId):
+-        self.cat.debug(&quot;start, userId=&quot; + str(userId))
++        self.__cat.debug(&quot;start, userId=&quot; + str(userId))
+         retval = 0
+         conn = pgdb.connect(self.config.dbconnectstring)
+         cursor = conn.cursor()
+@@ -166,11 +209,11 @@
+             retval = 1
+         cursor.close()
+         conn.close()
+-        self.cat.debug(&quot;retval=&quot; + str(retval))
++        self.__cat.debug(&quot;retval=&quot; + str(retval))
+         return retval
+ 
+     def checkIfValidBuildMachineId(self, buildmachineid):
+-        self.cat.debug(&quot;start, id=&quot; + buildmachineid)
++        self.__cat.debug(&quot;start, id=&quot; + buildmachineid)
+         conn = pgdb.connect(self.config.dbconnectstring)
+         retval = 0
+         cursor = conn.cursor()
+@@ -179,11 +222,11 @@
+             retval = 1
+         cursor.close()
+         conn.close()
+-        self.cat.debug(&quot;retval=&quot; + str(retval))
++        self.__cat.debug(&quot;retval=&quot; + str(retval))
+         return retval
+ 
+     def registerSlave(self, buildmachineid):
+-        self.cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
++        self.__cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
+         conn = pgdb.connect(self.config.dbconnectstring)
+         cursor = conn.cursor()
+         cursor.execute(&quot;insert into pydar_buildmachine_registrations (id) values ('&quot; + buildmachineid + &quot;')&quot;)
+@@ -193,7 +236,7 @@
+         conn.close()
+ 
+     def addMachRoot(self, buildmachineid, machroot):
+-        self.cat.debug(&quot;start, id=&quot; + buildmachineid + &quot;,machroot=&quot; + machroot)
++        self.__cat.debug(&quot;start, id=&quot; + buildmachineid + &quot;,machroot=&quot; + machroot)
+         conn = pgdb.connect(self.config.dbconnectstring)
+         cursor = conn.cursor()
+         cursor.execute(&quot;insert into pydar_buildmachine_machroots (buildmachineid,machroot) values ('&quot; + buildmachineid + &quot;','&quot; + machroot + &quot;')&quot;)
+@@ -223,7 +266,7 @@
+     # result: the commands which have to be executed to update all the spec file repositories
+     # example:  &quot;cd /a/b/c; svn update&quot;
+     def getSpecRepositoriesUpdateCommands(self):
+-        self.cat.debug(&quot;start&quot;)
++        self.__cat.debug(&quot;start&quot;)
+         retval = &quot;&quot;
+         for repo in self.config.specrepositories:
+             retval = retval + repo.getUpdateCommand() + &quot;\n&quot;
+@@ -231,21 +274,21 @@
+     
+ 
+     def reserveCommand(self, buildmachineid):
+-        self.cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
++        self.__cat.debug(&quot;start, buildmachineid=&quot; + buildmachineid)
+         conn = pgdb.connect(self.config.dbconnectstring)
+         cursor = conn.cursor()
+         cursor.execute(&quot;select pc.id, pc.specname, pc.toemail, pc.releasetag, pc.machroot, pc.commandname from pydar_commands pc where (pc.commandname='BUILD' or pc.commandname='TESTBUILD') and not pc.handled and not pc.inprogress and pc.machroot in (select machroot from pydar_buildmachine_machroots where buildmachineid='&quot; + buildmachineid + &quot;')  order by pc.priority desc, pc.machroot desc, pc.id asc&quot;)
+         retval = &quot;&quot;
+         if cursor.rowcount &gt; 0:
+             rs = cursor.fetchone()
+-            self.cat.debug(&quot;command found for buildmachineid=&quot; + buildmachineid + &quot;,rs=&quot; + str(rs))
++            self.__cat.debug(&quot;command found for buildmachineid=&quot; + buildmachineid + &quot;,rs=&quot; + str(rs))
+             aCommand = Command(rs[5],'-1',rs[1],rs[2],rs[3],rs[4])
+             aCommand.setCommandId(rs[0])
+             cursor.execute(&quot;update pydar_commands set inprogress=true where id=&quot; + str(aCommand.commandId))
+             cursor.execute(&quot;insert into pydar_actions (commandid, statusid, buildmachineid) values (&quot; + str(aCommand.commandId) + &quot;,0,'&quot; + buildmachineid + &quot;')&quot;)
+             retval = aCommand
+         else:
+-            self.cat.debug(&quot;nothing to do for buildmachineid=&quot; + buildmachineid)
++            self.__cat.debug(&quot;nothing to do for buildmachineid=&quot; + buildmachineid)
+             retval = &quot;&quot;
+         conn.commit()
+         cursor.close()
+
+Deleted: trunk/tools/pydar2/pydar/rpmfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmfile.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/rpmfile.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -1,34 +0,0 @@
+-
+-&quot;&quot;&quot; Reads some tags from a rpm file &quot;&quot;&quot;
+-
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU General Public License as published by
+-# the Free Software Foundation; either version 2 of the License, or
+-# (at your option) any later version.
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-# GNU Library General Public License for more details.
+-#
+-# You should have received a copy of the GNU General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-# Copyright 2004 Dries Verachtert
+-
+-# This class can be used for reading the values of certain tags from a rpm file
+-
+-import re, os, commands
+-from log4py import Logger
+-from tagsfile import TagsFile
+-
+-# currently the standard tags are written in uppercase
+-# result can be found in the hashes rpmforgetags and standardtags
+-# a rpm has no rpmforgetags
+-
+-class RpmFile(TagsFile):
+-    # rpmfile: a path to a rpm file like /a/b/c.spec
+-    # defineargs: a string which can be used on the commandline 
+-    # like '--define &quot;fc2 1&quot;'
+-    def __init__(self, rpmfile, defineargs):
+-        TagsFile.__init__(self,defineargs, &quot; -p &quot;, rpmfile)
+\ No newline at end of file
+
+Added: trunk/tools/pydar2/pydar/rpmfiletags.py
+===================================================================
+--- trunk/tools/pydar2/pydar/rpmfiletags.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/rpmfiletags.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -0,0 +1,34 @@
++
++&quot;&quot;&quot; Reads some tags from a rpm file &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# This class can be used for reading the values of certain tags from a rpm file
++
++import re, os, commands
++from log4py import Logger
++from tagsfile import TagsFile
++
++# currently the standard tags are written in uppercase
++# result can be found in the hashes rpmforgetags and standardtags
++# a rpm has no rpmforgetags
++
++class RpmFileTags(TagsFile):
++    # rpmfile: a path to a rpm file like /a/b/c.spec
++    # defineargs: a string which can be used on the commandline 
++    # like '--define &quot;fc2 1&quot;'
++    def __init__(self, rpmfile, defineargs):
++        TagsFile.__init__(self,defineargs, &quot; -p &quot;, rpmfile)
+\ No newline at end of file
+
+
+Property changes on: trunk/tools/pydar2/pydar/rpmfiletags.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Deleted: trunk/tools/pydar2/pydar/specfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specfile.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/specfile.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -1,86 +0,0 @@
+-
+-&quot;&quot;&quot; Reads some tags from a specfile &quot;&quot;&quot;
+-
+-# This program is free software; you can redistribute it and/or modify
+-# it under the terms of the GNU General Public License as published by
+-# the Free Software Foundation; either version 2 of the License, or
+-# (at your option) any later version.
+-#
+-# This program is distributed in the hope that it will be useful,
+-# but WITHOUT ANY WARRANTY; without even the implied warranty of
+-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-# GNU Library General Public License for more details.
+-#
+-# You should have received a copy of the GNU General Public License
+-# along with this program; if not, write to the Free Software
+-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+-# Copyright 2004 Dries Verachtert
+-
+-# This class can be used for reading the values of certain tags from spec files
+-
+-import re, os, commands, string
+-from log4py import Logger
+-from tagsfile import TagsFile
+-
+-
+-# a rpmforge tag is a tag which begins with '# '
+-# currently the standard tags are written in uppercase
+-# result can be found in the hashes rpmforgetags and standardtags
+-
+-class SpecFile(TagsFile):
+-    # specfile: a path to a spec file like /a/b/c.spec
+-    # defineargs: a string which can be used on the commandline 
+-    # like '--define &quot;fc2 1&quot;'
+-    def __init__(self, specfile, defineargs):
+-        TagsFile.__init__(self,defineargs, &quot; --specfile &quot;, specfile)
+-
+-    # returns an array of names of rpms to install
+-    def getBuildRequires(self):
+-        commandpart = &quot;&quot;
+-        f = open(self.filename, 'r')
+-        line = f.readline()
+-        while line != '' and string.find(line,&quot;%description&quot;) &lt; 0:
+-            if string.find(string.lower(line),'buildrequires') &gt;= 0:
+-                l = line.strip()
+-                commandpart = commandpart + &quot;, &quot; + l
+-            line = f.readline()
+-        f.close()
+-        self.cat.debug(&quot;commandpart=&quot; + commandpart)
+-        commandline = &quot;rpm &quot; + self.defineargs + &quot; -E '&quot; + commandpart + &quot;'&quot;
+-        self.cat.debug(&quot;commandline=&quot; + commandline)
+-        result = commands.getoutput(commandline)
+-        self.cat.debug(&quot;result1=&quot; + result)
+-        reobj = re.compile('BuildRequires:',re.IGNORECASE)
+-        result = re.sub(reobj,&quot;&quot;,result)
+-        self.cat.debug(&quot;result2=&quot; + result)
+-        buildreqsarr = string.split(result,',')
+-        finalbuildreqs = []
+-        print &quot;buildreqsarr=&quot; + str(buildreqsarr)
+-        for br in buildreqsarr:
+-            # remove leading spaces
+-            br = re.sub('^ *','',br)
+-            # remove everything from the first space
+-            br = re.sub(' .*','',br)
+-            # remove all buildreqs which contain a '/' or a '('
+-            if string.find(br,'/') &lt; 0 and string.find(br,'(') &lt; 0 and br != &quot;&quot;:
+-                finalbuildreqs.append(br)
+-                self.cat.debug(&quot;good buildreq: &quot; + br)
+-        return finalbuildreqs
+-       
+-        
+-    def parseRpmForgeTags(self):
+-        f = open(self.filename, 'r')
+-        line = f.readline()
+-        regex = re.compile('^(# [a-zA-Z0-9]*) *: *(.*)$');
+-        self.fullcontents = '';
+-        while line != '':
+-            self.fullcontents = self.fullcontents + line
+-            l = line.strip()
+-            result = regex.match(l)
+-            if result:
+-                name = result.group(1)
+-                value = result.group(2)
+-                self.cat.debug(&quot;additional rpmforge tag, name=&quot; + name + &quot;, value=&quot; + value)
+-                self.rpmforgetags[name] = value
+-            line = f.readline()
+-        f.close()
+\ No newline at end of file
+
+Added: trunk/tools/pydar2/pydar/specfiletags.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specfiletags.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/specfiletags.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -0,0 +1,88 @@
++
++&quot;&quot;&quot; Reads some tags from a specfile &quot;&quot;&quot;
++
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU Library General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, write to the Free Software
++# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++# Copyright 2004 Dries Verachtert
++
++# This class can be used for reading the values of certain tags from spec files
++
++import re, os, commands, string
++from log4py import Logger
++from tagsfile import TagsFile
++
++
++# a rpmforge tag is a tag which begins with '# '
++# currently the standard tags are written in uppercase
++# result can be found in the hashes rpmforgetags and standardtags
++
++# this class calls the rpm command so it's quite slow, use with care!
++
++class SpecFileTags(TagsFile):
++    # specfile: a path to a spec file like /a/b/c.spec
++    # defineargs: a string which can be used on the commandline 
++    # like '--define &quot;fc2 1&quot;'
++    def __init__(self, specfile, defineargs):
++        TagsFile.__init__(self,defineargs, &quot; --specfile &quot;, specfile)
++
++    # returns an array of names of rpms to install
++    def getBuildRequires(self):
++        commandpart = &quot;&quot;
++        f = open(self.filename, 'r')
++        line = f.readline()
++        while line != '' and string.find(line,&quot;%description&quot;) &lt; 0:
++            if string.find(string.lower(line),'buildrequires') &gt;= 0:
++                l = line.strip()
++                commandpart = commandpart + &quot;, &quot; + l
++            line = f.readline()
++        f.close()
++        self.cat.debug(&quot;commandpart=&quot; + commandpart)
++        commandline = &quot;rpm &quot; + self.defineargs + &quot; -E '&quot; + commandpart + &quot;'&quot;
++        self.cat.debug(&quot;commandline=&quot; + commandline)
++        result = commands.getoutput(commandline)
++        self.cat.debug(&quot;result1=&quot; + result)
++        reobj = re.compile('BuildRequires:',re.IGNORECASE)
++        result = re.sub(reobj,&quot;&quot;,result)
++        self.cat.debug(&quot;result2=&quot; + result)
++        buildreqsarr = string.split(result,',')
++        finalbuildreqs = []
++        print &quot;buildreqsarr=&quot; + str(buildreqsarr)
++        for br in buildreqsarr:
++            # remove leading spaces
++            br = re.sub('^ *','',br)
++            # remove everything from the first space
++            br = re.sub(' .*','',br)
++            # remove all buildreqs which contain a '/' or a '('
++            if string.find(br,'/') &lt; 0 and string.find(br,'(') &lt; 0 and br != &quot;&quot;:
++                finalbuildreqs.append(br)
++                self.cat.debug(&quot;good buildreq: &quot; + br)
++        return finalbuildreqs
++       
++        
++    def parseRpmForgeTags(self):
++        f = open(self.filename, 'r')
++        line = f.readline()
++        regex = re.compile('^(# [a-zA-Z0-9]*) *: *(.*)$');
++        self.fullcontents = '';
++        while line != '':
++            self.fullcontents = self.fullcontents + line
++            l = line.strip()
++            result = regex.match(l)
++            if result:
++                name = result.group(1)
++                value = result.group(2)
++                self.cat.debug(&quot;additional rpmforge tag, name=&quot; + name + &quot;, value=&quot; + value)
++                self.rpmforgetags[name] = value
++            line = f.readline()
++        f.close()
+\ No newline at end of file
+
+
+Property changes on: trunk/tools/pydar2/pydar/specfiletags.py
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Modified: trunk/tools/pydar2/pydar/specrepository.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepository.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/specrepository.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -45,6 +45,11 @@
+         self.__storage = StorageFactory.getStorage()
+         self.__id = None
+         
++    # get a unique identifier for the current version of this file
++    # has to be implemented by a subclass
++    def getSpecFileVersion(self,specRepoSpecFile):
++        raise Exception(&quot;getSpecFileVersion mus be implemented by a subclass&quot;)
++        
+     def getUpdateCommand(self):
+         return &quot;&quot;
+     
+
+Modified: trunk/tools/pydar2/pydar/specrepositoryspecfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/specrepositoryspecfile.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/specrepositoryspecfile.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -34,6 +34,11 @@
+ 
+     def getCheckSum(self):
+         return self.__checksum
++    
++    # each version of a spec file should have a unique version
++    # the version is defined by the SpecRepository
++    def getVersion(self):
++        self.__specRepository.getSpecFileVersion(self)
+         
+         
+     def __calculateCheckSum(self):
+
+Modified: trunk/tools/pydar2/pydar/storage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/storage.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/storage.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -32,10 +32,18 @@
+ 
+ class Storage:
+     __myInstance = None
++    __myConfig = None
+     
+     def __init__(self):
+         raise Exception(&quot;use getStorage() on StorageFactory&quot;)
+     
++    def getConfig(cls):
++        #raise Exception(&quot;todo getConfig&quot;)
++        if cls.__myConfig == None:
++            cls.__myConfig = config.Config.getInstance()
++            return cls.__myConfig
++    getConfig = classmethod(getConfig)
++    
+     ## classmethod
+     #def getInstance(cls):
+     #    if cls.__myInstance == None:
+
+Modified: trunk/tools/pydar2/pydar/svnbasedspecrepository.py
+===================================================================
+--- trunk/tools/pydar2/pydar/svnbasedspecrepository.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/svnbasedspecrepository.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -22,6 +22,7 @@
+ sys.path.append(&quot;.&quot;)
+ from log4py import Logger
+ from specrepository import SpecRepository
++from svnwrapper import SvnWrapper
+ #from specrepositoryfactory import SpecRepositoryFactory
+ 
+ class SvnBasedSpecRepository(SpecRepository):
+@@ -35,3 +36,12 @@
+         
+     def getUpdateCommand(self):
+         return &quot;cd &quot; + self.getRootDirectory() + &quot;; svn update&quot;
++
++    def getSpecFileVersion(self,specRepoSpecFile):
++        fullRpmDir = self.getRootDirectory() + &quot;/&quot; + specRepoSpecFile.getSubDir()
++        fileName = specRepoSpecFile.getFileName()
++        sw = SvnWrapper()
++        sw.startTransaction()
++        retval = sw.getLastCommitRev(fullRpmDir,fullRpmDir+&quot;/&quot;+fileName)
++        sw.stopTransaction()
++        return str(retval)
+\ No newline at end of file
+
+Modified: trunk/tools/pydar2/pydar/svncheck.py
+===================================================================
+--- trunk/tools/pydar2/pydar/svncheck.py	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/pydar/svncheck.py	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -17,6 +17,11 @@
+ # Copyright 2004 Dries Verachtert
+ 
+ 
++# OLD CLASS, should not be used anymore.. moved partially to postgresqlstorage
++
++
++
++
+ # Normally this runs on the master server. It checks the subversion
+ # repository.
+ # Probably implemented as:
+@@ -36,7 +41,9 @@
+         self.cat = Logger().get_instance(self)
+         self.cat.debug(&quot;start&quot;)
+         
+-        
++    # not used anymore
++    # the list of modified files is now checked with a checksum
++    # only if the file is changed, the tags are updated in the database
+     def check(self, svnSpecsDir,dbconnectstring):
+         self.cat.debug(&quot;start, svnSpecsDir=&quot; + svnSpecsDir)
+         self.dbconnectstring = dbconnectstring
+@@ -54,6 +61,8 @@
+                         self.cat.debug(&quot;spec match, file=&quot; + file)
+                         self.checkSpecFile(specDir,fullRpmDir,file)
+     
++    
++    # moved to __saveSpecRepositorySpecFileTags in postgresql storage
+     def checkSpecFile(self,specDir,fullRpmDir,fileName):
+         self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
+         # we're going to insert information about this spec file in the 
+@@ -79,12 +88,15 @@
+             self.insertTags(specfileid, currentcommitrevision, 'el3', specDir,fullRpmDir,fileName, ' --define &quot;el3 1&quot;')
+             self.insertTags(specfileid, currentcommitrevision, 'el2', specDir,fullRpmDir,fileName, ' --define &quot;el2 1&quot;') 
+            
++    # moved to __insertSpecRepositorySpecfileVersion in PostgresqlStorage
+     def insertSpecfileVersion(self,specfileid,currentcommitrevision):
+         cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;insert into pydar2_specfile_version (specfileid,svncmtrev) values (&quot; + specfileid + &quot;,&quot; + currentcommitrevision + &quot;)&quot;)
+         self.dbconnection.commit()
+         cursor.close()
+              
++             
++    # moved to __isSpecRepositorySpecFileVersionInfoPresent in PostgresqlStorage
+     def isRevInfoPresent(self,specfileid,currentcommitrevision):
+         cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;select * from pydar2_specfile_version where specfileid=&quot; + specfileid + &quot; and svncmtrev=&quot; + currentcommitrevision)
+@@ -116,12 +128,14 @@
+         self.dbconnection.commit()
+         cursor.close()
+             
++    # ??? same function?
+     def insertSpecFileVersion(self,specfileid,svncmtrev):
+         cursor = self.dbconnection.cursor()
+         cursor.execute(&quot;insert into pydar2_specfile_version (specfile,svncmtrev) values (&quot; + specfileid + &quot;,&quot; + svncmtrev + &quot;)&quot;)
+         self.dbconnection.commit()
+         cursor.close()        
+-                        
++            
++    # moved to getSpecFileVersion in SvnBasedSpecRepository 
+     def getCurrentCommitRevision(self,specDir,fullRpmDir,fileName):
+         self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
+         sw = SvnWrapper()
+@@ -130,6 +144,7 @@
+         sw.stopTransaction()
+         return str(retval)
+ 
++    # not used anymore
+     def getCurrentOrNewDbSpecFileId(self,specDir,fullRpmDir,fileName):
+         self.cat.debug(&quot;start,specDir=&quot;+specDir+&quot;,fullRpmDir=&quot;+fullRpmDir+&quot;,fileName=&quot;+fileName)
+         cursor = self.dbconnection.cursor()
+
+Modified: trunk/tools/pydar2/sql/svncheck.sql
+===================================================================
+--- trunk/tools/pydar2/sql/svncheck.sql	2005-04-19 21:07:47 UTC (rev 3140)
++++ trunk/tools/pydar2/sql/svncheck.sql	2005-04-19 21:24:50 UTC (rev 3141)
+@@ -48,23 +48,25 @@
+ create table pydar2_distro (
+     id          integer unique not null default nextval('pydar2_specfile_idseq'),
+     name        varchar(512) unique not null,
+-    code        varchar(10) unique not null
++    code        varchar(10) unique not null,
++	defines		varchar(512) not null,
+ );  
+ 
+-insert into pydar2_distro (name,code) values ('Fedora Core 3','fc3');
+-insert into pydar2_distro (name,code) values ('Fedora Core 2','fc2');
+-insert into pydar2_distro (name,code) values ('Fedora Core 1','fc1');
+-insert into pydar2_distro (name,code) values ('Red Hat 9','rh9');
+-insert into pydar2_distro (name,code) values ('Red Hat 8','rh8');
+-insert into pydar2_distro (name,code) values ('Red Hat 7','rh7');
+-insert into pydar2_distro (name,code) values ('Red Hat 6','rh6');
+-insert into pydar2_distro (name,code) values ('Red Hat 6.2','rh62');
+-insert into pydar2_distro (name,code) values ('Red Hat Enterprise Linux 3','el3');
+-insert into pydar2_distro (name,code) values ('Red Hat Enterprise Linux 2','el2');
++insert into pydar2_distro (name,code,defines) values ('Fedora Core 3','fc3',' --define &quot;fc3 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Fedora Core 2','fc2',' --define &quot;fc2 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Fedora Core 1','fc1',' --define &quot;fc1 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat 9','rh9',' --define &quot;rh9 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat 8','rh8',' --define &quot;rh8 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat 7','rh7',' --define &quot;rh7 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat 6','rh6',' --define &quot;rh6 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat 6.2','rh62',' --define &quot;rh62 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat Enterprise Linux 4','el4',' --define &quot;el4 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat Enterprise Linux 3','el3',' --define &quot;el3 1&quot;');
++insert into pydar2_distro (name,code,defines) values ('Red Hat Enterprise Linux 2','el2',' --define &quot;el2 1&quot;');
+ 
+ create table pydar2_specfile_tags (
+ 	specfileid	integer not null,
+-	svncmtrev	integer not null,
++	version	integer not null,
+         distroid        integer not null,
+ 	name		varchar(512) not null,
+ 	value		varchar(4000) not null
+@@ -72,22 +74,22 @@
+ create index pydar2_specfile_t__sfid on pydar2_specfile_tags(specfileid);
+ create index pydar2_specfile_t__scr on pydar2_specfile_tags(svncmtrev);
+ create index pydar2_specfile_t__did on pydar2_specfile_tags(distroid);
+-create index pydar2_specfile_t__both on pydar2_specfile_tags(specfileid,svncmtrev);
+-create index pydar2_specfile_t__three on pydar2_specfile_tags(specfileid,svncmtrev,distroid);
+-create index pydar2_specfile_t_three2 on pydar2_specfile_tags(specfileid,svncmtrev,name);
+-create index pydar2_specfile_t_three3 on pydar2_specfile_tags(specfileid,svncmtrev,lower(name));
+-create index pydar2_specfile_t_four on pydar2_specfile_tags(specfileid,svncmtrev,name,value);
++create index pydar2_specfile_t__both on pydar2_specfile_tags(specfileid,version);
++create index pydar2_specfile_t__three on pydar2_specfile_tags(specfileid,version,distroid);
++create index pydar2_specfile_t_three2 on pydar2_specfile_tags(specfileid,version,name);
++create index pydar2_specfile_t_three3 on pydar2_specfile_tags(specfileid,version,lower(name));
++create index pydar2_specfile_t_four on pydar2_specfile_tags(specfileid,version,name,value);
+ create index pydar2_specfile_t_name on pydar2_specfile_tags(name);
+ create index pydar2_specfile_t_value on pydar2_specfile_tags(value);
+ 
+ 
+-create VIEW pydar2_specfile_lastversion AS select max(v.svncmtrev) as latestsvncmtrev, v.specfileid, s.name 
++create VIEW pydar2_specfile_lastversion AS select max(v.version) as latestversion, v.specfileid, s.name 
+ from pydar2_specfile_version v, pydar2_specfile s where s.id=v.specfileid group by v.specfileid, s.name;
+ 
+ create view pydar2_specfile_lastversion_and_authority as select distinct
+-lv.latestsvncmtrev, lv.specfileid, lv.name, t.value as authority from
++lv.latestversion, lv.specfileid, lv.name, t.value as authority from
+ pydar2_specfile_lastversion lv, pydar2_specfile_tags t where
+-lv.specfileid=t.specfileid and lv.latestsvncmtrev=t.svncmtrev and
++lv.specfileid=t.specfileid and lv.latestversion=t.version and
+ lower(t.name) like '# authority';
+ 
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001942.html">[svn] r3140 - trunk/rpms/libdvdread
+</A></li>
+	<LI>Next message: <A HREF="001944.html">[svn] r3142 - in trunk/rpms: amule bbkeys blackbox mplayer-fonts	pdflib pearpc perl-SDL python-imaging videolan-client xplanet-maps
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1943">[ date ]</a>
+              <a href="thread.html#1943">[ thread ]</a>
+              <a href="subject.html#1943">[ subject ]</a>
+              <a href="author.html#1943">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

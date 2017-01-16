@@ -1,0 +1,293 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9038 - in /trunk/rpms: certmaster/ certmaster/certmaster.spec func/ func/func.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9038%20-%20in%20/trunk/rpms%3A%20certmaster/%0A%20certmaster/certmaster.spec%20func/%20func/func.spec&In-Reply-To=%3C201008052059.o75KxI7t015286%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007830.html">
+   <LINK REL="Next"  HREF="007832.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9038 - in /trunk/rpms: certmaster/ certmaster/certmaster.spec func/ func/func.spec</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9038%20-%20in%20/trunk/rpms%3A%20certmaster/%0A%20certmaster/certmaster.spec%20func/%20func/func.spec&In-Reply-To=%3C201008052059.o75KxI7t015286%40surya.karan.org%3E"
+       TITLE="[svn] r9038 - in /trunk/rpms: certmaster/ certmaster/certmaster.spec func/ func/func.spec">shuff at vecna.org
+       </A><BR>
+    <I>Thu Aug  5 22:59:18 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007830.html">[svn] r9037 - /trunk/rpms/perl-Email-MIME-CreateHTML/perl-Email-MIME-CreateHTML.spec
+</A></li>
+        <LI>Next message: <A HREF="007832.html">[svn] r9039 - in /trunk/rpms/TracAccountManager: ./	TracAccountManager.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7831">[ date ]</a>
+              <a href="thread.html#7831">[ thread ]</a>
+              <a href="subject.html#7831">[ subject ]</a>
+              <a href="author.html#7831">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: Thu Aug  5 21:59:18 2010
+New Revision: 9038
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9038&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9038&amp;view=rev</A>
+Log:
+initial commits of func-0.25-1 (and certmaster-0.25-1 for dependency)
+
+Added:
+    trunk/rpms/certmaster/
+    trunk/rpms/certmaster/certmaster.spec   (with props)
+    trunk/rpms/func/
+    trunk/rpms/func/func.spec   (with props)
+
+Added: trunk/rpms/certmaster/certmaster.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/certmaster/certmaster.spec?rev=9038&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/certmaster/certmaster.spec?rev=9038&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/certmaster/certmaster.spec (added)
++++ trunk/rpms/certmaster/certmaster.spec Thu Aug  5 21:59:18 2010
+@@ -1,0 +1,96 @@
++# $Id$
++# Authority: shuff
++# Upstream: Adrian Likins &lt;alikins$redhat,com&gt;
++
++%define python_sitelib %(%{__python} -c 'from distutils import sysconfig; print sysconfig.get_python_lib()')
++%define python_sitearch %(%{__python} -c 'from distutils import sysconfig; print sysconfig.get_python_lib(1)')
++
++Summary: Remote certificate distribution framework
++Name: certmaster
++Version: 0.25
++Release: 1%{?dist}
++License: GPL
++Group: Applications/System
++URL: <A HREF="https://fedorahosted.org/certmaster/">https://fedorahosted.org/certmaster/</A>
++Source: <A HREF="http://people.fedoraproject.org/~alikins/files/certmaster/certmaster-%{version">http://people.fedoraproject.org/~alikins/files/certmaster/certmaster-%{version</A>}.tar.gz
++
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildArch: noarch
++
++BuildRequires: gettext-devel
++BuildRequires: pyOpenSSL
++BuildRequires: python-setuptools
++Requires: chkconfig
++Requires: logrotate
++Requires: pyOpenSSL
++
++%description
++Certmaster is a set of tools and a library for easily distributing SSL
++certificates to applications that need them.
++
++%prep
++%setup
++
++%build
++%{__python} setup.py build
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__python} setup.py install --skip-build --root=&quot;%{buildroot}&quot; --prefix=&quot;%{_prefix}&quot;
++ln -s %{_bindir}/certmaster-sync %{buildroot}%{_localstatedir}/lib/certmaster/triggers/sign/post/certmaster-sync
++ln -s %{_bindir}/certmaster-sync %{buildroot}%{_localstatedir}/lib/certmaster/triggers/remove/post/certmaster-sync
++touch %{buildroot}%{_localstatedir}/log/certmaster/certmaster.log
++touch %{buildroot}%{_localstatedir}/log/certmaster/audit.log
++
++# fix init script location
++%{__install} -m0755 -d %{buildroot}%{_initrddir}
++%{__mv} %{buildroot}%{_sysconfdir}/init.d/certmaster %{buildroot}%{_initrddir}/
++%{__rm} -rf %{buildroot}%{_sysconfdir}/init.d/
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%post -p &quot;/sbin/chkconfig --add certmaster&quot;
++
++%preun
++if [ &quot;$1&quot; = 0 ]; then
++    /sbin/service certmaster stop &gt;/dev/null 2&gt;&amp;1
++    /sbin/chkconfig --del certmaster &gt;/dev/null 2&gt;&amp;1
++fi
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS LICENSE README
++%doc %{_mandir}/man?/*
++%{_bindir}/*
++%{_initrddir}/*
++%dir %{_sysconfdir}/certmaster/
++%dir %{_sysconfdir}/certmaster/minion-acl.d/
++%dir %{_sysconfdir}/pki/certmaster/
++%config(noreplace) %{_sysconfdir}/certmaster/*.conf
++%config(noreplace) %{_sysconfdir}/logrotate.d/*
++%{python_sitelib}/certmaster/
++%dir %{_localstatedir}/log/certmaster
++%attr(0600,root,root) %config(noreplace) %{_localstatedir}/log/certmaster/*
++%attr(0600,root,root) %dir %{_localstatedir}/lib/certmaster/
++%attr(0600,root,root) %dir %{_localstatedir}/lib/certmaster/certmaster/
++%attr(0600,root,root) %dir %{_localstatedir}/lib/certmaster/certmaster/certs/
++%attr(0600,root,root) %dir %{_localstatedir}/lib/certmaster/certmaster/csrs/
++%dir %{_localstatedir}/lib/certmaster/peers/
++%dir %{_localstatedir}/lib/certmaster/triggers/sign/
++%dir %{_localstatedir}/lib/certmaster/triggers/sign/pre/
++%dir %{_localstatedir}/lib/certmaster/triggers/sign/post/
++%{_localstatedir}/lib/certmaster/triggers/sign/post/certmaster-sync
++%dir %{_localstatedir}/lib/certmaster/triggers/request/
++%dir %{_localstatedir}/lib/certmaster/triggers/request/pre/
++%dir %{_localstatedir}/lib/certmaster/triggers/request/post/
++%dir %{_localstatedir}/lib/certmaster/triggers/remove/
++%dir %{_localstatedir}/lib/certmaster/triggers/remove/pre/
++%dir %{_localstatedir}/lib/certmaster/triggers/remove/post/
++%{_localstatedir}/lib/certmaster/triggers/remove/post/certmaster-sync
++
++
++%changelog
++* Thu Aug 05 2010 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 0.25-1
++- Initial package, ported from Fedora.
+
+Propchange: trunk/rpms/certmaster/certmaster.spec
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/rpms/certmaster/certmaster.spec
+------------------------------------------------------------------------------
+    svn:keywords = Id Revision
+
+Added: trunk/rpms/func/func.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/func/func.spec?rev=9038&amp;view=markup">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/func/func.spec?rev=9038&amp;view=markup</A>
+==============================================================================
+--- trunk/rpms/func/func.spec (added)
++++ trunk/rpms/func/func.spec Thu Aug  5 21:59:18 2010
+@@ -1,0 +1,97 @@
++# $Id$
++# Authority: shuff
++# Upstream: Adrian Likins &lt;alikins$redhat,com&gt;
++
++%define python_sitelib %(%{__python} -c 'from distutils import sysconfig; print sysconfig.get_python_lib()')
++%define python_sitearch %(%{__python} -c 'from distutils import sysconfig; print sysconfig.get_python_lib(1)')
++
++Summary: Remote management framework
++Name: func
++Version: 0.25
++Release: 1%{?dist}
++License: GPL
++Group: Applications/System
++URL: <A HREF="https://fedorahosted.org/func/">https://fedorahosted.org/func/</A>
++Source: <A HREF="http://people.fedoraproject.org/~alikins/files/func/func-%{version">http://people.fedoraproject.org/~alikins/files/func/func-%{version</A>}.tar.gz
++
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildArch: noarch
++
++BuildRequires: gettext-devel
++BuildRequires: pyOpenSSL
++BuildRequires: python-setuptools
++Requires: certmaster
++Requires: chkconfig
++Requires: logrotate
++Requires: pyOpenSSL
++
++%description
++Func allows for running commands on remote systems in a secure way, like SSH,
++but offers several improvements.
++
++* Func allows you to manage an arbitrary group of machines all at once.
++* Func automatically distributes certificates to all &quot;slave&quot; machines. There's
++  almost nothing to configure.
++* Func comes with a command line for sending remote commands and gathering
++  data.
++* There are lots of modules already provided for common tasks.
++* Anyone can write their own modules using the simple Python module API.
++* Everything that can be done with the command line can be done with the Python
++  client API. The hack potential is unlimited.
++* You'll never have to use &quot;expect&quot; or other ugly hacks to automate your
++  workflow.
++* It's really simple under the covers. Func works over XMLRPC and SSL.
++* Since func uses certmaster, any program can use func certificates, latch on
++  to them, and take advantage of secure master-to-slave communication.
++* There are no databases or crazy stuff to install and configure. Again,
++  certificate distribution is automatic too. 
++
++%prep
++%setup
++
++%build
++%{__python} setup.py build
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__python} setup.py install --skip-build --root=&quot;%{buildroot}&quot; --prefix=&quot;%{_prefix}&quot;
++touch %{buildroot}%{_localstatedir}/log/func/func.log
++touch %{buildroot}%{_localstatedir}/log/func/audit.log
++
++# fix init script location
++%{__install} -m0755 -d %{buildroot}%{_initrddir}
++%{__mv} %{buildroot}%{_sysconfdir}/init.d/funcd %{buildroot}%{_initrddir}/
++%{__rm} -rf %{buildroot}%{_sysconfdir}/init.d/
++
++%clean
++%{__rm} -rf %{buildroot}
++
++%post -p &quot;/sbin/chkconfig --add funcd&quot;
++
++%preun
++if [ &quot;$1&quot; = 0 ]; then
++    /sbin/service funcd stop &gt;/dev/null 2&gt;&amp;1
++    /sbin/chkconfig --del func &gt;/dev/null 2&gt;&amp;1
++fi
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS CHANGES LICENSE README
++%doc %{_mandir}/man?/*
++%{_bindir}/*
++%{_initrddir}/*
++%dir %{_sysconfdir}/func/
++%dir %{_sysconfdir}/func/minion-acl.d/
++%dir %{_sysconfdir}/func/modules/
++%config(noreplace) %{_sysconfdir}/func/*.conf
++%config(noreplace) %{_sysconfdir}/func/modules/*.conf
++%config(noreplace) %{_sysconfdir}/logrotate.d/*
++%{python_sitelib}/func/
++%dir %{_localstatedir}/log/func
++%attr(0600,root,root) %config(noreplace) %{_localstatedir}/log/func/*
++%dir %{_localstatedir}/lib/func/
++
++%changelog
++* Thu Aug 05 2010 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 0.25-1
++- Initial package, ported from Fedora.
+
+Propchange: trunk/rpms/func/func.spec
+------------------------------------------------------------------------------
+    svn:eol-style = native
+
+Propchange: trunk/rpms/func/func.spec
+------------------------------------------------------------------------------
+    svn:keywords = Id Revision
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007830.html">[svn] r9037 - /trunk/rpms/perl-Email-MIME-CreateHTML/perl-Email-MIME-CreateHTML.spec
+</A></li>
+	<LI>Next message: <A HREF="007832.html">[svn] r9039 - in /trunk/rpms/TracAccountManager: ./	TracAccountManager.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7831">[ date ]</a>
+              <a href="thread.html#7831">[ thread ]</a>
+              <a href="subject.html#7831">[ subject ]</a>
+              <a href="author.html#7831">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

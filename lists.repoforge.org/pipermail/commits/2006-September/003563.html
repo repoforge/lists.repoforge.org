@@ -1,0 +1,365 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4763 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4763%20-%20trunk/tools/yam&In-Reply-To=%3C20060925095108.AA8F7944A94%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003562.html">
+   <LINK REL="Next"  HREF="003564.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4763 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4763%20-%20trunk/tools/yam&In-Reply-To=%3C20060925095108.AA8F7944A94%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4763 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Sep 25 11:51:08 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003562.html">[svn] r4762 - in trunk/rpms: libcdio vcdimager xine-lib
+</A></li>
+        <LI>Next message: <A HREF="003564.html">[svn] r4764 - trunk/rpms/videolan-client
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3563">[ date ]</a>
+              <a href="thread.html#3563">[ thread ]</a>
+              <a href="subject.html#3563">[ subject ]</a>
+              <a href="author.html#3563">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-09-25 11:51:07 +0200 (Mon, 25 Sep 2006)
+New Revision: 4763
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+More locking improvements and disabled directive
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-09-24 21:18:42 UTC (rev 4762)
++++ trunk/tools/yam/ChangeLog	2006-09-25 09:51:07 UTC (rev 4763)
+@@ -3,6 +3,7 @@
+ - Fixed the non-functional -r option
+ - Apply -r option to repository generation as well
+ - Fixed leftover repo name reference (Justin B Hochstetler)
++- Added disabled directive to make a distribution permanently inactive
+ - Added logging updates to /var/log/yam
+ - Output changes to repositories and when very verbose show packages
+ - Added yam.logrotate for rotating the yam logfile
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2006-09-24 21:18:42 UTC (rev 4762)
++++ trunk/tools/yam/TODO	2006-09-25 09:51:07 UTC (rev 4763)
+@@ -38,6 +38,7 @@
+ 
+ ### Reporting utility
+ + Logwatch configuration for Yam
+++ Mail out new updates or removals per distribution and per repository
+ 
+ ### Configuration
+ + Allow to specify rsync/lftp options on a per distribution basis (see ~/.lftp/rc)
+@@ -50,13 +51,12 @@
+ 	iso = fedora/fc$release-$arch/FC-$release-$arch-disc?.iso&quot;
+ 
+ + Add more working distributions to yam-complex.conf
+-+ Add a per distro disabled directive to make configurations permanently or temporarily inactive
+ 
+ ### Usability
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+ + Add selinux support
+ 
+-### Web front-end
++### Web front-end (see repoview)
+ + Improve SHTML output (more condensed and useful information)
+ + New website should contain nice logo, menu and help
+ + New website should contain also remote boot info, repo information and new RPMs
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-09-24 21:18:42 UTC (rev 4762)
++++ trunk/tools/yam/yam	2006-09-25 09:51:07 UTC (rev 4763)
+@@ -214,6 +214,7 @@
+ 
+ 		self.shareiso = self.getoption('main', 'shareiso', 'yes') not in disable
+ 
++		self.alldists = []
+ 		self.dists = []
+ 
+ 		self.update(op.configfile)
+@@ -262,23 +263,31 @@
+ 				### Add a distribution for each arch
+ 				for arch in archlist:
+ 					dist = Dist(distname, arch)
+-					self.dists.append(dist)
+ 					dist.arch = arch
+ 					dist.metadata = self.metadata.split()
+ 					for option in self.cfg.options(section):
+ 						if option in ('iso', 'name', 'release', 'repo', 'rhnrelease'):
+ 							setattr(dist, option, self.cfg.get(section, option))
+-						elif option in ('arch', 'dist', 'nick'):
++						elif option in ('arch', 'dist'):
+ 							pass
++						elif option in ('disabled',):
++							dist.enabled = setattr(dist, option, self.cfg.get(section, option)) not in disable
+ 						elif option in ('metadata',):
+ 							setattr(dist, option, self.cfg.get(section, option).split())
+ 						else:
+ 							dist.repos.append(Repo(option, self.cfg.get(section, option), dist))
+ 
+ 					dist.repos.sort(reposort)
+-
+ 					dist.rewrite()
+ 
++					self.alldists.append(dist)
++
++					if not dist.disabled:
++						self.dists.append(dist)
++					else:
++						info(5, '%s: %s is disabled' % (dist.nick, dist.name))
++
++		self.alldists.sort(distsort)
+ 		self.dists.sort(distsort)
+ 
+ 	def getoption(self, section, option, var):
+@@ -311,6 +320,7 @@
+ 		self.srcdir = cf.srcdir
+ 		self.discs = ()
+ 		self.isos = []
++		self.disabled = False
+ 
+ #	def __repr__(self):
+ #		for key, value in vars(self).iteritems():
+@@ -373,41 +383,6 @@
+ 				ret.append(repo)
+ 		return ret
+ 
+-	def lock(self, action, repo=''):
+-		lockfile = os.path.join(cf.lockdir, self.nick, action + '-' + repo + '.lock')
+-		mkdir(os.path.dirname(lockfile))
+-		try:
+-			fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0600)
+-			info(6, '%s: Setting lock %s' % (self.nick, lockfile))
+-			os.write(fd, '%d' % os.getpid())
+-			os.close(fd)
+-			return True
+-		except:
+-			if os.path.exists(lockfile):
+-				pid = open(lockfile).read()
+-				if os.path.exists('/proc/%s' % pid):
+-					info(1, '%s: Found existing lock %s owned by pid %s' % (self.nick, lockfile, pid))
+-				else:
+-					info(6, '%s: Removing stale lock %s' % (self.nick, lockfile))
+-					os.unlink(lockfile)
+-					self.lock(action, repo)
+-					return True
+-			else:
+-				info(1, '%s: Lockfile %s does not exist. Cannot lock. Parallel universe ?' % (self.nick, lockfile))
+-		return False
+-
+-	def unlock(self, action, repo=''):
+-		lockfile = os.path.join(cf.lockdir, self.nick, action + '-' + repo + '.lock')
+-		info(6, '%s: Removing lock %s' % (self.nick, lockfile))
+-		if os.path.exists(lockfile):
+-			pid = open(lockfile).read()
+-			if pid == '%s' % os.getpid():
+-				os.unlink(lockfile)
+-			else:
+-				info(1, '%s: Existing lock %s found owned by another process with pid %s. This should NOT happen.' % (self.nick, lockfile, pid))
+-		else:
+-			info(1, '%s: Lockfile %s does not exist. Cannot unlock. Something fishy here ?' % (self.nick, lockfile))
+-	
+ 	def mount(self):
+ 		&quot;Loopback mount all ISOs&quot;
+ 		discs = []
+@@ -464,6 +439,24 @@
+ 				info(2, '%s: Unmount ISO %s from %s' % (self.nick, os.path.basename(iso), mount))
+ 				run('%s %s' % (cf.cmd['umount'], mount))
+ 
++	def pxe(self):
++		&quot;Create PXE boot setup&quot;
++		tftpbootdir = os.path.dirname(cf.tftpdir)
++		if cf.tftpdir and tftpbootdir and os.path.isdir(cf.tftpdir):
++			tftpdir = os.path.join(cf.tftpdir, dist.nick)
++			mkdir(tftpdir)
++			info(1, '%s: Symlink pxe boot files to %s ' % (dist.nick, tftpdir))
++			mkdir(os.path.join(tftpdir, 'pxelinux.cfg'))
++
++			### For Red Hat
++			for file in glob.glob(dist.dir + '/disc1/images/pxeboot/initrd*.img'):
++				copy(file, tftpdir)
++			for file in glob.glob(dist.dir + '/disc1/images/pxeboot/vmlinuz'):
++				copy(file, tftpdir)
++
++			if cf.pxelinux:
++				copy(cf.pxelinux, tftpdir)
++
+ 	def html(self):
+ 		&quot;Put html information in repository&quot;
+ 		mkdir(self.dir)
+@@ -600,8 +593,43 @@
+ 				writesha1(sha1file, cursha1)
+ 			else:
+ 				info(5, '%s: Checksum is different. expect: %s, got: %s' % (self.dist.nick, cursha1, tmpsha1))
+-				info(1, '%s: Directory changed during generating %s repo, please generate again.' % (self.dist.nick, repo.name))
++				info(1, '%s: Directory changed during generating %s repo, please generate again.' % (self.dist.nick, self.name))
+ 
++	def lock(self, action):
++		lockfile = os.path.join(cf.lockdir, self.dist.nick, action + '-' + self.name + '.lock')
++		mkdir(os.path.dirname(lockfile))
++		try:
++			fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0600)
++			info(6, '%s: Setting lock %s' % (self.dist.nick, lockfile))
++			os.write(fd, '%d' % os.getpid())
++			os.close(fd)
++			return True
++		except:
++			if os.path.exists(lockfile):
++				pid = open(lockfile).read()
++				if os.path.exists('/proc/%s' % pid):
++					info(1, '%s: Found existing lock %s owned by pid %s' % (self.dist.nick, lockfile, pid))
++				else:
++					info(6, '%s: Removing stale lock %s' % (self.dist.nick, lockfile))
++					os.unlink(lockfile)
++					self.lock(action)
++					return True
++			else:
++				info(1, '%s: Lockfile %s does not exist. Cannot lock. Parallel universe ?' % (self.nick, lockfile))
++		return False
++
++	def unlock(self, action):
++		lockfile = os.path.join(cf.lockdir, self.dist.nick, action + '-' + self.name + '.lock')
++		info(6, '%s: Removing lock %s' % (self.dist.nick, lockfile))
++		if os.path.exists(lockfile):
++			pid = open(lockfile).read()
++			if pid == '%s' % os.getpid():
++				os.unlink(lockfile)
++			else:
++				info(1, '%s: Existing lock %s found owned by another process with pid %s. This should NOT happen.' % (self.dist.nick, lockfile, pid))
++		else:
++			info(1, '%s: Lockfile %s does not exist. Cannot unlock. Something fishy here ?' % (self.dist.nick, lockfile))
++	
+ 	def createmd(self):
+ 		### Generate repository metadata
+ 		metadata = ('apt', 'createrepo', 'repomd', 'repoview', 'yum')
+@@ -1385,14 +1413,14 @@
+ 	if cf.https_proxy:
+ 		os.environ['https_proxy'] = cf.https_proxy
+ 
+-	### List the distributions in order of appearance
++	### Select list of distributions in order of appearance
+ 	if not op.dists:
+ 		dists = cf.dists
+ 	else:
+ 		dists = []
+ 		for name in op.dists:
+ 			append = False
+-			for dist in cf.dists:
++			for dist in cf.alldists:
+ 				if name == dist.nick or name == dist.dist:
+ 					dists.append(dist)
+ 					append = True
+@@ -1422,7 +1450,7 @@
+ 
+ 			### Downloading things
+ 			for repo in dist.listrepos(op.repos):
+-				if not dist.lock('update', repo.name):
++				if not repo.lock('update'):
+ 					continue
+ 				if repo.name in ('os', 'core'):
+ 					if not dist.isos:
+@@ -1431,7 +1459,7 @@
+ 					repo.mirror()
+ 				else:
+ 					info(2, '%s: Repository %s does not exist' % (dist.nick, repo.name))
+-				dist.unlock('update', repo.name)
++				repo.unlock('update')
+ 
+ 				new = repo.newlist.difference(repo.oldlist)
+ 				removed = repo.oldlist.difference(repo.newlist)
+@@ -1477,20 +1505,17 @@
+ 
+ 	### Generating metadata for available distributions/repositories
+ 	for dist in dists:
++		dist.html()
+ 
+ 		info(1, '%s: Generating %s meta-data' % (dist.nick, dist.name))
+-		if not dist.lock('generate'):
+-			continue
+ 
+-		dist.html()
+-
+ 		info(5, '%s: Removing %s symlinks' % (dist.nick, 'all'))
+ 		mkdir(os.path.join(cf.wwwdir, dist.nick, 'RPMS.all'))
+ 		remove(glob.glob(os.path.join(cf.wwwdir, dist.nick, 'RPMS.all', '*.rpm')))
+ 
+ 		for repo in dist.listrepos(op.repos):
+-#			if not repo.lock('generate'):
+-#				continue
++			if not repo.lock('generate'):
++				continue
+ 			repo.clean()
+ 			if repo.name in ('os', 'core') and dist.isos:
+ 				repo.url = None
+@@ -1508,27 +1533,10 @@
+ 			### After generation, write a sha1sum
+ 			repo.writesha1()
+ 
+-#			repo.unlock('generate')
++			repo.unlock('generate')
+ 
+-		dist.unlock('generate')
++		dist.pxe()
+ 
+-		### Create pxe boot
+-		tftpbootdir = os.path.dirname(cf.tftpdir)
+-		if cf.tftpdir and tftpbootdir and os.path.isdir(cf.tftpdir):
+-			tftpdir = os.path.join(cf.tftpdir, dist.nick)
+-			mkdir(tftpdir)
+-			info(1, '%s: Symlink pxe boot files to %s ' % (dist.nick, tftpdir))
+-			mkdir(os.path.join(tftpdir, 'pxelinux.cfg'))
+-
+-			### For Red Hat
+-			for file in glob.glob(dist.dir + '/disc1/images/pxeboot/initrd*.img'):
+-				copy(file, tftpdir)
+-			for file in glob.glob(dist.dir + '/disc1/images/pxeboot/vmlinuz'):
+-				copy(file, tftpdir)
+-
+-			if cf.pxelinux:
+-				copy(cf.pxelinux, tftpdir)
+-
+ 	if cf.hardlink and not op.dists:
+ 		hardlink(cf.srcdir)
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003562.html">[svn] r4762 - in trunk/rpms: libcdio vcdimager xine-lib
+</A></li>
+	<LI>Next message: <A HREF="003564.html">[svn] r4764 - trunk/rpms/videolan-client
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3563">[ date ]</a>
+              <a href="thread.html#3563">[ thread ]</a>
+              <a href="subject.html#3563">[ subject ]</a>
+              <a href="author.html#3563">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

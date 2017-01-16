@@ -1,0 +1,274 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9753 - /trunk/rpms/collectd/collectd.spec
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9753%20-%20/trunk/rpms/collectd/collectd.spec&In-Reply-To=%3C201103111159.p2BBxZOi026752%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="008536.html">
+   <LINK REL="Next"  HREF="008538.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9753 - /trunk/rpms/collectd/collectd.spec</H1>
+    <B>Christoph Maser</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9753%20-%20/trunk/rpms/collectd/collectd.spec&In-Reply-To=%3C201103111159.p2BBxZOi026752%40surya.karan.org%3E"
+       TITLE="[svn] r9753 - /trunk/rpms/collectd/collectd.spec">cmaser at gmx.de
+       </A><BR>
+    <I>Fri Mar 11 12:59:34 CET 2011</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="008536.html">[svn] r9752 - /trunk/rpms/perl-Getopt-Long-Descriptive/perl-Getopt-Long-Descriptive.spec
+</A></li>
+        <LI>Next message: <A HREF="008538.html">[svn] r9754 - /trunk/rpms/perl-Archive-Tar/perl-Archive-Tar.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8537">[ date ]</a>
+              <a href="thread.html#8537">[ thread ]</a>
+              <a href="subject.html#8537">[ subject ]</a>
+              <a href="author.html#8537">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: cmr
+Date: Fri Mar 11 11:59:34 2011
+New Revision: 9753
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9753&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9753&amp;view=rev</A>
+Log:
+Add conditional to compile under el4
+
+Modified:
+    trunk/rpms/collectd/collectd.spec
+
+Modified: trunk/rpms/collectd/collectd.spec
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/collectd/collectd.spec?rev=9753&amp;r1=9752&amp;r2=9753&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/rpms/collectd/collectd.spec?rev=9753&amp;r1=9752&amp;r2=9753&amp;view=diff</A>
+==============================================================================
+--- trunk/rpms/collectd/collectd.spec (original)
++++ trunk/rpms/collectd/collectd.spec Fri Mar 11 11:59:34 2011
+@@ -1,18 +1,21 @@
+ # $Id$
+ # Authority: dag
+ # Tag: rft
+-# ExcludeDist: el4
+ 
+ %define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)
+ %define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)
+ %define perl_archlib %(eval &quot;`%{__perl} -V:archlib`&quot;; echo $archlib)
+ 
+ %{?el3:%define _without_lmsensors 1}
++%{?el4:%define _without_dbi 1}
++%{?el4:%define _without_pcap 1}
++%{?el4:%define _without_libvirt 1}
++%{?el4:%define _without_libnotify 1}
+ 
+ Summary: Statistics collection daemon for filling RRD files
+ Name: collectd
+ Version: 4.10.2
+-Release: 1%{?dist}
++Release: 2%{?dist}
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://collectd.org/">http://collectd.org/</A>
+@@ -23,14 +26,14 @@
+ Patch1: %{name}-4.10.0-configure-OpenIPMI.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
++Requires: curl
++%{!?_without_pcap:Requires: libpcap}
+ Requires: krb5-libs
+-Requires: curl
+-Requires: libpcap
+ Requires: libxml2
+ Requires: zlib
++BuildRequires: curl-devel
++%{!?_without_pcap:BuildRequires: libpcap-devel}
+ BuildRequires: krb5-devel
+-BuildRequires: curl-devel
+-BuildRequires: libpcap-devel
+ BuildRequires: libxml2-devel
+ BuildRequires: python-devel
+ BuildRequires: zlib-devel
+@@ -43,10 +46,6 @@
+ Provides: collectd-apache = %{version}-%{release}
+ Obsoletes: collectd-sensors &lt;= %{version}-%{release}
+ Provides: collectd-sensors = %{version}-%{release}
+-
+-%filter_provides_in %{_docdir} 
+-%filter_requires_in %{_docdir}
+-%filter_setup
+ 
+ %description
+ collectd is a small daemon written in C for performance.  It reads various
+@@ -64,6 +63,7 @@
+ documentation for %{name}. If you like to develop programs using %{name},
+ you will need to install %{name}-devel.
+ 
++%if %{!?_without_dbi:1}0
+ %package dbi
+ Summary: dbi plugin for collectd
+ Group: System Environment/Daemons
+@@ -72,6 +72,7 @@
+ BuildRequires: libdbi-devel
+ %description dbi
+ The DBI plugin uses libdbi, a database abstraction library, to execute SQL statements on a database and read back the result.
++%endif
+ 
+ %package collection3
+ Summary: collect perl webfrontent
+@@ -97,6 +98,7 @@
+ %description php-collection
+ PHP graphing frontend for RRD files created by and filled with collectd.
+ 
++%if %{!?_without_dbi:1}0
+ %package postgresql
+ Summary: postgresql plugin for collectd
+ Group: System Environment/Daemons
+@@ -105,7 +107,9 @@
+ BuildRequires: postgresql-devel
+ %description postgresql
+ The PostgreSQL plugin connects to and executes SQL statements on a PostgreSQL database.
+-
++%endif
++
++%if %{!?_without_libvirt:1}0
+ %package libvirt
+ Summary: libvirt plugin for collectd
+ Group: System Environment/Daemons
+@@ -117,6 +121,7 @@
+ BuildRequires: OpenIPMI-libs
+ %description libvirt
+ The libvirt plugin uses the virtualization API libvirt, created by RedHat's Emerging Technology group, to gather statistics about virtualized guests on a system.
++%endif
+ 
+ %package mysql
+ Summary: xmms plugin for collectd
+@@ -127,6 +132,7 @@
+ %description mysql
+ This plugin collects status variable data from mysql
+ 
++%if %{!?_without_libnotify:1}0
+ %package notify_desktop
+ Summary: notify_desktop plugin for collectd
+ Group: System Environment/Daemons
+@@ -137,6 +143,7 @@
+ BuildRequires: libnotify-devel
+ %description notify_desktop
+ The Notify Desktop plugin uses libnotify to display notifications to the user via the desktop notification specification, i. e. on an X display. 
++%endif
+ 
+ %package -n perl-Collectd
+ Summary: Perl bindings for collectd
+@@ -190,9 +197,9 @@
+ ### FIXME: --with-libmysql support not working
+ %configure \
+     --enable-static=no \
+-    --enable-libvirt \
+     --with-libmysql=&quot;%{_libdir}/mysql/&quot; \
+-    --with-perl-bindings=INSTALLDIRS=vendor
++    --with-perl-bindings=INSTALLDIRS=vendor \
++    %{!?_without_libvirt:--enable-libvirt }
+ %{__make} %{?_smp_mflags}
+ 
+ 
+@@ -273,7 +280,7 @@
+ %{_libdir}/collectd/curl_xml.so
+ %{_libdir}/collectd/df.so
+ %{_libdir}/collectd/disk.so
+-%{_libdir}/collectd/dns.so
++%{!?el4:%{_libdir}/collectd/dns.so}
+ %{_libdir}/collectd/email.so
+ %{_libdir}/collectd/entropy.so
+ %{_libdir}/collectd/exec.so
+@@ -281,8 +288,8 @@
+ %{_libdir}/collectd/fscache.so
+ %{_libdir}/collectd/hddtemp.so
+ %{_libdir}/collectd/interface.so
+-%{_libdir}/collectd/ipmi.so
+-%{_libdir}/collectd/iptables.so
++%{!?el4:%{_libdir}/collectd/ipmi.so}
++%{!?el4:%{_libdir}/collectd/iptables.so}
+ %{_libdir}/collectd/irq.so
+ %{_libdir}/collectd/load.so
+ %{_libdir}/collectd/logfile.so
+@@ -338,8 +345,10 @@
+ %{_localstatedir}/www/collection3
+ %{_sysconfdir}/httpd/conf.d/collection3.conf
+ 
++%if %{!?_without_dbi:1}0
+ %files dbi
+ %{_libdir}/collectd/dbi.so
++%endif
+ 
+ %files devel
+ %defattr(-, root, root, 0755)
+@@ -349,14 +358,18 @@
+ %exclude %{_libdir}/collectd/*.la
+ %exclude %{_libdir}/libcollectdclient.la
+ 
++%if %{!?_without_libvirt:1}0
+ %files libvirt
+ %{_libdir}/collectd/libvirt.so
++%endif
+ 
+ %files mysql
+ %{_libdir}/collectd/mysql.so
+ 
++%if %{!?_without_libnotify:1}0
+ %files notify_desktop
+ %{_libdir}/collectd/notify_desktop.so
++%endif
+ 
+ %files -n perl-Collectd
+ %{_libdir}/collectd/perl.so
+@@ -369,12 +382,14 @@
+ %{_localstatedir}/www/php-collection
+ %{_sysconfdir}/httpd/conf.d/php-collection.conf
+ 
++%if %{!?_without_dbi:1}0
+ %files postgresql
+ %{_libdir}/collectd/postgresql.so
++%endif
+ 
+ %files rrdtool
+ %{_libdir}/collectd/rrdtool.so
+-%{_libdir}/collectd/rrdcached.so
++%{!?el4:%{_libdir}/collectd/rrdcached.so}
+ 
+ %files snmp
+ %{_libdir}/collectd/snmp.so
+@@ -383,6 +398,9 @@
+ %{_libdir}/collectd/xmms.so
+ 
+ %changelog
++* Fri Mar 11 2011 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmaser at gmx.de</A>&gt; 4.10.2-2
++- Add conditional to compile under el4
++
+ * Thu Mar 03 2011 Christoph Maser &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">cmaser at gmx.de</A>&gt; 4.10.2-1
+ - Updated to release 4.10.2.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="008536.html">[svn] r9752 - /trunk/rpms/perl-Getopt-Long-Descriptive/perl-Getopt-Long-Descriptive.spec
+</A></li>
+	<LI>Next message: <A HREF="008538.html">[svn] r9754 - /trunk/rpms/perl-Archive-Tar/perl-Archive-Tar.spec
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#8537">[ date ]</a>
+              <a href="thread.html#8537">[ thread ]</a>
+              <a href="subject.html#8537">[ subject ]</a>
+              <a href="author.html#8537">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

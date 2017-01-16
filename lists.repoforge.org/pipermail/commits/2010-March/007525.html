@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r8730 - trunk/rpms/rabbitvcs
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8730%20-%20trunk/rpms/rabbitvcs&In-Reply-To=%3C201003311836.o2VIarZO015917%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007524.html">
+   <LINK REL="Next"  HREF="007526.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r8730 - trunk/rpms/rabbitvcs</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r8730%20-%20trunk/rpms/rabbitvcs&In-Reply-To=%3C201003311836.o2VIarZO015917%40surya.karan.org%3E"
+       TITLE="[svn] r8730 - trunk/rpms/rabbitvcs">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Mar 31 20:36:53 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007524.html">[svn] r8729 - trunk/rpms/mrtg
+</A></li>
+        <LI>Next message: <A HREF="007526.html">[svn] r8731 - trunk/rpms/memcached
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7525">[ date ]</a>
+              <a href="thread.html#7525">[ thread ]</a>
+              <a href="subject.html#7525">[ subject ]</a>
+              <a href="author.html#7525">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: shuff
+Date: 2010-03-31 19:36:53 +0100 (Wed, 31 Mar 2010)
+New Revision: 8730
+
+Modified:
+   trunk/rpms/rabbitvcs/rabbitvcs.spec
+Log:
+updated to 0.13.1 (thanks to Caghan Demirci!)
+to reflect new RabbitVCS architecture, split some clients out into separate packages
+still need to package thunar client
+
+
+Modified: trunk/rpms/rabbitvcs/rabbitvcs.spec
+===================================================================
+--- trunk/rpms/rabbitvcs/rabbitvcs.spec	2010-03-31 16:32:28 UTC (rev 8729)
++++ trunk/rpms/rabbitvcs/rabbitvcs.spec	2010-03-31 18:36:53 UTC (rev 8730)
+@@ -7,16 +7,17 @@
+ %define python_sitearch %(%{__python} -c 'from distutils import sysconfig; print sysconfig.get_python_lib(1)')
+ %define python_sitelib %(%{__python} -c 'from distutils import sysconfig; print sysconfig.get_python_lib(0)')
+ %define nautilus_extensiondir %(pkg-config --variable=extensiondir libnautilus-extension)
++%define gedit_extensiondir %{_libdir}/gedit-2/plugins
+ 
+ Summary: Nautilus integration for Subversion
+ Name: rabbitvcs
+-Version: 0.12.1
++Version: 0.13.1
+ Release: 1%{?dist}
+ License: GPL
+ Group: Development/Libraries
+ URL: <A HREF="http://rabbitvcs.org">http://rabbitvcs.org</A>
+ 
+-Source: <A HREF="http://rabbitvcs.googlecode.com/files/rabbitvcs_%{version">http://rabbitvcs.googlecode.com/files/rabbitvcs_%{version</A>}-1_old-distros.tar.gz
++Source: <A HREF="http://rabbitvcs.googlecode.com/files/rabbitvcs-%{version">http://rabbitvcs.googlecode.com/files/rabbitvcs-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ # BuildArch: noarch
+ 
+@@ -24,14 +25,15 @@
+ BuildRequires: gcc-c++
+ BuildRequires: python-nautilus-devel = 0.5.0
+ BuildRequires: neon-devel
++BuildRequires: dbus-python
+ BuildRequires: pygobject2-devel
+ BuildRequires: pygtk2-devel
+ BuildRequires: python-devel
+ BuildRequires: python-svn
+ BuildRequires: subversion-devel &gt;= 1.6.5
+ Requires: meld
+-Requires: python-nautilus = 0.5.0
+ Requires: neon 
++Requires: dbus-python
+ Requires: pygobject2
+ Requires: pygtk2 
+ Requires: python 
+@@ -46,22 +48,51 @@
+ %description
+ TortoiseSVN-like GUI integration for Subversion (and other VCS) and Nautilus.
+ 
++%package nautilus
++Summary: Nautilus integration for RabbitVCS
++Group: Development/Tools
++
++Requires: %{name} = %{version}-%{release}
++Requires: python-nautilus = 0.5.0
++
++%description nautilus
++Install this package to use RabbitVCS with the Nautilus file manager.
++
++%package gedit
++Summary: Nautilus integration for Gedit
++Group: Development/Tools
++
++Requires: %{name} = %{version}-%{release}
++Requires: gedit
++
++%description gedit
++Install this package to use RabbitVCS with the Gedit text editor.
++
+ %prep
+-%setup -n rabbitvcs_%{version}-1_old-distros
++%setup -n rabbitvcs-%{version}
+ 
+-# statuschecker.py cannot work with RHEL5
+-%{__rm} -f rabbitvcs/statuschecker.py
+-%{__rm} -rf rabbitvcs/dbus
+-%{__rm} -rf rabbitvcs/data/icons/hicolor/scalable/actions/rabbitvcs-dbus.svg
+-
+ %build
+ CFLAGS=&quot;%{optflags}&quot; %{__python} setup.py build
+ 
++# rename to avoid collision
++%{__mv} clients/cli/README clients/cli/README.cli
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+ CFLAGS=&quot;%{optflags}&quot; %{__python} setup.py install --root=&quot;%{buildroot}&quot; --prefix=&quot;%{_prefix}&quot;
+ 
++# install command-line extension
++%{__install} -m0755 -d %{buildroot}%{_bindir}
++%{__install} -m0755 clients/cli/rabbitvcs %{buildroot}%{_bindir}
++
++# install nautilus extension
++%{__install} -m0755 -d %{buildroot}%{nautilus_extensiondir}/python
++%{__install} -m0755 clients/nautilusold/RabbitVCS.py %{buildroot}%{nautilus_extensiondir}/python
++
++# install Gedit extension
++%{__install} -m0755 -d %{buildroot}%{gedit_extensiondir}
++%{__install} -m0755 clients/gedit/rabbitvcs* %{buildroot}%{gedit_extensiondir}
++
+ # you do not know where to put the documents, i will handle it
+ %{__rm} -rf %{buildroot}%{_defaultdocdir}/%{name}
+ 
+@@ -80,11 +111,10 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS COPYING MAINTAINERS 
++%doc AUTHORS COPYING MAINTAINERS README
++%doc clients/cli/README.cli
++%{_bindir}/*
+ %{python_sitelib}/*
+-%{_bindir}/*
+-%dir %{nautilus_extensiondir}
+-%{nautilus_extensiondir}/*
+ %dir %{_iconsbasedir}/scalable/actions/
+ %{_iconsbasedir}/scalable/actions/*
+ %dir %{_iconsbasedir}/scalable/emblems/
+@@ -94,7 +124,21 @@
+ %{_datadir}/locale/*/LC_MESSAGES/*
+ %{_datadir}/rabbitvcs
+ 
++%files nautilus
++%doc clients/nautilusold/README
++%dir %{nautilus_extensiondir}
++%{nautilus_extensiondir}/*
++
++%files gedit
++%doc clients/gedit/README
++%dir %{gedit_extensiondir}
++%{gedit_extensiondir}/*
++
+ %changelog
++* Sun Mar 28 2010 Caghan Demirci &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">caghand at superonline.com</A>&gt; - 0.13.1-1
++- Updated to version 0.13.1.
++- Split out some clients into separate packages.
++
+ * Tue Dec 01 2009 Steve Huff &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">shuff at vecna.org</A>&gt; - 0.12.1-1
+ - Updated to version 0.12.1.
+ - Now source directly from the old-distros tarball, no more patching.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007524.html">[svn] r8729 - trunk/rpms/mrtg
+</A></li>
+	<LI>Next message: <A HREF="007526.html">[svn] r8731 - trunk/rpms/memcached
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7525">[ date ]</a>
+              <a href="thread.html#7525">[ thread ]</a>
+              <a href="subject.html#7525">[ subject ]</a>
+              <a href="author.html#7525">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

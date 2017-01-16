@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r6711 - trunk/tools/wiipresent
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6711%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903042357.n24NvfUQ023325%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="005509.html">
+   <LINK REL="Next"  HREF="005511.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r6711 - trunk/tools/wiipresent</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r6711%20-%20trunk/tools/wiipresent&In-Reply-To=%3C200903042357.n24NvfUQ023325%40surya.karan.org%3E"
+       TITLE="[svn] r6711 - trunk/tools/wiipresent">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Mar  5 00:57:41 CET 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="005509.html">[svn] r6710 - trunk/rpms/nagios-nrpe
+</A></li>
+        <LI>Next message: <A HREF="005511.html">[svn] r6712 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5510">[ date ]</a>
+              <a href="thread.html#5510">[ thread ]</a>
+              <a href="subject.html#5510">[ subject ]</a>
+              <a href="author.html#5510">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2009-03-04 23:57:41 +0000 (Wed, 04 Mar 2009)
+New Revision: 6711
+
+Modified:
+   trunk/tools/wiipresent/ChangeLog
+   trunk/tools/wiipresent/wiipresent.c
+Log:
+Make mouse buttons work reliably. Up/Down keys loop through links instead of scrolling in Firefox/Opera.
+
+Modified: trunk/tools/wiipresent/ChangeLog
+===================================================================
+--- trunk/tools/wiipresent/ChangeLog	2009-03-03 08:41:55 UTC (rev 6710)
++++ trunk/tools/wiipresent/ChangeLog	2009-03-04 23:57:41 UTC (rev 6711)
+@@ -1,3 +1,7 @@
++* Thu Mar 05 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++- Up/Down keys loop through links instead of scrolling in Firefox/Opera
++- Make mouse buttons work reliably
++
+ * Mon Mar 02 2009 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ - Detect application focus and adapt key-combinations
+ - Added support for acrobat reader, evince, openoffice, xpdf
+
+Modified: trunk/tools/wiipresent/wiipresent.c
+===================================================================
+--- trunk/tools/wiipresent/wiipresent.c	2009-03-03 08:41:55 UTC (rev 6710)
++++ trunk/tools/wiipresent/wiipresent.c	2009-03-04 23:57:41 UTC (rev 6711)
+@@ -94,7 +94,7 @@
+ 
+ void XClickMouse(Display *display, int button, int release) {
+     XTestFakeButtonEvent(display, button, release, 0);
+-    XSync(display, False);
++//    XSync(display, False);
+ }
+ 
+ Status XFetchProperty (register Display *display, Window window, int property, char **name) {
+@@ -137,7 +137,7 @@
+         if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%x) using XGetClassHint.\n&quot;, *name, (unsigned int) window);
+     } else if (XFetchProperty(display, window, XA_WM_COMMAND, name) != 0) {
+         if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%x) using XA_WM_COMMAND.\n&quot;, *name, (unsigned int) window);
+-    } else if (XQueryCommand(display, window - window % 0x100000 + 1, name) != 0) {
++    } else if (window != window - window % 0x100000 + 1 &amp;&amp; XQueryCommand(display, window - window % 0x100000 + 1, name) != 0) {
+         if (verbose &gt;= 3) fprintf(stderr, &quot;Found application %s (0x%x) using guessed parent window.\n&quot;, *name, (unsigned int) (window - window % 0x100000 + 1));
+     } else if (XQueryTree(display, window, &amp;root_window, &amp;parent_window, &amp;children_window, &amp;nchildrens) != 0) {
+         if (parent_window) {
+@@ -330,6 +330,9 @@
+     int playertoggle = False;
+     int fullscreentoggle = False;
+     int screensavertoggle = False;
++    int mouse = False;
++    int leftmousebutton = False;
++    int rightmousebutton = False;
+ 
+     char *name;
+     XGetInputFocus(display, &amp;window, &amp;revert);
+@@ -404,9 +407,15 @@
+ 
+         // Inside the mouse functionality
+         if (wmote.keys.b) {
+-//            wmote.mode.ir = 1;
+-            wmote.mode.acc = 1;
++            if (! mouse) {
++                if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse enabled.\n&quot;);
++                mouse = ! mouse;
+ 
++                wmote.mode.ir = 1;
++                wmote.mode.acc = 1;
++            }
++
++
+             // Tilt method
+             XMovePointer(display, wmote.tilt.x / 4, wmote.tilt.y / 4, 1);
+ 
+@@ -471,23 +480,45 @@
+             }
+ 
+             // Left mouse button events
+-            if (wmote.keys.minus) {
+-                XClickMouse(display, 1, 1);
+-            } else if (keys &amp; WIIMOTE_KEY_MINUS) {
+-                XClickMouse(display, 1, 0);
++            if (wmote.keys.minus || wmote.keys.a) {
++                if (! leftmousebutton) {
++                    if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse left button pressed.\n&quot;);
++                    XClickMouse(display, 1, 1);
++                    leftmousebutton = ! leftmousebutton;
++                }
++            } else {
++                if (leftmousebutton) {
++                    if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse left button released.\n&quot;);
++                    XClickMouse(display, 1, 0);
++                    leftmousebutton = ! leftmousebutton;
++                }
+             }
+ 
+             // Right mouse button events
+             if (wmote.keys.plus) {
+-                XClickMouse(display, 3, 1);
+-            } else if (keys &amp; WIIMOTE_KEY_PLUS) {
+-                XClickMouse(display, 3, 0);
++                if (! rightmousebutton) {
++                    if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse right button pressed.\n&quot;);
++                    XClickMouse(display, 3, 1);
++                    rightmousebutton = ! rightmousebutton;
++                }
++            } else {
++                if (rightmousebutton) {
++                    if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse right button released.\n&quot;);
++                    XClickMouse(display, 3, 0);
++                    rightmousebutton = ! rightmousebutton;
++                }
+             }
+ 
+         } else {
+-            wmote.mode.ir = 0;
+-            wmote.mode.acc = 0;
++            if (mouse) {
++                if (verbose &gt;= 3) fprintf(stderr, &quot;Mouse disabled.\n&quot;);
++                mouse = ! mouse;
+ 
++                wmote.mode.ir = 0;
++                wmote.mode.acc = 0;
++            }
++
++
+             // Block repeating keys
+             if (keys == wmote.keys.bits) {
+                 continue;
+@@ -511,7 +542,11 @@
+             }
+ 
+             if (wmote.keys.a) {
+-                if (strcasestr(name, &quot;rhythmbox&quot;) == name) {    // Play/Pause
++                if (strcasestr(name, &quot;firefox&quot;) == name) {          // Fullscreen
++                    XFakeKeycode(XK_Return, 0);
++                } else if (strcasestr(name, &quot;opera&quot;) == name) {
++                    XFakeKeycode(XK_Return, 0);
++                } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) {    // Play/Pause
+                     XFakeKeycode(XK_space, ControlMask); 
+                 } else if (strcasestr(name, &quot;mplayer&quot;) == name) {
+                     XFakeKeycode(XK_p, 0);
+@@ -593,9 +628,9 @@
+ 
+             if (wmote.keys.up) {
+                 if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Up
+-                    XFakeKeycode(XK_Up, 0);
++                    XFakeKeycode(XK_Tab, ShiftMask);
+                 } else if (strcasestr(name, &quot;opera&quot;) == name) {
+-                    XFakeKeycode(XK_Up, 0);
++                    XFakeKeycode(XK_Up, ControlMask);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Page_Up, 0);
+                 } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) { // Volume Up
+@@ -626,9 +661,9 @@
+ 
+             if (wmote.keys.down) {
+                 if (strcasestr(name, &quot;firefox&quot;) == name) {          // Scroll Down
+-                    XFakeKeycode(XK_Down, 0);
++                    XFakeKeycode(XK_Tab, 0);
+                 } else if (strcasestr(name, &quot;opera&quot;) == name) {
+-                    XFakeKeycode(XK_Down, 0);
++                    XFakeKeycode(XK_Down, ControlMask);
+                 } else if (strcasestr(name, &quot;pidgin&quot;) == name) {
+                     XFakeKeycode(XK_Page_Down, 0);
+                 } else if (strcasestr(name, &quot;rhythmbox&quot;) == name) {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="005509.html">[svn] r6710 - trunk/rpms/nagios-nrpe
+</A></li>
+	<LI>Next message: <A HREF="005511.html">[svn] r6712 - trunk/tools/wiipresent
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#5510">[ date ]</a>
+              <a href="thread.html#5510">[ thread ]</a>
+              <a href="subject.html#5510">[ subject ]</a>
+              <a href="author.html#5510">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

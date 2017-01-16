@@ -1,0 +1,256 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2045 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2045%20-%20trunk/tools/yam&In-Reply-To=%3C20040819012239.9C54C17FA7%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000850.html">
+   <LINK REL="Next"  HREF="000852.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2045 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2045%20-%20trunk/tools/yam&In-Reply-To=%3C20040819012239.9C54C17FA7%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2045 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Aug 19 03:22:39 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000850.html">[SVN] r2044 - trunk/tools/yam
+</A></li>
+        <LI>Next message: <A HREF="000852.html">[SVN] r2046 - in trunk/rpms: sodipodi solfege spamass-milter	squidview ssidsniff stardict stickynotes_applet tcpflow	tcpreen tcpreplay tdb texmaker
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#851">[ date ]</a>
+              <a href="thread.html#851">[ thread ]</a>
+              <a href="subject.html#851">[ subject ]</a>
+              <a href="author.html#851">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-19 03:22:37 +0200 (Thu, 19 Aug 2004)
+New Revision: 2045
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+Log:
+Get rid of some more rough edges, goes into 0.6
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-08-18 22:22:05 UTC (rev 2044)
++++ trunk/tools/yam/ChangeLog	2004-08-19 01:22:37 UTC (rev 2045)
+@@ -1,3 +1,10 @@
++* 0.6
++- Added a check to see if any metadata tools are installed
++- Smartly sort the available ISOs, still keep the preferred order
++- Added extra debugging information to --version
++- Intercept user input and exit when asked
++- Run external commands much better and print on errors
++
+ * 0.5
+ - Skipped a 0.4 release to indicate this is an important update.
+ - Rewrote most of the code to allow for smoother dist/arch configuration
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-08-18 22:22:05 UTC (rev 2044)
++++ trunk/tools/yam/TODO	2004-08-19 01:22:37 UTC (rev 2045)
+@@ -3,7 +3,7 @@
+ + Adapt to work with SLES, Mandrake, Whitebox, ...
+ 
+ ### Repository metadata
+-+ Think of a way to speed up generating repositories
+++ Think of a way to speed up generating repositories (new basegendir should improve)
+ 
+ ### Documentation/integration
+ + Add CSM support
+@@ -14,8 +14,6 @@
+ + Add default kickstart files/location
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+ + Improve SHTML output (more condensed and useful information)
+-+ Intercept keyboard presses and exit cleanly
+-+ Complain loudly when no metadata tool is installed
+ 
+ ### Back-end support
+ + Add RHN (<A HREF="rhn://">rhn://</A>) support
+@@ -31,4 +29,5 @@
+ + Create small curses tool to manage systems / MAC-addresses / kickstart files
+ 
+ ### Bugs
+-+ Apt and Yum both stumble on broken symlinks (Apt fixed upstream, thx to Panu)
+++ basegendir stumbles on broken symlinks (Apt already fixed upstream, thx to Panu)
+++ yum-arch stumbles on broken symlinks (<A HREF="https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280">https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280</A>)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-08-18 22:22:05 UTC (rev 2044)
++++ trunk/tools/yam/yam	2004-08-19 01:22:37 UTC (rev 2045)
+@@ -64,6 +64,9 @@
+ 	def version(self):
+ 		print 'yam %s' % VERSION
+ 		print 'Written by Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;'
++		print
++		print 'os %s' % sys.platform
++		print 'python %s' % sys.version
+ 
+ 	def usage(self):
+ 		print 'usage: yam [-g] [-q] [-u] [-v] [-x] [-c config] [-d dist1,dist2-arch]'
+@@ -212,12 +215,12 @@
+ 		isos=[]
+ 		if self.iso:
+ 			for file in self.iso.split(' '):
+-				for iso in glob.glob(cf.srcdir + '/iso/' + file):
++				list = glob.glob(cf.srcdir + '/iso/' + file)
++				list.sort()
++				for iso in list:
+ 					if os.path.isfile(iso):
+ 						isos.append(iso)
+-#		print isos
+ 		return isos
+-#		return isos.sort(cmp)
+ 
+ 	def mount(self):
+ 		&quot;Loopback mount all ISOs&quot;
+@@ -251,7 +254,7 @@
+ 				mkdir(mount)
+ 				if not os.path.ismount(mount):
+ 					info(1, '%s: Mount ISO %s to %s' % (self.nick, iso, mount))
+-					os.system('%s -o loop %s %s' % (cf.cmd['mount'], iso, mount))
++					run('%s -o loop %s %s' % (cf.cmd['mount'], iso, mount))
+ 		return discs
+ 	
+ 	def umount(self):
+@@ -267,7 +270,7 @@
+ 				die(0, 'umount command not %s' % cf.cmd['umount'])
+ 			if os.path.ismount(mount):
+ 				info(1, '%s: Unmount ISO %s' % (self.nick, mount))
+-				os.system('%s %s' % (cf.cmd['umount'], mount))
++				run('%s %s' % (cf.cmd['umount'], mount))
+ 
+ 	def aptrepo(self):
+ 		&quot;Create an Apt repository&quot;
+@@ -275,7 +278,7 @@
+ 		opts = ''
+ 		if op.verbose &gt;= 3: opts = ' --progress' + opts
+ 		info(1, '%s: Create Apt repository' % self.nick)
+-		os.system('%s %s --flat --bloat --bz2only %s' % (cf.cmd['genbasedir'], opts, self.dir))
++		run('%s %s --flat --bloat --bz2only %s' % (cf.cmd['genbasedir'], opts, self.dir))
+ 
+ 	def yumrepo(self):
+ 		&quot;Create an old-style Yum repository&quot;
+@@ -285,11 +288,11 @@
+ 		elif op.verbose == 3: opts = ' -v' + opts
+ 		elif op.verbose &gt;= 4: opts = ' -vv' + opts
+ #		info(1, '%s: Create old-style Yum repository' % self.nick)
+-#		os.system('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS'))
++#		run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS'))
+ 		for repo in self.repos.keys() + ['local']:
+ 			if os.path.exists(self.dir + '/RPMS.' + repo):
+ 				info(1, '%s: Create old-style Yum repository for %s' % (self.nick, repo))
+-				os.system('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS.' + repo))
++				run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS.' + repo))
+ 
+ 	def createrepo(self):
+ 		&quot;Create a new-style Yum repository&quot;
+@@ -298,11 +301,11 @@
+ 		if op.verbose &lt;= 1: opts = ' -q' + opts
+ 		elif op.verbose &gt;= 3: opts = ' -v' + opts
+ #		info(1, '%s: Create new-style Yum repository' % self.nick)
+-#		os.system('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS'))
++#		run('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS'))
+ 		for repo in self.repos.keys() + ['local']:
+ 			if os.path.exists(self.dir + '/RPMS.' + repo):
+ 				info(1, '%s: Create new-style Yum repository for %s' % (self.nick, repo))
+-				os.system('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS.' + repo))
++				run('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS.' + repo))
+ 
+ 	def html(self):
+ 		&quot;Put html information in repository&quot;
+@@ -343,6 +346,16 @@
+ 	info(0, str)
+ 	sys.exit(ret)
+ 
++def run(str):
++	&quot;Run command, accept user input, and print output when needed.&quot;
++	info(4, str)
++	pin, pout = os.popen4(str)
++	if op.verbose or not pout.wait():
++		out=pout.read()
++		if out: print out
++	else:
++		pout.flush()
++
+ def readfile(file, len = 0):
+ 	&quot;Return content of a file&quot;
+ 	if len: return open(file, 'r').read(len)
+@@ -454,8 +467,7 @@
+ 	elif op.verbose == 3: opts = ' -v' + opts
+ 	elif op.verbose &gt;= 4: opts = ' -v --progress' + opts
+ 	opts = ' --timeout=30' + opts
+-	info(3, '%s -ahL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+-	os.system('%s -aHL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
++	run('%s -aHL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+ 
+ def mirrorlftp(url, path):
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+@@ -466,8 +478,7 @@
+ 	if op.verbose &lt;= 1: opts = '--verbose=0'
+ 	else: opts = '--verbose='+str(op.verbose-1)
+ 	if cf.lftpexclsrpm: opts = opts + ' -X \&quot;*.src.rpm\&quot;'
+-	info(3, '%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm %s %s %s\'' % (cf.cmd['lftp'], opts, url, path))
+-	os.system('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm %s %s %s\'' % (cf.cmd['lftp'], opts, url, path))
++	run('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm %s %s %s\'' % (cf.cmd['lftp'], opts, url, path))
+ 
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+@@ -511,6 +522,8 @@
+ 			else:
+ 				info(4, '%s command not found as %s, support disabled' % (cmd, cf.cmd[cmd]))
+ 				cf.cmd[cmd] = ''
++	if not cf.repo['createrepo'] and not cf.repo['yum'] and not cf.repo['apt']:
++		die(4, 'No tools found to generate metadata. Please install apt, yum or createrepo.')
+ 		
+ 	### Iterate over the available distributions
+ 	for dist in cf.dists:
+@@ -628,6 +641,9 @@
+ if __name__ == '__main__':
+ 	op=options(sys.argv[1:])
+ 	cf=config()
+-	main()
++	try:
++		main()
++	except KeyboardInterrupt, e:
++		die(6, 'Exiting on User Cancel')
+ 
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000850.html">[SVN] r2044 - trunk/tools/yam
+</A></li>
+	<LI>Next message: <A HREF="000852.html">[SVN] r2046 - in trunk/rpms: sodipodi solfege spamass-milter	squidview ssidsniff stardict stickynotes_applet tcpflow	tcpreen tcpreplay tdb texmaker
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#851">[ date ]</a>
+              <a href="thread.html#851">[ thread ]</a>
+              <a href="subject.html#851">[ subject ]</a>
+              <a href="author.html#851">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

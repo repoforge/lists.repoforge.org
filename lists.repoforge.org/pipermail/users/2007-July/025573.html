@@ -1,0 +1,150 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] clamav/clamd selinux problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20clamav/clamd%20selinux%20problems&In-Reply-To=%3C911f42990707191354g496a0f0cj5454a7e97397e23b%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025572.html">
+   <LINK REL="Next"  HREF="025574.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] clamav/clamd selinux problems</H1>
+    <B>Jan-Frode Myklebust</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20clamav/clamd%20selinux%20problems&In-Reply-To=%3C911f42990707191354g496a0f0cj5454a7e97397e23b%40mail.gmail.com%3E"
+       TITLE="[users] clamav/clamd selinux problems">janfrode at tanso.net
+       </A><BR>
+    <I>Thu Jul 19 22:54:03 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025572.html">[users] Re: Dcon
+</A></li>
+        <LI>Next message: <A HREF="025574.html">[users] clamav/clamd selinux problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25573">[ date ]</a>
+              <a href="thread.html#25573">[ thread ]</a>
+              <a href="subject.html#25573">[ subject ]</a>
+              <a href="author.html#25573">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>A little late follow-up.. but I think you're attacking this problem the
+wrong way. Your clamd selinux module opens up for clamd to access a lot of
+files it shouldn't need to access:
+
+These two are probably no danger, but clamd starts fine without:
+
+         allow clamd_t sysctl_kernel_t:dir search;
+         allow clamd_t sysctl_kernel_t:file read;
+
+These seems very strange:
+
+         allow semanage_t auditd_log_t:dir search;
+         allow useradd_t var_log_t:file { read write };
+
+And these opens up clamd to read/write/delete a lot it shouldn't need to.
+
+         allow clamd_t var_t:file { create getattr lock write read unlink };
+         allow clamd_t var_t:dir { read write add_name remove_name};
+         allow clamd_t tmp_t:sock_file { create unlink write };
+
+Instead of modifying the selinux policy, I think it would be much better to
+fix the clamd (and the RPM) to use /var/lib/clamav as it's DatabaseDirectory
+(instead of /var/clamav), and use /var/spool/amavisd/clamd.sock as
+LocalSocket (instead of /tmp/clamd.socket). Then the clamd process would be
+properly contained by the RHEL5 selinux policy.
+
+
+  -jf
+
+
+Quoted in full since it's over a month old :-)
+
+On 6/14/07, Rodrigo Barbosa &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">rodrigob at darkover.org</A>&gt; wrote:
+&gt;<i>
+</I>&gt;<i> -----BEGIN PGP SIGNED MESSAGE-----
+</I>&gt;<i> Hash: SHA1
+</I>&gt;<i>
+</I>&gt;<i> On Thu, Jun 14, 2007 at 01:52:07PM -0300, Rodrigo Barbosa wrote:
+</I>&gt;<i> &gt; While trying to use rf's packages for clamav/clamd on a CentOS 5
+</I>&gt;<i> &gt; box with selinux (targeted) enabled, I ran into several problems.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; These problems where solved with the following type enforcement file.
+</I>&gt;<i> &gt; Hope you find it useful.
+</I>&gt;<i> &gt;
+</I>&gt;<i> &gt; ===CUT===
+</I>&gt;<i> &gt; module clamd 1.0.2;
+</I>&gt;<i>
+</I>&gt;<i> Ok, sorry about that. That te file still didn't solve all the problems
+</I>&gt;<i> (freshclam this time). New one:
+</I>&gt;<i>
+</I>&gt;<i> module clamd 1.0.5;
+</I>&gt;<i>
+</I>&gt;<i> require {
+</I>&gt;<i>         class dir { read search write add_name remove_name};
+</I>&gt;<i>         class file { read write create getattr lock unlink };
+</I>&gt;<i>         class sock_file { create unlink write };
+</I>&gt;<i>         type auditd_log_t;
+</I>&gt;<i>         type clamd_t;
+</I>&gt;<i>         type semanage_t;
+</I>&gt;<i>         type sysctl_kernel_t;
+</I>&gt;<i>         type useradd_t;
+</I>&gt;<i>         type var_log_t;
+</I>&gt;<i>         type var_t;
+</I>&gt;<i>         type tmp_t;
+</I>&gt;<i>         role system_r;
+</I>&gt;<i> };
+</I>&gt;<i>
+</I>&gt;<i> allow clamd_t sysctl_kernel_t:dir search;
+</I>&gt;<i> allow clamd_t sysctl_kernel_t:file read;
+</I>&gt;<i> allow semanage_t auditd_log_t:dir search;
+</I>&gt;<i> allow useradd_t var_log_t:file { read write };
+</I>&gt;<i> allow clamd_t var_t:file { create getattr lock write read unlink };
+</I>&gt;<i> allow clamd_t var_t:dir { read write add_name remove_name};
+</I>&gt;<i> allow clamd_t tmp_t:sock_file { create unlink write };
+</I>&gt;<i>
+</I>&gt;<i> - --
+</I>&gt;<i> Rodrigo Barbosa
+</I>&gt;<i> &quot;Quid quid Latine dictum sit, altum viditur&quot;
+</I>&gt;<i> &quot;Be excellent to each other ...&quot; - Bill &amp; Ted (Wyld Stallyns)
+</I>&gt;<i>
+</I>&gt;<i> -----BEGIN PGP SIGNATURE-----
+</I>&gt;<i> Version: GnuPG v1.4.5 (GNU/Linux)
+</I>&gt;<i>
+</I>&gt;<i> iD8DBQFGcXOZpdyWzQ5b5ckRAo5aAJ9eie8c013mYILRTR0b7+G3JtnveACgmBkt
+</I>&gt;<i> vCNdauWBoeYrsOQQBpVS3JI=
+</I>&gt;<i> =zQ6t
+</I>&gt;<i> -----END PGP SIGNATURE-----
+</I>&gt;<i> _______________________________________________
+</I>&gt;<i> users mailing list
+</I>&gt;<i> <A HREF="http://lists.repoforge.org/mailman/listinfo/users">users at lists.rpmforge.net</A>
+</I>&gt;<i> <A HREF="http://lists.rpmforge.net/mailman/listinfo/users">http://lists.rpmforge.net/mailman/listinfo/users</A>
+</I>&gt;<i>
+</I>-------------- next part --------------
+An HTML attachment was scrubbed...
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/users/attachments/20070719/c2f6c083/attachment-0004.html">http://lists.repoforge.org/pipermail/users/attachments/20070719/c2f6c083/attachment-0004.html</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025572.html">[users] Re: Dcon
+</A></li>
+	<LI>Next message: <A HREF="025574.html">[users] clamav/clamd selinux problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25573">[ date ]</a>
+              <a href="thread.html#25573">[ thread ]</a>
+              <a href="subject.html#25573">[ subject ]</a>
+              <a href="author.html#25573">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

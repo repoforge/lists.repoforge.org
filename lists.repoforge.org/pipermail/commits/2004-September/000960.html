@@ -1,0 +1,467 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2154 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2154%20-%20trunk/tools/yam&In-Reply-To=%3C20040902031556.D984A17F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000959.html">
+   <LINK REL="Next"  HREF="000961.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2154 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2154%20-%20trunk/tools/yam&In-Reply-To=%3C20040902031556.D984A17F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2154 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Sep  2 05:15:56 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000959.html">[SVN] r2153 - trunk/rpms/enca
+</A></li>
+        <LI>Next message: <A HREF="000961.html">[SVN] r2155 - trunk/rpms/scribus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#960">[ date ]</a>
+              <a href="thread.html#960">[ thread ]</a>
+              <a href="subject.html#960">[ subject ]</a>
+              <a href="author.html#960">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-09-02 05:15:55 +0200 (Thu, 02 Sep 2004)
+New Revision: 2154
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-example.conf
+   trunk/tools/yam/yam.conf
+Log:
+A lot of interesting updates.
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2004-09-01 20:53:41 UTC (rev 2153)
++++ trunk/tools/yam/ChangeLog	2004-09-02 03:15:55 UTC (rev 2154)
+@@ -2,6 +2,11 @@
+ - Added shareiso config option (enabled by default)
+ - Allow empty (URL-less) repositories (useful for placeholder repositories)
+ - Added support for hardlinking duplicate RPMs (disabled by default)
++- Added documentation about chaining Yam servers
++- Added lftp-bandwidth-limit and lftp-cleanup config options
++- Look for commands in the PATH environment now, if default is wrong
++- Added lftp parallel mirroring for fish, ftp, http and sftp
++- Added support for <A HREF="yam://">yam://</A> URLs
+ 
+ * 0.6.1
+ - Removed a silly debug message :)
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2004-09-01 20:53:41 UTC (rev 2153)
++++ trunk/tools/yam/TODO	2004-09-02 03:15:55 UTC (rev 2154)
+@@ -7,21 +7,13 @@
+ + Add URPMI and Red Carpet support (help needed)
+ + Add YaST/YOU support (both for mirroring as providing metadata)
+ 
+-### Yamenu tool / remote installation
+-+ Create small curses tool to manage systems / MAC-addresses / profiles (kickstart)
+-+ Generate remote syslinux menu to boot any of the available dists
+-+ Look into providing bootsplash like SuSE
+-+ Generate a dnsmasq-yam.conf if dnsmasq is installed/running(?)
+-+ Add default kickstart integration (files/location)
+-+ Add default AutoYast integration (help needed)
+-+ Adapt to make Mandrake/SuSE work too (help needed)
+-+ Add CSM support
+-
+ ### Usability
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+ + Improve SHTML output (more condensed and useful information)
+ + Think of a way to get rid of older/obsolete updates
+ + Generate sample yum.conf and apt .list files for people to use
+++ Add cron-script for automatic updating
+++ Allow to specify rsync/lftp options on a per distribution basis
+ 
+ ### Documentation
+ + Add integration/documentation with ISC dhcpd
+@@ -30,6 +22,7 @@
+ + Improve the copy/symlink/rename functions, using exceptions
+ + Mirroring code should be in a seperate class
+ + File-operations may need to go to a seperate class
+++ Arguments are ignored, do something with them
+ 
+ ### Misc
+ + Correct file permissions of packages in /var/www/yam
+@@ -37,3 +30,21 @@
+ ### Bugs
+ + basegendir stumbles on broken symlinks (Apt already fixed upstream, thx to Panu)
+ + yum-arch stumbles on broken symlinks (<A HREF="https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280">https://devel.linux.duke.edu/bugzilla/show_bug.cgi?id=280</A>)
+++ In rare ocassions when directories are being symlinked, os.tempname() fails and bails out
++
++### Yamenu tool / remote installation
+++ Create small curses tool to manage systems / MAC-addresses / profiles (kickstart)
+++ Generate remote syslinux menu to boot any of the available dists
+++ Look into providing bootsplash like SuSE
+++ Generate a dnsmasq-yam.conf if dnsmasq is installed/running(?)
+++ Add default kickstart integration (files/location)
+++ Add default AutoYast integration (help needed)
+++ Adapt to make Mandrake/SuSE work too (help needed)
+++ Add CSM support
++
++### Yampxe tool
+++ Generates necessary PXE config-files and allow for 3rd party boot-images
++
++### Yamusb tool
+++ Create a bootable USB stick and allow for 3rd party boot-images
++
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2004-09-01 20:53:41 UTC (rev 2153)
++++ trunk/tools/yam/yam	2004-09-02 03:15:55 UTC (rev 2154)
+@@ -59,7 +59,8 @@
+ 			self.verbose = 0
+ 
+ 		if self.verbose &gt;= 3:
+-			print 'Verbosity set to level %s' % (self.verbose - 1)
++			print 'Verbosity set to level %d' % (self.verbose - 1)
++			print 'Using configfile %s' % self.configfile
+ 
+ 	def version(self):
+ 		print 'yam %s' % VERSION
+@@ -113,7 +114,7 @@
+ 
+ 		self.arch = self.getoption('main', 'arch', 'i386')
+ 
+-		self.quiet = not self.getoption('main', 'apt', 'no') in ('no', 'off', 'false')
++		self.quiet = not self.getoption('main', 'quiet', 'no') in ('no', 'off', 'false')
+ 		if op.verbose == 1 and self.quiet:
+ 			op.verbose = 0
+ 
+@@ -134,12 +135,15 @@
+ 		self.cmd['umount'] = self.getoption('main', 'umountcmd', '/bin/umount')
+ 		self.cmd['yumarch'] = self.getoption('main', 'yumarchcmd', '/usr/bin/yum-arch')
+ 
++		self.lftpbwlimit = self.getoption('main', 'lftp-bandwidth-limit', None)
++		self.lftpcleanup = not self.getoption('main', 'lftp-cleanup', 'yes') in ('no', 'off', 'false')
++		self.lftpexcldebug = not self.getoption('main', 'lftp-exclude-debug', 'yes') in ('no', 'off', 'false')
+ 		self.lftpexclsrpm = not self.getoption('main', 'lftp-exclude-srpm', 'yes') in ('no', 'off', 'false')
+ 
+-		self.rsyncbwlimit = self.getoption('main', 'rsync-bwlimit', None)
++		self.rsyncbwlimit = self.getoption('main', 'rsync-bandwidth-limit', None)
+ 		self.rsynccleanup = not self.getoption('main', 'rsync-cleanup', 'yes') in ('no', 'off', 'false')
++		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in ('no', 'off', 'false')
+ 		self.rsyncexclsrpm = not self.getoption('main', 'rsync-exclude-srpm', 'yes') in ('no', 'off', 'false')
+-		self.rsyncexcldebug = not self.getoption('main', 'rsync-exclude-debug', 'yes') in ('no', 'off', 'false')
+ 
+ 		self.shareiso = not self.getoption('main', 'shareiso', 'yes') in ('no', 'off', 'false')
+ 
+@@ -167,11 +171,12 @@
+ 		&quot;Get an option from a section from configfile&quot;
+ 		try:
+ 			var = self.cfg.get(section, option)
+-			info(3, 'Setting config %s in section [%s] to: %s' % (option, section, var))
++			info(3, 'Setting option %s in section [%s] to: %s' % (option, section, var))
+ 		except ConfigParser.NoSectionError, e:
+-			info(4, 'Failed to find [%s] in %s' % (section, op.configfile))
++			info(4, 'Failed to find section [%s] in %s' % (section, op.configfile))
+ 		except ConfigParser.NoOptionError, e:
+-			info(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
++#			info(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
++			info(4, 'Setting option %s in section [%s] to: %s (default)' % (option, section, var))
+ 		return var
+ 
+ 	def getrepos(self):
+@@ -365,7 +370,7 @@
+ 	&quot;Run command, accept user input, and print output when needed.&quot;
+ 	if op.verbose &lt; 2:
+ 		str = str + '&gt;/dev/null'
+-	info(4, str)
++	info(4, 'Execute: %s' % str)
+ 	os.popen(str, 'w')
+ 
+ def readfile(file, len = 0):
+@@ -454,6 +459,8 @@
+ 			mirrorlftp(url, path)
+ 		elif s in ['file', '']:
+ 			mirrorfile(url, path)
++		elif s in ['yam']:
++			mirroryam(url, path)
+ 		else:
+ 			info(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
+ 
+@@ -463,36 +470,52 @@
+ 		info(1, 'rsync was not found, rsync support is therefor disabled.')
+ 		return
+ 	mkdir(path)
+-	opts = ''
+-	if cf.rsyncexclsrpm: opts = ' --exclude=\&quot;*.src.rpm\&quot; --exclude=\&quot;/SRPMS/\&quot;' + opts
+-	if cf.rsyncexcldebug: opts = ' --exclude=\&quot;*-debuginfo-*.rpm\&quot; --exclude=\&quot;/debug/\&quot;' + opts 
++
++	opts = '-aHL --timeout=30'
++	if op.verbose &lt;= 1: opts = opts + ' -q'
++	elif op.verbose == 3: opts = opts + ' -v'
++	elif op.verbose &gt;= 4: opts = opts + ' -v --progress'
++	if cf.rsynccleanup: opts = opts + ' --delete-after --delete-excluded'
++	if cf.rsyncbwlimit: opts = opts + ' --bwlimit=%s' % cf.rsyncbwlimit
++
++	if cf.rsyncexclsrpm: opts = opts + ' --exclude=\&quot;*.src.rpm\&quot; --exclude=\&quot;/SRPMS/\&quot;'
++	if cf.rsyncexcldebug: opts = opts + ' --exclude=\&quot;*-debuginfo-*.rpm\&quot; --exclude=\&quot;/debug/\&quot;'
+ 	opts = opts + ' --include=\&quot;*.rpm\&quot;'
+ 	if cf.rsyncexclsrpm or cf.rsyncexcldebug: opts = opts + ' --exclude=\&quot;*.*\&quot;'
+-	if cf.rsynccleanup: opts = ' --delete-after --delete-excluded' + opts
+-	if cf.rsyncbwlimit: opts = ' --bwlimit='+cf.rsyncbwlimit + opts
+-	if op.verbose &lt;= 1: opts = ' -q' + opts
+-	elif op.verbose == 3: opts = ' -v' + opts
+-	elif op.verbose &gt;= 4: opts = ' -v --progress' + opts
+-	opts = ' --timeout=30' + opts
+-	run('%s -aHL %s %s %s' % (cf.cmd['rsync'], opts, url, path))
+ 
++	run('%s %s %s %s' % (cf.cmd['rsync'], opts, url, path))
++
+ def mirrorlftp(url, path):
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+ 	if not cf.cmd['lftp']:
+ 		info(1, 'lftp was not found, fish, ftp, http and sftp support is therefor disabled.')
+ 		return
+ 	mkdir(path)
+-	opts = ''
+-	if op.verbose &lt;= 1: opts = '--verbose=0'
+-	else: opts = '--verbose='+str(op.verbose-1)
+-	if cf.lftpexclsrpm: opts = opts + ' -X \&quot;*.src.rpm\&quot;'
+-	run('%s -c \'set dns:fatal-timeout 2; set net:timeout 15; mirror -a -I *.rpm %s %s %s\'' % (cf.cmd['lftp'], opts, url, path))
+ 
++	sets = 'set dns:fatal-timeout 4; set net:timeout 15;'
++	if cf.lftpbwlimit: sets = '%s set net:limit-total-rate=%s:0;' % (sets, cf.lftpbwlimit)
++
++	opts = 'mirror -a -P'
++	if op.verbose &lt;= 1: opts = opts + ' --verbose=0'
++	else: opts = '%s --verbose=%d' % (opts, op.verbose-1)
++	if cf.lftpcleanup: opts = opts + ' -e'
++
++	if cf.lftpexclsrpm: opts = opts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
++	if cf.lftpexcldebug: opts = opts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
++	opts = opts + ' -I *.rpm'
++
++	run('%s -c \'%s %s %s %s\'' % (cf.cmd['lftp'], sets, opts, url, path))
++
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+-	dir=url.replace('<A HREF="file://">file://</A>','')
++	dir=url.replace('<A HREF="file://">file://</A>', '')
+ 	symlink(dir, path)
+ 
++def mirroryam(url, path):
++	&quot;Mirror everything from a local Yam mirror by symlinking&quot;
++	dir=url.replace('<A HREF="yam://">yam://</A>', '')
++	symlink(os.path.join(cf.srcdir,dir), path)
++
+ def hardlink(srcdir):
+ 	if not cf.cmd['hardlink']:
+ 		info(1, 'hardlink was not found, hardlink support is therefor disabled.')
+@@ -525,6 +548,15 @@
+ 					symlink(srcdir, os.path.join(dist.dir, 'RPMS.' + repo))
+ 					symlink(srcdir, os.path.join(dist.dir, 'RPMS'))
+ 
++def which(cmd):
++	&quot;Find executables in PATH environment&quot;
++	for path in os.environ.get('PATH','$PATH').split(':'):
++		if os.path.isfile(os.path.join(path, cmd)):
++			info(4, 'Found command %s in path %s' % (cmd, path))
++			return os.path.join(path, cmd)
++	return ''
++		
++
+ def htmlindex():
+ 	symlink(cf.htmldir + '/HEADER.index.shtml', cf.wwwdir + '/HEADER.shtml')
+ 	symlink(cf.htmldir + '/README.index.shtml', cf.wwwdir + '/README.shtml')
+@@ -533,6 +565,8 @@
+ 	### Check availability of commands
+ 	for cmd in cf.cmd.keys():
+ 		if not os.path.isfile(cf.cmd[cmd]):
++			cf.cmd[cmd] = which(cmd)
++		if cf.cmd[cmd] and not os.path.isfile(cf.cmd[cmd]):
+ 			if cmd in ['createrepo', 'genbasedir', 'yum-arch']:
+ 				info(4, '%s command not found as %s, disabling %s' % (cmd, cf.cmd[cmd], cmd))
+ 				cf.repo[cmd] = False
+@@ -550,9 +584,8 @@
+ 				continue
+ 
+ 		### Mount ISOs
+-		if not dist.isos():
+-			info(3, '%s: %s has no ISOs, will try and download OS packages.' % (dist.nick, dist.name))
+-		else:
++		if dist.isos():
++			info(4, '%s: Found %d ISO files for %s' % (dist.nick, len(dist.isos()), dist.name))
+ 			if op.umount:
+ 				dist.umount()
+ 			else:
+@@ -610,10 +643,10 @@
+ 				dist.link(srcdir, repo)
+ 
+ 		if dist.isos():
+-			print dist.isos()
+-			print discs
++#			print dist.isos()
++#			print discs
+ 			for disc in discs:
+-				print disc, dist.dir, 'os'
++#				print disc, dist.dir, 'os'
+ 				dist.link(os.path.join(dist.dir, disc), 'os')
+ 				dist.repos['os'] = None
+ 
+@@ -656,7 +689,7 @@
+ 			if cf.pxelinux:
+ 				copy(cf.pxelinux, tftpdir)
+ 
+-	if cf.hardlink:
++	if cf.hardlink and not op.dist:
+ 		hardlink(cf.srcdir)
+ 		
+ 
+
+Modified: trunk/tools/yam/yam-example.conf
+===================================================================
+--- trunk/tools/yam/yam-example.conf	2004-09-01 20:53:41 UTC (rev 2153)
++++ trunk/tools/yam/yam-example.conf	2004-09-02 03:15:55 UTC (rev 2154)
+@@ -6,14 +6,26 @@
+ ### Main section defines paths, commands
+ ### and what metadata to generate
+ [main]
++
++## Default architecture is i386
+ arch = i386
++
++## The location of the example .shtml files
+ htmldir = /usr/share/yam/html
+-lockfile = /var/run/yam.pid
++
++## The location of the (latest) pxelinux bootcode
+ pxelinux = /usr/lib/syslinux/pxelinux.0
++
++## The location of the ISO images and RPM files
+ srcdir = /var/yam
++
++## The location of the Yam TFTP files
+ tftpdir = /tftpboot/yam
++
++## The location of the generated repositories
+ wwwdir = /var/www/yam
+ 
++## The location of the different executables
+ createrepocmd = /usr/bin/createrepo
+ genbasedircmd = /usr/bin/genbasedir
+ lftpcmd = /usr/bin/lftp
+@@ -22,17 +34,34 @@
+ umountcmd = /bin/umount
+ yumarchcmd = /usr/bin/yum-arch
+ 
++## What repository metadata do you want to generate ?
+ apt = yes
+ createrepo = no
+ yum = yes
+ 
++## Hardlink files in the srcdir before ending Yam
+ hardlink = no
++
++## Do you want to share the ISO files in wwwdir ?
+ shareiso = yes
+ 
++## Limit the bandwidth used by lftp (in B/secs)
++lftp-bandwidth-limit = None
++
++## Clean up packages that are not on the sending side ?
++lftp-cleanup = yes
++
++## Exclude debuginfo or source packages ?
++lftp-exclude-debug = yes
+ lftp-exclude-srpm = yes
+ 
++## Limit the bandwidth used by rsync (in kB/secs)
+ rsync-bandwidth-limit = None
++
++## Clean up packages that are not on the sending side ?
+ rsync-cleanup = yes
++
++## Exclude debuginfo or source packages ?
+ rsync-exclude-debug = yes
+ rsync-exclude-srpm = yes
+ 
+@@ -46,24 +75,22 @@
+ ### Dist1 comes with ISO files (i386 is default)
+ [dist1]
+ release=1
+-tag=dist1
+ iso=dist$release-$arch-disc?.iso
+-updates=<A HREF="rsync://rsync.dist1.org/pub/dist/$release/$arch/updates/">rsync://rsync.dist1.org/pub/dist/$release/$arch/updates/</A>
++updates=<A HREF="rsync://rsync.dist1.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist1.org/pub/dist/$release/$arch/$repo/</A>
+ 
+ ### Dist2 is synced with a mirror, has multiple archs
+ [dist2]
+ release=2
+ arch=i386 i586 i686 x86_64
+-tag=dist2
+ os=<A HREF="rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/</A>
+ updates=<A HREF="rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist2.org/pub/dist/$release/$arch/$repo/</A>
+ 
+-### Dist3 has extra repositories, updates use http
++### Dist3 has extra repositories, updates use updates from dist1
+ [dist3]
+ release=3
+ arch=x86_64
+ tag=dist2 d2
+ iso=dist$release-$arch-disc?.iso
+ os=<A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
+-updates=<A HREF="http://www.dist3.org/pub/dist/$release/$arch/$repo/">http://www.dist3.org/pub/dist/$release/$arch/$repo/</A>
++updates=<A HREF="yam://dist1-$arch/$repo/">yam://dist1-$arch/$repo/</A>
+ contrib=<A HREF="rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/">rsync://rsync.dist3.org/pub/dist/$release/$arch/$repo/</A>
+
+Modified: trunk/tools/yam/yam.conf
+===================================================================
+--- trunk/tools/yam/yam.conf	2004-09-01 20:53:41 UTC (rev 2153)
++++ trunk/tools/yam/yam.conf	2004-09-02 03:15:55 UTC (rev 2154)
+@@ -90,3 +90,15 @@
+ #release=8
+ #iso=SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
+ #you=<A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
++
++### Single CD distribution based on Fedora Core 1
++#[blag10000]
++#name=BLAG: Brixton Linux Action Group ($arch)
++#release=10000
++#arch=i386
++#iso=BLAG-$release.iso
++#os=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#updates=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#errata=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++#extras=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
++##TESTING=<A HREF="http://www.blagblagblag.org/10000/i386/RPMS.$repo/">http://www.blagblagblag.org/10000/i386/RPMS.$repo/</A>
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000959.html">[SVN] r2153 - trunk/rpms/enca
+</A></li>
+	<LI>Next message: <A HREF="000961.html">[SVN] r2155 - trunk/rpms/scribus
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#960">[ date ]</a>
+              <a href="thread.html#960">[ thread ]</a>
+              <a href="subject.html#960">[ subject ]</a>
+              <a href="author.html#960">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

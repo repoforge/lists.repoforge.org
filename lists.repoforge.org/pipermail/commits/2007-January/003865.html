@@ -1,0 +1,447 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5065 - in trunk/rpms: . torrentzip twolame
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5065%20-%20in%20trunk/rpms%3A%20.%20torrentzip%20twolame&In-Reply-To=%3C20070110125408.3AB6894CCC3%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003864.html">
+   <LINK REL="Next"  HREF="003866.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5065 - in trunk/rpms: . torrentzip twolame</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5065%20-%20in%20trunk/rpms%3A%20.%20torrentzip%20twolame&In-Reply-To=%3C20070110125408.3AB6894CCC3%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5065 - in trunk/rpms: . torrentzip twolame">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Jan 10 13:54:08 CET 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003864.html">[svn] r5064 - in trunk/rpms: asymptote fslint gnunet gramps	magicpoint perl-Boost-Graph perl-CGI-Session-Hidden	perl-Net-SDP perl-OODoc perl-Pod-Perldoc-ToToc	perl-Regexp-Common-net-CIDR perl-XML-Genx subtitleeditor
+</A></li>
+        <LI>Next message: <A HREF="003866.html">[svn] r5066 - in trunk/rpms: perl-CGI-Session-Hidden perl-OODoc	subtitleeditor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3865">[ date ]</a>
+              <a href="thread.html#3865">[ thread ]</a>
+              <a href="subject.html#3865">[ subject ]</a>
+              <a href="author.html#3865">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2007-01-10 13:53:52 +0100 (Wed, 10 Jan 2007)
+New Revision: 5065
+
+Added:
+   trunk/rpms/torrentzip/
+   trunk/rpms/torrentzip/patch-src-trrntzip.c
+   trunk/rpms/torrentzip/torrentzip.spec
+   trunk/rpms/torrentzip/trrntzip-0.2-help.patch
+   trunk/rpms/torrentzip/trrntzip-0.2-warningfixes.patch
+   trunk/rpms/twolame/
+   trunk/rpms/twolame/twolame.spec
+Log:
+Initial import of twolame and torrentzip.
+
+
+Added: trunk/rpms/torrentzip/patch-src-trrntzip.c
+===================================================================
+--- trunk/rpms/torrentzip/patch-src-trrntzip.c	                        (rev 0)
++++ trunk/rpms/torrentzip/patch-src-trrntzip.c	2007-01-10 12:53:52 UTC (rev 5065)
+@@ -0,0 +1,34 @@
++--- src/trrntzip.c-orig	Mon May  2 08:38:40 2005
+++++ src/trrntzip.c	Sat May  7 02:51:55 2005
++@@ -716,7 +716,7 @@
++   
++     if (dirp)
++     {
++-      // First set all the files to read-only. This is so we can skip
+++      // First set the sticky bit on all files. This is so we can skip
++       // our new zipfiles if they are returned by readdir() a second time.
++       while (direntp = readdir (dirp))
++       {
++@@ -732,7 +732,7 @@
++   
++           if (strstr (szTmpBuf, &quot;.zip\0&quot;))
++           {
++-            chmod (direntp-&gt;d_name, S_IRUSR);
+++            chmod (direntp-&gt;d_name, istat.st_mode | S_ISUID);
++           }
++         }
++         // Zip file is actually a dir
++@@ -780,9 +780,9 @@
++           sprintf (szTmpBuf, &quot;%s&quot;, direntp-&gt;d_name);
++           strlwr (szTmpBuf);
++   
++-          if (strstr (szTmpBuf, &quot;.zip\0&quot;) &amp;&amp; !(istat.st_mode &amp; S_IWUSR))
+++          if (strstr (szTmpBuf, &quot;.zip\0&quot;) &amp;&amp; (istat.st_mode &amp; S_ISUID))
++           {            
++-            chmod (direntp-&gt;d_name, S_IWUSR);
+++            chmod (direntp-&gt;d_name, istat.st_mode &amp; ~S_ISUID);
++             mig.cEncounteredZips++;
++   
++             if (!mig.fProcessLog)
++
++ 	  	 
+
+Added: trunk/rpms/torrentzip/torrentzip.spec
+===================================================================
+--- trunk/rpms/torrentzip/torrentzip.spec	                        (rev 0)
++++ trunk/rpms/torrentzip/torrentzip.spec	2007-01-10 12:53:52 UTC (rev 5065)
+@@ -0,0 +1,57 @@
++# $Id$
++# Authority: matthias
++
++Summary: Create identical zip files over multiple systems
++Name: torrentzip
++Version: 0.2
++Release: 1
++License: GPL
++Group: Applications/File
++URL: <A HREF="http://sourceforge.net/projects/trrntzip">http://sourceforge.net/projects/trrntzip</A>
++Source: <A HREF="http://dl.sf.net/trrntzip/trrntzip_v02_src.tar.gz">http://dl.sf.net/trrntzip/trrntzip_v02_src.tar.gz</A>
++Patch0: patch-src-trrntzip.c
++Patch1: trrntzip-0.2-warningfixes.patch
++Patch2: trrntzip-0.2-help.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildRequires: zlib-devel
++BuildRequires: autoconf, automake, libtool
++
++%description
++TorrentZip is a replacement for MameZip. The goal of the program is to use
++standard values when creating zips to create identical files over multiple
++systems.
++
++
++%prep
++%setup -n trrntzip
++%patch0 -p0 -b .chmod
++%patch1 -p1 -b .warningfixes
++%patch2 -p1 -b .help
++
++
++%build
++# No configure, we need to generate it from configure.in
++./autogen.sh
++%configure
++%{__make} %{?_smp_mflags}
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=%{buildroot}
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS COPYING README
++%{_bindir}/trrntzip
++
++
++%changelog
++* Tue Jan  9 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.2-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/torrentzip/torrentzip.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/torrentzip/trrntzip-0.2-help.patch
+===================================================================
+--- trunk/rpms/torrentzip/trrntzip-0.2-help.patch	                        (rev 0)
++++ trunk/rpms/torrentzip/trrntzip-0.2-help.patch	2007-01-10 12:53:52 UTC (rev 5065)
+@@ -0,0 +1,36 @@
++diff -Naupr trrntzip.orig/src/trrntzip.c trrntzip/src/trrntzip.c
++--- trrntzip.orig/src/trrntzip.c	2005-05-02 15:38:40.000000000 +0200
+++++ trrntzip/src/trrntzip.c	2007-01-10 13:41:47.000000000 +0100
++@@ -900,16 +900,17 @@ main (int argc, char **argv)
++ 
++       switch (argv[iCount][1])
++       {
++-      case '?':
++-        fprintf (stdout, &quot;\nTorrentZip v%s\n\n&quot;, TZ_VERSION);
+++      case 'h':
+++        fprintf (stdout, &quot;TorrentZip v%s\n&quot;, TZ_VERSION);
++         fprintf (stdout, &quot;Copyright (C) 2005 TorrentZip Team :\n&quot;);
++-        fprintf (stdout, &quot;StatMat, shindakun, Ultrasubmarine, r3nh03k and goosecreature\n&quot;);
+++        fprintf (stdout, &quot;StatMat, shindakun, Ultrasubmarine, r3nh03k and goosecreature.\n&quot;);
++         fprintf (stdout, &quot;Homepage : <A HREF="http://sourceforge.net/projects/trrntzip\n\n">http://sourceforge.net/projects/trrntzip\n\n</A>&quot;);
++         fprintf (stdout, &quot;Usage: trrntzip [OPTIONS] [PATH/ZIP FILE]\n\n&quot;);
++-        fprintf (stdout, &quot;Options:\n\n&quot;);
+++        fprintf (stdout, &quot;Options:\n&quot;);
++         fprintf (stdout, &quot;-d : strip sub-directories from zips\n&quot;);
++         fprintf (stdout, &quot;-s : prevent sub-directory recursion\n&quot;);
++         fprintf (stdout, &quot;-v : show version\n&quot;);
+++        fprintf (stdout, &quot;-h : show this help\n&quot;);
++         return TZ_OK;
++ 
++       case 'd':
++@@ -940,8 +941,9 @@ main (int argc, char **argv)
++ 
++   if (argc &lt; 2 || iOptionsFound == (argc - 1))
++   {
++-    fprintf (stderr, &quot;\ntrrntzip: missing path\n&quot;);
+++    fprintf (stderr, &quot;trrntzip: missing path\n&quot;);
++     fprintf (stderr, &quot;Usage: trrntzip [OPTIONS] [PATH/ZIP FILE]\n&quot;);
+++    fprintf (stderr, &quot;Try `trrntzip -h' for help.\n&quot;);
++     return TZ_ERR;
++   }
++ 
+
+Added: trunk/rpms/torrentzip/trrntzip-0.2-warningfixes.patch
+===================================================================
+--- trunk/rpms/torrentzip/trrntzip-0.2-warningfixes.patch	                        (rev 0)
++++ trunk/rpms/torrentzip/trrntzip-0.2-warningfixes.patch	2007-01-10 12:53:52 UTC (rev 5065)
+@@ -0,0 +1,130 @@
++diff -Naupr trrntzip.orig/src/logging.c trrntzip/src/logging.c
++--- trrntzip.orig/src/logging.c	2005-05-01 19:25:54.000000000 +0200
+++++ trrntzip/src/logging.c	2007-01-10 12:37:18.000000000 +0100
++@@ -18,6 +18,7 @@
++ #include &lt;sys/types.h&gt;
++ #include &lt;sys/stat.h&gt;
++ #include &lt;string.h&gt;
+++#include &lt;stdlib.h&gt;
++ #include &lt;stdio.h&gt;
++ #include &lt;time.h&gt;
++ #include &lt;stdarg.h&gt;
++diff -Naupr trrntzip.orig/src/trrntzip.c trrntzip/src/trrntzip.c
++--- trrntzip.orig/src/trrntzip.c	2005-05-02 15:38:40.000000000 +0200
+++++ trrntzip/src/trrntzip.c	2007-01-10 12:42:47.000000000 +0100
++@@ -692,7 +692,7 @@ RecursiveMigrate (const char *pszPath, W
++     // We need to change to the dir of the zipfile if there is one.
++     // This is because the logging will pick up the current dir for
++     // the filename
++-    if (pDir = strrchr (pszPath, DIRSEP))
+++    if ((pDir = strrchr (pszPath, DIRSEP)))
++     {
++       *pDir = 0;
++       chdir (pszPath);
++@@ -718,7 +718,7 @@ RecursiveMigrate (const char *pszPath, W
++     {
++       // First set all the files to read-only. This is so we can skip
++       // our new zipfiles if they are returned by readdir() a second time.
++-      while (direntp = readdir (dirp))
+++      while ((direntp = readdir (dirp)))
++       {
++         // Quick fudge to make the code below work
++         if (qZipFile) strcpy (direntp-&gt;d_name, pszPath);
++@@ -889,7 +889,9 @@ main (int argc, char **argv)
++   int iCount = 0;
++   int iOptionsFound = 0;
++   int rc = 0;
+++#ifdef WIN32
++   char *ptr = NULL;
+++#endif
++ 
++   for (iCount = 1 ; iCount &lt; argc ; iCount++)
++   { 
++diff -Naupr trrntzip.orig/src/unzip.c trrntzip/src/unzip.c
++--- trrntzip.orig/src/unzip.c	2005-04-21 08:27:42.000000000 +0200
+++++ trrntzip/src/unzip.c	2007-01-10 12:49:52.000000000 +0100
++@@ -562,10 +562,12 @@ unzlocal_GetCurrentFileInfoInternal (fil
++ 
++   /* we check the magic */
++   if (err == UNZ_OK)
+++  {
++     if (unzlocal_getLong (&amp;s-&gt;z_filefunc, s-&gt;filestream, &amp;uMagic) != UNZ_OK)
++       err = UNZ_ERRNO;
++     else if (uMagic != 0x02014b50)
++       err = UNZ_BADZIPFILE;
+++  }
++ 
++   if (unzlocal_getShort (&amp;s-&gt;z_filefunc, s-&gt;filestream, &amp;file_info.version) !=
++       UNZ_OK)
++@@ -660,11 +662,13 @@ unzlocal_GetCurrentFileInfoInternal (fil
++       uSizeRead = extraFieldBufferSize;
++ 
++     if (lSeek != 0)
+++    {
++       if (ZSEEK (s-&gt;z_filefunc, s-&gt;filestream, lSeek, ZLIB_FILEFUNC_SEEK_CUR)
++           == 0)
++         lSeek = 0;
++       else
++         err = UNZ_ERRNO;
+++    }
++     if ((file_info.size_file_extra &gt; 0) &amp;&amp; (extraFieldBufferSize &gt; 0))
++       if (ZREAD (s-&gt;z_filefunc, s-&gt;filestream, extraField, uSizeRead) !=
++           uSizeRead)
++@@ -687,11 +691,13 @@ unzlocal_GetCurrentFileInfoInternal (fil
++       uSizeRead = commentBufferSize;
++ 
++     if (lSeek != 0)
+++    {
++       if (ZSEEK (s-&gt;z_filefunc, s-&gt;filestream, lSeek, ZLIB_FILEFUNC_SEEK_CUR)
++           == 0)
++         lSeek = 0;
++       else
++         err = UNZ_ERRNO;
+++    }
++     if ((file_info.size_file_comment &gt; 0) &amp;&amp; (commentBufferSize &gt; 0))
++       if (ZREAD (s-&gt;z_filefunc, s-&gt;filestream, szComment, uSizeRead) !=
++           uSizeRead)
++@@ -962,10 +968,12 @@ unzlocal_CheckCurrentFileCoherencyHeader
++ 
++ 
++   if (err == UNZ_OK)
+++  {
++     if (unzlocal_getLong (&amp;s-&gt;z_filefunc, s-&gt;filestream, &amp;uMagic) != UNZ_OK)
++       err = UNZ_ERRNO;
++     else if (uMagic != 0x04034b50)
++       err = UNZ_BADZIPFILE;
+++  }
++ 
++   if (unzlocal_getShort (&amp;s-&gt;z_filefunc, s-&gt;filestream, &amp;uData) != UNZ_OK)
++     err = UNZ_ERRNO;
++@@ -1550,7 +1558,10 @@ unzGetGlobalComment (file, szComment, uS
++      char *szComment;
++      uLong uSizeBuf;
++ {
+++/* Not used as of 0.2 */
+++/*
++   int err = UNZ_OK;
+++*/
++   unz_s *s;
++   uLong uReadThis;
++   if (file == NULL)
++diff -Naupr trrntzip.orig/src/zip.c trrntzip/src/zip.c
++--- trrntzip.orig/src/zip.c	2005-04-17 10:36:15.000000000 +0200
+++++ trrntzip/src/zip.c	2007-01-10 12:48:18.000000000 +0100
++@@ -117,6 +117,8 @@ init_linkedlist (ll)
++   ll-&gt;first_block = ll-&gt;last_block = NULL;
++ }
++ 
+++/* Not used as of 0.2 */
+++/*
++ local void
++ free_linkedlist (ll)
++      linkedlist_data *ll;
++@@ -124,6 +126,7 @@ free_linkedlist (ll)
++   free_datablock (ll-&gt;first_block);
++   ll-&gt;first_block = ll-&gt;last_block = NULL;
++ }
+++*/
++ 
++ 
++ local int
+
+Added: trunk/rpms/twolame/twolame.spec
+===================================================================
+--- trunk/rpms/twolame/twolame.spec	                        (rev 0)
++++ trunk/rpms/twolame/twolame.spec	2007-01-10 12:53:52 UTC (rev 5065)
+@@ -0,0 +1,76 @@
++# $Id$
++# Authority: matthias
++
++Summary: Optimised MPEG Audio Layer 2 (MP2) encoder
++Name: twolame
++Version: 0.3.9
++Release: 1
++License: LGPL
++Group: Applications/Multimedia
++URL: <A HREF="http://www.twolame.org/">http://www.twolame.org/</A>
++Source: <A HREF="http://dl.sf.net/twolame/twolame-%{version">http://dl.sf.net/twolame/twolame-%{version</A>}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildRequires: libsndfile-devel
++
++%description
++TwoLAME is an optimised MPEG Audio Layer 2 (MP2) encoder based on tooLAME by
++Mike Cheng, which in turn is based upon the ISO dist10 code and portions of
++LAME.
++
++
++%package devel
++Summary: Development files for TwoLAME
++Group: Development/Libraries
++Requires: %{name} = %{version}-%{release}, pkgconfig
++
++%description devel
++TwoLAME is an optimised MPEG Audio Layer 2 (MP2) encoder based on tooLAME by
++Mike Cheng, which in turn is based upon the ISO dist10 code and portions of
++LAME.
++
++
++%prep
++%setup
++
++
++%build
++%configure --disable-static
++%{__make} %{?_smp_mflags}
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install DESTDIR=%{buildroot}
++# Move docs back here to be included in the devel sub-package
++%{__mv} %{buildroot}%{_docdir}/twolame/ _doc
++
++
++%post -p /sbin/ldconfig
++
++%postun -p /sbin/ldconfig
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc AUTHORS COPYING ChangeLog README TODO 
++%{_bindir}/twolame
++%{_libdir}/libtwolame.so.*
++%{_mandir}/man1/twolame.1*
++
++%files devel
++%defattr(-, root, root, 0755)
++%doc _doc/* doc/html/
++%{_includedir}/twolame.h
++%{_libdir}/pkgconfig/twolame.pc
++%exclude %{_libdir}/libtwolame.la
++%{_libdir}/libtwolame.so
++
++
++%changelog
++* Wed Jan 10 2007 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.3.9-1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/twolame/twolame.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003864.html">[svn] r5064 - in trunk/rpms: asymptote fslint gnunet gramps	magicpoint perl-Boost-Graph perl-CGI-Session-Hidden	perl-Net-SDP perl-OODoc perl-Pod-Perldoc-ToToc	perl-Regexp-Common-net-CIDR perl-XML-Genx subtitleeditor
+</A></li>
+	<LI>Next message: <A HREF="003866.html">[svn] r5066 - in trunk/rpms: perl-CGI-Session-Hidden perl-OODoc	subtitleeditor
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3865">[ date ]</a>
+              <a href="thread.html#3865">[ thread ]</a>
+              <a href="subject.html#3865">[ subject ]</a>
+              <a href="author.html#3865">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

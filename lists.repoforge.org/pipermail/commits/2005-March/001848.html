@@ -1,0 +1,369 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3044 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3044%20-%20trunk/tools/dstat&In-Reply-To=%3C20050320063558.9B23A5C4219%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001845.html">
+   <LINK REL="Next"  HREF="001849.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3044 - trunk/tools/dstat</H1>
+    <B>svn-commits at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3044%20-%20trunk/tools/dstat&In-Reply-To=%3C20050320063558.9B23A5C4219%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3044 - trunk/tools/dstat">svn-commits at lists.rpmforge.net
+       </A><BR>
+    <I>Sun Mar 20 07:35:58 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001845.html">[SVN] r3044 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="001849.html">[svn] r3045 - in trunk/rpms: conglomerate cpudyn f-spot	gaim-encryption kaffeine sitecopy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1848">[ date ]</a>
+              <a href="thread.html#1848">[ thread ]</a>
+              <a href="subject.html#1848">[ subject ]</a>
+              <a href="author.html#1848">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-03-20 07:35:57 +0100 (Sun, 20 Mar 2005)
+New Revision: 3044
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat15
+Log:
+Backported changes to dstat15 + small fixes
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-03-19 14:10:56 UTC (rev 3043)
++++ trunk/tools/dstat/ChangeLog	2005-03-20 06:35:57 UTC (rev 3044)
+@@ -1,6 +1,8 @@
+ * 0.5.9
+ - Make default list total lists (cpu, disk, net)
+-- Fix clearline ANSI to work on older rxvt (0.6.4) (Joshua Rodman)
++- Fix clearline ANSI to work on (Debian?) rxvt (Joshua Rodman)
++- Improved color/vt100 terminal capabilities logic (Charles Lepple)
++- Improvement to non-tty handling for intermediate updates
+ 
+ * 0.5.8
+ - Added user stats using python-utmp
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-03-19 14:10:56 UTC (rev 3043)
++++ trunk/tools/dstat/TODO	2005-03-20 06:35:57 UTC (rev 3044)
+@@ -29,6 +29,7 @@
+ 
+ ### General bugs
+ + Timer is not accurate on 2.6 kernel, every second there's a 1ms deviation (every 17mins -&gt; 1sec)
+++ Python 1.5 prints 'L' for long, crashes when int()
+ 
+ ### Stat bugs
+ + tcp stat is very slow and generates lots of softirqs (on some systems)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-03-19 14:10:56 UTC (rev 3043)
++++ trunk/tools/dstat/dstat	2005-03-20 06:35:57 UTC (rev 3044)
+@@ -1313,9 +1313,6 @@
+ #	hz = os.sysconf('SC_CLK_TCK')
+ 	interval = 1
+ 
+-	if not op.update:
+-		interval = op.delay
+-
+ 	if op.output:
+ 		outputfile = open(op.output, 'a', 0)
+ 
+@@ -1349,9 +1346,12 @@
+ 			info(1, 'Module \'%s\' does not exist or failed to load.' % mod)
+ 
+ 	### Check terminal capabilities
+-#	import curses
+-#	if not sys.stdout.isatty() or not curses.wrapper(lambda s:curses.has_colors()):
+-	if not sys.stdout.isatty() or os.environ.get('TERM',None) not in ('ansi', 'gnome', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm'):
++	if sys.stdout.isatty():
++#		import curses
++#		if not curses.wrapper(lambda s:curses.has_colors()):
++		if os.environ.get('TERM', None) not in ('ansi', 'gnome', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm', 'xterm-color'):
++			op.color = False
++	else:
+ 		op.color = False
+ 		op.nolimit = True
+ 		op.update = False
+@@ -1364,6 +1364,9 @@
+ 		for key in ansi.keys():
+ 			ansi[key] = ''
+ 
++	if not op.update:
++		interval = op.delay
++
+ 	### Remove defect objects and calculate line length
+ 	linewidth = 0
+ 	for o in totlist + []:
+@@ -1471,16 +1474,7 @@
+ ### Unbuffered sys.stdout
+ sys.stdout = os.fdopen(1, 'w', 0)
+ 
+-### Workaround for python &lt;= 2.2.1
+-try:
+-     True, False
+-except NameError:
+-     True = 1
+-     False = 0
+-Yes = yes = On = on = True
+-No = no = Off = off = False
+-
+-### Workaround for python &lt; 2.3
++### Workaround for python &gt; 2.1 and &lt; 2.3
+ def enumerate(sequence):
+     index = 0
+     for item in sequence:
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-03-19 14:10:56 UTC (rev 3043)
++++ trunk/tools/dstat/dstat15	2005-03-20 06:35:57 UTC (rev 3044)
+@@ -19,7 +19,7 @@
+ import os, sys, re, getopt, time, termios
+ import ConfigParser, urlparse, signal, resource
+ 
+-VERSION = '0.5.8'
++VERSION = '0.5.9'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -405,7 +405,15 @@
+ 		if op.cpulist:
+ 			list = op.cpulist
+ 		else:
+-			list = ('', )
++			if not op.full:
++				list = ('', )
++			else:
++				list = []
++				cpu = 0
++				while cpu &lt; cpunr:
++					list.append(str(cpu))
++					cpu = cpu + 1
++				if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+ 			if name in self.discover(''):
+ 				ret.append(name)
+@@ -456,7 +464,15 @@
+ 		if op.cpulist:
+ 			list = op.cpulist
+ 		else:
+-			list = ('',)
++			if not op.full:
++				list = ('', )
++			else:
++				list = []
++				cpu = 0
++				while cpu &lt; cpunr:
++					list.append(str(cpu))
++					cpu = cpu + 1
++				if len(list) &gt; 2: list = list[0:2]
+ 		for name in list:
+ 			if name in self.discover(''):
+ 				ret.append(name)
+@@ -513,9 +529,12 @@
+ 		if op.disklist:
+ 			list = op.disklist
+ 		else:
+-			list = self.discover()
+-			if not op.full and len(list) &gt; 2: list = list[0:2]
+-			list.sort()
++			if not op.full:
++				list = ('total', )
++			else:
++				list = self.discover()
++				if len(list) &gt; 2: list = list[0:2]
++				list.sort()
+ 		for name in list:
+ 			if name in self.discover('total') + self.diskset.keys():
+ 				ret.append(name)
+@@ -561,9 +580,12 @@
+ 		if op.disklist:
+ 			list = op.disklist
+ 		else:
+-			list = self.discover()
+-			if not op.full and len(list) &gt; 2: list = list[0:2]
+-			list.sort()
++			if not op.full:
++				list = ('total', )
++			else:
++				list = self.discover()
++				if len(list) &gt; 2: list = list[0:2]
++				list.sort()
+ 		for name in list:
+ 			if name in self.discover('total') + self.diskset.keys():
+ 				ret.append(name)
+@@ -703,7 +725,7 @@
+ 		if os.path.exists('/proc/interrupts'):
+ 			for line in open('/proc/interrupts', 'r').readlines():
+ 				l = string.split(line)
+-				if len(l) &lt; procs+1: continue
++				if len(l) &lt; cpunr+1: continue
+ 				name = string.split(l[0], ':')[0]
+ 				if long(l[1]) &gt; 10:
+ 					ret.append(name)
+@@ -735,15 +757,15 @@
+ 	def stats(self):
+ 		for line in open('/proc/interrupts', 'r').readlines():
+ 			l = string.split(line)
+-			if len(l) &lt; procs+1: continue
++			if len(l) &lt; cpunr+1: continue
+ 			name = string.split(l[0], ':')[0]
+ 			if name in self.vars:
+ 				self.cn2[name] = 0
+-				for i in l[1:1+procs]:
++				for i in l[1:1+cpunr]:
+ 					self.cn2[name] = self.cn2[name] + long(i)
+-#			elif len(l) &gt; 2 + procs:
++#			elif len(l) &gt; 2 + cpunr:
+ #				for hw in self.vars:
+-#					for mod in l[2+procs:]:
++#					for mod in l[2+cpunr:]:
+ #						self.cn2[mod] = long(l[1])
+ 		if update:
+ 			for name in self.cn2.keys():
+@@ -791,7 +813,7 @@
+ 		for line in open('/proc/meminfo', 'r').readlines():
+ 			l = string.split(line)
+ 			if len(l) &lt; 2: continue
+-			name = l[0].split(':')[0]
++			name = string.split(l[0],':')[0]
+ 			if name in self.vars + ('MemTotal',):
+ 				self.val[name] = long(l[1]) * 1024.0
+ 		self.val['MemUsed'] = self.val['MemTotal'] - self.val['MemFree'] - self.val['Buffers'] - self.val['Cached']
+@@ -830,8 +852,12 @@
+ 		if op.netlist:
+ 			list = op.netlist
+ 		else:
+-			list = self.discover()
+-			if not op.full and len(list) &gt; 2: list = list[0:2]
++			if not op.full:
++				list = ('total', )
++			else:
++				list = self.discover()
++				if len(list) &gt; 2: list = list[0:2]
++				list.sort()
+ 		for name in list:
+ 			if name in self.discover('total'):
+ 				ret.append(name)
+@@ -1122,7 +1148,8 @@
+ 	'underline': '\033[4m',
+ 
+ 	'clear': '\033[2J',
+-	'clearline': '\033[K',
++#	'clearline': '\033[K',
++	'clearline': '\033[2K',
+ #	'save': '\033[s',
+ #	'restore': '\033[u',
+ 	'save': '\0337',
+@@ -1242,11 +1269,11 @@
+ 			return 25, 80
+ 
+ def getcpunr():
+-	procs = -1
++	cpunr = -1
+ 	for line in open('/proc/stat', 'r').readlines():
+ 		if line[0:3] == 'cpu':
+-			procs = procs + 1
+-	return procs
++			cpunr = cpunr + 1
++	return cpunr
+ 
+ def scsidev(nr):
+ 	if nr &lt; 26:
+@@ -1277,18 +1304,15 @@
+ 	signal.alarm(interval)
+ 
+ def main():
+-	global update, loop, step, pagesize, procs, ansi, interval, outputfile
++	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile
+ 
+ 	loop = update = 0
+ 	step = op.delay
+ 	pagesize = resource.getpagesize()
+-	procs = getcpunr()
++	cpunr = getcpunr()
+ #	hz = os.sysconf('SC_CLK_TCK')
+ 	interval = 1
+ 
+-	if not op.update:
+-		interval = op.delay
+-
+ 	if op.output:
+ 		outputfile = open(op.output, 'a', 0)
+ 
+@@ -1322,9 +1346,12 @@
+ 			info(1, 'Module \'%s\' does not exist or failed to load.' % mod)
+ 
+ 	### Check terminal capabilities
+-#	import curses
+-#	if not sys.stdout.isatty() or not curses.wrapper(lambda s:curses.has_colors()):
+-	if not sys.stdout.isatty() or os.environ.get('TERM',None) not in ('ansi', 'gnome', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm'):
++	if sys.stdout.isatty():
++#		import curses
++#		if not curses.wrapper(lambda s:curses.has_colors()):
++		if os.environ.get('TERM', None) not in ('ansi', 'gnome', 'linux', 'rxvt', 'screen', 'screen-w', 'xterm', 'xterm-color'):
++			op.color = False
++	else:
+ 		op.color = False
+ 		op.nolimit = True
+ 		op.update = False
+@@ -1337,6 +1364,9 @@
+ 		for key in ansi.keys():
+ 			ansi[key] = ''
+ 
++	if not op.update:
++		interval = op.delay
++
+ 	### Remove defect objects and calculate line length
+ 	linewidth = 0
+ 	for o in totlist + []:
+@@ -1453,7 +1483,7 @@
+ Yes = yes = On = on = True
+ No = no = Off = off = False
+ 
+-### Workaround for python &lt; 2.3
++### Workaround for python &lt; 2.1
+ def enumerate(sequence):
+     index = 0
+     list = []
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001845.html">[SVN] r3044 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="001849.html">[svn] r3045 - in trunk/rpms: conglomerate cpudyn f-spot	gaim-encryption kaffeine sitecopy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1848">[ date ]</a>
+              <a href="thread.html#1848">[ thread ]</a>
+              <a href="subject.html#1848">[ subject ]</a>
+              <a href="author.html#1848">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

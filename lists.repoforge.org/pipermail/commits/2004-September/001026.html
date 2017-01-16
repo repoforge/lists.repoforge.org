@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2220 - trunk/rpms/firefox
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2220%20-%20trunk/rpms/firefox&In-Reply-To=%3C20040928115457.EF45717FA8%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001025.html">
+   <LINK REL="Next"  HREF="001027.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2220 - trunk/rpms/firefox</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2220%20-%20trunk/rpms/firefox&In-Reply-To=%3C20040928115457.EF45717FA8%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2220 - trunk/rpms/firefox">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Sep 28 13:54:57 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001025.html">[SVN] r2219 - in trunk/rpms: imlib2 zope
+</A></li>
+        <LI>Next message: <A HREF="001027.html">[SVN] r2221 - trunk/rpms/firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1026">[ date ]</a>
+              <a href="thread.html#1026">[ thread ]</a>
+              <a href="subject.html#1026">[ subject ]</a>
+              <a href="author.html#1026">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-09-28 13:54:55 +0200 (Tue, 28 Sep 2004)
+New Revision: 2220
+
+Modified:
+   trunk/rpms/firefox/firefox.spec
+Log:
+Some fixes.
+
+
+Modified: trunk/rpms/firefox/firefox.spec
+===================================================================
+--- trunk/rpms/firefox/firefox.spec	2004-09-27 23:47:06 UTC (rev 2219)
++++ trunk/rpms/firefox/firefox.spec	2004-09-28 11:54:55 UTC (rev 2220)
+@@ -11,7 +11,7 @@
+ Summary: Mozilla Firefox web browser
+ Name: firefox
+ Version: 0.10
+-Release: 0
++Release: 0.1
+ License: MPL/LGPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.mozilla.org/projects/firefox/">http://www.mozilla.org/projects/firefox/</A>
+@@ -25,6 +25,7 @@
+ Patch2: firefox-0.9.3-uri.patch
+ Patch3: mozilla-default-plugin-less-annoying.patch
+ Patch5: mozilla-1.7-psfonts.patch
++Patch6: firefox-0.10-gcc3-alpha.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ BuildRequires: XFree86-devel, zlib-devel, zip
+@@ -46,24 +47,19 @@
+ %patch2 -p0 -b .uri
+ %patch3 -p1 -b .plugin
+ %patch5 -p1 -b .psfonts
++%patch6 -p1 -b .gcc3-alpha
+ 
+-### FIXME: Shouldn't the default firefox config be part of original source ?
+-%{__cat} &lt;&lt;EOF &gt;.mozconfig
++%{__cat} &lt;&lt;'EOF' &gt;.mozconfig
++. $topsrcdir/browser/config/mozconfig
+ ac_add_options --x-libraries=&quot;%{_prefix}/X11R6/%{_lib}&quot;
+-ac_add_options --disable-composer
+ ac_add_options --disable-debug
+ ac_add_options --disable-installer
+ ac_add_options --disable-jsd
+-ac_add_options --disable-ldap
+-ac_add_options --disable-mailnews
+-ac_add_options --disable-profilesharing
+ ac_add_options --disable-tests
+-ac_add_options --enable-crypto
+ ac_add_options --enable-extensions=&quot;default,-content-packs,-editor,-help,-irc,-spellcheck&quot;
+ ac_add_options --enable-official-branding
+ # We want to replace -O? with -Os to optimize compilation for size
+ ac_add_options --enable-optimize=&quot;-Os %(echo &quot;%{optflags}&quot; | sed 's/-O.//')&quot;
+-ac_add_options --enable-single-profile
+ ac_add_options --with-pthreads
+ ac_add_options --with-system-jpeg
+ ac_add_options --with-system-png
+@@ -186,6 +182,8 @@
+ %{__install} -D -m0755 %{SOURCE1} %{buildroot}%{_libdir}/firefox/firefox-rebuild-database
+ %{__perl} -pi -e 's|\$MOZ_DIST_BIN|%{_libdir}/firefox|g;' %{buildroot}%{_libdir}/firefox/firefox-rebuild-database
+ 
++%{__install} -d -m0755 %{buildroot}%{_libdir}/mozilla/plugins/
++
+ %if %{?_without_gtk2:1}0
+ ### FIXME: Fixed &quot;nsNativeComponentLoader: GetFactory(libwidget_gtk.so) Load FAILED with error: libwidget_gtk.so&quot; by linking. (Please fix upstream)
+ if [ ! -f %{buildroot}%{_libdir}/firefox/components/libwidget_gtk.so ]; then
+@@ -204,7 +202,7 @@
+ %endif
+ 
+ ### Clean up buildroot
+-find %{buildroot}%{_libdir}/firefox/chrome/*/ -type d -exec %{__rmdir} -p {} \; &amp;&gt;/dev/null
++find %{buildroot}%{_libdir}/firefox/chrome/* -type d -maxdepth 1 -exec %{__rm} -rf {} \;
+ 
+ %post
+ /sbin/ldconfig 2&gt;/dev/null
+@@ -230,11 +228,18 @@
+ %doc LEGAL LICENSE README.txt
+ %{_bindir}/firefox
+ %{_libdir}/firefox/
++%dir %{_libdir}/mozilla/
++%dir %{_libdir}/mozilla/plugins/
+ %{_datadir}/pixmaps/firefox.png
+ %{?_without_freedesktop:%{_datadir}/gnome/apps/Internet/firefox.desktop}
+ %{!?_without_freedesktop:%{_datadir}/applications/net-firefox.desktop}
+ 
+ %changelog
++* Tue Sep 28 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.10-0.1
++- Include default mozconfig.
++- Add mozilla and mozilla plugins directory to package.
++- Clean up the leftover .jar content.
++
+ * Thu Sep 16 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.10-0
+ - Update to 1.0 PR.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001025.html">[SVN] r2219 - in trunk/rpms: imlib2 zope
+</A></li>
+	<LI>Next message: <A HREF="001027.html">[SVN] r2221 - trunk/rpms/firefox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1026">[ date ]</a>
+              <a href="thread.html#1026">[ thread ]</a>
+              <a href="subject.html#1026">[ subject ]</a>
+              <a href="author.html#1026">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

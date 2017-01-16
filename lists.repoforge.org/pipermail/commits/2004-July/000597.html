@@ -1,0 +1,780 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1788 - in trunk/rpms: . asterisk asterisk-sounds zaptel
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1788%20-%20in%20trunk/rpms%3A%20.%20asterisk%20asterisk-sounds%20zaptel&In-Reply-To=%3C20040729135553.CD4DF1FCAA%40server01.nl.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000596.html">
+   <LINK REL="Next"  HREF="000598.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1788 - in trunk/rpms: . asterisk asterisk-sounds zaptel</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1788%20-%20in%20trunk/rpms%3A%20.%20asterisk%20asterisk-sounds%20zaptel&In-Reply-To=%3C20040729135553.CD4DF1FCAA%40server01.nl.egwn.net%3E"
+       TITLE="[SVN] r1788 - in trunk/rpms: . asterisk asterisk-sounds zaptel">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Thu Jul 29 15:55:53 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000596.html">[SVN] r1787 - trunk/rpms/kannel
+</A></li>
+        <LI>Next message: <A HREF="000598.html">[SVN] r1789 - trunk/rpms/rhythmbox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#597">[ date ]</a>
+              <a href="thread.html#597">[ thread ]</a>
+              <a href="subject.html#597">[ subject ]</a>
+              <a href="author.html#597">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-07-29 15:55:50 +0200 (Thu, 29 Jul 2004)
+New Revision: 1788
+
+Added:
+   trunk/rpms/asterisk-sounds/
+   trunk/rpms/asterisk-sounds/asterisk-sounds.spec
+   trunk/rpms/asterisk/
+   trunk/rpms/asterisk/asterisk-1.0-RC1-cdr.patch
+   trunk/rpms/asterisk/asterisk.init
+   trunk/rpms/asterisk/asterisk.spec
+   trunk/rpms/zaptel/
+   trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch
+   trunk/rpms/zaptel/zaptel-makedev.d.txt
+   trunk/rpms/zaptel/zaptel.spec
+Log:
+Initial import of asterisk and its zaptel dependency.
+
+
+Added: trunk/rpms/asterisk/asterisk-1.0-RC1-cdr.patch
+===================================================================
+--- trunk/rpms/asterisk/asterisk-1.0-RC1-cdr.patch	2004-07-29 13:36:35 UTC (rev 1787)
++++ trunk/rpms/asterisk/asterisk-1.0-RC1-cdr.patch	2004-07-29 13:55:50 UTC (rev 1788)
+@@ -0,0 +1,63 @@
++--- cdr/cdr_pgsql.c.orig	2004-01-22 18:03:11.000000000 +0100
+++++ cdr/cdr_pgsql.c	2004-07-29 13:27:39.124746432 +0200
++@@ -148,7 +148,10 @@
++ 
++ static int my_unload_module(void)
++ { 
++-	PQfinish(conn);
+++        if (conn)
+++                PQfinish(conn);
+++        conn = NULL;
+++
++ 	connected = 0;
++ 	if (pghostname &amp;&amp; hostname_alloc) {
++ 		free(pghostname);
++@@ -201,6 +204,7 @@
++ 	var = ast_variable_browse(cfg, &quot;global&quot;);
++ 	if (!var) {
++ 		/* nothing configured */
+++		ast_destroy(cfg);
++ 		return 0;
++ 	}
++ 
++@@ -212,6 +216,7 @@
++ 			strcpy(pghostname,tmp);
++ 		} else {
++ 			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+++			ast_destroy(cfg);
++ 			return -1;
++ 		}
++ 	} else {
++@@ -227,6 +232,7 @@
++ 			strcpy(pgdbname,tmp);
++ 		} else {
++ 			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+++			ast_destroy(cfg);
++ 			return -1;
++ 		}
++ 	} else {
++@@ -242,6 +248,7 @@
++ 			strcpy(pgdbuser,tmp);
++ 		} else {
++ 			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+++			ast_destroy(cfg);
++ 			return -1;
++ 		}
++ 	} else {
++@@ -257,6 +264,7 @@
++ 			strcpy(pgpassword,tmp);
++ 		} else {
++ 			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+++			ast_destroy(cfg);
++ 			return -1;
++ 		}
++ 	} else {
++@@ -272,6 +280,7 @@
++ 			strcpy(pgdbport,tmp);
++ 		} else {
++ 			ast_log(LOG_ERROR,&quot;Out of memory error.\n&quot;);
+++			ast_destroy(cfg);
++ 			return -1;
++ 		}
++ 	} else {
++
+
+Added: trunk/rpms/asterisk/asterisk.init
+===================================================================
+--- trunk/rpms/asterisk/asterisk.init	2004-07-29 13:36:35 UTC (rev 1787)
++++ trunk/rpms/asterisk/asterisk.init	2004-07-29 13:55:50 UTC (rev 1788)
+@@ -0,0 +1,66 @@
++#!/bin/sh
++# $Id: asterisk.init,v 1.2 2003/09/19 14:32:28 dude Exp $
++#
++# asterisk    This shell script takes care of starting and stopping Asterisk.
++#
++# chkconfig: 2345 40 60
++# description: Asterisk PBX and telephony daemon.
++# processname: asterisk
++# pidfile: /var/run/asterisk/asterisk.pid
++
++# Source function library.
++. /etc/rc.d/init.d/functions
++
++[ -x /usr/sbin/asterisk ] || exit 0
++[ -d /etc/asterisk ] || exit 0
++
++RETVAL=0
++
++start() {
++	# Start daemons.
++	echo -n $&quot;Starting asterisk: &quot;
++	daemon --user asterisk /usr/sbin/safe_asterisk
++	RETVAL=$?
++	[ $RETVAL -eq 0 ] &amp;&amp; touch /var/lock/subsys/asterisk
++	echo
++	return $RETVAL
++}
++
++stop() {
++	# Stop daemons.
++	echo -n $&quot;Shutting down asterisk: &quot;
++	killproc asterisk
++	RETVAL=$?
++	[ $RETVAL -eq 0 ] &amp;&amp; rm -f /var/lock/subsys/asterisk
++	echo
++	return $RETVAL
++}
++
++restart() {
++	stop
++	start
++}
++
++# See how we were called.
++case &quot;$1&quot; in
++  start)
++	start
++	;;
++  stop)
++	stop
++	;;
++  restart)
++	restart
++	;;
++  condrestart)
++	[ -f /var/lock/subsys/asterisk ] &amp;&amp; restart || :
++	;;
++  status)
++	status asterisk
++	;;
++  *)
++	echo &quot;Usage: asterisk {start|stop|restart|condrestart|status}&quot;
++	exit 1
++esac
++
++exit $?
+
+
+Property changes on: trunk/rpms/asterisk/asterisk.init
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/rpms/asterisk/asterisk.spec
+===================================================================
+--- trunk/rpms/asterisk/asterisk.spec	2004-07-29 13:36:35 UTC (rev 1787)
++++ trunk/rpms/asterisk/asterisk.spec	2004-07-29 13:55:50 UTC (rev 1788)
+@@ -0,0 +1,165 @@
++# $Id$
++
++# The user and group names
++%define uname asterisk
++%define gname asterisk
++
++# For pre-versions
++%define prever RC1
++
++Summary: The Asterisk PBX and telephony application and toolkit
++Name: asterisk
++Version: 1.0
++Release: %{?prever:0.%{prever}.}2
++License: GPL
++Group: Applications/Internet
++URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
++Source0: <A HREF="ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-%{version">ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-%{version</A>}%{?prever:-%{prever}}.tar.gz
++Source1: asterisk.init
++Patch: asterisk-1.0-RC1-cdr.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++Requires: openssl, zlib, perl, speex, zaptel
++Requires: gtk+, mysql, newt, ncurses, postgresql-libs
++BuildRequires: openssl-devel, zlib-devel, perl, bison, speex-devel, zaptel
++BuildRequires: gtk+-devel, mysql-devel, newt-devel, ncurses-devel
++BuildRequires: postgresql-devel, doxygen
++
++%description
++Asterisk is an Open Source PBX and telephony development platform that
++can both replace a conventional PBX and act as a platform for developing
++custom telephony applications for delivering dynamic content over a
++telephone similarly to how one can deliver dynamic content through a
++web browser using CGI and a web server.
++ 
++Asterisk talks to a variety of telephony hardware including BRI, PRI,
++POTS, and IP telephony clients using the Inter-Asterisk eXchange
++protocol (e.g. gnophone or miniphone).
++
++
++%package devel
++Summary: Header files and development documentation for Asterisk
++Group: Development/Libraries
++Requires: %{name} = %{version}
++
++%description devel
++This package contains the header files needed to compile modules for Asterisk
++as well as the developer documentation generated by doxygen.
++
++
++%prep
++%setup -n asterisk-%{version}%{?prever:-%{prever}}
++%patch -p0 -b .cdr
++
++
++%build
++# Replace /var/run by /var/run/asterisk since we don't run as root
++#perl -pi -e 's|ASTVARRUNDIR=\$(INSTALL_PREFIX)/var/run|ASTVARRUNDIR=\$(INSTALL_PREFIX)/var/run/%{name}|g' Makefile
++%{__make} PROC=&quot;%{_arch}&quot; OPTIMIZE=&quot;%{optflags}&quot; 
++make progdocs
++
++
++%install
++%{__rm} -rf %{buildroot}
++make install INSTALL_PREFIX=%{buildroot}
++install -D -m 0755 %{SOURCE1} %{buildroot}%{_initrddir}/asterisk
++
++# Override wrong absolute links
++%{__rm} -f %{buildroot}%{_localstatedir}/lib/asterisk/sounds/vm &amp;&amp; \
++    %{__ln_s} -f ../../../spool/asterisk/vm \
++                 %{buildroot}%{_localstatedir}/lib/asterisk/sounds/vm
++%{__rm} -f %{buildroot}%{_localstatedir}/lib/asterisk/sounds/voicemail &amp;&amp; \
++    %{__ln_s} -f ../../../spool/asterisk/voicemail \
++                 %{buildroot}%{_localstatedir}/lib/asterisk/sounds/voicemail
++%{__rm} -f %{buildroot}%{_localstatedir}/spool/asterisk/vm &amp;&amp; \
++    %{__ln_s} -f voicemail/default \
++                 %{buildroot}%{_localstatedir}/spool/asterisk/vm
++
++# Install all sample config files
++for file in configs/*.*; do
++    %{__install} -m 0640 $file \
++        %{buildroot}%{_sysconfdir}/asterisk/`basename $file .sample`
++done
++
++# We need that directory, see above
++%{__mkdir_p} %{buildroot}%{_localstatedir}/run/asterisk
++
++# Fix the safe_asterix script, to be run as non-root
++%{__perl} -pi.orig -e 's|(asterisk \${ASTARGS})|%{_sbindir}/$1|g' \
++    %{buildroot}%{_sbindir}/safe_asterisk
++
++# Install demo sounds
++for file in sounds/demo-*; do
++    install -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/sounds/
++done
++for file in sounds/*.mp3; do
++    install -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/mohmp3/
++done
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%pre
++# Add the &quot;asterisk&quot; user
++/usr/sbin/useradd -c &quot;Asterisk PBX&quot; -G tty -s /sbin/nologin -r \
++    -d &quot;%{_localstatedir}/lib/asterisk&quot; %{uname} 2&gt;/dev/null || :
++
++%post
++# Register the asterisk service
++/sbin/chkconfig --add asterisk
++# Fix the permission on tty9
++/bin/chmod g+r /dev/tty9
++
++%preun
++if [ $1 -eq 0 ]; then
++    /sbin/service asterisk stop &gt;/dev/null 2&gt;&amp;1
++    /sbin/chkconfig --del asterisk
++fi
++
++
++%files
++%defattr(-, root, root, 0755)
++%doc BUGS ChangeLog CREDITS HARDWARE LICENSE README SECURITY doc/*.txt configs/
++%doc sounds.txt
++%attr(750, %{uname}, %{gname}) %dir %{_sysconfdir}/asterisk
++%attr(640, %{uname}, %{gname}) %config(noreplace) %{_sysconfdir}/asterisk/*.conf
++%attr(640, %{uname}, %{gname}) %config(noreplace) %{_sysconfdir}/asterisk/*.adsi
++%{_initrddir}/asterisk
++%{_libdir}/asterisk
++%{_sbindir}/*
++%attr(-  , %{uname}, %{gname}) %{_localstatedir}/lib/asterisk
++%attr(750, %{uname}, %{gname}) %{_localstatedir}/run/asterisk
++%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/log/asterisk
++%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/spool/asterisk
++                                    %{_localstatedir}/spool/asterisk/vm
++%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/spool/asterisk/voicemail
++%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/spool/asterisk/voicemail/default
++
++
++%files devel
++%doc doc/api/html/*
++%{_includedir}/asterisk
++
++
++%changelog
++* Thu Jul 29 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0-0.RC1.2
++- Added Areski's cdr patch.
++
++* Mon Jul 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0-0.RC1.1
++- Update to 1.0-RC1.
++
++* Thu Feb  5 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 0.7.2-1
++- Update to 0.7.2.
++
++* Tue Dec  2 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt;
++- Updated to today's CVS code.
++- Added asterisk-addons (cdr_addon_mysql).
++
++* Tue Nov  4 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt;
++- Added CVS release support.
++- Changed ownership of the config directory to asterisk user.
++
++* Fri Sep 19 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt;
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/asterisk/asterisk.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/asterisk-sounds/asterisk-sounds.spec
+===================================================================
+--- trunk/rpms/asterisk-sounds/asterisk-sounds.spec	2004-07-29 13:36:35 UTC (rev 1787)
++++ trunk/rpms/asterisk-sounds/asterisk-sounds.spec	2004-07-29 13:55:50 UTC (rev 1788)
+@@ -0,0 +1,58 @@
++# $Id$
++
++# For pre-versions
++%define prever RC1
++
++Summary: Sound files for the Asterisk PBX and telephony application and toolkit
++Name: asterisk-sounds
++Version: 1.0
++Release: %{?prever:0.%{prever}.}1
++License: BSD
++Group: Applications/Internet
++URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
++Source: <A HREF="ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-sounds-%{version">ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-sounds-%{version</A>}%{?prever:-%{prever}}.tar.gz
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++BuildArch: noarch
++Requires: asterisk
++
++%description
++Asterisk is an Open Source PBX and telephony development platform that
++can both replace a conventional PBX and act as a platform for developing
++custom telephony applications for delivering dynamic content over a
++telephone similarly to how one can deliver dynamic content through a
++web browser using CGI and a web server.
++ 
++Asterisk talks to a variety of telephony hardware including BRI, PRI,
++POTS, and IP telephony clients using the Inter-Asterisk eXchange
++protocol (e.g. gnophone or miniphone).
++
++This package contains freely usable recorded sounds that were meant to be
++used with Asterisk.
++
++
++%prep
++%setup -n asterisk-sounds-%{version}%{?prever:-%{prever}}
++
++
++%build
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install INSTALL_PREFIX=%{buildroot}
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%files
++%defattr(0644, root, root, 0755)
++%doc README.txt sounds-extra.txt
++%{_localstatedir}/lib/asterisk/sounds
++
++
++%changelog
++* Mon Jul 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0-0.RC1.1
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/asterisk-sounds/asterisk-sounds.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+Added: trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch
+===================================================================
+--- trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch	2004-07-29 13:36:35 UTC (rev 1787)
++++ trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch	2004-07-29 13:55:50 UTC (rev 1788)
+@@ -0,0 +1,128 @@
++diff -Naupr zaptel-1.0-RC1.orig/Makefile zaptel-1.0-RC1/Makefile
++--- zaptel-1.0-RC1.orig/Makefile	2004-07-17 00:09:07.000000000 +0200
+++++ zaptel-1.0-RC1/Makefile	2004-07-26 18:30:29.842864224 +0200
++@@ -3,6 +3,9 @@
++ #
++ BASEADDR=0xd0000
++ 
+++# Kernel version
+++KVERSION=$(uname -r)
+++
++ #
++ # Okay, the people at RedHat have to break everything they can possibly even attempt to.
++ # So, we have to look in /usr/src/linux-2.4/include for header files given their brain dead
++@@ -12,15 +15,15 @@ BASEADDR=0xd0000
++ # (assuming He's running Linux -- which we all know He must).
++ #
++ HOSTCC=gcc
++-KINCLUDES=$(shell if [ -d /usr/src/linux-2.4/include ]; then echo /usr/src/linux-2.4/include ; else echo /usr/src/linux/include ; fi)
+++KINCLUDES=/lib/modules/$(KVERSION)/build/include
++ 
++-CFLAGS+=-I. -O4 -g -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
+++CFLAGS+=-I. -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
++ CFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-fsigned-char&quot;; fi)
++ CFLAGS+=$(shell if uname -m | grep -q x86_64; then echo &quot;-m64&quot;; fi)
++ LCFLAGS=-fPIC $(CFLAGS) -DBUILDING_TONEZONE
++-KFLAGS+=-I/usr/src/linux-2.4/include -O6
++-KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB -I/usr/src/linux/drivers/net \
++-	-Wall -I. -Wstrict-prototypes -fomit-frame-pointer -I/usr/src/linux/drivers/net/wan -I /usr/src/linux/include -I/usr/src/linux/include/net
+++KFLAGS+=-I. -Wall -I$(KINCLUDES) -I$(KINCLUDES)/net -I$(KINCLUDES)/net/wan
+++KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB
+++KFLAGS+=-Wall -Wstrict-prototypes -fomit-frame-pointer
++ KFLAGS+=$(shell [ -f $(KINCLUDES)/linux/modversions.h ] &amp;&amp; echo &quot;-DMODVERSIONS -include $(KINCLUDES)/linux/modversions.h&quot;)
++ KFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-msoft-float -fsigned-char&quot;; fi)
++ #
++@@ -33,8 +36,9 @@ CFLAGS+=-DSTANDALONE_ZAPATA
++ 
++ INSTALL_PREFIX=
++ 
++-BUILDVER=$(shell if uname -r | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
++-MODCONF=$(shell if [ -d $(INSTALL_PREFIX)/etc/modprobe.d ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(INSTALL_PREFIX)/etc/modutils ]; then echo &quot;$(INSTALL_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(INSTALL_PREFIX)/etc/modprobe.conf ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.conf&quot;; elif [ -f $(INSTALL_PREFIX)/etc/modules.conf ]; then echo &quot;$(INSTALL_PREFIX)/etc/modules.conf&quot;; else echo $(INSTALL_PREFIX)/etc/conf.modules ; fi)
+++BUILDVER=$(shell if echo $(KVERSION) | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
+++#MODCONF=$(shell if [ -d $(INSTALL_PREFIX)/etc/modprobe.d ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(INSTALL_PREFIX)/etc/modutils ]; then echo &quot;$(INSTALL_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(INSTALL_PREFIX)/etc/modprobe.conf ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.conf&quot;; else echo &quot;$(INSTALL_PREFIX)/etc/modules.conf&quot;; fi)
+++MODCONF=$(INSTALL_PREFIX)/etc/modules.conf.zaptel
++ 
++ ifeq (${BUILDVER},linux24)
++ #We only support DEVFS in linux 2.4 kernels, since its considered obsolete post 2.4
++@@ -228,45 +232,45 @@ ifeq ($(DYNFS),)
++ 	rm -f $(INSTALL_PREFIX)/dev/zap/252
++ 	rm -f $(INSTALL_PREFIX)/dev/zap/251
++ 	rm -f $(INSTALL_PREFIX)/dev/zap/250
++-	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
++-	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
++-	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
++-	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
++-	N=1; \
++-	while [ $$N -lt 250 ]; do \
++-		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
++-		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
++-		N=$$[$$N+1]; \
++-	done
+++#	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
+++#	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
+++#	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
+++#	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
+++#	N=1; \
+++#	while [ $$N -lt 250 ]; do \
+++#		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
+++#		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
+++#		N=$$[$$N+1]; \
+++#	done
++ else
++ 	@echo &quot;**** Dynamic filesystem detected -- not creating device nodes&quot;
++ 	@echo &quot;**** If you are running udev, read README.udev&quot;
++ endif
++ 
++ install:  all devices $(LIBTONEZONE)
++-	mkdir -p $(INSTALL_PREFIX)/sbin
++-	install -m 755 ztcfg $(INSTALL_PREFIX)/sbin
+++	mkdir -p $(INSTALL_PREFIX)/usr/sbin
+++	install -m 755 ztcfg $(INSTALL_PREFIX)/usr/sbin
++ 	if [ -f sethdlc-new ]; then \
++-		install -m 755 sethdlc-new $(INSTALL_PREFIX)/sbin/sethdlc; \
+++		install -m 755 sethdlc-new $(INSTALL_PREFIX)/usr/sbin/sethdlc; \
++ 	elif [ -f sethdlc ]; then \
++-		install -m 755 sethdlc $(INSTALL_PREFIX)/sbin ; \
+++		install -m 755 sethdlc $(INSTALL_PREFIX)/usr/sbin ; \
++ 	fi
++-	if [ -f zttool ]; then install -m 755 zttool $(INSTALL_PREFIX)/sbin; fi
++-	mkdir -p $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc
+++	if [ -f zttool ]; then install -m 755 zttool $(INSTALL_PREFIX)/usr/sbin; fi
+++	mkdir -p $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc
++ 
++ 	if [ -f zaptel.ko ]; then \
++ 		for x in $(MODULESKO) ztdummy.ko; do \
++-			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc ; \
+++			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc ; \
++ 		done; \
++ 		if ! [ -f wcfxsusb.ko ]; then \
++-			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.o; \
+++			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.o; \
++ 		fi; \
++ 	else \
++ 		for x in $(MODULESO); do \
++-			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc ; \
+++			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc ; \
++ 		done; \
++ 		if ! [ -f wcfxsusb.o ]; then \
++-			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.ko; \
+++			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.ko; \
++ 		fi; \
++ 	fi
++ 
++@@ -278,12 +282,9 @@ install:  all devices $(LIBTONEZONE)
++ 	install -m 644 torisa.h $(INSTALL_PREFIX)/usr/include/linux
++ 	install -m 644 tonezone.h $(INSTALL_PREFIX)/usr/include
++ 	( cd $(INSTALL_PREFIX)/usr/lib ; rm -f libtonezone.so ; ln -sf $(LIBTONEZONE) libtonezone.so )
++-	/sbin/ldconfig
++-	if [ -f $(MODCONF) ]; then mv -f $(MODCONF) $(MODCONF).bak ; fi
++-	cat $(MODCONF).bak | grep -v &quot;alias char-major-250&quot; | \
++-	grep -v &quot;post-install torisa /sbin/ztcfg&quot; | \
++-	grep -v &quot;post-install wcfxsusb /sbin/ztcfg&quot; | \
++-	grep -v &quot;post-install wcfxs /sbin/ztcfg&quot; &gt; $(MODCONF) || true
+++#	/sbin/ldconfig
+++	mkdir -p `dirname $(MODCONF)`
+++	touch $(MODCONF)
++ 	if ! grep &quot;options torisa&quot; $(MODCONF); then \
++ 		echo &quot;options torisa base=$(BASEADDR)&quot; &gt;&gt; $(MODCONF); \
++ 	fi
+
+Added: trunk/rpms/zaptel/zaptel-makedev.d.txt
+===================================================================
+--- trunk/rpms/zaptel/zaptel-makedev.d.txt	2004-07-29 13:36:35 UTC (rev 1787)
++++ trunk/rpms/zaptel/zaptel-makedev.d.txt	2004-07-29 13:55:50 UTC (rev 1788)
+@@ -0,0 +1,18 @@
++# This file was written to create all needed additional /dev entries in order
++# to use Zaptel (Asterisk) kernel modules with Red Hat Linux.
++# It integrates cleanly into the original device creation mechanism.
++# See <A HREF="http://freshrpms.net/">http://freshrpms.net/</A> for more information.
++# Type Perms User Group Major Minor Inc Count Base
++
++=TEL      660 root tty
++
++c $TEL                 196   0  1   1 zap/ctl
++c $TEL                 196   1  1 250 zap/%d
++c $TEL                 196 253  1   1 zap/timer
++c $TEL                 196 254  1   1 zap/channel
++c $TEL                 196 255  1   1 zap/pseudo
++
++# Alias to have all created with &quot;zaptel&quot;
++ 
++a zaptel zap/
++
+
+Added: trunk/rpms/zaptel/zaptel.spec
+===================================================================
+--- trunk/rpms/zaptel/zaptel.spec	2004-07-29 13:36:35 UTC (rev 1787)
++++ trunk/rpms/zaptel/zaptel.spec	2004-07-29 13:55:50 UTC (rev 1788)
+@@ -0,0 +1,141 @@
++# $id: zaptel.spec,v 1.2 2003/11/17 12:31:10 dude Exp $
++
++# For pre-versions
++%define prever RC1
++
++# &quot;uname -r&quot; output of the kernel to build for, the running one
++# if none was specified with &quot;--define 'kernel &lt;uname -r&gt;'&quot;
++%{!?kernel: %{expand: %%define kernel %(uname -r)}}
++ 
++%define kversion %(echo %{kernel} | sed -e s/smp// -)
++%define krelver  %(echo %{kversion} | tr -s '-' '_')
++%if %(echo %{kernel} | grep -c smp)
++        %{expand:%%define ksmp -smp}
++%endif
++
++Summary: Zaptel telephony interface support
++Name: zaptel
++Version: 1.0
++Release: %{?prever:0.%{prever}.}1
++License: GPL
++Group: System Environment/Libraries
++URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
++Source0: <A HREF="ftp://ftp.asterisk.org/pub/telephony/zaptel/zaptel-%{version">ftp://ftp.asterisk.org/pub/telephony/zaptel/zaptel-%{version</A>}%{?prever:-%{prever}}.tar.gz
++Source1: zaptel-makedev.d.txt
++Patch: zaptel-1.0-RC1-makefile.patch
++BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++Requires: newt, kernel-module-zaptel
++BuildRequires: newt-devel, kernel-source = %{kversion}, MAKEDEV
++
++%description
++This package contains the libraries, device entries, startup scripts and tools
++needed to use Digium telephony hardware. This includes the pseudo TDM
++interfaces.
++
++You will also need to install a kernel modules package matching your current
++kernel for everything to work, and edit /etc/modules.conf.
++
++
++%package -n kernel%{?ksmp}-module-zaptel
++Summary: Kernel modules for the Zaptel devices.
++Release: %{release}_%{krelver}
++Group: System Environment/Kernel
++Requires: kernel%{?ksmp} = %{kversion}, /sbin/depmod
++Provides: kernel-modules
++%{?ksmp:Provides: kernel-module-zaptel = %{version}-%{release}_%{krelver}}
++
++%description -n kernel%{?ksmp}-module-zaptel
++This package contains the zaptel kernel modules for the Linux kernel package :
++%{kversion} (%{_target_cpu}%{?ksmp:, SMP}).
++
++
++%prep
++%setup -n zaptel-%{version}%{?prever:-%{prever}}
++%patch -p1 -b .makefile
++
++
++%build
++# Replace kernel version with the correct one
++#perl -pi -e 's|`uname -r`|%{kernel}|g' Makefile
++#perl -pi -e 's|/usr/src/linux-2.4/|/usr/src/linux-%{kversion}/|g' Makefile
++# Get the ztdummy module compiled too
++%{__perl} -pi -e 's|# ztdummy.o|ztdummy.o|g' Makefile
++export CFLAGS=&quot;%{optflags}&quot;
++export KFLAGS=&quot;%{optflags} -D__BOOT_KERNEL_H_ -D__MODULE_KERNEL_%{_target_cpu}=1 %{?ksmp:-D__BOOT_KERNEL_SMP=1} %{!?ksmp:-D__BOOT_KERNEL_UP=1}&quot;
++%{__make} %{?_smp_mflags} KVERSION=%{kversion}
++
++
++%install
++%{__rm} -rf %{buildroot}
++%{__make} install KVERSION=%{kversion} INSTALL_PREFIX=%{buildroot}
++
++# Install and generate all the device stuff
++%{__install} -m 644 -D %{SOURCE1} %{buildroot}%{_sysconfdir}/makedev.d/zaptel
++ 
++# Create entry list
++/dev/MAKEDEV \
++    -c %{buildroot}%{_sysconfdir}/makedev.d \
++    -d %{buildroot}/dev -M zaptel | sed 's|%{buildroot}||g' &gt; device.list
++
++# Install the init script and sysconfig file
++%{__install} -m 0644 -D zaptel.sysconfig \
++    %{buildroot}%{_sysconfdir}/sysconfig/zaptel
++%{__install} -m 0755 -D zaptel.init \
++    %{buildroot}%{_initrddir}/zaptel
++
++# Move kernel modules in the &quot;kernel&quot; subdirectory, also get smp right
++%{__mkdir_p} %{buildroot}/lib/modules/%{kernel}/kernel
++%{__mv} %{buildroot}/lib/modules/%{kversion}/misc \
++        %{buildroot}/lib/modules/%{kernel}/kernel/
++
++# Move the modules config file back in order to put it in docs instead
++%{__mv} %{buildroot}%{_sysconfdir}/modules.conf.zaptel .
++
++
++%clean
++%{__rm} -rf %{buildroot}
++
++
++%post
++/sbin/ldconfig
++
++%postun
++/sbin/ldconfig
++
++%post -n kernel%{?ksmp}-module-zaptel
++/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
++                                                                                
++%postun -n kernel%{?ksmp}-module-zaptel
++/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
++
++
++%files -f device.list
++%defattr(-, root, root, 0755)
++%doc ChangeLog README.fxsusb modules.conf.zaptel
++%doc ifcfg-hdlc0 ifup-hdlc zaptel.conf.sample
++%config(noreplace) %{_sysconfdir}/sysconfig/zaptel
++%config(noreplace) %{_sysconfdir}/zaptel.conf
++%{_sysconfdir}/makedev.d/zaptel
++%{_initrddir}/zaptel
++/usr/sbin/ztcfg
++/usr/sbin/zttool
++%{_includedir}/*.h
++%{_includedir}/linux/*.h
++%{_libdir}/*.so*
++
++%files -n kernel%{?ksmp}-module-zaptel
++%defattr(-, root, root, 0755)
++/lib/modules/%{kernel}/kernel/misc/*
++
++
++%changelog
++* Mon Jul 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.RC1.1
++- Update to 1.0-RC1.
++- Major Makefile patch updates, spec updates to match.
++
++* Mon Nov 17 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt;
++- Uncomment the ztdummy module to have it built.
++
++* Wed Nov  5 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt;
++- Initial RPM release.
++
+
+
+Property changes on: trunk/rpms/zaptel/zaptel.spec
+___________________________________________________________________
+Name: svn:keywords
+   + Id
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000596.html">[SVN] r1787 - trunk/rpms/kannel
+</A></li>
+	<LI>Next message: <A HREF="000598.html">[SVN] r1789 - trunk/rpms/rhythmbox
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#597">[ date ]</a>
+              <a href="thread.html#597">[ thread ]</a>
+              <a href="subject.html#597">[ subject ]</a>
+              <a href="author.html#597">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

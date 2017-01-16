@@ -1,0 +1,345 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2518 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2518%20-%20trunk/tools/dstat&In-Reply-To=%3C20041117153549.0FF1117F9A%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001322.html">
+   <LINK REL="Next"  HREF="001324.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2518 - trunk/tools/dstat</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2518%20-%20trunk/tools/dstat&In-Reply-To=%3C20041117153549.0FF1117F9A%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2518 - trunk/tools/dstat">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Nov 17 16:35:49 CET 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001322.html">[SVN] r2517 - in trunk/tools/pydar: . pydar
+</A></li>
+        <LI>Next message: <A HREF="001324.html">[SVN] r2519 - trunk/rpms/libvisual
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1323">[ date ]</a>
+              <a href="thread.html#1323">[ thread ]</a>
+              <a href="subject.html#1323">[ subject ]</a>
+              <a href="author.html#1323">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-11-17 16:35:47 +0100 (Wed, 17 Nov 2004)
+New Revision: 2518
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+Log:
+More interesting changes.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2004-11-17 14:56:18 UTC (rev 2517)
++++ trunk/tools/dstat/ChangeLog	2004-11-17 15:35:47 UTC (rev 2518)
+@@ -1,5 +1,8 @@
+ * 0.5.3
+--
++- Added --ful option to expand the -D, -I and -N discovery lists
++- Re-added the number of new processes (the --vmstat will not not resemble)
++- More intelligent way of ordering stats to fit as much in screen width as possible
++- Fixed a crash when counters overflowed (Francois Postaire)
+ 
+ * 0.5.2
+ - Improved disk and net discovery functions (Ville Herva)
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2004-11-17 14:56:18 UTC (rev 2517)
++++ trunk/tools/dstat/TODO	2004-11-17 15:35:47 UTC (rev 2518)
+@@ -1,14 +1,16 @@
+ ### Usability
+ + Add --config option and use /etc/dstat.conf to influence output
+-+ Add -o/--output option to save directly to a file
+-+ Add --parse option to give parsable output (maybe CSV output ?)
+ + Allow to force to given magnitude
+ + Look at possibilities to show deviation (on second line ?)
+ 
++### Export/Graph
+++ Add -o/--output option to save directly to a file
+++ Add --parse option to give parsable output (maybe CSV output ?)
++
+ ### Extensions
+ + Add all stats to seperate modules and allow people to plugin their own modules
+ 
+-### Statistics
++### Statistics (help welcome!)
+ + Add time counter
+ + Add application stats (-a or -A pid,cmd)
+ + Add ip stats (icmp, tcp, udp)
+@@ -21,4 +23,6 @@
+ + Implement better (?) protection against counter rollovers
+ + If you have 2 devices with the same name, -I will only work on the first one
+ + When using -D hdk, -I 99, -N eth9 dstat should fail when it does not exist 
+-+ CPU stats is avg of begin and end snapshot, not avg of intermediate results (better than vmstat though)
+++ cpu is avg of begin and end snapshot, not avg of intermediate results (better than vmstat though)
+++ proc stat is a snapshot in time, not avg of intermediate results
+++ The number of newly created processes in the proc stat easily exceeds the allocated space (2 chars)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2004-11-17 14:56:18 UTC (rev 2517)
++++ trunk/tools/dstat/dstat	2004-11-17 15:35:47 UTC (rev 2518)
+@@ -29,9 +29,10 @@
+ 		self.count = -1
+ 		self.delay = 1
+ 		self.disklist = None
++		self.full = False
++		self.integer = False
+ 		self.intlist = None
+ 		self.netlist = None
+-		self.integer = False
+ 		self.color = True
+ 		self.update = True
+ 		self.header = True
+@@ -40,7 +41,7 @@
+ 			opts, args = getopt.getopt (args, 'acdghilmnpstvyD:I:N:',
+ 				['all', 'cpu', 'disk', 'help', 'int', 'load', 'mem', 'net',
+ 				'page', 'proc', 'swap', 'sys', 'time', 'version', 'vmstat',
+-				'integer', 'nocolor', 'noheader', 'noupdate'])
++				'full', 'integer', 'nocolor', 'noheader', 'noupdate'])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+ 			sys.exit(1)
+@@ -83,6 +84,8 @@
+ 				self.modlist = self.modlist + [ 'proc', 'mem', 'page', 'disk', 'sys', 'cpu' ]
+ 				self.disklist = ('total',)
+ 
++			elif opt in ['--full']:
++				self.full = True
+ 			elif opt in ['--integer']:
+ 				self.integer = True
+ 			elif opt in ['--nocolor']:
+@@ -143,6 +146,7 @@
+   -a, --all          equals -cdngyl
+   -v, --vmstat       equals -pmgdsc -D total
+ 
++  --full             expand -D, -I and -N disovery lists
+   --integer          show integer values
+   --nocolor          disable colors
+   --noheader         disable repetitive headers
+@@ -266,6 +270,7 @@
+ 			self.vars = op.disklist
+ 		else:
+ 			self.vars = self.discover()
++		### Temporary hardcoded for my own project
+ 		self.diskset = {
+ 			'local': ('sda', 'hda', 'hdc'),
+ 			'lores': ('sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj', 'sdk', 'sdl', 'sdm', 'sdn', 'sdo', 'sdp', 'sdq', 'sdr', 'sds', 'sdt'),
+@@ -282,11 +287,11 @@
+ 		retlist = []
+ 		for line in open('/proc/diskstats', 'r').readlines():
+ 			l = line.split()
+-			if len(l) &lt; 13: continue
++			if len(l) &lt; 13 or l[3] == '0': continue
+ 			name = l[2]
+ 			if not re.match('^(ram\d+|loop\d+)$', name):
+ 				retlist.append(name)
+-		if len(retlist) &gt; 2: retlist = retlist[0:2]
++		if not op.full and len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+ 		return retlist
+ 
+@@ -306,8 +311,7 @@
+ 			for set in self.vars:
+ 				if set in self.diskset and name in self.diskset[set]:
+ 					self.cn2[set] = ( self.cn2[set][0] + long(l[5]), self.cn2[set][1] + long(l[9]) )
+-			if len(l) &gt; 10:
+-				self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
++			self.cn2['total'] = ( self.cn2['total'][0] + long(l[5]), self.cn2['total'][1] + long(l[9]) )
+ 		if update:
+ 			for name in self.cn2:
+ 				self.val[name] = ( 
+@@ -322,11 +326,11 @@
+ 		retlist = []
+ 		for line in open('/proc/partitions', 'r').readlines():
+ 			l = line.split()
+-			if len(l) &lt; 15 or l[12] == '0': continue
++			if len(l) &lt; 15: continue
+ 			name = l[3]
+ 			if not re.match('^(ram[0-9]+|loop[0-9]+|name)$', name):
+ 				retlist.append(name)
+-		if len(retlist) &gt; 2: retlist = retlist[0:2]
++		if not op.full and len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+ 		return retlist
+ 
+@@ -339,7 +343,7 @@
+ 		for name in self.vars: self.cn2[name] = (0, 0)
+ 		for line in open('/proc/partitions', 'r').readlines():
+ 			l = line.split();
+-			if len(l) &lt; 10: continue
++			if len(l) &lt; 15: continue
+ 			name = l[3]
+ 			if name == 'name': continue
+ 			if name in self.vars:
+@@ -347,8 +351,7 @@
+ 			for set in self.vars:
+ 				if set in self.diskset and name in self.diskset[set]:
+ 					self.cn2[set] = ( self.cn2[set][0] + long(l[6]), self.cn2[set][1] + long(l[10]) )
+-			if len(l) &gt; 10:
+-				self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]))
++			self.cn2['total'] = ( self.cn2['total'][0] + long(l[6]), self.cn2['total'][1] + long(l[10]))
+ 		if update:
+ 			for name in self.cn2:
+ 				self.val[name] = ( 
+@@ -413,7 +416,7 @@
+ 			if name in ('0', '1', '2', '8', 'NMI', 'LOC', 'MIS', 'CPU0'): continue
+ 			if len(l) &gt; 1 and l[1] != '0':
+ 				retlist.append(name)
+-		if len(retlist) &gt; 3: retlist = retlist[-4:-1]
++		if not op.full and len(retlist) &gt; 3: retlist = retlist[-4:-1]
+ 		return retlist
+ 
+ 	def check(self):
+@@ -506,9 +509,9 @@
+ 			if len(l) &lt; 2: continue
+ 			name = l[0].split(':')[0]
+ 			if l[1] == '0': continue
+-			if not re.match('^(Inter-\||face|lo|wifi\d+)$', name):
++			if not re.match('^(Inter-\||face|lo)$', name):
+ 				retlist.append(name)
+-		if len(retlist) &gt; 2: retlist = retlist[0:2]
++		if not op.full and len(retlist) &gt; 2: retlist = retlist[0:2]
+ 		retlist.sort()
+ 		return retlist
+ 
+@@ -592,13 +595,13 @@
+ class dstat_proc(dstat):
+ 	def __init__(self):
+ #		self.name = 'procs'
+-		self.name = 'prc'
++		self.name = 'procs'
+ 		self.format = '%2d'
+ 		self.len = 2
+-#		self.vars = ('procs_running', 'procs_blocked', 'processes')
+-		self.vars = ('procs_running', 'procs_blocked')
+-#		self.nick = ('ru', 'bl', 'nw')
+-		self.nick = ('ru', 'bl')
++		self.vars = ('procs_running', 'procs_blocked', 'processes')
++#		self.vars = ('procs_running', 'procs_blocked')
++		self.nick = ('ru', 'bl', 'nw')
++#		self.nick = ('ru', 'bl')
+ 		self.init()
+ 
+ 	def check(self):
+@@ -613,12 +616,12 @@
+ 			name = l[0]
+ 			if name in self.vars:
+ 				self.val[name] = long(l[1])
+-#			if name in ('processes',):
+-#				self.val['processes'] = 0
+-#				self.cn2[name] = long(l[1])
++			if name in ('processes',):
++				self.val['processes'] = 0
++				self.cn2[name] = long(l[1])
+ 		self.val['procs_running'] = self.val['procs_running'] - 1
+-#		if update:
+-#			self.val['processes'] = (self.cn2['processes'] - self.cn1['processes'])
++		if update:
++			self.val['processes'] = (self.cn2['processes'] - self.cn1['processes']) / step
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
+@@ -755,6 +758,8 @@
+ 	else:
+ 		color = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'geen')
+ 		
++	if var &lt; 0: return ' ' * (max-2) + '- '
++
+ 	c = 0
+ 	while True:
+ 		if len('%d' % round(long(var))) &lt; max:
+@@ -769,8 +774,6 @@
+ 		c = c + 1
+ 	if var != 0:
+ 	 	return ansi[color[c]] + ret.rjust(max-1) + unit[c] + ansi['default']
+-	elif var &lt; 0:
+-		return ' ' * (max-2) + '- '
+ 	else:
+ 		return ' ' * (max-2) + '0 '
+ 
+@@ -873,6 +876,8 @@
+ #	sys.setcheckinterval(op.delay * 1.5 * 100)
+ 	signal.signal(signal.SIGALRM, handler)
+ 
++	oldplist = []
++
+ 	### Let the games begin
+ 	while loop != op.count:
+ 
+@@ -887,17 +892,17 @@
+ 		plist = []
+ 		curwidth = 0
+ 		for o in olist:
+-			curwidth = curwidth + o.width() + 1
+-			if curwidth &lt;= cols:
++			if curwidth + o.width() + 1 &lt;= cols:
++				curwidth = curwidth + o.width() + 1
+ 				plist.append(o)
+ 
+ 		### Check when to display the header
+-		if (loop == 0 or op.header) and step == op.delay and loop % (rows-2) == 0:
++		if oldplist != plist or (loop == 0 or op.header) and step == op.delay and loop % (rows-1) == 0:
+ 			for o in plist:
+ 				sys.stdout.write(o.title1)
+ 				if o != plist[-1]:
+-					sys.stdout.write(' ')
+-				elif o != olist[-1]:
++					sys.stdout.write(ansi['darkblue'] + 'X' + ansi['default'])
++				elif olist != plist:
+ 					sys.stdout.write(ansi['darkblue'] + '&gt;' + ansi['default'])
+ 			sys.stdout.write('\n')
+ 
+@@ -905,10 +910,12 @@
+ 				sys.stdout.write(o.title2)
+ 				if o != plist[-1]:
+ 					sys.stdout.write(ansi['silver'] + '|' + ansi['default'])
+-				elif o != olist[-1]:
++				elif olist != plist:
+ 					sys.stdout.write(ansi['darkblue'] + '&gt;' + ansi['default'])
+ 			sys.stdout.write('\n')
+ 
++		oldplist = plist
++
+ 		### Prepare the colors for intermediate updates, last step in a loop is normal
+ 		if step != op.delay:
+ 			ansi['default'] = ansi['gray']
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001322.html">[SVN] r2517 - in trunk/tools/pydar: . pydar
+</A></li>
+	<LI>Next message: <A HREF="001324.html">[SVN] r2519 - trunk/rpms/libvisual
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1323">[ date ]</a>
+              <a href="thread.html#1323">[ thread ]</a>
+              <a href="subject.html#1323">[ subject ]</a>
+              <a href="author.html#1323">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

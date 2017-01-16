@@ -1,0 +1,321 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3115 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3115%20-%20trunk/tools/dstat&In-Reply-To=%3C20050408001446.749F45C4025%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001916.html">
+   <LINK REL="Next"  HREF="001918.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3115 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3115%20-%20trunk/tools/dstat&In-Reply-To=%3C20050408001446.749F45C4025%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3115 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Apr  8 02:14:46 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001916.html">[svn] r3114 - trunk/rpms/plib
+</A></li>
+        <LI>Next message: <A HREF="001918.html">[svn] r3116 - trunk/web/freshrpms.net/docs/bios-flash
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1917">[ date ]</a>
+              <a href="thread.html#1917">[ thread ]</a>
+              <a href="subject.html#1917">[ subject ]</a>
+              <a href="author.html#1917">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-04-08 02:14:43 +0200 (Fri, 08 Apr 2005)
+New Revision: 3115
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/TODO
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+Log:
+Release 0.5.10.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2005-04-06 12:35:19 UTC (rev 3114)
++++ trunk/tools/dstat/ChangeLog	2005-04-08 00:14:43 UTC (rev 3115)
+@@ -1,3 +1,7 @@
++* 0.5.10
++- Restore terminal for all exit situations (Modesto Alexandre)
++- Get ridding of duplicate 'too width' error message in dstat15
++
+ * 0.5.9
+ - Make default list total lists (cpu, disk, net)
+ - Fix clearline ANSI to work on older (Debian?) rxvt (Joshua Rodman)
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2005-04-06 12:35:19 UTC (rev 3114)
++++ trunk/tools/dstat/Makefile	2005-04-08 00:14:43 UTC (rev 3115)
+@@ -9,5 +9,8 @@
+ 
+ install:
+ #	-[ ! -f $(DESTDIR)$(sysconfdir)/dstat.conf ] &amp;&amp; install -D -m0644 dstat.conf $(DESTDIR)$(sysconfdir)/dstat.conf
+-	install -D -m0755 dstat $(DESTDIR)$(bindir)/dstat
+-	install -D -m0644 dstat.1 $(DESTDIR)$(mandir)/man1/dstat.1
++	install -Dp -m0755 dstat $(DESTDIR)$(bindir)/dstat
++	install -Dp -m0644 dstat.1 $(DESTDIR)$(mandir)/man1/dstat.1
++
++clean:
++	@echo &quot;No clean phase.&quot;
+
+Modified: trunk/tools/dstat/TODO
+===================================================================
+--- trunk/tools/dstat/TODO	2005-04-06 12:35:19 UTC (rev 3114)
++++ trunk/tools/dstat/TODO	2005-04-08 00:14:43 UTC (rev 3115)
+@@ -30,6 +30,7 @@
+ ### General bugs
+ + Timer is not accurate on 2.6 kernel, every second there's a 1ms deviation (every 17mins -&gt; 1sec)
+ + Python 1.5 prints 'L' for long, crashes when int()
+++ If number of lines on terminal &lt;= 1, division by zero
+ 
+ ### Stat bugs
+ + tcp stat is very slow and generates lots of softirqs (on some systems)
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2005-04-06 12:35:19 UTC (rev 3114)
++++ trunk/tools/dstat/dstat	2005-04-08 00:14:43 UTC (rev 3115)
+@@ -25,7 +25,7 @@
+ import ConfigParser, urlparse, signal, resource
+ import curses, termios
+ 
+-VERSION = '0.5.9'
++VERSION = '0.5.10'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -54,7 +54,7 @@
+ 				'full', 'integer', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate', 'output='])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+-			sys.exit(1)
++			exit(1)
+ 
+ 		self.modlist = []
+ 
+@@ -120,10 +120,10 @@
+ 			elif opt in ['-h', '--help']:
+ 				self.usage()
+ 				self.help()
+-				sys.exit(0)
++				exit(0)
+ 			elif opt in ['-V', '--version']:
+ 				self.version()
+-				sys.exit(0)
++				exit(0)
+ 
+ 		if not self.modlist:
+ 			self.modlist = [ 'cpu', 'disk', 'net', 'page', 'sys' ]
+@@ -133,11 +133,11 @@
+ 			if len(args) &gt; 1: self.count = int(args[1])
+ 		except:
+ 			print 'dstat: incorrect argument, try dstat -h for the correct syntax'
+-			sys.exit(1)
++			exit(1)
+ 
+ 		if self.delay == 0:
+ 			print 'dstat: delay must be an integer, greater than zero'
+-			sys.exit(1)
++			exit(1)
+ 
+ 	def version(self):
+ 		print 'Dstat %s' % VERSION
+@@ -1257,7 +1257,7 @@
+ def die(ret, str):
+ 	&quot;Print error and exit with errorcode&quot;
+ 	info(0, str)
+-	sys.exit(ret)
++	exit(ret)
+ 
+ def getwinsize():
+ 	if op.nolimit:
+@@ -1312,6 +1312,12 @@
+ def signaler(signum, frame):
+ 	signal.alarm(interval)
+ 
++def exit(ret):
++	sys.stdout.write(ansi['reset'])
++	signal.signal(signal.SIGALRM, signal.SIG_DFL)
++	termios.tcsetattr(fd, termios.TCSADRAIN, old)
++	sys.exit(ret)
++
+ def main():
+ 	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile
+ 
+@@ -1505,23 +1511,17 @@
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+-		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-		termios.tcsetattr(fd, termios.TCSADRAIN, old)
+-		print ansi['reset']
++		print
+ 	except OSError, e:
+-		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-		termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ #		print e.errno
+ 		print
+-		print ansi['reset'] + 'OSError: %s' % e
+-		sys.exit(7)
++		print 'OSError: %s' % e
++		exit(7)
+ #	except Exception, e:
+ #		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+ #		termios.tcsetattr(fd, termios.TCSADRAIN, old)
+ #		raise e
+ 
+-signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-termios.tcsetattr(fd, termios.TCSADRAIN, old)
+-sys.exit(0)
++exit(0)
+ 
+ # vim:ts=4:sw=4
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2005-04-06 12:35:19 UTC (rev 3114)
++++ trunk/tools/dstat/dstat.spec	2005-04-08 00:14:43 UTC (rev 3115)
+@@ -72,6 +72,9 @@
+ %{_bindir}/dstat
+ 
+ %changelog
++* Fri Apr 08 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.10-1
++- Updated to release 0.5.10.
++
+ * Mon Mar 28 2005 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.5.9-1
+ - Updated to release 0.5.9.
+ 
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2005-04-06 12:35:19 UTC (rev 3114)
++++ trunk/tools/dstat/dstat15	2005-04-08 00:14:43 UTC (rev 3115)
+@@ -24,7 +24,7 @@
+ import ConfigParser, urlparse, signal, resource
+ import curses, termios
+ 
+-VERSION = '0.5.9'
++VERSION = '0.5.10'
+ 
+ enable = ('yes', 'on', 'true', '1')
+ disable = ('no', 'off', 'false', '0')
+@@ -53,7 +53,7 @@
+ 				'full', 'integer', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate', 'output='])
+ 		except getopt.error, exc:
+ 			print 'dstat: %s, try dstat -h for a list of all the options' % str(exc)
+-			sys.exit(1)
++			exit(1)
+ 
+ 		self.modlist = []
+ 
+@@ -119,10 +119,10 @@
+ 			elif opt in ['-h', '--help']:
+ 				self.usage()
+ 				self.help()
+-				sys.exit(0)
++				exit(0)
+ 			elif opt in ['-V', '--version']:
+ 				self.version()
+-				sys.exit(0)
++				exit(0)
+ 
+ 		if not self.modlist:
+ 			self.modlist = [ 'cpu', 'disk', 'net', 'page', 'sys' ]
+@@ -132,11 +132,11 @@
+ 			if len(args) &gt; 1: self.count = int(args[1])
+ 		except:
+ 			print 'dstat: incorrect argument, try dstat -h for the correct syntax'
+-			sys.exit(1)
++			exit(1)
+ 
+ 		if self.delay == 0:
+ 			print 'dstat: delay must be an integer, greater than zero'
+-			sys.exit(1)
++			exit(1)
+ 
+ 	def version(self):
+ 		print 'Dstat %s' % VERSION
+@@ -1311,6 +1311,11 @@
+ def signaler(signum, frame):
+ 	signal.alarm(interval)
+ 
++def exit(ret):
++	sys.stdout.write(ansi['reset'])
++	signal.signal(signal.SIGALRM, signal.SIG_DFL)
++	sys.exit(ret)
++
+ def main():
+ 	global update, loop, step, pagesize, cpunr, ansi, interval, outputfile
+ 
+@@ -1385,10 +1390,6 @@
+ 	if not totlist:
+ 		die(8, 'None of the stats you selected are available.')
+ 
+-	if not op.nolimit:
+-		if linewidth &gt; cols:
+-			print 'Screen width too small, trimming output.'
+-
+ 	### FIXME: Get rid of socket()
+ 	if op.output:
+ 		import socket
+@@ -1512,16 +1513,13 @@
+ 	try:
+ 		main()
+ 	except KeyboardInterrupt, e:
+-		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-		print ansi['reset']
++		print
+ 	except OSError, e:
+-		signal.signal(signal.SIGALRM, signal.SIG_DFL)
+ #		print e.errno
+ 		print
+-		print ansi['reset'] + 'OSError: %s' % e
+-		sys.exit(7)
++		print 'OSError: %s' % e
++		exit(7)
+ 
+-signal.signal(signal.SIGALRM, signal.SIG_DFL)
+-sys.exit(0)
++exit(0)
+ 
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001916.html">[svn] r3114 - trunk/rpms/plib
+</A></li>
+	<LI>Next message: <A HREF="001918.html">[svn] r3116 - trunk/web/freshrpms.net/docs/bios-flash
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1917">[ date ]</a>
+              <a href="thread.html#1917">[ thread ]</a>
+              <a href="subject.html#1917">[ subject ]</a>
+              <a href="author.html#1917">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

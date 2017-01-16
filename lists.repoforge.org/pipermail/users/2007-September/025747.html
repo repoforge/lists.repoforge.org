@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] clamav/clamd selinux problems
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20clamav/clamd%20selinux%20problems&In-Reply-To=%3C1190839087.24980.126.camel%40pc703.westman.int%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="025746.html">
+   <LINK REL="Next"  HREF="025748.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] clamav/clamd selinux problems</H1>
+    <B>Bob Pierce</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20clamav/clamd%20selinux%20problems&In-Reply-To=%3C1190839087.24980.126.camel%40pc703.westman.int%3E"
+       TITLE="[users] clamav/clamd selinux problems">pierceb at westmancom.com
+       </A><BR>
+    <I>Wed Sep 26 22:38:07 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="025746.html">[users] problems downloading headers
+</A></li>
+        <LI>Next message: <A HREF="025748.html">[users] clamav/clamd selinux problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25747">[ date ]</a>
+              <a href="thread.html#25747">[ thread ]</a>
+              <a href="subject.html#25747">[ subject ]</a>
+              <a href="author.html#25747">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On 7/23/07, Jan-Frode Myklebust &lt;janfrode at tanso.net&gt; wrote:
+&gt;<i> OK, some more data on what we needed to do to get amavisd-new clamav
+</I>&gt;<i> and postfix working together on RHEL5 with selinux in default targeted
+</I>&gt;<i> mode.
+</I>&gt;<i> 
+</I>&gt;<i> - In /etc/clamd.conf, set DatabaseDirectory /var/lib/clamav
+</I>&gt;<i> - Move /var/clamav to /var/lib/clamav and make sure file context are
+</I>&gt;<i> correct by &quot;restorecon /var/lib/clamav
+</I>&gt;<i> - In /etc/clamd.conf, set LocalSocketLocalSocket /var/spool/amavisd/clamd.sock
+</I>&gt;<i> - Create the dir for this socket, writeable by group amavis (which
+</I>&gt;<i> includes user clamav):
+</I>&gt;<i>      mkdir /var/spool/amavisd/ ; chown amavis:amavis /var/spool/amavisd/
+</I>&gt;<i>      chmod g+w /var/spool/amavisd/ ; restorecon /var/spool/amavisd
+</I>&gt;<i> 
+</I>
+Jan-Frode,
+
+I followed your instructions this far, but where do I add/modify the mods you mention in the next section?
+
+I am trying to get the clamd package from rpmforge to run on CentOS 5 with SELinux enabled.
+
+If a more complete answer to this has already been given, please forgive me. I am new to the list and I spotted this in the archive.
+
+Bob
+
+
+&gt;<i> selinux mods for clamd:
+</I>&gt;<i> -----------------------------------------------------------------------------------
+</I>&gt;<i> module clamav_rf 1.0;
+</I>&gt;<i> 
+</I>&gt;<i> require {
+</I>&gt;<i>         class dir search;
+</I>&gt;<i>         class file { getattr read };
+</I>&gt;<i>         type clamd_t;
+</I>&gt;<i>         type proc_t;
+</I>&gt;<i>         type sysctl_kernel_t;
+</I>&gt;<i>         role system_r;
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> # Read /proc/meminfo
+</I>&gt;<i> allow clamd_t proc_t:file {read getattr};
+</I>&gt;<i> # Read /proc/sys/kernel/ngroups_max:
+</I>&gt;<i> allow clamd_t sysctl_kernel_t:dir search;
+</I>&gt;<i> allow clamd_t sysctl_kernel_t:file read;
+</I>&gt;<i> -----------------------------------------------------------------------------------
+</I>&gt;<i> 
+</I>&gt;<i> amavisd-new falls back to clamscan, which needs the following selinux module:
+</I>&gt;<i> 
+</I>&gt;<i> -----------------------------------------------------------------------------------
+</I>&gt;<i> module clamscan_rf 1.0;
+</I>&gt;<i> 
+</I>&gt;<i> require {
+</I>&gt;<i>         class dir {search getattr read};
+</I>&gt;<i>         class file {read getattr};
+</I>&gt;<i>         type amavis_var_lib_t;
+</I>&gt;<i>         type clamscan_t;
+</I>&gt;<i>         type proc_t;
+</I>&gt;<i>         role system_r;
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> # Read /proc/meminfo:
+</I>&gt;<i> allow clamscan_t proc_t:file {read getattr};
+</I>&gt;<i> # Read files under /var/amavis to scan them:
+</I>&gt;<i> allow clamscan_t amavis_var_lib_t:dir {search getattr read };
+</I>&gt;<i> allow clamscan_t amavis_var_lib_t:file {getattr read};
+</I>&gt;<i> -----------------------------------------------------------------------------------
+</I>&gt;<i> 
+</I>&gt;<i> And finally a small module to let amavisd-new list /var/lib/ and bind
+</I>&gt;<i> to 10024/tcp:
+</I>&gt;<i> module amavis_rf 1.0;
+</I>&gt;<i> 
+</I>&gt;<i> -----------------------------------------------------------------------------------
+</I>&gt;<i> require {
+</I>&gt;<i>         class dir search;
+</I>&gt;<i>         class netlink_route_socket {create bind getattr write nlmsg_read read};
+</I>&gt;<i>         type amavis_t;
+</I>&gt;<i>         type var_lib_t;
+</I>&gt;<i>         role system_r;
+</I>&gt;<i> };
+</I>&gt;<i> 
+</I>&gt;<i> # Silly, but amavisd wants this:
+</I>&gt;<i> allow amavis_t var_lib_t:dir search;
+</I>&gt;<i> # Bind to tcp socket:
+</I>&gt;<i> allow amavis_t self:netlink_route_socket {create bind getattr write
+</I>&gt;<i> nlmsg_read read};
+</I>&gt;<i> -----------------------------------------------------------------------------------
+</I>&gt;<i> 
+</I>&gt;<i> And fix freshclam to use /var/lib/clamav instead of /var/clamav by
+</I>&gt;<i> specifying &quot;DatabaseDirectory /var/lib/clamav&quot; in /etc/freshclam.conf
+</I>&gt;<i> and &quot;--datadir=&quot;/var/lib/clamav&quot; in /etc/cron.*/freshclam.
+</I>&gt;<i> 
+</I>
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="025746.html">[users] problems downloading headers
+</A></li>
+	<LI>Next message: <A HREF="025748.html">[users] clamav/clamd selinux problems
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#25747">[ date ]</a>
+              <a href="thread.html#25747">[ thread ]</a>
+              <a href="subject.html#25747">[ subject ]</a>
+              <a href="author.html#25747">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

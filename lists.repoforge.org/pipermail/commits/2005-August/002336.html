@@ -1,0 +1,599 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3535 - in trunk/tools/pydar2: pydar scripts
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3535%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050825201518.BC559318033%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002335.html">
+   <LINK REL="Next"  HREF="002337.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3535 - in trunk/tools/pydar2: pydar scripts</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3535%20-%20in%20trunk/tools/pydar2%3A%20pydar%20scripts&In-Reply-To=%3C20050825201518.BC559318033%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r3535 - in trunk/tools/pydar2: pydar scripts">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Aug 25 22:15:18 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002335.html">[svn] r3534 - trunk/rpms/libdca
+</A></li>
+        <LI>Next message: <A HREF="002337.html">[svn] r3536 - in trunk/tools/dconf: . config scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2336">[ date ]</a>
+              <a href="thread.html#2336">[ thread ]</a>
+              <a href="subject.html#2336">[ subject ]</a>
+              <a href="author.html#2336">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2005-08-25 22:15:17 +0200 (Thu, 25 Aug 2005)
+New Revision: 3535
+
+Modified:
+   trunk/tools/pydar2/pydar/postgresqlstorage.py
+   trunk/tools/pydar2/pydar/tagsfile.py
+   trunk/tools/pydar2/scripts/rpmforgesite.py
+Log:
+update
+
+Modified: trunk/tools/pydar2/pydar/postgresqlstorage.py
+===================================================================
+--- trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-08-25 15:20:20 UTC (rev 3534)
++++ trunk/tools/pydar2/pydar/postgresqlstorage.py	2005-08-25 20:15:17 UTC (rev 3535)
+@@ -750,6 +750,7 @@
+                 # autofill certain values
+                 retval[distroarchtag]['# Screenshot'] = &quot;&quot;
+                 retval[distroarchtag]['# Authority'] = &quot;&quot;
++                retval[distroarchtag]['# Upstream'] = &quot;&quot;
+             retval[distroarchtag][name] = value
+         cursor.close()
+         self.__releaseConnection(conn)
+
+Modified: trunk/tools/pydar2/pydar/tagsfile.py
+===================================================================
+--- trunk/tools/pydar2/pydar/tagsfile.py	2005-08-25 15:20:20 UTC (rev 3534)
++++ trunk/tools/pydar2/pydar/tagsfile.py	2005-08-25 20:15:17 UTC (rev 3535)
+@@ -38,7 +38,11 @@
+         self.queryformattags = (&quot;PKGID&quot;,&quot;NAME&quot;,&quot;VERSION&quot;,&quot;RELEASE&quot;,&quot;EPOCH&quot;,&quot;SERIAL&quot;,&quot;SUMMARY&quot;,&quot;DESCRIPTION&quot;,&quot;DISTRIBUTION&quot;,&quot;VENDOR&quot;,&quot;LICENSE&quot;,&quot;PACKAGER&quot;,&quot;GROUP&quot;,&quot;URL&quot;,&quot;ARCH&quot;,&quot;EXCLUDEARCH&quot;,&quot;EXCLUDEOS&quot;,&quot;EXCLUSIVEARCH&quot;,&quot;EXCLUSIVEOS&quot;,&quot;BUILDARCHS&quot;,&quot;DISTURL&quot;,&quot;FILEMD5S&quot;,&quot;CHANGELOGNAME&quot;)
+         self.getStandardTags()
+         self.parseRpmForgeTags()
++        self.subpackageStandardTags = {}
+         
++        self.__formatStringBeginTag = &quot;::QFBEGINTAG::&quot;
++        self.__formatStringEndTag = &quot;::QFENDTAG::&quot;
++        
+     def getStandardTags(self):
+         self.cat.debug(&quot;start&quot;)
+         queryformat = self.getQueryFormatString()
+@@ -54,10 +58,30 @@
+         result = ''
+         for tag in self.queryformattags:
+             result = result + &quot;#####&quot; + tag + &quot;#####%{&quot; + tag + &quot;}#####&quot; + tag + &quot;#####&quot;
+-        return result
++        return self.__formatStringBeginTag + result + self.__formatStringEndTag
+         
+     def parseStandardTags(self, inputstring):
+         self.cat.debug(&quot;start, inputstring=&quot; + inputstring)
++        regexp = '.*?' + self.__formatStringBeginTag + '(.*?)' + self.__formatStringEndTag + '(.*)'
++        regex = re.compile(regexp, re.MULTILINE | re.DOTALL)
++        result = regex.match(inputstring)
++        if result:
++            # this is the info about the package itself
++            mainPack = result.group(1)
++            self.standardtags = self.__getStandardTagsPerPackage(mainPack)
++            subPackages = result.group(2)
++            found = 1
++            while found == 1:
++                result = regex.match(subPackages)
++                if result:
++                    subtags = self.__getStandardTagsPerPackage(result.group(1))
++                    self.subpackageStandardTags[subtags['NAME']] = subtags
++                    subPackages = result.group(2)
++                else:
++                    found = 0
++
++    def __getStandardTagsPerPackage(self, inputstring):
++        retval = {}
+         for tag in self.queryformattags:
+             #self.cat.debug(&quot;tag: &quot; + tag)
+             regexp = '.*?#####'+tag+'#####(.*?)#####'+tag+'#####.*'
+@@ -68,9 +92,10 @@
+             if result:
+                 value=result.group(1)
+                 #self.cat.debug(&quot;value: &quot;+value)
+-                self.standardtags[tag] = value
++                retval[tag] = value
+             else:
+                 self.cat.warn(&quot;tag not found, tag:&quot;+tag)
++        return retval
+                 
+     def parseRpmForgeTags(self):
+         self.cat.debug(&quot;start, will do nothing..&quot;)
+
+Modified: trunk/tools/pydar2/scripts/rpmforgesite.py
+===================================================================
+--- trunk/tools/pydar2/scripts/rpmforgesite.py	2005-08-25 15:20:20 UTC (rev 3534)
++++ trunk/tools/pydar2/scripts/rpmforgesite.py	2005-08-25 20:15:17 UTC (rev 3535)
+@@ -87,14 +87,18 @@
+     def setSpecRepoSpecFile(self,specRepoSpecFileObj):
+         self.__specRepoSpecFile = specRepoSpecFileObj
+ 
++    def getSpecRepoSpecFile(self):
++        return self.__specRepoSpecFile
++
+     # only returns the filename without the url
+     def getName(self):
+         return self.__name
+     
+     # returns the full url which can be used in a webpage
+     def getFullUrl(self):
+-        return self.__distArchPackagerList.rpmsUrl + self.__name
++        return self.__distArchPackagerList.getRpmsUrl() + self.__name
+         
++        
+     def getDistArchPackagerList(self):
+         return self.__distArchPackagerList
+         
+@@ -105,7 +109,7 @@
+         return self.__release
+         
+     #return version-release
+-    def getRelVer(self):
++    def getVerRel(self):
+         return self.__version + &quot;-&quot; + self.__release
+ 
+     def __stripDistRepoTag(self,name):
+@@ -190,6 +194,9 @@
+     
+     def addBinaryRpm(self, bo):
+       self.__binaryRpms.append(bo)
++      
++    def getBinaryRpms(self):
++      return self.__binaryRpms
+     
+     
+ class SiteObject:
+@@ -208,7 +215,7 @@
+         self.__specRepo = specRepo
+         self.__Driesfullcontentstemplate = None
+         self.__RFfullcontentstemplate = None
+-        self.__DriesSiterootdir =  &quot;/tmp/packages/&quot;
++        self.__Driessiterootdir =  &quot;/tmp/packages/&quot;
+         self.__RFsiterootdir = &quot;/tmp/rpmforgesite/&quot;
+         self.__storage = storagefactory.StorageFactory.getStorage()
+         self.__timer(&quot;distArchPackagerLists init&quot;)
+@@ -337,6 +344,7 @@
+         for listje in self.__distArchPackagerLists:
+             # ok get the list of rpms and srpms of this list
+             f = None
++            nbrOfLines = 0
+             if not self.__useLocalFilesOnly:
+                 f = urllib.urlopen(listje.getRpmsUrl())
+             else:
+@@ -346,6 +354,7 @@
+             print  &quot;start, &quot; + listje.getRpmsUrl()
+             lijn = f.readline()
+             while lijn != &quot;&quot;:
++                nbrOfLines = nbrOfLines + 1
+                 #print l
+                 # some stuff which should not get into the lists...
+                 lijn = lijn.replace(&quot;gcc-c++-3.2.2-5.i386.rpm&quot;,&quot;&quot;)
+@@ -358,10 +367,19 @@
+                     i = 0
+                     #self.__timer(&quot;search in packagenames&quot;)
+                     #print &quot;rpm: &quot; + rpm
+-                    start = rpm[0:2]
++                    searchrpm = rpm
++                    # certain packages don't have normal subpackage names, for example clamd is a subpackage of clamav
++                    
++                    specials = {}
++                    specials['clamd'] = 'clamav'
++                    specials['gpsmap'] = 'gpsmap'
++                    for k in specials.keys():
++                        searchrpm = searchrpm.replace(k,specials[k])
++                    
++                    start = searchrpm[0:2]
+                     if start in extendedPackagenames.keys():
+-                        packagenames = extendedPackagenames[rpm[0:2]]
+-                        while ((i &lt; len(packagenames)) and (not rpm.startswith(packagenames[i]))):
++                        packagenames = extendedPackagenames[start]
++                        while ((i &lt; len(packagenames)) and (not searchrpm.startswith(packagenames[i]))):
+                             i = i + 1
+                             #print i, len(packagenames), packagenames[i]
+                         #self.__timer(&quot;search in packagenames&quot;)
+@@ -369,7 +387,7 @@
+                             #print &quot;match: &quot; + rpm + &quot;, package=&quot; + packagenames[i]
+                             #nametospecrepospecfile[packagenames[i]].rpmfilenames.append(listje.getRpmsUrl() + rpm)
+                             #print &quot;adding: &quot; + rpm
+-                            #nametospecrepospecfile[packagenames[i]].binaryrpms.append(bo)
++                            nametospecrepospecfile[packagenames[i]].binaryrpms.append(bo)
+                             bo.setSpecRepoSpecFile(nametospecrepospecfile[packagenames[i]])
+                             #self.__rpmNameToSpecSubDirName[rpm] = packagenames[i]
+                         else:
+@@ -381,7 +399,10 @@
+                     #print &quot;bad line: &quot; + lijn
+                 lijn = f.readline()
+             f.close()
+-            self.__siteValues[listje.getDisplayShortName().upper() + &quot;-RPMS&quot;] = listje.getNumberOfBinaryRpms()
++            if nbrOfLines &lt; 100:
++                print &quot;nbrOflines &lt; 100 !! not normal..&quot;
++                os.exit(1)
++            self.__siteValues[listje.getDistArchPackager().upper() + &quot;-RPMS&quot;] = listje.getNumberOfBinaryRpms()
+         self.__timer(&quot;__completeBinaryRpmsLists&quot;)    
+             
+     def completeSourceRpmsLists(self):    
+@@ -458,7 +479,12 @@
+             hash = self.__storage.getTagsOfSpecFileVersionNew(versions[0])
+             if defaultQueryDistroArch in hash.keys():
+                 if self.__buildDriesSite:
+-                    self.generateOnePackagePage(specRepoSpecFile)
++                    #self.generateOnePackagePage(specRepoSpecFile)
++                    self.generateOnePackagePageFirstPage(specRepoSpecFile, versions, hash)
++                    self.generateOnePackagePageSpecPage(specRepoSpecFile)
++                    for v in versions:
++                      self.generateOnePackagePageVersionPage(specRepoSpecFile, v)
++                    
+                 if self.__buildRpmforgeSite:        
+                     #self.RFgenerateSpecPages(specRepoSpecFile)
+                     self.RFgenerateUserPackagePage(specRepoSpecFile, hash)
+@@ -470,8 +496,8 @@
+             self.RFgeneratePackagesPages()
+         print &quot;start, distropages&quot;
+         if self.__buildDriesSite:
+-            for i in self.__rpmlists:
+-                if i.packager == &quot;dries&quot;:
++            for i in self.__distArchPackagerLists:
++                if i.getPackager() == &quot;dries&quot;:
+                     self.generateDistroArchPageRpm(i)
+                     self.generateDistroArchPageSrpm(i)
+             # also create some directory indexes
+@@ -520,8 +546,8 @@
+         self.DriesgenerateFullPage(contents,[],&quot;pydar2/classdiagram.html&quot;, &quot;Class diagram: Pydar2 rpm buildserver: Dries RPM Repository&quot;)
+         contents = self.__getFileContents(&quot;dries/pydar2/needed-part.html&quot;)
+         self.DriesgenerateFullPage(contents,[],&quot;pydar2/needed.html&quot;, &quot;Todo: Pydar2 rpm buildserver: Dries RPM Repository&quot;)
+-        shutil.copy(&quot;dries/pydar2/classdiagram.png&quot;,self.__siterootdir + &quot;/pydar2/&quot;)
+-        shutil.copy(&quot;dries/pydar2/classdiagram.xmi&quot;,self.__siterootdir + &quot;/pydar2/&quot;)
++        shutil.copy(&quot;dries/pydar2/classdiagram.png&quot;,self.__Driessiterootdir + &quot;/pydar2/&quot;)
++        shutil.copy(&quot;dries/pydar2/classdiagram.xmi&quot;,self.__Driessiterootdir + &quot;/pydar2/&quot;)
+             
+     def clientConfigPage(self):
+         contents = self.__getFileContents(&quot;dries/clientconfig-part.html&quot;)
+@@ -536,7 +562,7 @@
+         self.DriesgenerateFullPage(contents,[],&quot;RPM-GPG-KEY.dries.html&quot;, &quot;GPG Key: Dries RPM Repository&quot;)
+      
+     def setGPGKey(self):
+-        shutil.copy(&quot;dries/RPM-GPG-KEY.dries.txt&quot;,self.__siterootdir)
++        shutil.copy(&quot;dries/RPM-GPG-KEY.dries.txt&quot;,self.__Driessiterootdir)
+         
+     def generateMirrorsPage(self):
+         contents = self.__getFileContents(&quot;dries/mirrors-part.html&quot;)
+@@ -594,13 +620,15 @@
+         
+     def generateDistroArchPageRpm(self,distroArch):
+         contents = &quot;&quot;
+-        contents = &quot;&lt;h2&gt;Rpms for &quot; + distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;)&lt;/h2&gt;&quot;
+-        for r in distroArch.rpms:
+-            linkToPackage = &quot;&quot;
+-            if r in self.__rpmNameToSpecSubDirName:
+-                linkToPackage = &quot;&amp;nbsp;-&amp;nbsp&lt;a href=\&quot;/rpm/packages/&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;/info.html\&quot;&gt;&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;&lt;/a&gt;&quot;
+-            contents = contents + &quot;&lt;a href=\&quot;&quot; + distroArch.rpmsUrl + r + &quot;\&quot;&gt;&quot; + r + &quot;&lt;/a&gt;&quot; + linkToPackage + &quot;&lt;br /&gt;&quot;
+-        self.DriesgenerateFullPage(contents, [distroArch.displayName], distroArch.shortName + &quot;-rpms.html&quot;,distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;): Dries RPM Repository&quot;)
++        contents = &quot;&lt;h2&gt;Rpms for &quot; + distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;)&lt;/h2&gt;&quot;
++        for r in distroArch.getBinaryRpms():
++            #linkToPackage = r.getFullUrl()
++            #if r in self.__rpmNameToSpecSubDirName:
++            shortName = r.getSpecRepoSpecFile().getSubDir()
++            #linkToPackage = &quot;&amp;nbsp;-&amp;nbsp&lt;a href=\&quot;/rpm/packages/&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;/info.html\&quot;&gt;&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;&lt;/a&gt;&quot;
++            linkToPackage = &quot;&amp;nbsp;-&amp;nbsp;&lt;a href=\&quot;/rpm/packages/&quot; + shortName + &quot;/info.html\&quot;&gt;&quot; + shortName + &quot;&lt;/a&gt;&quot;
++            contents = contents + &quot;&lt;a href=\&quot;&quot; + r.getFullUrl() + &quot;\&quot;&gt;&quot; + r.getName() + &quot;&lt;/a&gt;&quot; + linkToPackage + &quot;&lt;br /&gt;&quot;
++        self.DriesgenerateFullPage(contents, [distroArch.getDisplayShortName()], distroArch.getDistArchPackager() + &quot;-rpms.html&quot;,distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;): Dries RPM Repository&quot;)
+         # also generate a page in redhat/el4/i386/ for example
+         for path in distroArch.additionalPaths:
+             # 1 create a .htaccess file which links release.* files in this DIR
+@@ -664,7 +692,7 @@
+     
+     def createSymbolicLink(self, filename, target):
+         (tempdir, fname) = os.path.split(filename)
+-        dir = os.path.join(self.__siterootdir, tempdir)
++        dir = os.path.join(self.__Driessiterootdir, tempdir)
+         #print dir
+         errors = 0
+         try:
+@@ -679,7 +707,7 @@
+     def createFile(self, filename, contents):
+         # first make sure the directory exists
+         (tempdir, fname) = os.path.split(filename)
+-        dir = os.path.join(self.__siterootdir, tempdir)
++        dir = os.path.join(self.__Driessiterootdir, tempdir)
+         #print dir
+         errors = 0
+         try:
+@@ -693,7 +721,7 @@
+         
+             
+     def createDirHierarchy(self, path):
+-        dir = os.path.join(self.__siterootdir, path)
++        dir = os.path.join(self.__Driessiterootdir, path)
+         errors = 0
+         try:
+             os.makedirs(dir)
+@@ -709,7 +737,7 @@
+             if r in self.__rpmNameToSpecSubDirName:
+                 linkToPackage = &quot;&amp;nbsp;-&amp;nbsp&lt;a href=\&quot;/rpm/packages/&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;/info.html\&quot;&gt;&quot; + self.__rpmNameToSpecSubDirName[r] + &quot;&lt;/a&gt;&quot;
+             contents = contents + &quot;&lt;a href=\&quot;&quot; + url + r + &quot;\&quot;&gt;&quot; + r + &quot;&lt;/a&gt;&quot; + linkToPackage + &quot;&lt;br /&gt;&quot;
+-        self.DriesgenerateFullPage(contents, [distroArch.displayName], distroArch.shortName + &quot;-srpms.html&quot;,distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;): Dries RPM Repository&quot;)
++        self.DriesgenerateFullPage(contents, [distroArch.displayName], distroArch.getDistArchPackager() + &quot;-srpms.html&quot;,distroArch.getDisplayFullName() + &quot; (&quot; + distroArch.getDisplayShortName() + &quot;): Dries RPM Repository&quot;)
+         for path in distroArch.additionalPaths:
+             contents = &quot;This page now contains links to the source rpms on one of the mirrors because the page is generating way too much traffic for this server.&lt;br /&gt;&lt;br /&gt;&quot; + contents
+             self.DriesgenerateFullPage(contents, [distroArch.displayName], path + &quot;/SRPMS.dries/index.html&quot;,distroArch.fullName + &quot; (&quot; + distroArch.displayName + &quot;): Dries RPM Repository&quot;)
+@@ -722,7 +750,7 @@
+         self.DriesgenerateFullPage(contents, [&quot;Packages&quot;], &quot;packages.html&quot;,&quot;List of rpm packages: Dries RPM Repository&quot;)
+         
+     def DriesfillFullContentsTemplate(self):
+-        self.__fullcontentstemplate = self.__getFileContents(&quot;dries/fullcontentstemplate.txt&quot;)
++        self.__Driesfullcontentstemplate = self.__getFileContents(&quot;dries/fullcontentstemplate.txt&quot;)
+     
+     def RFfillFullContentsTemplate(self):
+         self.__RFfullcontentstemplate = self.__getFileContents(&quot;dries/RFfullcontentstemplate.txt&quot;)
+@@ -751,13 +779,13 @@
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/recentchanges.html\&quot;&gt;Recent changes&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;a href=\&quot;/rpm/pydar2/index.html\&quot;&gt;Pydar2&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;strong&gt;Rpms:&lt;/strong&gt;&lt;br /&gt;&quot;
+-        for k in self.__rpmlists:
+-            if k.packager == &quot;dries&quot;:
+-                menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.shortName + &quot;-rpms.html\&quot;&gt;&quot; + k.displayName + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++        for k in self.__distArchPackagerLists:
++            if k.getPackager() == &quot;dries&quot;:
++                menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.getDistArchPackager() + &quot;-rpms.html\&quot;&gt;&quot; + k.getDisplayShortName() + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;strong&gt;Srpms:&lt;/strong&gt;&lt;br /&gt;&quot;
+-        for k in self.__rpmlists:
+-            if k.packager == &quot;dries&quot;:
+-                menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.shortName + &quot;-srpms.html\&quot;&gt;&quot; + k.displayName.replace(&quot;rpms&quot;,&quot;srpms&quot;) + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
++        for k in self.__distArchPackagerLists:
++            if k.getPackager() == &quot;dries&quot;:
++                menu = menu + &quot;&lt;a href=\&quot;/rpm/&quot; + k.getDistArchPackager() + &quot;-srpms.html\&quot;&gt;&quot; + k.getDisplayShortName().replace(&quot;rpms&quot;,&quot;srpms&quot;) + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;&lt;strong&gt;Thanks:&lt;/strong&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;Buildsystem hosted at &lt;a href=\&quot;<A HREF="http://www.ithomi.com/\">http://www.ithomi.com/\</A>&quot;&gt;ithomi&lt;/a&gt;&lt;br /&gt;&quot;
+         menu = menu + &quot;Static site hosted at &lt;a href=\&quot;<A HREF="http://www.ulyssis.org/\">http://www.ulyssis.org/\</A>&quot;&gt;ULYSSIS&lt;/a&gt;&lt;br /&gt;&quot;
+@@ -806,7 +834,7 @@
+         
+         # first make sure the directory exists
+         (tempdir, fname) = os.path.split(filename)
+-        dir = os.path.join(self.__siterootdir, tempdir)
++        dir = os.path.join(self.__Driessiterootdir, tempdir)
+         #print dir
+         if dir not in SiteObject.alreadyCreatedDirs:
+             if os.path.exists(dir):
+@@ -932,8 +960,8 @@
+         #        license = h['value']
+         #    if h['name'] == &quot;# Screenshot&quot;:
+         #        screenshot = h['value']
+-        contents = contents + &quot;&lt;b&gt;&quot; + summary + &quot;&lt;/b&gt;&lt;br /&gt;&quot;
+-        contents = contents + &quot;&lt;pre&gt;&quot; + description.strip() + &quot;&lt;/pre&gt;&lt;br /&gt;&quot;
++        contents = contents + &quot;&lt;b&gt;&quot; + summary + &quot;&lt;/b&gt;&quot;
++        contents = contents + &quot;&lt;pre&gt;&quot; + description.strip() + &quot;&lt;/pre&gt;&quot;
+         contents = contents + &quot;&lt;small&gt;&quot;
+         
+         contents = contents + &quot;&lt;b&gt;Latest release:&lt;/b&gt; &quot; + version + &quot;-&quot; + release + &quot;&lt;br /&gt;&lt;br /&gt;&quot;
+@@ -946,22 +974,22 @@
+             contents = contents + &quot;&lt;b&gt;Screenshot:&lt;/b&gt; &lt;a href=\&quot;&quot; + screenshot + &quot;\&quot;&gt;&quot; + screenshot + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         contents = contents + &quot;&lt;/small&gt;&quot;
+         
+-        specRepoSpecFile.binaryrpms.sort(lambda x,y : cmp((y.version,y.release,y.distroArchObject.distroArch),(x.version,x.release,x.distroArchObject.distroArch)))
++        specRepoSpecFile.binaryrpms.sort(lambda x,y : cmp((y.getVersion(),y.getRelease(),y.getDistArchPackagerList().getDistArch()),(x.getVersion(),x.getRelease(),x.getDistArchPackagerList().getDistArch())))
+         #specRepoSpecFile.binaryrpms.sort(lambda y,x : cmp(y.verrely.distroArchObject.distroArch+&quot;=&quot;+y.name+&quot;=&quot;+y.distroArchObject.rpmsUrl,  x.distroArchObject.distroArch+&quot;=&quot; + x.name+&quot;=&quot;+x.distroArchObject.rpmsUrl))
+         lastda = &quot;&quot;
+         lastdadesc = &quot;&quot;
+         lastverrel = &quot;&quot;
+         for b in specRepoSpecFile.binaryrpms:
+-            if b.name.find('.src.rpm') &lt; 0 and b.name.find('-debuginfo-') &lt; 0:
+-                if lastverrel != b.verrel:
+-                    lastverrel = b.verrel
+-                    contents = contents + &quot;&lt;h3&gt;Version &quot; + lastverrel + &quot;&lt;/h3&gt;\n&quot;
+-                if lastda != b.distroArchObject.distroArch:
+-                    lastda = b.distroArchObject.distroArch
+-                    lastdadesc = b.distroArchObject.fullName
++            if b.getName().find('.src.rpm') &lt; 0 and b.getName().find('-debuginfo-') &lt; 0:
++                if lastverrel != b.getVerRel():
++                    lastverrel = b.getVerRel()
++                    contents = contents + &quot;&lt;h3&gt;Release &quot; + lastverrel + &quot;&lt;/h3&gt;\n&quot;
++                if lastda != b.getDistArchPackagerList().getDistArch():
++                    lastda = b.getDistArchPackagerList().getDistArch()
++                    lastdadesc = b.getDistArchPackagerList().getDisplayFullName()
+                     contents = contents + &quot;&lt;h4&gt;&quot; + lastdadesc + &quot; (&quot; + lastda + &quot;)&lt;/h4&gt;\n&quot;
+-                url = b.distroArchObject.rpmsUrl + b.name
+-                contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.name + &quot;&lt;/a&gt; (&quot; + b.distroArchObject.packager + &quot;)&lt;br /&gt;\n&quot;
++                url = b.getDistArchPackagerList().getRpmsUrl() + b.getName()
++                contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.getName() + &quot;&lt;/a&gt; (&quot; + b.getDistArchPackagerList().getPackager() + &quot;)&lt;br /&gt;\n&quot;
+             
+         self.RFgenerateFullPage(contents,[&quot;Packages&quot;,&quot;User track: &quot; + shortName], &quot;user/packages/&quot; + shortName + &quot;/index.php&quot;, shortName + &quot; RPM package for Red Hat / Fedora / Aurora&quot;)
+         
+@@ -996,7 +1024,7 @@
+         contents = contents + &quot;License: &quot; + license + &quot;&lt;br /&gt;&quot;
+         contents = contents + &quot;Group: &quot; + group + &quot;&lt;br /&gt;&quot;
+         contents = contents + &quot;URL: &quot; + url + &quot;&lt;br /&gt;&quot;
+-        contents = contents + &quot;Description: &lt;br /&gt;&lt;pre&gt;&quot; + description + &quot;&lt;/pre&gt;&lt;br /&gt;&quot;
++        contents = contents + &quot;Description: &lt;pre&gt;&quot; + description + &quot;&lt;/pre&gt;&quot;
+         if screenshot != &quot;&quot;:
+             contents = contents + &quot;Screenshot: &lt;a href=\&quot;&quot; + screenshot + &quot;\&quot;&gt;&quot; + screenshot + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         
+@@ -1014,13 +1042,6 @@
+         
+         #### end of rpmforge track pages
+         
+-    def generateOnePackagePage(self, specRepoSpecFile):
+-        versions = self.__storage.getVersionIdsOfSpecRepoSpecFile(specRepoSpecFile)
+-        arr = self.__storage.getTagsOfSpecFileVersion(versions[0])
+-        self.generateOnePackagePageFirstPage(specRepoSpecFile, versions, arr)
+-        self.generateOnePackagePageSpecPage(specRepoSpecFile)
+-        for v in versions:
+-            self.generateOnePackagePageVersionPage(specRepoSpecFile, v)
+     
+     def generateOnePackagePageVersionPage(self,specRepoSpecFile, versionId):
+         shortName = specRepoSpecFile.getSubDir()
+@@ -1054,7 +1075,7 @@
+             contents = contents + &quot;&lt;tr&gt;&lt;td&gt;&quot; + latesttag + &quot;&lt;/td&gt;&quot;
+             contents = contents + &quot;&lt;td&gt;&quot; + latestvalue + &quot;&lt;/td&gt;&lt;/tr&gt;\n&quot;
+         contents = contents + &quot;&lt;/table&gt;&quot;
+-        self.DriesgenerateFullPage(contents,[&quot;Packages&quot;, shortName, &quot;Version &quot; + str(versionId) + &quot; of &quot; + shortName], &quot;packages/&quot; + shortName + &quot;/&quot; + shortName + &quot;-version-&quot; + str(versionId) + &quot;.html&quot;, shortName + &quot; spec file, version &quot; + str(versionId))
++        self.DriesgenerateFullPage(contents,[&quot;Packages&quot;, shortName, &quot;Release &quot; + str(versionId) + &quot; of &quot; + shortName], &quot;packages/&quot; + shortName + &quot;/&quot; + shortName + &quot;-version-&quot; + str(versionId) + &quot;.html&quot;, shortName + &quot; spec file, version &quot; + str(versionId))
+         
+         
+     def generateOnePackagePageSpecPage(self,specRepoSpecFile):
+@@ -1076,55 +1097,30 @@
+                     return distro.fullName
+         return &quot;unknown&quot;
+         
+-    def generateOnePackagePageFirstPage(self, specRepoSpecFile, versions, distNameValueArr):
++    def generateOnePackagePageFirstPage(self, specRepoSpecFile, versions, distNameValueHash):
+         shortName = specRepoSpecFile.getSubDir()
+         contents = &quot;&quot;
+         contents = contents + &quot;&lt;h2&gt;General info:&lt;/h2&gt;&quot;
+         
+-        # for now, just get any value
+-        name = &quot;&quot;
+-        summary = &quot;&quot;
+-        group = &quot;&quot;
+-        url = &quot;&quot;
+-        packager = &quot;&quot;
+-        vendor = &quot;&quot;
+-        description = &quot;&quot;
+-        version = &quot;&quot;
+-        release = &quot;&quot;
+-        epoch = &quot;&quot;
+-        authority = &quot;&quot;
+-        license = &quot;&quot;
+-        upstream = &quot;&quot;
+-        screenshot = &quot;&quot;
+-        for h in distNameValueArr:
+-            if h['name'] == &quot;NAME&quot;:
+-                name = h['value']
+-            if h['name'] == &quot;SUMMARY&quot;:
+-                summary = h['value']
+-            if h['name'] == &quot;GROUP&quot;:
+-                group = h['value']
+-            if h['name'] == &quot;URL&quot;:
+-                url = h['value']
+-            if h['name'] == &quot;PACKAGER&quot;:
+-                packager = h['value']
+-            if h['name'] == &quot;VENDOR&quot;:
+-                vendor = h['value']
+-            if h['name'] == &quot;DESCRIPTION&quot;:
+-                description = h['value']
+-            if h['name'] == &quot;VERSION&quot;:
+-                version = h['value']
+-            if h['name'] == &quot;RELEASE&quot;:
+-                release = h['value']
+-            if h['name'] == &quot;EPOCH&quot;:
+-                epoch = h['value']
+-            if h['name'] == &quot;# Authority&quot;:
+-                authority = h['value']
+-            if h['name'] == &quot;LICENSE&quot;:
+-                license = h['value']
+-            if h['name'] == &quot;# Upstream&quot;:
+-                upstream = h['value']
+-            if h['name'] == &quot;# Screenshot&quot;:
+-                screenshot = h['value']
++        myTempHash = distNameValueHash[defaultQueryDistroArch]
++        if 'NAME' not in myTempHash.keys():
++            print &quot;NO name in for spec &quot; + specRepoSpecFile.getSubDir()
++            return
++        name = myTempHash['NAME']
++        summary = myTempHash['SUMMARY']
++        group = myTempHash['GROUP']
++        url = myTempHash['URL']
++        description = myTempHash['DESCRIPTION']
++        version = myTempHash['VERSION']
++        release = myTempHash['RELEASE']
++        authority = myTempHash['# Authority']
++        license = myTempHash['LICENSE']
++        screenshot = myTempHash['# Screenshot']
++        epoch = myTempHash['EPOCH']
++        upstream = myTempHash['# Upstream']
++        vendor = myTempHash['VENDOR']
++        packager = myTempHash['PACKAGER']
++        
+             
+         contents = contents + &quot;&lt;b&gt;Name:&lt;/b&gt; &quot; + name + &quot;&lt;br /&gt;&quot;
+         contents = contents + &quot;&lt;b&gt;Summary:&lt;/b&gt; &quot; + summary + &quot;&lt;br /&gt;&quot;
+@@ -1136,7 +1132,7 @@
+         contents = contents + &quot;&lt;b&gt;License:&lt;/b&gt; &quot; + license + &quot;&lt;br /&gt;&quot;
+         contents = contents + &quot;&lt;b&gt;Group:&lt;/b&gt; &quot; + group + &quot;&lt;br /&gt;&quot;
+         contents = contents + &quot;&lt;b&gt;URL:&lt;/b&gt; &lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + url + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+-        contents = contents + &quot;&lt;b&gt;Description:&lt;/b&gt; &lt;br /&gt;&lt;pre&gt;&quot; + description + &quot;&lt;/pre&gt;&lt;br /&gt;&quot;
++        contents = contents + &quot;&lt;b&gt;Description:&lt;/b&gt;&lt;pre&gt;&quot; + description + &quot;&lt;/pre&gt;&quot;
+         if screenshot != &quot;&quot;:
+             contents = contents + &quot;&lt;b&gt;Screenshot:&lt;/b&gt; &lt;a href=\&quot;&quot; + screenshot + &quot;\&quot;&gt;&quot; + screenshot + &quot;&lt;/a&gt;&lt;br /&gt;&quot;
+         
+@@ -1144,22 +1140,24 @@
+         
+         contents = contents + &quot;&lt;h2&gt;Rpms:&lt;/h2&gt;&quot;
+         
+-        specRepoSpecFile.binaryrpms.sort(lambda x,y : cmp((y.version,y.release,y.distroArchObject.distroArch),(x.version,x.release,x.distroArchObject.distroArch)))
+-        #specRepoSpecFile.binaryrpms.sort(lambda y,x : cmp(y.verrely.distroArchObject.distroArch+&quot;=&quot;+y.name+&quot;=&quot;+y.distroArchObject.rpmsUrl,  x.distroArchObject.distroArch+&quot;=&quot; + x.name+&quot;=&quot;+x.distroArchObject.rpmsUrl))
++        #specRepoSpecFile.binaryrpms.sort(lambda x,y : cmp((y.version,y.release,y.getDistArchPackagerList().getDistArch()),(x.version,x.release,x.getDistArchPackagerList().getDistArch())))
++        specRepoSpecFile.binaryrpms.sort(lambda x,y : cmp((y.getVersion(),y.getRelease(),y.getDistArchPackagerList().getDistArch()),(x.getVersion(),x.getRelease(),x.getDistArchPackagerList().getDistArch())))
++        
++        #specRepoSpecFile.binaryrpms.sort(lambda y,x : cmp(y.verrely.getDistArchPackagerList().getDistArch()+&quot;=&quot;+y.name+&quot;=&quot;+y.getDistArchPackagerList().getRpmsUrl(),  x.getDistArchPackagerList().getDistArch()+&quot;=&quot; + x.name+&quot;=&quot;+x.getDistArchPackagerList().getRpmsUrl()))
+         lastda = &quot;&quot;
+         lastdadesc = &quot;&quot;
+         lastverrel = &quot;&quot;
+         for b in specRepoSpecFile.binaryrpms:
+-            if b.name.find('.src.rpm') &lt; 0 and b.name.find('-debuginfo-') &lt; 0 and b.distroArchObject.packager == &quot;dries&quot;:
+-                if lastverrel != b.verrel:
+-                    lastverrel = b.verrel
+-                    contents = contents + &quot;&lt;h3&gt;Version &quot; + lastverrel + &quot;&lt;/h3&gt;\n&quot;
+-                if lastda != b.distroArchObject.distroArch:
+-                    lastda = b.distroArchObject.distroArch
+-                    lastdadesc = b.distroArchObject.fullName
++            if b.getName().find('.src.rpm') &lt; 0 and b.getName().find('-debuginfo-') &lt; 0 and b.getDistArchPackagerList().getPackager() == &quot;dries&quot;:
++                if lastverrel != b.getVerRel():
++                    lastverrel = b.getVerRel()
++                    contents = contents + &quot;&lt;h3&gt;Release &quot; + lastverrel + &quot;&lt;/h3&gt;\n&quot;
++                if lastda != b.getDistArchPackagerList().getDistArch():
++                    lastda = b.getDistArchPackagerList().getDistArch()
++                    lastdadesc = b.getDistArchPackagerList().getDisplayFullName()
+                     contents = contents + &quot;&lt;h4&gt;&quot; + lastdadesc + &quot; (&quot; + lastda + &quot;)&lt;/h4&gt;\n&quot;
+-                url = b.distroArchObject.rpmsUrl + b.name
+-                contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.name + &quot;&lt;/a&gt;&lt;br /&gt;\n&quot; # (&quot; + b.distroArchObject.packager + &quot;)&lt;br /&gt;\n&quot;
++                url = b.getDistArchPackagerList().getRpmsUrl() + b.getName()
++                contents = contents + &quot;&lt;a href=\&quot;&quot; + url + &quot;\&quot;&gt;&quot; + b.getName() + &quot;&lt;/a&gt;&lt;br /&gt;\n&quot; # (&quot; + b.getDistArchPackagerList().getPackager() + &quot;)&lt;br /&gt;\n&quot;
+             
+         
+ #         for f in specRepoSpecFile.rpmfilenames:
+@@ -1193,4 +1191,4 @@
+ c.specifyGetOptOptions(TmpOptions())
+ c.getSpecRepositoryList().updateAllFileLists()
+ r = c.getSpecRepositoryList().getSpecRepositoryByName(&quot;rpmforge&quot;)
+-RpmforgeSite(r,True,False,True)
++RpmforgeSite(r,False,False,True)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002335.html">[svn] r3534 - trunk/rpms/libdca
+</A></li>
+	<LI>Next message: <A HREF="002337.html">[svn] r3536 - in trunk/tools/dconf: . config scripts
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2336">[ date ]</a>
+              <a href="thread.html#2336">[ thread ]</a>
+              <a href="subject.html#2336">[ subject ]</a>
+              <a href="author.html#2336">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

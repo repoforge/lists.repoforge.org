@@ -1,0 +1,238 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4248 - trunk/rpms/scponly
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4248%20-%20trunk/rpms/scponly&In-Reply-To=%3C20060327120750.DB7363180BD%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003047.html">
+   <LINK REL="Next"  HREF="003049.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4248 - trunk/rpms/scponly</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4248%20-%20trunk/rpms/scponly&In-Reply-To=%3C20060327120750.DB7363180BD%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4248 - trunk/rpms/scponly">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon Mar 27 14:07:50 CEST 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003047.html">[svn] r4247 - trunk/rpms/armagetronad
+</A></li>
+        <LI>Next message: <A HREF="003049.html">[svn] r4249 - in trunk/rpms: . vobcopy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3048">[ date ]</a>
+              <a href="thread.html#3048">[ thread ]</a>
+              <a href="subject.html#3048">[ subject ]</a>
+              <a href="author.html#3048">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2006-03-27 14:07:47 +0200 (Mon, 27 Mar 2006)
+New Revision: 4248
+
+Added:
+   trunk/rpms/scponly/scponly-4.6-rsync.patch
+Modified:
+   trunk/rpms/scponly/scponly.spec
+Log:
+Enable (with fix) rsync support in scponly.
+
+
+Added: trunk/rpms/scponly/scponly-4.6-rsync.patch
+===================================================================
+--- trunk/rpms/scponly/scponly-4.6-rsync.patch	2006-03-27 09:35:48 UTC (rev 4247)
++++ trunk/rpms/scponly/scponly-4.6-rsync.patch	2006-03-27 12:07:47 UTC (rev 4248)
+@@ -0,0 +1,101 @@
++diff -Naupr scponly-4.6.orig/helper.c scponly-4.6/helper.c
++--- scponly-4.6.orig/helper.c	2006-01-31 23:04:16.000000000 +0100
+++++ scponly-4.6/helper.c	2006-03-27 13:35:56.000000000 +0200
++@@ -133,6 +133,81 @@ int check_dangerous_args(char **av)
++ 	char		**tmpptr=av;
++ 	int			ch;
++ 	int			ac=0;
+++	char		**av2 = NULL;
+++
+++	/*	
+++	 *	first count the arguments in the vector
+++	 */
+++	tmpptr=av;
+++	while (*tmpptr!=NULL)
+++	{	
+++		*tmpptr++;
+++		ac++;
+++	}
+++
+++#ifdef PROG_RSYNC
+++	if (exact_match(PROG_RSYNC, av[0]))
+++	{
+++		/*
+++		 *	these are the long opts (beginning &quot;--&quot;) which we
+++		 *	allow for rsync
+++		 */
+++		char *permitted_long_opts[] = {
+++				&quot;--server&quot;,
+++				&quot;--sender&quot;,
+++				&quot;--delete&quot;,
+++				&quot;--delete-after&quot;,
+++				&quot;--partial&quot;,
+++				&quot;--progress&quot;,
+++				NULL	/* last element must be NULL */
+++			};
+++
+++		/*
+++		 *	make a copy of the args excluding any permitted long
+++		 *	options
+++		 */
+++		int i, j;
+++		av2 = malloc(ac * sizeof *av2);
+++		av2[0] = av[0];
+++		for (i = 1, j = 1; i &lt; ac; ++i)
+++		{
+++			if (0 == strncmp(av[i], &quot;--&quot;, 2))
+++			{
+++				char **p;
+++				/*
+++				 *	test against permitted opts
+++				 */
+++				for (p = permitted_long_opts; *p; ++p)
+++				{
+++					if (exact_match(av[i], *p))
+++						break;
+++				}
+++				
+++				if (*p)
+++				{
+++					/*
+++					 *	permitted; skip this one
+++					 */
+++					continue;
+++				}
+++				else
+++				{
+++					/*
+++					 *	no match
+++					 */
+++					syslog(LOG_ERR, &quot;option %s is not permitted for use with %s (%s)&quot;,
+++						av[i], cmdarg-&gt;name, logstamp());
+++					return 1;
+++				}
+++			}
+++			av2[j++] = av[i];
+++			    
+++		}
+++		av2[j] = NULL;
+++		ac = j;
+++		av = av2;
+++	}
+++#endif /* PROG_RSYNC */
++ 
++ 	while (cmdarg != NULL)
++ 	{
++@@ -151,15 +226,6 @@ int check_dangerous_args(char **av)
++ 			 */
++ 			if (1 == cmdarg-&gt;getoptflag)
++ 			{
++-				/*	
++-				 *	first count the arguments in the vector
++-				 */
++-				tmpptr=av;
++-				while (*tmpptr!=NULL)
++-				{	
++-					*tmpptr++;
++-					ac++;
++-				}
++ 				/* 
++ 				 *	now use getopt to look for our problem option
++ 				 */
+
+Modified: trunk/rpms/scponly/scponly.spec
+===================================================================
+--- trunk/rpms/scponly/scponly.spec	2006-03-27 09:35:48 UTC (rev 4247)
++++ trunk/rpms/scponly/scponly.spec	2006-03-27 12:07:47 UTC (rev 4248)
+@@ -5,15 +5,17 @@
+ Summary: Limited shell for secure file transfers
+ Name: scponly
+ Version: 4.6
+-Release: 2
++Release: 3
+ License: GPL
+ Group: System Environment/Shells
+ URL: <A HREF="http://sublimation.org/scponly/">http://sublimation.org/scponly/</A>
+ 
+ Source: <A HREF="http://sublimation.org/scponly/scponly-%{version">http://sublimation.org/scponly/scponly-%{version</A>}.tgz
++Patch0: scponly-4.6-rsync.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-BuildRequires: openssh &gt;= 3.4, perl, openssh-server, openssh-clients
++Requires: openssh &gt;= 3.4, openssh-server, openssh-clients, rsync
++BuildRequires: openssh &gt;= 3.4, openssh-server, openssh-clients, rsync
+ 
+ %description
+ scponly is an alternative 'shell' for system administrators 
+@@ -24,12 +26,17 @@
+ 
+ %prep
+ %setup
+-
++%patch0 -p1 -b .rsync
+ ### FIXME: Remove ownership changes from Makefile
+ %{__perl} -pi.orig -e 's|-o 0 -g 0||g' Makefile*
++# Change /usr/local from the docs to /usr.
++%{__perl} -pi -e 's|%{_prefix}/local/|%{_prefix}/|g' scponly.8* INSTALL README
+ 
+ %build
+-%configure
++%configure \
++    --enable-scp-compat \
++    --enable-winscp-compat \
++    --enable-rsync-compat
+ %{__make} %{?_smp_mflags} OPTS=&quot;%{optflags}&quot;
+ 
+ %install
+@@ -43,11 +50,16 @@
+ %defattr(-, root, root, 0755)
+ %doc AUTHOR CHANGELOG CONTRIB COPYING INSTALL README TODO
+ %doc setup_chroot.sh build_extras/setup_chroot.sh*
+-%doc %{_mandir}/man8/scponly.8*
+ %config(noreplace) %{_sysconfdir}/scponly/
+ %{_bindir}/scponly
++%{_mandir}/man8/scponly.8*
+ 
+ %changelog
++* Mon Mar 27 2006 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 4.6-3
++- Enable rsync and scp/winscp compatibility.
++- Add change from Extras to fix /usr/local in docs.
++- Include (ugly) patch to fix long rsync options (may be missing options).
++
+ * Thu Mar 09 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 4.6-2
+ - Use make install and added %%{_sysconfdir}/scponly/debuglevel.
+ - Added setup_chroot helper scripts as documentation.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003047.html">[svn] r4247 - trunk/rpms/armagetronad
+</A></li>
+	<LI>Next message: <A HREF="003049.html">[svn] r4249 - in trunk/rpms: . vobcopy
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3048">[ date ]</a>
+              <a href="thread.html#3048">[ thread ]</a>
+              <a href="subject.html#3048">[ subject ]</a>
+              <a href="author.html#3048">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

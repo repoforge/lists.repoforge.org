@@ -1,0 +1,205 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r3175 - in trunk/rpms: ipw2200-firmware libfame linux_logo
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3175%20-%20in%20trunk/rpms%3A%20ipw2200-firmware%20libfame%20linux_logo&In-Reply-To=%3C20050502092203.86FEE318021%40lists.rpmforge.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001976.html">
+   <LINK REL="Next"  HREF="001978.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r3175 - in trunk/rpms: ipw2200-firmware libfame linux_logo</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r3175%20-%20in%20trunk/rpms%3A%20ipw2200-firmware%20libfame%20linux_logo&In-Reply-To=%3C20050502092203.86FEE318021%40lists.rpmforge.net%3E"
+       TITLE="[svn] r3175 - in trunk/rpms: ipw2200-firmware libfame linux_logo">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Mon May  2 11:22:03 CEST 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001976.html">[svn] r3174 - trunk/rpms/mplayer
+</A></li>
+        <LI>Next message: <A HREF="001978.html">[svn] r3176 - in trunk/rpms: linux_logo xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1977">[ date ]</a>
+              <a href="thread.html#1977">[ thread ]</a>
+              <a href="subject.html#1977">[ subject ]</a>
+              <a href="author.html#1977">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: thias
+Date: 2005-05-02 11:22:02 +0200 (Mon, 02 May 2005)
+New Revision: 3175
+
+Added:
+   trunk/rpms/libfame/libfame-0.9.1-underquoted.patch
+Modified:
+   trunk/rpms/ipw2200-firmware/ipw2200-firmware.spec
+   trunk/rpms/libfame/libfame.spec
+   trunk/rpms/linux_logo/linux_logo.spec
+Log:
+Update linux_logo to 4.11, fix m4 warning with libfame and change ipw2200 to work with recent 2.6.11 and higher kernels.
+
+
+Modified: trunk/rpms/ipw2200-firmware/ipw2200-firmware.spec
+===================================================================
+--- trunk/rpms/ipw2200-firmware/ipw2200-firmware.spec	2005-05-02 09:15:28 UTC (rev 3174)
++++ trunk/rpms/ipw2200-firmware/ipw2200-firmware.spec	2005-05-02 09:22:02 UTC (rev 3175)
+@@ -5,7 +5,7 @@
+ Summary: Firmware for Intel&#174; PRO/Wireless 2200 network adaptors
+ Name: ipw2200-firmware
+ Version: 2.2
+-Release: 2
++Release: 3
+ License: Distributable
+ Group: System Environment/Kernel
+ URL: <A HREF="http://ipw2200.sourceforge.net/firmware.php">http://ipw2200.sourceforge.net/firmware.php</A>
+@@ -25,26 +25,12 @@
+ 
+ 
+ %build
+-# Rename all files properly
+-for i in *.fw; do
+-    %{__mv} ${i} `echo ${i} | sed 's/ipw-2.2-/ipw2200_/'`
+-done
+ 
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-# Install all firmware files
+-%{__mkdir_p} %{buildroot}/lib/firmware \
+-             %{buildroot}%{_sysconfdir}/firmware \
+-             %{buildroot}%{_libdir}/hotplug/firmware
+-%{__install} -p -m0644 *.fw %{buildroot}/lib/firmware/
+-# Symlink all of them for new and old hotplug loading to work
+-for file in *.fw; do
+-    %{__ln_s} /lib/firmware/${file} \
+-        %{buildroot}%{_sysconfdir}/firmware/
+-    %{__ln_s} /lib/firmware/${file} \
+-        %{buildroot}%{_libdir}/hotplug/firmware/
+-done
++%{__mkdir_p} %{buildroot}/lib/firmware
++%{__install} -p -m 0644 *.fw %{buildroot}/lib/firmware/
+ 
+ 
+ %clean
+@@ -55,11 +41,14 @@
+ %defattr(-, root, root, 0755)
+ %doc LICENSE
+ /lib/firmware/*.fw
+-%{_sysconfdir}/firmware/*.fw
+-%{_libdir}/hotplug/firmware/*.fw
+ 
+ 
+ %changelog
++* Thu Apr 21 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 2.2-3
++- Remove all symlinks, the only useful location is /lib/firmware now.
++- No longer rename all firmware files, recent ipw2200 modules expect the
++  default names now (tested w/ FC3 2.6.11 updates and FC4test).
++
+ * Thu Feb 17 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 2.2-2
+ - Rename all files from ipw-2.2-* to ipw2200_* as required.
+ 
+
+Added: trunk/rpms/libfame/libfame-0.9.1-underquoted.patch
+===================================================================
+--- trunk/rpms/libfame/libfame-0.9.1-underquoted.patch	2005-05-02 09:15:28 UTC (rev 3174)
++++ trunk/rpms/libfame/libfame-0.9.1-underquoted.patch	2005-05-02 09:22:02 UTC (rev 3175)
+@@ -0,0 +1,12 @@
++diff -Naupr libfame-0.9.1.orig/libfame.m4 libfame-0.9.1/libfame.m4
++--- libfame-0.9.1.orig/libfame.m4	2004-02-11 14:13:23.000000000 +0100
+++++ libfame-0.9.1/libfame.m4	2005-05-01 20:03:17.000000000 +0200
++@@ -3,7 +3,7 @@ dnl Test for libfame, and define LIBFAME
++ dnl Vivien Chappelier 12/11/00
++ dnl stolen from ORBit autoconf
++ dnl
++-AC_DEFUN(AM_PATH_LIBFAME,
+++AC_DEFUN([AM_PATH_LIBFAME],
++ [dnl 
++ dnl Get the cflags and libraries from the libfame-config script
++ dnl
+
+Modified: trunk/rpms/libfame/libfame.spec
+===================================================================
+--- trunk/rpms/libfame/libfame.spec	2005-05-02 09:15:28 UTC (rev 3174)
++++ trunk/rpms/libfame/libfame.spec	2005-05-02 09:22:02 UTC (rev 3175)
+@@ -4,13 +4,14 @@
+ Summary: Fast Assembly MPEG Encoding library
+ Name: libfame
+ Version: 0.9.1
+-Release: 4
++Release: 5
+ License: LGPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://fame.sourceforge.net/">http://fame.sourceforge.net/</A>
+ Source: <A HREF="http://dl.sf.net/fame/%{name">http://dl.sf.net/fame/%{name</A>}-%{version}.tar.gz
+ Patch0: libfame-0.9.1-fstrict-aliasing.patch
+ Patch1: <A HREF="http://www.linuxfromscratch.org/blfs/downloads/svn/libfame-0.9.1-gcc34-1.patch">http://www.linuxfromscratch.org/blfs/downloads/svn/libfame-0.9.1-gcc34-1.patch</A>
++Patch2: libfame-0.9.1-underquoted.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+ %description
+@@ -107,6 +108,9 @@
+ 
+ 
+ %changelog
++* Sun May  1 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.9.1-5
++- Patch the m4 file to fix underquoted warning.
++
+ * Thu Nov  4 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.9.1-4
+ - Add libfame-0.9.1-gcc34-1.patch to fix &quot;undefined symbol: _mmx_one&quot;.
+ 
+
+Modified: trunk/rpms/linux_logo/linux_logo.spec
+===================================================================
+--- trunk/rpms/linux_logo/linux_logo.spec	2005-05-02 09:15:28 UTC (rev 3174)
++++ trunk/rpms/linux_logo/linux_logo.spec	2005-05-02 09:22:02 UTC (rev 3175)
+@@ -3,8 +3,8 @@
+ 
+ Summary: The linux logo - a colorful console penguin logo
+ Name: linux_logo
+-Version: 4.10
+-Release: 0
++Version: 4.11
++Release: 1
+ License: GPL
+ Group: Applications/System
+ URL: <A HREF="http://www.deater.net/weave/vmwprod/linux_logo/">http://www.deater.net/weave/vmwprod/linux_logo/</A>
+@@ -53,6 +53,9 @@
+ 
+ 
+ %changelog
++* Sat Apr 30 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 4.11-1
++- Update to 4.11.
++
+ * Sat Apr  2 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 4.10-0
+ - Update to 4.10.
+ - Get optflags also used during the compilation of libsysinfo.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001976.html">[svn] r3174 - trunk/rpms/mplayer
+</A></li>
+	<LI>Next message: <A HREF="001978.html">[svn] r3176 - in trunk/rpms: linux_logo xine-lib
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1977">[ date ]</a>
+              <a href="thread.html#1977">[ thread ]</a>
+              <a href="subject.html#1977">[ subject ]</a>
+              <a href="author.html#1977">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

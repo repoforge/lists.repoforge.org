@@ -1,0 +1,323 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [suggest] request swatch 3.2.3 upgrade
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20request%20swatch%203.2.3%20upgrade&In-Reply-To=%3CSNT114-DS21363C527169E6E5A2DA24C2440%40phx.gbl%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="023903.html">
+   <LINK REL="Next"  HREF="023875.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[suggest] request swatch 3.2.3 upgrade</H1>
+    <B>arnebjarne72 at hotmail.com</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsuggest%5D%20request%20swatch%203.2.3%20upgrade&In-Reply-To=%3CSNT114-DS21363C527169E6E5A2DA24C2440%40phx.gbl%3E"
+       TITLE="[suggest] request swatch 3.2.3 upgrade">arnebjarne72 at hotmail.com
+       </A><BR>
+    <I>Tue Jun  9 23:34:29 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="023903.html">[suggest] request for additional Perl modules
+</A></li>
+        <LI>Next message: <A HREF="023875.html">[suggest] Un-Captured Dependencies perl-WWW-Shorten
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23874">[ date ]</a>
+              <a href="thread.html#23874">[ thread ]</a>
+              <a href="subject.html#23874">[ subject ]</a>
+              <a href="author.html#23874">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Hi RPMforge.
+
+The swatch package in RPMforge does not seam to run correct on my CentOS 5 
+servers.
+I upgraded it to 3.2.3 and then it worked.
+
+So, here's a diff agains the version in RPMforge to bump up to release 3.2.3
+
+swatch.patch:
+--- swatch.spec 2008-01-24 04:07:36.000000000 +0100
++++ swatch-3.2.3.spec   2009-06-08 13:46:33.000000000 +0200
+@@ -1,3 +1,6 @@
++# disable creation of *-debuginfo-*.rpm
++%define debug_package %{nil}
++
+ # $Id: swatch.spec 5853 2007-09-20 09:26:51Z dries $
+ # Authority: dag
+
+@@ -6,13 +9,16 @@
+
+ Summary: Tool for actively monitoring log files.
+ Name: swatch
+-Version: 3.1.1
+-Release: 1.%{releasetagsuffix}
++Version: 3.2.3
++Release: 1%{dist}
+ License: GPL
+ Group: Applications/File
+ URL: <A HREF="http://swatch.sourceforge.net/">http://swatch.sourceforge.net/</A>
+
+ Source: <A HREF="http://dl.sf.net/swatch/swatch-%{version">http://dl.sf.net/swatch/swatch-%{version</A>}.tar.gz
++Source1: swatch-logrotate
++Source2: swatch-rcinitd
++Source3: swatch-example.conf
+ Packager: Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">dag at wieers.com</A>&gt;
+ Vendor: Dries RPM Repository <A HREF="http://dries.ulyssis.org/rpm/">http://dries.ulyssis.org/rpm/</A>
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+@@ -20,6 +26,8 @@
+ BuildArch: noarch
+ BuildRequires: perl, perl(Date::Calc), perl(Date::Format)
+ BuildRequires: perl(File::Tail), perl(Time::HiRes), 
+perl(ExtUtils::MakeMaker)
++BuildRequires: perl(Date::Manip)
++Requires:  %{_sysconfdir}/logrotate.d
+
+ %description
+ The Simple WATCHer is an automated monitoring tool that is capable
+@@ -43,19 +51,60 @@
+ ### Clean up buildroot
+ %{__rm} -rf %{buildroot}%{perl_archlib}
+
++%{__mkdir_p} %{buildroot}%{_initrddir}
++%{__install} -m 0755 %{SOURCE2} %{buildroot}%{_initrddir}/%{name}
++%{__mkdir_p} %{buildroot}%{_sysconfdir}/logrotate.d
++%{__install} -m 644 %{SOURCE1} 
+%{buildroot}%{_sysconfdir}/logrotate.d/%{name}
++%{__mkdir_p} %{buildroot}%{_sysconfdir}/swatch
++%{__install} -m 644 %{SOURCE3} 
+%{buildroot}%{_sysconfdir}/%{name}/swatch.conf
++
+ %clean
+ %{__rm} -rf %{buildroot}
+
++%pre
++/usr/sbin/groupadd -r logreaders &amp;&gt;/dev/null || :
++/usr/sbin/groupadd -r swatch &amp;&gt;/dev/null || :
++/usr/sbin/useradd   -r -s /bin/bash -M -c 'Swatch user' \
++          -d /var/lib/swatch -g swatch swatch &amp;&gt;/dev/null || :
++/usr/sbin/usermod -G logreaders -a swatch &amp;&gt;/dev/null || :
++
++%post
++if [ $1 = 1 ]; then
++    /sbin/chkconfig --add swatch
++    /bin/touch /var/log/swatch.log
++    %{__chmod} 0755 /var/log/swatch.log
++    %{__chown} swatch.swatch /var/log/swatch.log
++    /bin/touch /var/log/swatch-err.log
++    %{__chmod} 0755 /var/log/swatch-err.log
++    %{__chown}  swatch.swatch /var/log/swatch-err.log
++fi
++
++%preun
++if [ $1 = 0 ]; then
++    /sbin/chkconfig --del swatch
++    /usr/sbin/groupdel logreaders
++    /usr/sbin/userdel swatch
++fi
++
++
++
+ %files
+ %defattr(-, root, root, 0755)
+ %doc CHANGES COPYING COPYRIGHT KNOWN_BUGS README examples/ tools/
+ %doc %{_mandir}/man?/*
++%{_initrddir}/%{name}
++%config(noreplace) %{_sysconfdir}/%{name}/swatch.conf
++%config(noreplace) %{_sysconfdir}/logrotate.d/%{name}
+ %{_bindir}/swatch
+ %{perl_vendorlib}/Swatch/
+ %{perl_vendorlib}/auto/Swatch/
+ %exclude %{perl_vendorarch}
+
+ %changelog
++* Mon Jun 08 2009 Bjarne Saltbaek &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">arnebjarne72 at hotmail.com</A>&gt; - 3.2.3
++- Updated to release 3.2.3.
++- Added init script and logrotate script.
++
+ * Sat Apr 22 2006 Dries Verachtert &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/users">dries at ulyssis.org</A>&gt; - 3.1.1-1 #5853
+ - Updated to release 3.1.1.
+
+
+
+and
+swatch-logrotate:
+/var/log/swatch*.log  {
+        daily
+        create 0755 swatch swatch
+        rotate 7
+        compress
+}
+
+
+and
+swatch-rcinitd:
+#!/bin/bash
+#
+# swatch Starts swatch.
+#
+#
+# chkconfig: 2345 12 88
+# description: $prog is an network monitoring program
+### BEGIN INIT INFO
+# Provides: $swatch
+### END INIT INFO
+
+# Source function library.
+. /etc/init.d/functions
+
+# Check for missing binaries (stale symlinks should not happen)
+SWATCH_BIN=/usr/bin/swatch
+test -x $SWATCH_BIN || exit 5
+
+SWATCH_CONFIG=/etc/swatch/swatch.conf
+
+SWATCH_PID=/var/run/swatch.pid
+
+# Log file to be (s)watched
+FILE=[REPLACE WITH FILE TO BE MONITORED]
+
+RETVAL=0
+prog=&quot;swatch&quot;
+
+start() {
+        #check if the swatch conf file is present
+        if [ ! -f $SWATCH_CONFIG ]; then
+            echo &quot;Configuration file $SWATCH_CONFIG missing&quot; 1&gt;&amp;2
+            exit 6
+        fi
+
+        #check if the log file is present
+        if [ ! -f $FILE ]; then
+            echo &quot;Log file $FILE missing&quot; 1&gt;&amp;2
+            exit 6
+        fi
+
+
+        if [ -f $SWATCH_PID ]; then
+            echo  &quot;Swatch already started.&quot;
+            exit 1
+        fi
+
+        echo $&quot;Starting $prog&quot;
+        touch $SWATCH_PID
+        chown swatch.swatch $SWATCH_PID
+        /bin/su - swatch -c &quot;$SWATCH_BIN --config-file=$SWATCH_CONFIG \
+                   --tail-file=$FILE \
+                   --tail-args=-F \
+                   --awk-field-syntax \
+                   --pid-file=$SWATCH_PID \
+                   --daemon \
+                   &gt;&gt; /var/log/swatch.log \
+                   2&gt;&gt; /var/log/swatch-err.log&quot;
+        RETVAL=$?
+        echo
+        return $RETVAL
+}
+stop() {
+        echo $&quot;Shutting down $prog&quot;
+        kill `cat $SWATCH_PID`
+        RETVAL=$?
+        [ $RETVAL -eq 0 ] &amp;&amp; rm -f $SWATCH_PID
+        echo
+        return $RETVAL
+}
+rhstatus() {
+        if [ -f $SWATCH_PID ]; then
+            P=`cat $SWATCH_PID`
+            ps -p $P &gt; /dev/null
+            if [ $? -eq 0 ]; then
+                echo &quot;swatch (pid $P) is running...&quot;
+            else
+                echo &quot;swatch appears dead, but a pid file exists&quot;
+                exit 1
+            fi
+        else
+            echo &quot;swatch is stopped&quot;
+        fi
+}
+restart() {
+        stop
+        start
+}
+reload() {
+        echo $&quot;$prog does not need reloading&quot;
+        echo
+}
+case &quot;$1&quot; in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  status)
+        rhstatus
+        ;;
+  restart)
+        restart
+        ;;
+  reload)
+        reload
+        ;;
+  condrestart)
+        ;;
+  *)
+        echo $&quot;Usage: $0 {start|stop|status|restart|condrestart}&quot;
+        exit 1
+esac
+
+exit $?
+
+
+and
+swatch-example.conf:
+# Invalid SSH Login Attempts
+watchfor /(: [iI]nvalid [uU]ser )(.*)( from )(.*)$/
+        throttle threshold=3,delay=0:1:0,key=$4
+        mail addresses=admin\@domain.com,subject=&quot;SSH:\ Invalid\ User\ 
+Access-IPTables\ Rule\ Added&quot;
+        exec &quot;/sbin/iptables -A swatch_rejects -s $4 -j DROP&quot;
+
+# Failed SSH Login Attempts
+watchfor /(: [fF]ailed password for )(.*)( from )(.*)( port )(.*)$/
+        throttle threshold=3,delay=0:1:0,key=$4
+        mail addresses=admin\@domain.com,subject=&quot;SSH:\ Invalid\ User\ 
+Access-IPTables\ Rule\ Added&quot;
+        exec &quot;/sbin/iptables -A swatch_rejects -s $4 -j DROP&quot;
+
+# Invalid SSH Login Attempts. Another one - just formed differently
+watchfor /([aA]uthentication [fF]ailure for [iI]llegal [uU]ser )(.*)( 
+from )(.*)$/
+        throttle threshold=3,delay=0:1:0,key=$4
+        mail addresses=admin\@domain.com,subject=&quot;SSH:\ Invalid\ User\ 
+Access-IPTables\ Rule\ Added&quot;
+        exec &quot;/sbin/iptables -A swatch_rejects -s $4 -j DROP&quot;
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="023903.html">[suggest] request for additional Perl modules
+</A></li>
+	<LI>Next message: <A HREF="023875.html">[suggest] Un-Captured Dependencies perl-WWW-Shorten
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#23874">[ date ]</a>
+              <a href="thread.html#23874">[ thread ]</a>
+              <a href="subject.html#23874">[ subject ]</a>
+              <a href="author.html#23874">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,218 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5791 - trunk/rpms/rsyslog
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5791%20-%20trunk/rpms/rsyslog&In-Reply-To=%3C20070830143802.9E57C944B5D%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004589.html">
+   <LINK REL="Next"  HREF="004591.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5791 - trunk/rpms/rsyslog</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5791%20-%20trunk/rpms/rsyslog&In-Reply-To=%3C20070830143802.9E57C944B5D%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5791 - trunk/rpms/rsyslog">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Thu Aug 30 16:38:02 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004589.html">[svn] r5790 - trunk/rpms/rsyslog
+</A></li>
+        <LI>Next message: <A HREF="004591.html">[svn] r5792 - trunk/rpms/audacious
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4590">[ date ]</a>
+              <a href="thread.html#4590">[ thread ]</a>
+              <a href="subject.html#4590">[ subject ]</a>
+              <a href="author.html#4590">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dries
+Date: 2007-08-30 16:38:00 +0200 (Thu, 30 Aug 2007)
+New Revision: 5791
+
+Added:
+   trunk/rpms/rsyslog/rsyslog.init
+   trunk/rpms/rsyslog/rsyslog.sysconfig
+Log:
+add
+
+Added: trunk/rpms/rsyslog/rsyslog.init
+===================================================================
+--- trunk/rpms/rsyslog/rsyslog.init	                        (rev 0)
++++ trunk/rpms/rsyslog/rsyslog.init	2007-08-30 14:38:00 UTC (rev 5791)
+@@ -0,0 +1,128 @@
++#!/bin/bash
++#
++# rsyslog        Starts rsyslogd/rklogd.
++#
++#
++# chkconfig: 2345 12 88
++# description: Syslog is the facility by which many daemons use to log \
++# messages to various system log files.  It is a good idea to always \
++# run rsyslog.
++### BEGIN INIT INFO
++# Provides: $syslog
++# Required-Start: $local_fs $network $remote_fs
++# Required-Stop: $local_fs $network $remote_fs
++# Default-Start:  2 3 4 5
++# Default-Stop: 0 1 6
++# Short-Description: Enhanced system logging and kernel message trapping daemons
++# Description: Rsyslog is an enhanced multi-threaded syslogd supporting, 
++#              among others, MySQL, syslog/tcp, RFC 3195, permitted 
++#              sender lists, filtering on any message part, and fine 
++#              grain output format control.
++### END INIT INFO
++
++# Source function library.
++. /etc/init.d/functions
++
++RETVAL=0
++
++start() {
++	[ -x /sbin/rsyslogd ] || exit 5
++	[ -x /sbin/rklogd ] || exit 5
++
++	# Source config
++	if [ -f /etc/sysconfig/rsyslog ] ; then
++        	. /etc/sysconfig/rsyslog
++	else
++        	SYSLOGD_OPTIONS=&quot;-m 0&quot;
++	        KLOGD_OPTIONS=&quot;-2&quot;
++	fi
++
++	if [ -z &quot;$SYSLOG_UMASK&quot; ] ; then
++	      SYSLOG_UMASK=077;
++	fi
++	umask $SYSLOG_UMASK
++
++        echo -n $&quot;Starting system logger (rsyslog): &quot;
++        daemon rsyslogd $SYSLOGD_OPTIONS
++        RETVAL=$?
++        echo
++        echo -n $&quot;Starting kernel logger (rklogd): &quot;
++        daemon rklogd $KLOGD_OPTIONS
++        echo
++        [ $RETVAL -eq 0 ] &amp;&amp; touch /var/lock/subsys/rsyslog
++        return $RETVAL
++}
++stop() {
++        echo -n $&quot;Shutting down kernel logger (rklogd): &quot;
++        killproc rklogd
++        echo
++        echo -n $&quot;Shutting down system logger (rsyslog): &quot;
++        killproc rsyslogd
++        RETVAL=$?
++        echo
++        [ $RETVAL -eq 0 ] &amp;&amp; rm -f /var/lock/subsys/rsyslog
++        return $RETVAL
++}
++reload()  {
++    RETVAL=1
++    syslog=`cat /var/run/rsyslogd.pid 2&gt;/dev/null`
++    echo -n &quot;Reloading syslogd...&quot;
++    if [ -n &quot;${syslog}&quot; ] &amp;&amp; [ -e /proc/&quot;${syslog}&quot; ]; then
++	kill -HUP &quot;$syslog&quot;;
++	RETVAL=$?
++    fi
++    if [ $RETVAL -ne 0 ]; then
++	failure
++    else
++	success
++    fi
++    echo
++    RETVAL=1
++    echo -n &quot;Reloading klogd...&quot;
++    klog=`cat /var/run/rklogd.pid 2&gt;/dev/null`
++    if [ -n &quot;${klog}&quot; ] &amp;&amp; [ -e /proc/&quot;${klog}&quot; ]; then
++	kill -USR2 &quot;$klog&quot;;
++        RETVAL=$?
++    fi
++    if [ $RETVAL -ne 0 ]; then
++	failure
++    else
++	success
++    fi
++    echo    
++    return $RETVAL
++}
++rhstatus() {
++        status rsyslogd
++        status rklogd
++}
++restart() {
++        stop
++        start
++}
++
++case &quot;$1&quot; in
++  start)
++        start
++        ;;
++  stop)
++        stop
++        ;;
++  restart)
++        restart
++        ;;
++  reload|force-reload)
++	reload
++	;;
++  status)
++        rhstatus
++        ;;
++  condrestart)
++        [ -f /var/lock/subsys/rsyslog ] &amp;&amp; restart || :
++        ;;
++  *)
++        echo $&quot;Usage: $0 {start|stop|restart|reload|force-reload|condrestart}&quot;
++        exit 2
++esac
++
++exit $?
+
+Added: trunk/rpms/rsyslog/rsyslog.sysconfig
+===================================================================
+--- trunk/rpms/rsyslog/rsyslog.sysconfig	                        (rev 0)
++++ trunk/rpms/rsyslog/rsyslog.sysconfig	2007-08-30 14:38:00 UTC (rev 5791)
+@@ -0,0 +1,12 @@
++# Options to syslogd
++# -m 0 disables 'MARK' messages.
++# -r port Enables logging from remote machines. The listener will listen to the specified port.
++# -x disables DNS lookups on messages recieved with -r
++# See syslogd(8) for more details
++SYSLOGD_OPTIONS=&quot;-m 0&quot;
++# Options to klogd
++# -2 prints all kernel oops messages twice; once for klogd to decode, and
++#    once for processing with 'ksymoops'
++# -x disables all klogd processing of oops messages entirely
++# See klogd(8) for more details
++KLOGD_OPTIONS=&quot;-x&quot;
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004589.html">[svn] r5790 - trunk/rpms/rsyslog
+</A></li>
+	<LI>Next message: <A HREF="004591.html">[svn] r5792 - trunk/rpms/audacious
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4590">[ date ]</a>
+              <a href="thread.html#4590">[ thread ]</a>
+              <a href="subject.html#4590">[ subject ]</a>
+              <a href="author.html#4590">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

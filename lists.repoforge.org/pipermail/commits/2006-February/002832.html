@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4032 - trunk/tools/dstat
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4032%20-%20trunk/tools/dstat&In-Reply-To=%3C20060201070640.C886731C27A%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002831.html">
+   <LINK REL="Next"  HREF="002833.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4032 - trunk/tools/dstat</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4032%20-%20trunk/tools/dstat&In-Reply-To=%3C20060201070640.C886731C27A%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4032 - trunk/tools/dstat">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Wed Feb  1 08:06:40 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002831.html">[svn] r4031 - in trunk/rpms: socat sweep
+</A></li>
+        <LI>Next message: <A HREF="002833.html">[svn] r4033 - trunk/tools/dconf/config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2832">[ date ]</a>
+              <a href="thread.html#2832">[ thread ]</a>
+              <a href="subject.html#2832">[ subject ]</a>
+              <a href="author.html#2832">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-02-01 08:06:39 +0100 (Wed, 01 Feb 2006)
+New Revision: 4032
+
+Added:
+   trunk/tools/dstat/README.counter-rollover
+Modified:
+   trunk/tools/dstat/README.performance
+Log:
+Updates
+
+Added: trunk/tools/dstat/README.counter-rollover
+===================================================================
+--- trunk/tools/dstat/README.counter-rollover	2006-01-31 23:34:29 UTC (rev 4031)
++++ trunk/tools/dstat/README.counter-rollover	2006-02-01 07:06:39 UTC (rev 4032)
+@@ -0,0 +1,54 @@
++What you need to know about counter rollovers
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++Unfortunately, dstat is susceptible for counter rollovers, which may give
++you bogus performance output. Linux currently implements counters as 32bit
++values (not sure on 64bit platforms). This means a counter can go up to
++2^32 (= 4294967296 = 4G) values.
++
++Especially for network devices (which are calculated in bytes) this is too
++much as it means every 4GB, the counter is reset to 0. On a 1Gbps interface
++that is fully used, this happens every 32 seconds. On 2 bonded 10Gbps
++interfaces, this happens after 1.6 seconds.
++
++Since /proc is updated every second, this becomes almost impossible to catch.
++
++
++How does this impact dstat ?
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++Currently dstat has a problem if you specify delays that are too big. I.e.
++using 60 or 120 seconds delay in dstat will make dstat check these counters
++only once per minute or every two minutes. In the case the value is reset,
++it might be lower than the previous value (which causes negative values) or
++worse, the value is actually higher (which will go unnoticed and you get
++bogus information and dstat won't know).
++
++This is very problematic, and it's important you are aware of this.
++
++
++What are the solutions ?
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++The only fix for dstat is to check more often than the specified delay.
++Unfortunately, this requires a re-design (or an ugly hack).
++
++There are plans to use 64bit counters on Linux and/or changing the output from
++using bytes to kbytes. None of this is sure. (add pointers to threads)
++
++To work-around this problem, you could always use a delay of 1 second, and
++re-calculate averages in Excel. This will work fine as long as you also
++re-calculate the negative values (by adding 2^32 to them).
++
++If the rollovers happen only sporadically, you can just ignore those values.
++
++
++What can I do ?
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++Since this is Open Source, you are free to fix this and send me the fix. Or
++help with a redesign of dstat to overcome this problem. Also look at the
++TODO file to see what other changes are expected in a redesign of dstat.
++
++Since I have a lot of other responsibilities and am currently not using dstat
++for something where this problem matters much, I will have no time to look at
++it closely (unless the fix or the redesign is made fairly simple). It all
++depends on how quick I think I can fix/redesign it and how much time I have.
++
++Your help could be to reduce the time it takes for me to fix it :)
+
+Modified: trunk/tools/dstat/README.performance
+===================================================================
+--- trunk/tools/dstat/README.performance	2006-01-31 23:34:29 UTC (rev 4031)
++++ trunk/tools/dstat/README.performance	2006-02-01 07:06:39 UTC (rev 4032)
+@@ -31,3 +31,10 @@
+ Remember that invisible plugins (that run out of your terminal window)
+ do take up cycles because the information is still being collected and
+ possibly written to CSV output.
++
++
++Performance tuning
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++The following documents may be useful to tune a system for performance:
++
++	<A HREF="http://people.redhat.com/alikins/system_tuning.html">http://people.redhat.com/alikins/system_tuning.html</A>
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002831.html">[svn] r4031 - in trunk/rpms: socat sweep
+</A></li>
+	<LI>Next message: <A HREF="002833.html">[svn] r4033 - trunk/tools/dconf/config
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2832">[ date ]</a>
+              <a href="thread.html#2832">[ thread ]</a>
+              <a href="subject.html#2832">[ subject ]</a>
+              <a href="author.html#2832">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

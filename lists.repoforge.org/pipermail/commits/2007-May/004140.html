@@ -1,0 +1,211 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5341 - trunk/tools/dar
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5341%20-%20trunk/tools/dar&In-Reply-To=%3C20070501134857.39ED7944B4E%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004139.html">
+   <LINK REL="Next"  HREF="004141.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5341 - trunk/tools/dar</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5341%20-%20trunk/tools/dar&In-Reply-To=%3C20070501134857.39ED7944B4E%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5341 - trunk/tools/dar">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue May  1 15:48:57 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004139.html">[svn] r5340 - in trunk/rpms: . perl-DBD-SQLite2	perl-DBIx-ContextualFetch perl-DBM-Deep	perl-DateTime-Format-Mail perl-DateTime-Format-MySQL	perl-DateTime-Format-W3CDTF perl-PPI-HTML perl-Tidy
+</A></li>
+        <LI>Next message: <A HREF="004141.html">[svn] r5342 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4140">[ date ]</a>
+              <a href="thread.html#4140">[ thread ]</a>
+              <a href="subject.html#4140">[ subject ]</a>
+              <a href="author.html#4140">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-05-01 15:48:55 +0200 (Tue, 01 May 2007)
+New Revision: 5341
+
+Modified:
+   trunk/tools/dar/dar-perl.py
+Log:
+Added automatic author, source and doc filelist
+
+Modified: trunk/tools/dar/dar-perl.py
+===================================================================
+--- trunk/tools/dar/dar-perl.py	2007-04-30 22:43:40 UTC (rev 5340)
++++ trunk/tools/dar/dar-perl.py	2007-05-01 13:48:55 UTC (rev 5341)
+@@ -1,11 +1,24 @@
+ #!/usr/bin/python
+ 
+ import sys, os, time, getopt, urllib2, gzip
++import cElementTree as ElementTree
++import tarfile
+ 
+ args = sys.argv[1:]
+ logname = os.getlogin()
+ noarch = False
+ 
++docfiles = ('Announce', 'ANNOUNCE', 'Artistic', 'ARTISTIC', 'Artistic.txt', 'AUTHORS', 'Bugs', 'BUGS', 'Changelog', 'ChangeLog', 'CHANGELOG', 'Changes', 'CHANGES', 'Changes.pod', 'CHANGES.TXT', 'Copying', 'COPYING', 'COPYRIGHT', 'Credits', 'CREDITS', 'CREDITS.txt', 'FAQ', 'GNU_GPL.txt', 'GNU_LGPL.txt', 'GNU_LICENSE', 'HACKING', 'HISTORY', 'INFO', 'INSTALL', 'INSTALLING', 'INSTALL.txt', 'LICENCE', 'LICENSE', 'MANIFEST', 'META.yml', 'NEWS', 'NOTES', 'NOTICE', 'PORTING', 'readme', 'README', 'readme.txt', 'README.txt', 'README.TXT', 'RELEASE_NOTES', 'SIGNATURE', 'THANKS', 'TODO', 'UPGRADE', 'VERSION', '.txt')
++
++def download(url):
++	filename = os.path.join('/dar/tmp', os.path.basename(url))
++	if not os.path.exists(filename):
++		req = urllib2.Request(url)
++		fdin = urllib2.urlopen(req)
++		fdout = open(filename, 'w')
++		fdout.write(fdin.read())
++		fdout.close()
++
+ try:
+ 	opts, args = getopt.getopt (args, 'hnv',
+ 		['help', 'noarch', 'version'])
+@@ -33,15 +46,14 @@
+ modparts = module.split('-')
+ pmodule = '::'.join(modparts)
+ 
+-if not os.path.exists('/dar/tmp/02packages.details.txt.gz'):
+-	req = urllib2.Request('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>')
+-	fdin = urllib2.urlopen(req)
+-	fdout = open('/dar/tmp/02packages.details.txt.gz', 'w')
+-	fdout.write(fdin.read())
+-	fdout.close()
++### Download latest package list from CPAN
++download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/modules/02packages.details.txt.gz</A>')
+ 
++### Download latest authors list from CPAN
++download('<A HREF="ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml">ftp://ftp.kulnet.kuleuven.ac.be/pub/mirror/CPAN/authors/00whois.xml</A>')
++
++### Find specific package in CPAN package list
+ fd = gzip.open('/dar/tmp/02packages.details.txt.gz', 'r')
+-
+ for line in fd.readlines():
+ 	pinfo = line.split()
+ 	if len(pinfo) &gt; 2 and pmodule == pinfo[0]:
+@@ -53,14 +65,47 @@
+ version = pinfo[1]
+ location = pinfo[2]
+ 
+-print &gt;&gt;sys.stderr, module, version
+-print &gt;&gt;sys.stderr, &quot;<A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
++ppath = pinfo[2].split('/')
++mnemo = ppath[2]
+ 
++### Find specific author in CPAN authors list
++tree = ElementTree.ElementTree(file='/dar/tmp/00whois.xml')
++root = tree.getroot()
++for elem in root.getiterator('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}cpanid'):
++	if mnemo == elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}id').text:
++		author = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}fullname').text
++		email = elem.find('{<A HREF="http://www.cpan.org/xmlns/whois">http://www.cpan.org/xmlns/whois</A>}email').text.replace('@','$').replace('.',',')
++		break
++
++if not author: author = ''
++if not email: email = ''
++
++### Try to download distribution
++filename = os.path.basename(location)
++archive = os.path.join('/dar/tmp', filename)
++download(&quot;<A HREF="http://www.cpan.org/modules/by-module/%s/%s">http://www.cpan.org/modules/by-module/%s/%s</A>&quot; % (modparts[0], filename))
++bymodule = True
++if not os.path.exists(archive):
++	download(location)
++	bymodule = False
++
++### Inspect distribution and extract information (%doc, META.yml, arch/noarch)
++fd = tarfile.open(archive, 'r:gz')
++docs = []
++for file in fd.getnames():
++	for docfile in docfiles:
++		if file.endswith(docfile):
++			docs.append(os.path.basename(file))
++docs.sort()
++
++print &gt;&gt;sys.stderr, module, version, &quot;perl-%s/perl-%s.spec&quot; % (module, module)
++#print &gt;&gt;sys.stderr, &quot;<A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
++
+ print '# $Id$'
+ print '# Authority:', logname
+ 
+ ### FIXME: Link module/02packages info with authors/00whois.xml for name and email
+-print '# Upstream:'
++print '# Upstream:', author, &quot;&lt;%s&gt;&quot; % email
+ print
+ print '%define perl_vendorlib %(eval &quot;`%{__perl} -V:installvendorlib`&quot;; echo $installvendorlib)'
+ print '%define perl_vendorarch %(eval &quot;`%{__perl} -V:installvendorarch`&quot;; echo $installvendorarch)'
+@@ -79,12 +124,18 @@
+ print 'Group: Applications/CPAN'
+ print &quot;URL: <A HREF="http://search.cpan.org/dist/%s/">http://search.cpan.org/dist/%s/</A>&quot; % module
+ print
+-print &quot;Source: <A HREF="http://www.cpan.org/modules/by-module/%s/%s-%%{version">http://www.cpan.org/modules/by-module/%s/%s-%%{version</A>}.tar.gz&quot; % (modparts[0], module)
+-print &quot;#Source: <A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
++
++if bymodule:
++	print &quot;Source: <A HREF="http://www.cpan.org/modules/by-module/%s/%s-%%{version">http://www.cpan.org/modules/by-module/%s/%s-%%{version</A>}.tar.gz&quot; % (modparts[0], module)
++else:
++	print &quot;Source: <A HREF="http://www.cpan.org/authors/id/%s">http://www.cpan.org/authors/id/%s</A>&quot; % location
++
+ print 'BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root'
+ print
++
+ if noarch:
+ 	print &quot;BuildArch: noarch&quot;
++
+ print &quot;BuildRequires: perl&quot;
+ print &quot;Requires: perl&quot;
+ print
+@@ -122,9 +173,9 @@
+ print '%files'
+ print '%defattr(-, root, root, 0755)'
+ ### Check DOCS in archive from &quot;grep -h '^%doc' /dar/rpms/perl*/perl*.spec | grep -v mandir | xargs -n 1 | sort | uniq&quot;
+-print '%doc Changes LICENSE MANIFEST META.yml README'
+-print &quot;#%%doc %%{_mandir}/man3/%s.3pm*&quot; % pmodule
+-print '%doc %{_mandir}/man3/*.3pm*'
++print '%doc', ' '.join(docs)
++print &quot;%%doc %%{_mandir}/man3/%s.3pm*&quot; % pmodule
++print '#%doc %{_mandir}/man3/*.3pm*'
+ #print '%{_bindir}/dave'
+ 
+ if noarch:
+@@ -136,7 +187,7 @@
+ 			print str
+ 
+ 	### Print module directory
+-	str = '%{perl_vendorlib}/'
++	str = '#%{perl_vendorlib}/'
+ 	for nr, part in enumerate(modparts):
+ 		str = str + &quot;%s/&quot; % modparts[nr]
+ 	print str
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004139.html">[svn] r5340 - in trunk/rpms: . perl-DBD-SQLite2	perl-DBIx-ContextualFetch perl-DBM-Deep	perl-DateTime-Format-Mail perl-DateTime-Format-MySQL	perl-DateTime-Format-W3CDTF perl-PPI-HTML perl-Tidy
+</A></li>
+	<LI>Next message: <A HREF="004141.html">[svn] r5342 - trunk/tools/dar
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4140">[ date ]</a>
+              <a href="thread.html#4140">[ thread ]</a>
+              <a href="subject.html#4140">[ subject ]</a>
+              <a href="author.html#4140">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

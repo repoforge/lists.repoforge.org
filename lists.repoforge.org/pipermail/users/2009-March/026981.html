@@ -1,0 +1,131 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] clamav-devel necessary for rar support (?)
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20clamav-devel%20necessary%20for%20rar%20support%20%28%3F%29&In-Reply-To=%3Calpine.OSX.2.00.0903301354070.23548%40guild.galois.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="026980.html">
+   
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] clamav-devel necessary for rar support (?)</H1>
+    <B>Paul Heinlein</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20clamav-devel%20necessary%20for%20rar%20support%20%28%3F%29&In-Reply-To=%3Calpine.OSX.2.00.0903301354070.23548%40guild.galois.com%3E"
+       TITLE="[users] clamav-devel necessary for rar support (?)">heinlein at madboa.com
+       </A><BR>
+    <I>Mon Mar 30 23:16:18 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="026980.html">[users] clamav-devel necessary for rar support (?)
+</A></li>
+        
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26981">[ date ]</a>
+              <a href="thread.html#26981">[ thread ]</a>
+              <a href="subject.html#26981">[ subject ]</a>
+              <a href="author.html#26981">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>On Tue, 31 Mar 2009, Geoff Hull wrote:
+
+&gt;&gt;<i> It appears that the clamav-devel package is necessary for the full 
+</I>&gt;&gt;<i> functioning of clamd-0.95-1. Prior to installing clamav-devel, the 
+</I>&gt;&gt;<i> clamd init script would emit this message:
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> LibClamAV Warning: Cannot dlopen: file not found - unrar support 
+</I>&gt;&gt;<i> unavailable
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> The same message would occur when running clamscan from the 
+</I>&gt;&gt;<i> command-line.
+</I>&gt;&gt;<i>
+</I>&gt;&gt;<i> What happens is that libclamav will look for the autoconf-generated 
+</I>&gt;&gt;<i> libclamunrar_iface.la file to see what version of the 
+</I>&gt;&gt;<i> libclamunrar_iface library it ought to open. If it doesn't find 
+</I>&gt;&gt;<i> that file (which isn't packaged with the rpmforge packages), it 
+</I>&gt;&gt;<i> looks for /libclamunrar_iface.so -- which is shipped with the 
+</I>&gt;&gt;<i> clamav-devel package.
+</I>&gt;&gt;<i>
+</I>&gt;<i>
+</I>&gt;<i> Strange that it didn't need those symlinks for version 0.94.2 of the 
+</I>&gt;<i> clamav package. Has something else changed as well?
+</I>
+We are talking about ClamAV. Something *always* changes.
+
+In 0.95, clamav-milter was overhauled. My custom 0.94-vintage
+/etc/sysconfig/clamav-milter file didn't come close to working. Most 
+of the options now need to go into /etc/clamav-milter.conf, which is 
+new to 0.95 (see example, below).
+
+A couple key options have been written out of clamav-milter in 0.95:
+
+   * Notifications and bounces: --from (-a), --bounce (-b), --headers
+     (-H), --postmaster (-p), --postmaster-only (-P), --template-file
+     (-t), and --template-headers (-1)
+
+   * Rate limiting: --max-children (-m), --dont-wait (-w), and
+      --timeout (-T)
+
+   * Temporary blacklisting: --dont-blacklist (-K) and --blacklist-time
+     (-k)
+
+   * &amp;c., &amp;c.
+
+The best documentation of the changes to clamav-milter that I've found 
+so far are found in the clamav-0-95 distribution tarball:
+
+   clamav-0.95/contrib/make-clamav-milter-conf.pl
+
+Eye-grep for calls to the wwarn() routine.
+
+Here's my initial pass at /etc/clamav-milter.conf. The *Socket 
+directives must agree with your sendmail.cf and clamd.conf files. The 
+User must agree with all ClamAV configuration files.
+
+----- %&lt; -----
+# working /etc/clamav-milter.conf
+MilterSocket unix:/var/run/clamav/clamav-milter.sock
+FixStaleSocket yes
+User clamav
+AllowSupplementaryGroups yes
+ReadTimeout 60
+PidFile /var/run/clamav/clamav-milter.pid
+ClamdSocket unix:/var/run/clamav/clamd.sock
+OnInfected Reject
+AddHeader Yes
+LogSyslog yes
+LogFacility LOG_MAIL
+LogInfected Basic
+----- %&lt; ------
+
+I guess there were also several changes to the ClamAV API, but I don't 
+write or depend on third-party apps that use libclamav, so that wasn't 
+an issue for me.
+
+-- 
+Paul Heinlein &lt;&gt; <A HREF="http://lists.repoforge.org/mailman/listinfo/users">heinlein at madboa.com</A> &lt;&gt; <A HREF="http://www.madboa.com/">http://www.madboa.com/</A>
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="026980.html">[users] clamav-devel necessary for rar support (?)
+</A></li>
+	
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#26981">[ date ]</a>
+              <a href="thread.html#26981">[ thread ]</a>
+              <a href="subject.html#26981">[ subject ]</a>
+              <a href="author.html#26981">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

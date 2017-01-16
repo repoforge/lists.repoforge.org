@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5609 - trunk/tools/wascii
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5609%20-%20trunk/tools/wascii&In-Reply-To=%3C20070713144054.466C8944B7F%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004407.html">
+   <LINK REL="Next"  HREF="004409.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5609 - trunk/tools/wascii</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5609%20-%20trunk/tools/wascii&In-Reply-To=%3C20070713144054.466C8944B7F%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5609 - trunk/tools/wascii">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Jul 13 16:40:54 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004407.html">[svn] r5608 - trunk/tools/dstat
+</A></li>
+        <LI>Next message: <A HREF="004409.html">[svn] r5610 - in trunk/rpms: . mugshot
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4408">[ date ]</a>
+              <a href="thread.html#4408">[ thread ]</a>
+              <a href="subject.html#4408">[ subject ]</a>
+              <a href="author.html#4408">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-07-13 16:40:53 +0200 (Fri, 13 Jul 2007)
+New Revision: 5609
+
+Modified:
+   trunk/tools/wascii/ChangeLog
+   trunk/tools/wascii/wascii.php
+Log:
+Clean up temporary files
+
+Modified: trunk/tools/wascii/ChangeLog
+===================================================================
+--- trunk/tools/wascii/ChangeLog	2007-07-13 09:18:56 UTC (rev 5608)
++++ trunk/tools/wascii/ChangeLog	2007-07-13 14:40:53 UTC (rev 5609)
+@@ -1,8 +1,11 @@
++* Fri Jul 13 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
++- Clean up temporary files
++
+ * Thu Jul 12 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-- Added Content-Disposition header.
+-- Replaced hardcoded /wascii/ by dynamic $apache_alias.
+-- Don't use dirname for $apache_alias so it works with /wascii.php.
++- Added Content-Disposition header
++- Replaced hardcoded /wascii/ by dynamic $apache_alias
++- Don't use dirname for $apache_alias so it works with /wascii.php
+ 
+ * Wed Jul 11 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+-- Create .subversion on the fly.
+-- Initial public release.
++- Create .subversion on the fly
++- Initial public release
+
+Modified: trunk/tools/wascii/wascii.php
+===================================================================
+--- trunk/tools/wascii/wascii.php	2007-07-13 09:18:56 UTC (rev 5608)
++++ trunk/tools/wascii/wascii.php	2007-07-13 14:40:53 UTC (rev 5609)
+@@ -8,12 +8,6 @@
+ $author = &quot;Project Team&quot;;
+ $email = &quot;project at domain dot com&quot;;
+ 
+-ini_set(&quot;display_errors&quot;, &quot;1&quot;);
+-#ini_set(&quot;display_startup_errors&quot;, &quot;1&quot;);
+-ini_set(&quot;html_errors&quot;, &quot;0&quot;);
+-#ini_set(&quot;track_errors&quot;, &quot;1&quot;);
+-ini_set(&quot;log_errors&quot;, &quot;0&quot;);
+-ini_set(&quot;error_reporting&quot;, &quot;E_ALL|E_PARSE|E_STRICT&quot;);
+ error_reporting(E_ALL|E_PARSE|E_STRICT|E_COMPILE_ERROR|E_ERROR|E_CORE_ERROR);
+ 
+ ### Apache alias
+@@ -43,7 +37,7 @@
+     while (!mkdir($path, $mode));
+ 
+     return $path;
+-  }
++}
+ 
+ if (empty($_REQUEST['path'])) $_REQUEST['path'] = '';
+ if (empty($_REQUEST['to'])) $_REQUEST['to'] = 'html';
+@@ -126,7 +120,7 @@
+ &lt;?php
+ } elseif (is_file($path) and preg_match('/\.txt$/', $path)) {
+     if ($_REQUEST['to'] == 'pdf') {
+-        $tempdir = tempdir('/tmp', 'phpdoc');
++        $tempdir = tempdir('/tmp', 'wascii-');
+         $output = shell_exec(&quot;/usr/bin/a2x -f pdf --icons --icons-dir=../icons/ -d article -D $tempdir/ $path 2&gt;&amp;1&quot;);
+         $tempbase = basename($path, &quot;.txt&quot;).&quot;.pdf&quot;;
+         $tempfile = &quot;$tempdir/$tempbase&quot;;
+@@ -134,12 +128,14 @@
+             header(&quot;Content-type: application/pdf&quot;);
+             header(&quot;Content-Disposition: attachment; filename=\&quot;$tempbase\&quot;&quot;);
+             readfile($tempfile);
++            @unlink($tempfile);
+         } else {
+             print &quot;Error: File could not be converted. Possibly syntax error.&lt;br&gt;\n&quot;;
+             print &quot;&lt;pre&gt;$output&lt;/pre&gt;&quot;;
+         }
++        @rmdir($tempdir);
+     } elseif ($_REQUEST['to'] == 'odt') {
+-        $tempdir = tempdir('/tmp', 'phpdoc');
++        $tempdir = tempdir('/tmp', 'wascii-');
+         $output = system(&quot;/usr/bin/a2x -f odt --icons --icons-dir=../icons/ -d article -D $tempdir/ $path 2&gt;&amp;1&quot;);
+         $tempbase = basename($path, &quot;.txt&quot;).&quot;.odt&quot;;
+         $tempfile = &quot;$tempdir/$tempbase&quot;;
+@@ -147,10 +143,12 @@
+             header(&quot;Content-type: application/vnd.oasis.opendocument.text&quot;);
+             header(&quot;Content-Disposition: attachment; filename=\&quot;$tempbase\&quot;&quot;);
+             readfile($tempfile);
++            @unlink($tempfile);
+         } else {
+             print &quot;Error: File could not be converted. Possibly syntax error.&lt;br&gt;\n&quot;;
+             print &quot;&lt;pre&gt;$output&lt;/pre&gt;&quot;;
+         }
++        @rmdir($tempdir);
+     } else {
+     	passthru(&quot;asciidoc -b xhtml11 -a toc -a toclevels=2 -a icons -a iconsdir=$script_dir/icons/ -d article -o- $path&quot;);
+     }
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004407.html">[svn] r5608 - trunk/tools/dstat
+</A></li>
+	<LI>Next message: <A HREF="004409.html">[svn] r5610 - in trunk/rpms: . mugshot
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4408">[ date ]</a>
+              <a href="thread.html#4408">[ thread ]</a>
+              <a href="subject.html#4408">[ subject ]</a>
+              <a href="author.html#4408">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

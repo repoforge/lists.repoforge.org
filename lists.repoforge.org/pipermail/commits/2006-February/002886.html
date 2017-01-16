@@ -1,0 +1,611 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4086 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4086%20-%20trunk/tools/yam&In-Reply-To=%3C20060217180640.40FE53180B0%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002885.html">
+   <LINK REL="Next"  HREF="002887.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4086 - trunk/tools/yam</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4086%20-%20trunk/tools/yam&In-Reply-To=%3C20060217180640.40FE53180B0%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4086 - trunk/tools/yam">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Fri Feb 17 19:06:40 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002885.html">[svn] r4085 - trunk/rpms/xmame
+</A></li>
+        <LI>Next message: <A HREF="002887.html">[svn] r4087 - in trunk/rpms: meld repoview rpm-analyzer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2886">[ date ]</a>
+              <a href="thread.html#2886">[ thread ]</a>
+              <a href="subject.html#2886">[ subject ]</a>
+              <a href="author.html#2886">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-02-17 19:06:39 +0100 (Fri, 17 Feb 2006)
+New Revision: 4086
+
+Added:
+   trunk/tools/yam/README.verbose
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/README.rhn
+   trunk/tools/yam/yam
+Log:
+RHN updates and verbosity improvements
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2006-02-17 10:56:52 UTC (rev 4085)
++++ trunk/tools/yam/ChangeLog	2006-02-17 18:06:39 UTC (rev 4086)
+@@ -22,6 +22,7 @@
+ - Added mirrordir support for ftp access
+ - Added routines to check if a repository has been updated or not
+ - Added -f/--force to force metadata generation
++- Improved quiet and verbose output
+ 
+ * 0.7.3 - released 25/03/2005
+ - Added ia64 support (Gareth Armstrong)
+
+Modified: trunk/tools/yam/README.rhn
+===================================================================
+--- trunk/tools/yam/README.rhn	2006-02-17 10:56:52 UTC (rev 4085)
++++ trunk/tools/yam/README.rhn	2006-02-17 18:06:39 UTC (rev 4086)
+@@ -62,13 +62,20 @@
+ a previous EL2 run polutes the next EL3 channel subscription list in the same
+ execute phase).
+ 
++The result is that you will either get
++
++	'Failed to subscribe RHN id ... to channel ...'
++or	'Server already subscribed to ...'
++
++errors.
++
+ So instead of doing:
+ 
+ 	yam -uxqg -d rhel2as,rhel3as,rhel4as
+ 
+ a workaround would be to do:
+ 
+-	for i in $(seq 2 3 4); do yam -uxqg -d rhel${i}as; done
++	for dist in rhel2as rhel3as rhel4as; do yam -uxqg -d $dist; done
+ 
+ I still need to investigate and file a bugreport with Red Hat (seems to be
+ a problem with the implementation of the python classes and the use of
+
+Added: trunk/tools/yam/README.verbose
+===================================================================
+--- trunk/tools/yam/README.verbose	2006-02-17 10:56:52 UTC (rev 4085)
++++ trunk/tools/yam/README.verbose	2006-02-17 18:06:39 UTC (rev 4086)
+@@ -0,0 +1,29 @@
++How to make Yam more (or less) verbose
++&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;&quot;
++Yam has 2 options to influence what it prints.
++
++  -q, --quiet           minimal output
++  -v, --verbose         increase verbosity
++  -vv, -vvv, -vvvv..    increase verbosity more
++
++To make Yam only print essential messages (but be quiet when everything
++is ok), use -q/--quiet
++
++To make Yam report more about what it is doing, you can provide -v multiple
++times. Here's what it means:
++
++	-q		0	be quiet if no problems
++	(no options)	1	print yam progress (normal)
++	-v		2	print yam progress (detailed)
++	-vv		3	print yam progress (detailed) + print helper-program output (normal)
++	-vvv		4	print yam progress (detailed) + print helper-program output (detailed)
++	-vvvv		5	print yam progress (debug)    + print helper-program output (detailed)
++	-vvvvv		6	print yam progress (debug)    + print helper-program output (debug)
++
++Not all helper-programs have options to increase verbosity or enable debugging.
++
++Currently it is not possible to have Yam (or its tools) print out what files
++are new and what files have been deleted.
++
++Rsync has specific options for allowing this, check the rsync manual and use
++the rsync-options directive to add options.
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2006-02-17 10:56:52 UTC (rev 4085)
++++ trunk/tools/yam/yam	2006-02-17 18:06:39 UTC (rev 4086)
+@@ -112,13 +112,13 @@
+ Yam options:
+   -c, --config=file     specify alternative configfile
+   -d, --dist=dist       specify distributions and/or architecture
+-  -f, --force			force repository generation
++  -f, --force           force repository generation
+   -g, --generate        generate Yam repositories
+   -q, --quiet           minimal output
+       --remount         remount distribution ISOs
+   -u, --update          fetch OS updates
+   -v, --verbose         increase verbosity
+-  -vv, -vvv             increase verbosity more
++  -vv, -vvv, -vvvv..    increase verbosity more
+   -x, --extras          fetch extra repos
+       --unmount         unmount distribution ISOs
+ '''
+@@ -224,12 +224,12 @@
+ 		&quot;Get an option from a section from configfile&quot;
+ 		try:
+ 			var = self.cfg.get(section, option)
+-			info(3, 'Setting option %s in section [%s] to: %s' % (option, section, var))
++			info(2, 'Setting option %s in section [%s] to: %s' % (option, section, var))
+ 		except ConfigParser.NoSectionError, e:
+-			error(4, 'Failed to find section [%s] in %s' % (section, op.configfile))
++			error(5, 'Failed to find section [%s] in %s' % (section, op.configfile))
+ 		except ConfigParser.NoOptionError, e:
+ #			error(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
+-			info(4, 'Setting option %s in section [%s] to: %s (default)' % (option, section, var))
++			info(5, 'Setting option %s in section [%s] to: %s (default)' % (option, section, var))
+ 		return var
+ 
+ class Dist:
+@@ -294,7 +294,7 @@
+ 					if os.path.isfile(iso) and iso not in isos:
+ 						isos.append(iso)
+ 		if not isos:
+-			error(4, '%s: No ISO files found !' % self.nick)
++			info(4, '%s: No ISO files found !' % self.nick)
+ 		return isos
+ 
+ 	def mount(self):
+@@ -323,7 +323,7 @@
+ 				if mount2 != mount:
+ 					if os.path.exists(mount):
+ 						remove(mount)
+-					info(4, '%s: %s already mounted, symlink ISO to %s' % (self.nick, os.path.basename(iso), mount))
++					info(5, '%s: %s already mounted, symlink ISO to %s' % (self.nick, os.path.basename(iso), mount))
+ 					os.symlink(mount2, mount)
+ 			else:
+ 				if os.path.exists(mount) and not os.path.isdir(mount):
+@@ -363,12 +363,12 @@
+ 				oldsha1 = open(repodir + '/.sha1sum').read()
+ 				newsha1 = sha1dir(repodir)
+ 				if oldsha1 != newsha1:
+-					info(3, 'Repository %s has new packages.' % repo)
++					info(2, 'Repository %s has new packages.' % repo)
+ 					self.newrepos.append(repo)
+ 				else:
+-					info(4, 'Repository %s has not changed. Skipping.' % repo)
++					info(5, 'Repository %s has not changed. Skipping.' % repo)
+ 			else:
+-				info(3, 'New repository %s detected.' % repo)
++				info(5, 'New repository %s detected.' % repo)
+ 				self.newrepos.append(repo)
+ 		self.newrepos.sort()
+ 
+@@ -388,39 +388,39 @@
+ 			self.oldrepos = self.repos.keys()
+ 			self.oldrepos.sort()
+ 			if self.newrepos == self.oldrepos:
+-				info(1, '%s: Create Apt repository' % self.nick)
++				info(2, '%s: Create Apt repository' % self.nick)
+ 				run('%s %s --flat --bloat --bz2only %s' % (cf.cmd['genbasedir'], opts, self.dir))
+ 			else:
+-				info(1, '%s: Create Apt repository' % self.nick)
++				info(2, '%s: Create Apt repository' % self.nick)
+ 				run('%s %s --flat --bloat --bz2only --partial %s %s' % (cf.cmd['genbasedir'], opts, self.dir, ' '.join(self.newrepos)))
+ 
+ 	def yum(self):
+ 		&quot;Create an old-style Yum repository&quot;
+ 		if not cf.cmd['yumarch']: return
+ 		opts = ''
+-		if op.verbose &lt;= 1: opts = ' -q' + opts
+-		elif op.verbose == 3: opts = ' -v' + opts
+-		elif op.verbose &gt;= 4: opts = ' -vv' + opts
++		if op.verbose &lt;= 2: opts = ' -q' + opts
++		elif op.verbose == 4: opts = ' -v' + opts
++		elif op.verbose &gt;= 5: opts = ' -vv' + opts
+ #		info(1, '%s: Create old-style Yum repository' % self.nick)
+ #		run('%s %s -l %s' % (cf.cmd['yumarch'], opts, self.dir + '/RPMS'))
+ 		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+-				info(1, '%s: Create old-style Yum repository for %s' % (self.nick, repo))
++				info(2, '%s: Create old-style Yum repository for %s' % (self.nick, repo))
+ 				run('%s %s -l %s' % (cf.cmd['yumarch'], opts, repodir))
+ 
+ 	def createrepo(self):
+ 		&quot;Create a new-style Yum repository&quot;
+ 		if not cf.cmd['createrepo']: return
+ 		opts = ' --cachedir ' + cf.cachedir
+-		if op.verbose &lt;= 1: opts = ' -q' + opts
+-		elif op.verbose &gt;= 3: opts = ' -v' + opts
++		if op.verbose &lt;= 2: opts = ' -q' + opts
++		elif op.verbose &gt;= 4: opts = ' -v' + opts
+ #		info(1, '%s: Create new-style Yum repository' % self.nick)
+ #		run('%s %s %s' % (cf.cmd['createrepo'], opts, self.dir + '/RPMS'))
+ 		for repo in self.newrepos:
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+-				info(1, '%s: Create new-style Yum repository for %s' % (self.nick, repo))
++				info(2, '%s: Create new-style Yum repository for %s' % (self.nick, repo))
+ 				run('%s %s %s' % (cf.cmd['createrepo'], opts, repodir))
+ 
+ 	def repoindex(self):
+@@ -442,7 +442,7 @@
+ 				cmd = cmd.replace('$' + key, table[key])
+ 			repodir = os.path.join(self.dir, 'RPMS.' + repo)
+ 			if os.path.exists(repodir):
+-				info(1, '%s: Create repository index for %s' % (self.nick, repo))
++				info(2, '%s: Create repository index for %s' % (self.nick, repo))
+ 				run(cmd)
+ 
+ 	def html(self):
+@@ -454,24 +454,24 @@
+ 
+ 	def link(self, srcdir, repo):
+ 		&quot;Symlink all RPM packages that match a given arch&quot;
+-		info(2, '%s: Symlink %s packages from %s' % (self.nick, repo, srcdir))
++		info(5, '%s: Symlink %s packages from %s' % (self.nick, repo, srcdir))
+ 		mkdir(os.path.join(self.dir, 'RPMS.' + repo))
+ 		mkdir(os.path.join(self.dir, 'RPMS'))
+ 		os.path.walk(srcdir, rpmlink, (self, repo))
+ 
+ 	def taglink(self, srcdir, repo):
+ 		&quot;Symlink all RPM packages that match a given arch and disttag&quot;
+-		info(2, '%s: Symlink %s tagged packages from %s' % (self.nick, repo, srcdir))
++		info(5, '%s: Symlink %s tagged packages from %s' % (self.nick, repo, srcdir))
+ 		mkdir(os.path.join(self.dir, 'RPMS.' + repo))
+ 		mkdir(os.path.join(self.dir, 'RPMS'))
+ 		os.path.walk(srcdir, rpmtaglink, (self, repo))
+ 
+ 	def clean(self, repo=None):
+ 		if repo:
+-			info(3, '%s: Removing %s' % (self.nick, repo))
++			info(5, '%s: Removing %s' % (self.nick, repo))
+ 			files = glob.glob(os.path.join(self.dir, 'RPMS.' + repo, '*.rpm'))
+ 		else:
+-			info(3, '%s: Removing RPMS' % self.nick)
++			info(5, '%s: Removing RPMS' % self.nick)
+ 			files = glob.glob(os.path.join(self.dir, 'RPMS', '*.rpm'))
+ 		remove(files)
+ 
+@@ -500,7 +500,7 @@
+ 	&quot;Run command, accept user input, and print output when needed.&quot;
+ 	if op.verbose &lt; 2:
+ 		str = str + '&gt;/dev/null'
+-	info(4, 'Execute: %s' % str)
++	info(5, 'Execute: %s' % str)
+ 	os.popen(str, 'w')
+ 
+ def readfile(file, len = 0):
+@@ -612,9 +612,11 @@
+ 	mkdir(path)
+ 
+ 	opts = cf.rsyncoptions
+-	if op.verbose &lt;= 1: opts = opts + ' -q'
++	if op.verbose &lt;= 2: opts = opts + ' -q'
+ 	elif op.verbose == 3: opts = opts + ' -v'
+-	elif op.verbose &gt;= 4: opts = opts + ' -v --progress'
++	elif op.verbose == 4: opts = opts + ' -v --progress'
++	elif op.verbose == 5: opts = opts + ' -vv --progress'
++	elif op.verbose &gt;= 6: opts = opts + ' -vvv --progress'
+ 	if cf.rsynctimeout: opts = opts + ' --timeout=%s' % cf.rsynctimeout
+ 	if cf.rsynccleanup: opts = opts + ' --delete-after --delete-excluded'
+ 	if cf.rsyncbwlimit: opts = opts + ' --bwlimit=%s' % cf.rsyncbwlimit
+@@ -634,7 +636,7 @@
+ 	mkdir(path)
+ 
+ 	opts = cf.mirrordiroptions
+-	if op.verbose &gt;= 2: opts = opts + ' -v' * (op.verbose - 2)
++	if op.verbose &gt;= 3: opts = opts + ' -v' * (op.verbose - 3)
+ 	if cf.mirrordircleanup: opts = opts + ' -k'
+ 
+ #	opts = opts + ' -I *.rpm'
+@@ -656,18 +658,17 @@
+ 	if cf.lftpbwlimit: sets = sets + ' set net:limit-total-rate %s:0;' % cf.lftpbwlimit
+ 
+ 	opts = cf.lftpoptions
+-	if op.verbose &lt;= 4: opts = opts + ' -d'
++	if op.verbose &gt;= 6: opts = opts + ' -d'
+ 
+-	mirroropts = 'mirror ' + cf.lftpmirroroptions
+-	if op.verbose &lt;= 1: mirroropts = mirroropts + ' --verbose=0'
+-	else: mirroropts = '%s --verbose=%d' % (mirroropts, op.verbose-1)
++	mirroropts = cf.lftpmirroroptions
++	if op.verbose &gt;= 3: mirroropts = mirroropts + ' -v' * (op.verbose - 2)
+ 	if cf.lftpcleanup: mirroropts = mirroropts + ' -e'
+ 
+ 	mirroropts = mirroropts + ' -I *.rpm'
+ 	if cf.lftpexclsrpm: mirroropts = mirroropts + ' -X \&quot;*.src.rpm\&quot; -X \&quot;/SRPMS/\&quot;'
+ 	if cf.lftpexcldebug: mirroropts = mirroropts + ' -X \&quot;*-debuginfo-*.rpm\&quot; -X \&quot;/debug/\&quot;'
+ 
+-	run('%s %s -c \'%s %s %s %s\'' % (cf.cmd['lftp'], opts, sets, mirroropts, url, path))
++	run('%s %s -c \'%s mirror %s %s %s\'' % (cf.cmd['lftp'], opts, sets, mirroropts, url, path))
+ 
+ def mirrorfile(url, path):
+ 	&quot;Mirror everything from a <A HREF="file://">file://</A> URL by symlinking&quot;
+@@ -691,28 +692,25 @@
+ cfg = {}
+ loginInfo = {}
+ 
+-def mirrorrhn(url, path, dist):
+-	sys.path.insert(0, '/usr/share/rhn/')
++def rhnlogin(url, path, dist):
++	global cfg, loginInfo
+ 
+-	t, rhnserver, label, t, t, t = urlparse.urlparse(url)
+-	label = label.strip('/')
++	t, rhnserver, t, t, t, t = urlparse.urlparse(url)
+ 
+ 	if os.path.isfile(os.path.join(cf.srcdir, dist.nick, 'rhn-systemid')):
+ 		rhnsystemid = os.path.join(cf.srcdir, dist.nick, 'rhn-systemid')
+ 	elif os.path.isfile('/etc/sysconfig/rhn/systemid'):
+ 		rhnsystemid = '/etc/sysconfig/rhn/systemid'
+ 	else:
+-		error(1, 'No RHN systemid found, skipping download.')
++		info(1, 'No RHN systemid found, skipping download.')
+ 		return
+-	error(4, 'Using RHN systemid from %s' % rhnsystemid)
++	info(5, 'Using RHN systemid from %s' % rhnsystemid)
+ 
+-	from up2date_client import config, rpcServer, wrapperUtils, rhnChannel, repoDirector
++	from up2date_client import config, rpcServer
+ 	from rhn import rpclib
+-	import time, signal
+ 
+-	### Clean up2date's global variabels
+-	global cfg, loginInfo
+ 	cfg = {}
++	loginInfo = {}
+ 
+ 	cfg['systemIdPath'] = rhnsystemid
+ 	cfg = config.initUp2dateConfig()
+@@ -734,66 +732,135 @@
+ 		cfg['noSSLServerURL'] = '<A HREF="http://%s/XMLRPC">http://%s/XMLRPC</A>' % rhnserver
+ 		cfg['serverURL'] = '<A HREF="https://%s/XMLRPC">https://%s/XMLRPC</A>' % rhnserver
+ 
+-	if op.verbose &gt;= 4:
++	if op.verbose &gt;= 5:
+ 		cfg['debug'] = 10000
+ 
+-#	for key in cfg.keys():
+-#		print key, '-&gt;', cfg[key]
+-
+ 	server = rpcServer.getServer()
+ 	systemid = open(cfg['systemIdPath']).read()
+-	error(1, 'logininfo: %s' % loginInfo)
++	info(5, '\nBEFORE LOGIN: logininfo: %s\n' % loginInfo)
+ 	try:
+ 		loginInfo = rpcServer.doCall(server.up2date.login, systemid)
+ 	except rpclib.Fault, f:
+-		error(0, 'Error logging in %s with systemid %s. %s' % (dist.nick, rhnsystemid, f.faultString))
++		info(0, 'Error logging in %s with systemid %s. %s' % (dist.nick, rhnsystemid, f.faultString))
+ 		return
+-	error(1, 'logininfo: %s' % loginInfo)
++	info(5, '\nAFTER LOGIN: logininfo: %s\n' % loginInfo)
+ 
++	return server, systemid
++
++def rhnprintchannels(repos, str):
++	global selected_channels, loginInfo
++	from up2date_client import rpcServer, rhnChannel
++	server = rpcServer.getServer()
++	systemid = open(cfg['systemIdPath']).read()
++	channels = rpcServer.doCall(server.up2date.listChannels, systemid)
++	info(1, str + ' s.u.listChannels: %s' % [ch['label'] for ch in channels])
++	info(1, str + ' r.c.list: %s' % [ch['label'] for ch in repos.channels.list])
++	info(1, str + ' r.gC.list: %s' % [ch['label'] for ch in rhnChannel.getChannels().list])
++	info(1, str + ' selected_channels: %s' % selected_channels)
++	info(1, str + ' logininfo: %s' % loginInfo.get('X-RHN-Auth-Channels'))
++	print
++
++def rhnischannel(channels, label):
++	import types
++	for c in channels:
++		if isinstance(c, types.ListType):
++			l = c[0]
++		else:
++			l = c['label']
++		if l == label:
++			return True
++	return False
++
++def rhngetchannel(channels, label):
++	import types
++	for c in channels:
++		if isinstance(c, types.ListType):
++			l, v = c[0], c[1]
++		else:
++			l, v = c['label'], c['version']
++		if l == label:
++			return {
++				'label': l,
++				'version': v,
++				'type': 'up2date',
++				'url': '<A HREF="https://xmlrpc.rhn.redhat.com/XMLRPC">https://xmlrpc.rhn.redhat.com/XMLRPC</A>',
++			}
++	return None
++
++def mirrorrhn(url, path, dist):
++	sys.path.insert(0, '/usr/share/rhn/')
++	sys.path.insert(0, '/usr/share/rhn/up2date_client/')
++
++	t, t, label, t, t, t = urlparse.urlparse(url)
++	label = label.strip('/')
++
++	from up2date_client import config, rpcServer, wrapperUtils, rhnChannel, repoDirector
++	from rhn import rpclib
++	import time, signal
++
++	### Clean up2date's global variables
++	global cfg, loginInfo
++
++	server, systemid = rhnlogin(url, path, dist)
++
+ 	mkdir(cfg['storageDir'])
+ 	repos = repoDirector.initRepoDirector()
+ 
+-	rhnChannel.updateChannels(label)
+-	### DEBUG
+-#	channels = rpcServer.doCall(server.up2date.listChannels, systemid)
+-#	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in channels])
+-#	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in repos.channels.list])
+-#	channels = rpcServer.doCall(channel.list_software_channels, systemid)
+-#	error(1, 'Subscribed channels for this id: %s' % [channel['label'] for channel in channels])
+-	### DEBUG END
+-	channel = rhnChannel.getChannels().getByLabel(label)
+-	if not channel:
++#	rhnprintchannels(repos, '=&gt; 1 &lt;=')
++	channels = loginInfo.get('X-RHN-Auth-Channels')
++	if not rhnischannel(channels, label):
+ 		if cf.rhnlogin:
+ 			rhnusername, rhnpasswd = cf.rhnlogin.split(':')
+ 			try:
+ 				channels = rpcServer.doCall(server.up2date.subscribeChannels, systemid, (label,), rhnusername, rhnpasswd)
+ 			except rpclib.Fault, f:
+-				error(0, 'Error subscribing %s to channel %s. %s' % (dist.nick, label, f.faultString))
++				info(0, 'Error subscribing %s to channel %s. %s' % (dist.nick, label, f.faultString))
+ 				return
+-			error(1, 'Subscribed to channel: %s' % label)
+-			channel = rhnChannel.getChannels().getByLabel(label)
+-#			version = time.strftime('%Y%m%d%H%M%S', time.gmtime())
+-#			channel = rhnChannel.rhnChannel(label = label, version = '0', type = 'up2date', url = cfg['serverURL'])
+-			if not channel:
+-				error(1, 'Failed to subscribe RHN id %s to channel %s, dropping.' % (dist.nick, label))
++#			rhnprintchannels(repos, '=&gt; 2 &lt;=')
++			repos.channels.addChannel({'label':label, 'type':'up2date', 'version':'100', 'url':'<A HREF="https://xmlrpc.rhn.redhat.com/XMLRPC">https://xmlrpc.rhn.redhat.com/XMLRPC</A>'})
++#			rhnChannel.updateChannels(channels)
++			server, systemid = rhnlogin(url, path, dist)
++#			rhnprintchannels(repos, '=&gt; 3 &lt;=')
++			info(5, '\nAFTER SUBSC: logininfo: %s\n' % loginInfo)
++			channels = loginInfo.get('X-RHN-Auth-Channels')
++			if not rhnischannel(channels, label):
++				info(1, 'Failed to subscribe RHN id %s to channel %s, dropping.' % (dist.nick, label))
+ 				return
+ 		else:
+-			error(1, 'No RHN username or password supplied. Please add channel %s on RHN website.' % label)
++			info(1, 'No RHN username or password supplied in Yam configuration. Please add channel %s on RHN website manually.' % label)
+ 			return
+ 
+-	package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
++#	rhnprintchannels(repos, '=&gt; 4 &lt;=')
++	channels = loginInfo.get('X-RHN-Auth-Channels')
++	channel = rhngetchannel(channels, label)
++	
++	if not channel:
++		info(1, 'Something wicked happened. Channel was succesfully subscribed to, but not found.')
++
++#	rhnprintchannels(repos, '=&gt; 6 &lt;=')
++
++	### FIXME: Make packagelist download verbose (hash progress)
++	if op.verbose &lt;= 3:
++		package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
++	else:
++		package_list, type = rpcServer.doCall(repos.listPackages, channel, None, None)
+ 	signal.signal(signal.SIGINT, signal.SIG_DFL)
+ 	for pkg in package_list:
+ 		### FIXME: Check if not already on ISO-file or repository as well
+ 		filename = '%s-%s-%s.%s.rpm' % (pkg[0], pkg[1], pkg[2], pkg[4])
+ 		if os.path.isfile(os.path.join(path, filename)):
+-			error(4, 'File %s is already in %s' % (filename, path))
+-			continue
++			stat = os.stat(os.path.join(path, filename))
++			if stat.st_size == int(pkg[5]):
++				info(1, 'File %s is already in %s' % (filename, path))
++				continue
++			else:
++				info(5, 'File %s has wrong size (found: %s, expected: %s), refetching.' % (filename, stat.st_size, pkg[5]))
++				remove((os.path.join(path, filename),))
+ 		try:
+-			if op.verbose:
++			if op.verbose &lt;= 3:
++				rpcServer.doCall(repos.getPackage, pkg)
++			else:
+ 				rpcServer.doCall(repos.getPackage, pkg, wrapperUtils.printPkg, wrapperUtils.printRetrieveHash)
+-			else:
+-				rpcServer.doCall(repos.getPackage, pkg)
+ 		except rpclib.Fault, f:
+ 				error(0, 'Error getting package %s from %s. %s' % (filename, label, f.faultString))
+ 
+@@ -807,7 +874,7 @@
+ 		if op.verbose: opts = opts + '-' + ('v' * (op.verbose - 2))
+ 		run('%s -c %s %s' % (cf.cmd['hardlink'], opts, os.path.join(srcdir, '')))
+ 	else:
+-		error(1, 'hardlink was not found, hardlink support is therefor disabled.')
++		info(1, 'hardlink was not found, hardlink support is therefor disabled.')
+ 		return
+ 
+ def rpmlink((dist, repo), dirpath, filelist):
+@@ -839,7 +906,7 @@
+ 	&quot;Find executables in PATH environment&quot;
+ 	for path in os.environ.get('PATH','$PATH').split(':'):
+ 		if os.path.isfile(os.path.join(path, cmd)):
+-			info(4, 'Found command %s in path %s' % (cmd, path))
++			info(5, 'Found command %s in path %s' % (cmd, path))
+ 			return os.path.join(path, cmd)
+ 	return ''
+ 		
+@@ -872,7 +939,7 @@
+ 
+ 		### Mount ISOs
+ 		if dist.isos():
+-			info(4, '%s: Found %d ISO files for %s' % (dist.nick, len(dist.isos()), dist.name))
++			info(5, '%s: Found %d ISO files for %s' % (dist.nick, len(dist.isos()), dist.name))
+ 			if op.umount or op.remount:
+ 				dist.umount()
+ 			if not op.umount or op.remount:
+@@ -917,6 +984,7 @@
+ #			print &gt;&gt;yamchainconf, '%s=<A HREF="rsync://yam/$nick/$repo">rsync://yam/$nick/$repo</A>' % repo
+ #		print &gt;&gt;yamchainconf
+ 
++		info(2, '%s: Cleaning repositories' % dist.nick)
+ 		dist.clean()
+ 		if dist.isos():
+ 			dist.clean('os')
+@@ -924,6 +992,7 @@
+ 			dist.clean(repo)
+ 		dist.clean('local')
+ 
++		info(2, '%s: Symlinking packages' % dist.nick)
+ 		for repo in dist.repos.keys():
+ 			srcdir = os.path.join(cf.srcdir, dist.nick, repo)
+ 			if repo in ['os', 'core']:
+@@ -968,6 +1037,7 @@
+ 			writefile(dist.dir + '/yast/instorder', '/CD5\n/CD1\n/CD2\n')
+ 			writefile(dist.dir + '/yast/order', '/CD5\t/CD5\n/CD1\t/CD1\n/CD2\t/CD2\n')
+ 
++		info(2, '%s: Creating metadata' % dist.nick)
+ 		### Check for updated repositories
+ 		dist.checkrepos()
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002885.html">[svn] r4085 - trunk/rpms/xmame
+</A></li>
+	<LI>Next message: <A HREF="002887.html">[svn] r4087 - in trunk/rpms: meld repoview rpm-analyzer
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2886">[ date ]</a>
+              <a href="thread.html#2886">[ thread ]</a>
+              <a href="subject.html#2886">[ subject ]</a>
+              <a href="author.html#2886">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r1904 - trunk/rpms/dovecot
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1904%20-%20trunk/rpms/dovecot&In-Reply-To=%3C20040808021100.76A9817F74%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000709.html">
+   <LINK REL="Next"  HREF="000711.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r1904 - trunk/rpms/dovecot</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r1904%20-%20trunk/rpms/dovecot&In-Reply-To=%3C20040808021100.76A9817F74%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r1904 - trunk/rpms/dovecot">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Sun Aug  8 04:11:00 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000709.html">[SVN] r1903 - trunk/rpms/omcmd
+</A></li>
+        <LI>Next message: <A HREF="000711.html">[SVN] r1905 - trunk/rpms/bluez-libs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#710">[ date ]</a>
+              <a href="thread.html#710">[ thread ]</a>
+              <a href="subject.html#710">[ subject ]</a>
+              <a href="author.html#710">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2004-08-08 04:10:58 +0200 (Sun, 08 Aug 2004)
+New Revision: 1904
+
+Modified:
+   trunk/rpms/dovecot/dovecot.spec
+Log:
+Changes to et closer to Red Hat's package.
+
+
+Modified: trunk/rpms/dovecot/dovecot.spec
+===================================================================
+--- trunk/rpms/dovecot/dovecot.spec	2004-08-08 02:09:57 UTC (rev 1903)
++++ trunk/rpms/dovecot/dovecot.spec	2004-08-08 02:10:58 UTC (rev 1904)
+@@ -3,10 +3,12 @@
+ # Upstream: Timo Sirainen &lt;tss$iki,fi&gt;
+ # Upstream: &lt;dovecot$dovecot,org&gt;
+ 
++%define logmsg logger -t %{name}/rpm
++
+ Summary: Dovecot secure IMAP server
+ Name: dovecot
+ Version: 0.99.10.9
+-Release: 1
++Release: 2
+ License: GPL
+ Group: System Environment/Daemons
+ URL: <A HREF="http://dovecot.org/">http://dovecot.org/</A>
+@@ -17,10 +19,10 @@
+ Source: <A HREF="http://dovecot.org/releases/dovecot-%{version">http://dovecot.org/releases/dovecot-%{version</A>}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ 
+-Prereq: /usr/sbin/useradd, /usr/sbin/usermod
+ BuildRequires: openssl-devel, cyrus-sasl-devel, pam-devel
+ BuildRequires: openldap-devel, postgresql-devel, mysql-devel
+-BuildRequires: gcc-c++
++BuildRequires: gcc-c++, zlib-devel
++Requires: /usr/sbin/useradd, /usr/sbin/usermod, /sbin/chkconfig
+ 
+ %description
+ Dovecot is an IMAP and POP3 server for Linux/UNIX-like systems,
+@@ -35,10 +37,19 @@
+ %prep
+ %setup
+ 
++%{__perl} -pi.orig -e '
++		s|/etc/ssl|%{_datadir}/ssl|;
++		s|^#(logindir) = |$1 = |;
++		s|^(mbox_locks) = .*|$1 = fcntl|;
++		s|^(auth_passdb) = |$1 = pam\n#$1 = |;
++	' dovecot-example.conf
++
+ %{__cat} &lt;&lt;EOF &gt;dovecot.pam
+ #%PAM-1.0
++auth       required     pam_nologin.so
+ auth       required     pam_stack.so service=system-auth
+ account    required     pam_stack.so service=system-auth
++session    required     pam_stack.so service=system-auth
+ EOF
+ 
+ %{__cat} &lt;&lt;'EOF' &gt;dovecot.sysv
+@@ -144,13 +155,39 @@
+ %{__install} -D -m0644 dovecot.pam %{buildroot}%{_sysconfdir}/pam.d/dovecot
+ %{__mv} -f %{buildroot}%{_sysconfdir}/dovecot-example.conf %{buildroot}%{_sysconfdir}/dovecot.conf
+ 
++# generate ghost .pem file
++%{__install} -d -m0755 %{buildroot}%{_datadir}/ssl/{certs,private}/
++touch %{buildroot}%{_datadir}/ssl/{certs,private}/dovecot.pem
++
++%{__install} -d -m0700 %{buildroot}%{_localstatedir}/run/dovecot/
++%{__install} -d -m0755 %{buildroot}%{_localstatedir}/run/dovecot-login/
++
+ %pre
+-/usr/sbin/useradd -M -d &quot;%{_libexecdir}/dovecot/&quot; -c &quot;Dovecot daemon&quot; -r dovecot &amp;&gt;/dev/null || :
++if ! /usr/bin/id dovecot &amp;&gt;/dev/null; then
++	/usr/sbin/useradd -c dovecot -u 97 -r -d &quot;%{_libexecdir}/dovecot/&quot; dovecot &amp;&gt;/dev/null || \
++		%logmsg &quot;Unexpected error adding user \&quot;dovecot\&quot;. Aborting installation.&quot;
++fi
+ /usr/sbin/usermod -s /sbin/nologin dovecot &amp;&gt;/dev/null || :
+ 
+ %post
+ /sbin/chkconfig --add dovecot
+ 
++# create a ssl cert
++if [ ! -f %{_datadir}/ssl/certs/dovecot.pem ]; then
++	umask 077
++	%{__cat} &lt;&lt; EOF | openssl req -new -x509 -days 365 -nodes -out %{_datadir}/ssl/certs/dovecot.pem -keyout %{_datadir}/ssl/private/dovecot.pem &amp;&gt;/dev/null
++--
++SomeState
++SomeCity
++SomeOrganization
++SomeOrganizationalUnit
++localhost.localdomain
+<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">+root at localhost.localdomain</A>
++EOF
++	%{__chown} root:root %{_datadir}/ssl/private/dovecot.pem %{_datadir}/ssl/certs/dovecot.pem
++	%{__chmod} 600 %{_datadir}/ssl/private/dovecot.pem %{_datadir}/ssl/certs/dovecot.pem
++fi
++
+ %preun
+ if [ $1 -eq 0 ]; then
+ 	/sbin/service dovecot stop &amp;&gt;/dev/null || :
+@@ -165,16 +202,30 @@
+ 
+ %files
+ %defattr(-, root, root, 0755)
+-%doc AUTHORS ChangeLog COPYING* NEWS README TODO
++%doc AUTHORS ChangeLog COPYING* INSTALL NEWS README TODO
+ %doc doc/*.cnf doc/*.conf doc/*.sh doc/*.txt
+ %config(noreplace) %{_sysconfdir}/dovecot.conf
+-%config(noreplace) %{_sysconfdir}/pam.d/dovecot
++%config %{_sysconfdir}/pam.d/dovecot
+ %config %{_initrddir}/dovecot
+ %{_sbindir}/*
+ %{_libexecdir}/dovecot/
+ %exclude %{_docdir}/dovecot/
++%{_localstatedir}/run/dovecot-login/
+ 
++%defattr(0600, root, root, 0755)
++%ghost %config(missingok,noreplace) %verify(not md5 size mtime) %{_datadir}/ssl/certs/dovecot.pem
++%ghost %config(missingok,noreplace) %verify(not md5 size mtime) %{_datadir}/ssl/private/dovecot.pem
++
++%defattr(0700, root, root, 0755)
++%{_localstatedir}/run/dovecot/
++
++%defattr(0750, root, dovecot, 0755)
++%{_localstatedir}/run/dovecot-login/
++
+ %changelog
++* Sat Aug 07 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.99.10.9-2
++- Bring in line with newly introduced dovecot in FC2. (Morten Kjeldgaard)
++
+ * Sun Aug 01 2004 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.99.10.9-1
+ - Updated to release 0.99.10.9.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000709.html">[SVN] r1903 - trunk/rpms/omcmd
+</A></li>
+	<LI>Next message: <A HREF="000711.html">[SVN] r1905 - trunk/rpms/bluez-libs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#710">[ date ]</a>
+              <a href="thread.html#710">[ thread ]</a>
+              <a href="subject.html#710">[ subject ]</a>
+              <a href="author.html#710">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

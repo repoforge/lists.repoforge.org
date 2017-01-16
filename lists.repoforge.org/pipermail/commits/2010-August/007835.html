@@ -1,0 +1,454 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r9042 - in /trunk/tools/unoconv: ChangeLog TODO unoconv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9042%20-%20in%20/trunk/tools/unoconv%3A%20ChangeLog%20TODO%20unoconv&In-Reply-To=%3C201008061701.o76H19Ek006559%40surya.karan.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="007834.html">
+   <LINK REL="Next"  HREF="007836.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r9042 - in /trunk/tools/unoconv: ChangeLog TODO unoconv</H1>
+    <B>Dag Wieers</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r9042%20-%20in%20/trunk/tools/unoconv%3A%20ChangeLog%20TODO%20unoconv&In-Reply-To=%3C201008061701.o76H19Ek006559%40surya.karan.org%3E"
+       TITLE="[svn] r9042 - in /trunk/tools/unoconv: ChangeLog TODO unoconv">dag at wieers.com
+       </A><BR>
+    <I>Fri Aug  6 19:01:09 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="007834.html">[svn] r9041 - /trunk/rpms/TracAccountManager/TracAccountManager.spec
+</A></li>
+        <LI>Next message: <A HREF="007836.html">[svn] r9043 - in /trunk/tools/unoconv: ChangeLog TODO docs/filters.txt docs/unoconv.1 unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7835">[ date ]</a>
+              <a href="thread.html#7835">[ thread ]</a>
+              <a href="subject.html#7835">[ subject ]</a>
+              <a href="author.html#7835">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: Fri Aug  6 18:01:09 2010
+New Revision: 9042
+
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge?rev=9042&amp;view=rev">http://svn.rpmforge.net/viewvc/rpmforge?rev=9042&amp;view=rev</A>
+Log:
+- Update indexes when converting (Winfried Rohr)
+- Find soffice.bin binary (once) similarly to finding uno library
+- Use soffice.bin binary instead of soffice wrapper so we can more reliable terminate the process
+
+Modified:
+    trunk/tools/unoconv/ChangeLog
+    trunk/tools/unoconv/TODO
+    trunk/tools/unoconv/unoconv
+
+Modified: trunk/tools/unoconv/ChangeLog
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/ChangeLog?rev=9042&amp;r1=9041&amp;r2=9042&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/ChangeLog?rev=9042&amp;r1=9041&amp;r2=9042&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/unoconv/ChangeLog (original)
++++ trunk/tools/unoconv/ChangeLog Fri Aug  6 18:01:09 2010
+@@ -16,6 +16,9 @@
+ - Fixed a typo in bydoctype() (Hugo Lopes)
+ - Updated filter list based on OpenOffice 3.1
+ - Added Unified Office Format (uot/uos/uop) support
++- Update indexes when converting (Winfried Rohr)
++- Find soffice.bin binary (once) similarly to finding uno library
++- Use soffice.bin binary instead of soffice wrapper so we can more reliable terminate the process
+ 
+ * 0.3 - released 31/08/2007
+ - Determine doctype from input filename (if not specified)
+
+Modified: trunk/tools/unoconv/TODO
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/TODO?rev=9042&amp;r1=9041&amp;r2=9042&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/TODO?rev=9042&amp;r1=9041&amp;r2=9042&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/unoconv/TODO (original)
++++ trunk/tools/unoconv/TODO Fri Aug  6 18:01:09 2010
+@@ -14,6 +14,7 @@
+ - Maybe change the commandline interface to reflect ImageMagick's convert
+ - Add the list of input formats as well, and print that list too
+ - Preserve the original timestamp, ownership and permissions
++- Create a sysv init script to start and stop the listener
+ 
+ ### Features
+ - Change/force the document size during conversion
+
+Modified: trunk/tools/unoconv/unoconv
+URL: <A HREF="http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/unoconv?rev=9042&amp;r1=9041&amp;r2=9042&amp;view=diff">http://svn.rpmforge.net/viewvc/rpmforge/trunk/tools/unoconv/unoconv?rev=9042&amp;r1=9041&amp;r2=9042&amp;view=diff</A>
+==============================================================================
+--- trunk/tools/unoconv/unoconv (original)
++++ trunk/tools/unoconv/unoconv Fri Aug  6 18:01:09 2010
+@@ -16,42 +16,61 @@
+ 
+ import getopt, sys, os, glob, time
+ 
+-global unopath
++global convertor, oobin, oobinpath, oolibpath, oopid
+ 
+ ### The first thing we ought to do is find a suitable OpenOffice installation
+ ### with a compatible pyuno library that we can import.
+-extrapaths = glob.glob('/usr/lib*/openoffice*/program') + \
+-             glob.glob('/usr/lib*/openoffice/basis*/program') + \
+-             glob.glob('/usr/lib*/openoffice.org/basis*/program') + \
+-             glob.glob('/usr/lib*/ooo*/program') + \
+-             glob.glob('/opt/openoffice*/program') + \
+-             glob.glob('C:\\Program Files\\OpenOffice.org *\\program\\') + \
+-             [ '/Applications/NeoOffice.app/Contents/program', '/usr/bin' ]
+-
+-for unopath in extrapaths:
+-    if os.path.exists(os.path.join(unopath, &quot;pyuno.so&quot;)):
++extralibpaths = glob.glob('/usr/lib*/openoffice*/program') + \
++                glob.glob('/usr/lib*/openoffice/basis*/program') + \
++                glob.glob('/usr/lib*/openoffice.org/basis*/program') + \
++                glob.glob('/usr/lib*/ooo*/program') + \
++                glob.glob('/opt/openoffice*/program') + \
++                glob.glob('C:\\Program Files\\OpenOffice.org *\\program\\') + \
++                [ '/Applications/NeoOffice.app/Contents/program', '/usr/bin' ]
++
++extrabinpaths = glob.glob('/usr/lib*/openoffice.org*/program')
++
++binaries = ( 'soffice.bin', 'soffice', )
++
++for oolibpath in extralibpaths:
++    if os.path.exists(os.path.join(oolibpath, &quot;pyuno.so&quot;)):
+         filename = &quot;pyuno.so&quot;
+-    elif os.path.exists(os.path.join(unopath, &quot;pyuno.dll&quot;)):
++    elif os.path.exists(os.path.join(oolibpath, &quot;pyuno.dll&quot;)):
+         filename = &quot;pyuno.dll&quot;
+     else:
+         continue
+-    sys.path.append(unopath)
+     try:
+         import uno, unohelper
++        sys.path.append(oolibpath)
+         break
+     except ImportError, e:
+-        sys.path.remove(unopath)
++        sys.path.remove(oolibpath)
+         print &gt;&gt;sys.stderr, e
+-        print &gt;&gt;sys.stderr, &quot;WARNING: We found %s in %s, but could not import it.&quot; % (filename, unopath)
++        print &gt;&gt;sys.stderr, &quot;WARNING: We found %s in %s, but could not import it.&quot; % (filename, oolibpath)
+         continue
+ else:
+     print &gt;&gt;sys.stderr, &quot;unoconv: Cannot find the pyuno.so library in sys.path and known paths.&quot;
+     print &gt;&gt;sys.stderr, &quot;ERROR: Please locate this library and send your feedback to: &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">tools at lists.rpmforge.net</A>&gt;.&quot;
+     sys.exit(1)
+ 
++oobin = None
++for oobinpath in extralibpaths + extrabinpaths:
++    for binary in binaries:
++        bin = os.path.join(oobinpath, binary)
++        if os.path.exists(bin):
++            sys.path.append(oobinpath)
++            oobin = bin
++            break
++    if oobin:
++        break
++else:
++    print &gt;&gt;sys.stderr, &quot;unoconv: Cannot find the soffice.bin binary in sys.path and known paths.&quot;
++    print &gt;&gt;sys.stderr, &quot;ERROR: Please locate this binary and send your feedback to: &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">tools at lists.rpmforge.net</A>&gt;.&quot;
++    sys.exit(1)
++
+ ### Export an environment that OpenOffice is pleased to work with
+-os.environ['LD_LIBRARY_PATH'] = '%s' % unopath
+-os.environ['PATH'] = '%s:' % unopath + os.environ['PATH']
++os.environ['LD_LIBRARY_PATH'] = '%s' % oolibpath
++os.environ['PATH'] = '%s:' % oobinpath + os.environ['PATH']
+ 
+ ### Now that we have found a working pyuno library, let's import some classes
+ from com.sun.star.beans import PropertyValue
+@@ -282,25 +301,26 @@
+ 
+ class Options:
+     def __init__(self, args):
++        self.connection = None
++        self.doctype = None
++        self.filenames = []
++        self.format = None
++        self.listener = False
++        self.outputpath = None
++        self.pipe = None
++        self.port = '2002'
++        self.server = 'localhost'
++        self.showlist = False
+         self.stdout = False
+-        self.showlist = False
+-        self.listener = False
+-        self.format = None
++        self.timeout = 6
+         self.verbose = 0
+-        self.timeout = 3
+-        self.doctype = None
+-        self.server = 'localhost'
+-        self.port = '2002'
+-        self.connection = None
+-        self.filenames = []
+-        self.pipe = None
+-        self.outputpath = None
+-
+ 
+         ### Get options from the commandline
+         try:
+             opts, args = getopt.getopt (args, 'c:d:f:hi:Llo:p:s:T:t:v',
+-                ['connection=', 'doctype=', 'format=', 'help', 'listener', 'outputpath=', 'pipe=', 'port=', 'server=', 'timeout=', 'show', 'stdout', 'verbose', 'version'] )
++                ['connection=', 'doctype=', 'format=', 'help', 'listener',
++                 'outputpath=', 'pipe=', 'port=', 'server=', 'timeout=',
++                 'show', 'stdout', 'verbose', 'version'] )
+         except getopt.error, exc:
+             print 'unoconv: %s, try unoconv -h for a list of all the options' % str(exc)
+             sys.exit(255)
+@@ -329,10 +349,10 @@
+                 self.server = arg
+             elif opt in ['--show']:
+                 self.showlist = True
++            elif opt in ['--stdout']:
++                self.stdout = True
+             elif opt in ['-T', '--timeout']:
+                 self.timeout = int(arg)
+-            elif opt in ['--stdout']:
+-                self.stdout = True
+             elif opt in ['-v', '--verbose']:
+                 self.verbose = self.verbose + 1
+             elif opt in ['--version']:
+@@ -419,7 +439,7 @@
+ 
+ class Convertor:
+     def __init__(self):
+-        global exitcode, oopid
++        global exitcode, oopid, oobin, oolibpath
+         unocontext = None
+ 
+         ### Do the OpenOffice component dance
+@@ -430,33 +450,31 @@
+         try:
+             unocontext = resolver.resolve(&quot;uno:%s&quot; % op.connection)
+         except NoConnectException, e:
+-            error(2, &quot;Existing listener not found.\n%s&quot; % e)
++            error(3, &quot;Existing listener not found.\n%s&quot; % e)
+ 
+             ### Test if we can use an Openoffice *binary* in our (modified) path
+-            for bin in ('soffice', 'soffice.bin', ):
+-                error(2, &quot;Trying to launch our own listener using %s.&quot; % bin)
+-                try:
+-                    oopid = os.spawnvp(os.P_NOWAIT, bin, [bin, &quot;-headless&quot;, &quot;-invisible&quot;, &quot;-nodefault&quot;, &quot;-nofirststartwizard&quot;, &quot;-nologo&quot;, &quot;-norestore&quot;, &quot;-accept=%s&quot; % op.connection]);
+-                    error(2, 'OpenOffice listener successfully started. (pid=%s)' % oopid)
+-                except:
+-                    error(3, &quot;Launch of %s failed.\n%s&quot; % (bin, e))
+-                    continue
++            error(3, &quot;Trying to launch our own listener using %s.&quot; % oobin)
++            try:
++                oopid = os.spawnvp(os.P_NOWAIT, oobin, [oobin, &quot;-headless&quot;, &quot;-invisible&quot;, &quot;-nodefault&quot;, &quot;-nofirststartwizard&quot;, &quot;-nologo&quot;, &quot;-norestore&quot;, &quot;-accept=%s&quot; % op.connection]);
++                error(2, 'OpenOffice listener successfully started. (pid=%s)' % oopid)
+ 
+                 ### Try connection to it for op.timeout seconds
+                 timeout = 0
+                 while timeout &lt;= op.timeout:
++                    os.kill(oopid, 0)
+                     try:
+                         unocontext = resolver.resolve(&quot;uno:%s&quot; % op.connection)
+                         break
+                     except NoConnectException:
+                         time.sleep(0.5)
+-                        timeout = timeout + 0.5
++                        timeout += 0.5
++                    except:
++                        raise
+                 else:
+-                    error(3, &quot;Failed to connect to %s in %d seconds.\n%s&quot; % (bin, op.timeout, e))
+-                    continue
+-                break
+-            else:
+-                die(250, &quot;No proper binaries found to launch OpenOffice. Bailing out.&quot;)
++                    error(3, &quot;Failed to connect to %s in %d seconds.\n%s&quot; % (oobin, op.timeout, e))
++            except:
++                raise
++                error(1, &quot;Launch of %s failed.\n%s&quot; % (oobin, e))
+ 
+         if not unocontext:
+             die(251, &quot;Unable to connect or start own listener. Aborting.&quot;)
+@@ -464,6 +482,7 @@
+         ### And some more OpenOffice magic
+         unosvcmgr = unocontext.ServiceManager
+         self.desktop = unosvcmgr.createInstanceWithContext(&quot;com.sun.star.frame.Desktop&quot;, unocontext)
++        self.config = unosvcmgr.createInstanceWithContext( &quot;com.sun.star.configuration.ConfigurationProvider&quot;, unocontext)
+         self.cwd = unohelper.systemPathToFileUrl( os.getcwd() )
+ 
+     def getformat(self, inputfn):
+@@ -520,7 +539,10 @@
+ 
+         try:
+             ### Load inputfile
+-            inputprops = ( PropertyValue( &quot;Hidden&quot;, 0, True, 0 ), )
++            inputprops = (
++                PropertyValue( &quot;Hidden&quot;, 0, True, 0 ),
++                PropertyValue( &quot;ReadOnly&quot;, 0, True, 0 ),
++            )
+ 
+             inputurl = unohelper.absolutize(self.cwd, unohelper.systemPathToFileUrl(inputfn))
+             doc = self.desktop.loadComponentFromURL( inputurl , &quot;_blank&quot;, 0, inputprops )
+@@ -532,19 +554,40 @@
+ #            pageSize = Size()
+ #            pageSize.Width=1480
+ #            pageSize.Height=3354
+-#            standard.setPropertyValue('Size', pageSize) 
++#            standard.setPropertyValue('Size', pageSize)
++#            standard.setPropertyValue('MaxImageResolution', 1200)
++#            for property in doc.getPropertySetInfo().Properties:
++#                print property
++
++#            print dir(doc.getPropertySetInfo())
++#            for property in doc.getDocumentInfo().DocumentProperties():
++#                print property
++#            print dir(doc.getDocumentInfo())
++#            print dir(doc.getDocumentInfo().DocumentProperties())
+ 
+             error(1, &quot;Selected output format: %s&quot; % outputfmt)
+             error(1, &quot;Selected ooffice filter: %s&quot; % outputfmt.filter)
+             error(1, &quot;Used doctype: %s&quot; % outputfmt.doctype)
++
++            ### Update document indexes
++            doc.refresh()
++            indexes = doc.getDocumentIndexes()
++            for i in range(0, indexes.getCount()):
++                index = indexes.getByIndex(i)
++                index.update()
++
++            doc.updateLinks()
++
++#            outputprops = doc.getOutProperties(outputfmt.filter, OutputStream())
+ 
+             ### Write outputfile
+             outputprops = (
+                     PropertyValue( &quot;FilterName&quot;, 0, outputfmt.filter, 0),
+                     PropertyValue( &quot;Overwrite&quot;, 0, True, 0 ),
++#                    PropertyValue( &quot;MaxImageResolution&quot;, 0, 1200, 0),
+ #                    PropertyValue( &quot;Size&quot;, 0, &quot;A3&quot;, 0 ),
+                     PropertyValue( &quot;OutputStream&quot;, 0, OutputStream(), 0 ),
+-                   )
++            )
+ 
+             if not op.stdout:
+                 (outputfn, ext) = os.path.splitext(inputfn)
+@@ -583,16 +626,12 @@
+ class Listener:
+     def __init__(self):
+         error(1, &quot;Start listener on %s:%s&quot; % (op.server, op.port))
+-        for bin in ('soffice', 'soffice.bin', ):
+-            error(2, &quot;Warning: trying to launch %s.&quot; % bin)
+-            try:
+-                os.execvp(bin, [bin, &quot;-headless&quot;, &quot;-invisible&quot;, &quot;-nodefault&quot;, &quot;-nologo&quot;, &quot;-nofirststartwizard&quot;, &quot;-norestore&quot;, &quot;-accept=%s&quot; % op.connection]);
+-            except Exception, e:
+-                error(3, &quot;Launch of %s failed.\n%s&quot; % (bin, e))
+-                continue
++        try:
++            os.spawnvp(os.P_WAIT, oobin, [oobin, &quot;-headless&quot;, &quot;-invisible&quot;, &quot;-nodefault&quot;, &quot;-nologo&quot;, &quot;-nofirststartwizard&quot;, &quot;-norestore&quot;, &quot;-accept=%s&quot; % op.connection]);
++        except Exception, e:
++            error(3, &quot;Launch of %s failed.\n%s&quot; % (oobin, e))
+         else:
+-            die(254, &quot;Failed to start listener with connection %s&quot; % (op.connection))
+-        die(253, &quot;Existing listener found, aborting.&quot;)
++            die(253, &quot;Existing listener found, aborting.&quot;)
+ 
+ def error(level, str):
+     &quot;Output error message&quot;
+@@ -606,41 +645,45 @@
+ 
+ def die(ret, str=None):
+     &quot;Print error and exit with errorcode&quot;
+-    global convertor, oopid
++    global convertor, oopid, oobin
+ 
+     if str:
+         error(0, 'Error: %s' % str)
+ 
+     ### Did we start an instance ?
+-    if oopid:
++    if oopid and convertor:
+ 
+         ### If there is a GUI now attached to the instance, disable listener
+         if convertor.desktop.getCurrentFrame():
+-            for bin in ('soffice', 'soffice.bin', ):
+-                try:
+-                    os.spawnvp(os.P_NOWAIT, bin, [bin, &quot;-headless&quot;, &quot;-invisible&quot;, &quot;-nodefault&quot;, &quot;-nofirststartwizard&quot;, &quot;-nologo&quot;, &quot;-norestore&quot;, &quot;-unaccept=%s&quot; % op.connection]);
+-                    error(2, 'OpenOffice listener successfully disabled.')
+-                    break
+-                except Exception, e:
+-                    error(3, &quot;Launch of %s failed.\n%s&quot; % (bin, e))
+-                    continue
++            try:
++                os.swpanvp(oobin, [oobin, &quot;-headless&quot;, &quot;-invisible&quot;, &quot;-nodefault&quot;, &quot;-nofirststartwizard&quot;, &quot;-nologo&quot;, &quot;-norestore&quot;, &quot;-unaccept=%s&quot; % op.connection]);
++                error(2, 'OpenOffice listener successfully disabled.')
++                os.waitpid(oopid, os.WUNTRACED)
++            except Exception, e:
++                error(3, &quot;Terminate using %s failed.\n%s&quot; % (oobin, e))
+ 
+         ### If there is no GUI attached to the instance, terminate instance
+         else:
+             try:
+                 convertor.desktop.terminate()
++                os.waitpid(oopid, os.WUNTRACED)
+             except DisposedException:
+                 error(2, 'OpenOffice instance successfully terminated.')
+ 
+-#        error(2, 'Taking down OpenOffice with pid %s.' % oopid)
+-#        os.setpgid(oopid, 0)
+-#        os.killpg(os.getpgid(oopid), 15)
+-#        try:
+-#            os.kill(oopid, 15)
+-#            error(2, 'Waiting for OpenOffice with pid %s to disappear.' % oopid)
+-#            os.waitpid(oopid, os.WUNTRACED)
+-#        except:
+-#            error(2, 'No OpenOffice with pid %s to take down' % oopid)
++        ### Try to clean up OpenOffice process when stuck
++        try:
++            os.kill(oopid, 0)
++            error(2, 'Taking down OpenOffice with pid %s.' % oopid)
++            os.kill(oopid, 9)
++            error(2, 'Waiting for OpenOffice with pid %s to disappear.' % oopid)
++            os.waitpid(oopid, os.WUNTRACED)
++        except OSError:
++            ### Process already terminated
++#            error(2, 'No OpenOffice with pid %s.' % oopid)
++            pass
++        except:
++            raise
++
+     sys.exit(ret)
+ 
+ def main():
+@@ -668,8 +711,6 @@
+     except OSError:
+         error(0, &quot;Warning: failed to launch OpenOffice. Aborting.&quot;)
+ 
+-convertor = None
+-
+ ### Main entrance
+ if __name__ == '__main__':
+     exitcode = 0
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="007834.html">[svn] r9041 - /trunk/rpms/TracAccountManager/TracAccountManager.spec
+</A></li>
+	<LI>Next message: <A HREF="007836.html">[svn] r9043 - in /trunk/tools/unoconv: ChangeLog TODO docs/filters.txt docs/unoconv.1 unoconv
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7835">[ date ]</a>
+              <a href="thread.html#7835">[ thread ]</a>
+              <a href="subject.html#7835">[ subject ]</a>
+              <a href="author.html#7835">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

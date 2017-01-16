@@ -1,0 +1,147 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [users] sysbench on centos 5.5 issues.
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20sysbench%20on%20centos%205.5%20issues.&In-Reply-To=%3CAANLkTi%3Drj_tGQ2RdGUv%2B0AmCpR%3DFxF3i4%3D82ofwbuJgz%40mail.gmail.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="024514.html">
+   <LINK REL="Next"  HREF="027998.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[users] sysbench on centos 5.5 issues.</H1>
+    <B>Periko Support</B> 
+    <A HREF="mailto:users%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Busers%5D%20sysbench%20on%20centos%205.5%20issues.&In-Reply-To=%3CAANLkTi%3Drj_tGQ2RdGUv%2B0AmCpR%3DFxF3i4%3D82ofwbuJgz%40mail.gmail.com%3E"
+       TITLE="[users] sysbench on centos 5.5 issues.">pheriko.support at gmail.com
+       </A><BR>
+    <I>Fri Sep 24 19:57:43 CEST 2010</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="024514.html">[suggest] JavaHL Subversion Packages?
+</A></li>
+        <LI>Next message: <A HREF="027998.html">[users] sysbench on centos 5.5 issues.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27997">[ date ]</a>
+              <a href="thread.html#27997">[ thread ]</a>
+              <a href="subject.html#27997">[ subject ]</a>
+              <a href="author.html#27997">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE> Hi my friends.
+
+ I have been this couple of days benchmarking mysql, one of this tools
+is sysbench which we install from rpmforge.
+
+ The version I'm working on is:
+
+ sysbench.x86_64&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; 0.4.10-1.el5.rf
+
+ With MyISAM engine no issue, the problem is with InnoDB, the issue is
+with the second index creation, let see MyISAM:
+
+sysbench --test=oltp --db-driver=mysql --mysql-user=root
+--mysql-password=mypassword --mysql-db=sbtest
+--mysql-table-engine=myisam --oltp-test-mode=simple
+--oltp-table-size=10000 --mysql-socket=/var/lib/mysql/mysql.sock
+--num-threads=8 --max-requests=1000 prepare
+sysbench 0.4.10: multi-threaded system evaluation benchmark
+Creating table 'sbtest'...
+Creating 10000 records in table 'sbtest'...
+
+I check my table and have all the data on great, but I want to work
+with InnoDB. Now let see what happen with InnoDB:
+
+sysbench --test=oltp --db-driver=mysql --mysql-user=root
+--mysql-password=mypassword --mysql-db=sbtest
+--mysql-table-engine=innodb --oltp-test-mode=simple
+--oltp-table-size=10000 --mysql-socket=/var/lib/mysql/mysql.sock
+--num-threads=8 --max-requests=1000 prepare
+sysbench 0.4.10:&#160; multi-threaded system evaluation benchmark
+
+Creating table 'sbtest'...
+ALERT: failed to execute MySQL query: `CREATE INDEX k on sbtest(k)`:
+ALERT: Error 1031 Table storage engine for 'sbtest' doesn't have this option
+FATAL: failed to create secondary index on table!
+
+U can see the error, I start reading the src and found the part that
+handle this process, but I still don't know if I'm not using the right
+parameters or is a app issue, the file called:
+
+sysbench/tests/oltp/sb_oltp.c
+
+Have this:
+
+line 371:
+
+snprintf(query, query_len,
+           &quot;CREATE TABLE %s (&quot;
+           &quot;id %s %s NOT NULL %s, &quot;
+           &quot;k integer %s DEFAULT '0' NOT NULL, &quot;
+           &quot;c char(120) DEFAULT '' NOT NULL, &quot;
+           &quot;pad char(60) DEFAULT '' NOT NULL, &quot;
+           &quot;PRIMARY KEY  (id) &quot;
+&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; &quot;) %s&quot;,
+           args.table_name,
+           (args.auto_inc &amp;&amp; driver_caps.serial) ? &quot;SERIAL&quot; : &quot;INTEGER&quot;,
+           driver_caps.unsigned_int ? &quot;UNSIGNED&quot; : &quot;&quot;,
+           (args.auto_inc &amp;&amp; driver_caps.auto_increment) ?
+&quot;AUTO_INCREMENT&quot; : &quot;&quot;,
+           driver_caps.unsigned_int ? &quot;UNSIGNED&quot; : &quot;&quot;,
+           (table_options_str != NULL) ? table_options_str : &quot;&quot;
+           );
+
+Latter at line 410:
+
+/* Create secondary index on 'k' */
+
+  snprintf(query, query_len,
+           &quot;CREATE INDEX k on %s(k)&quot;,
+           args.table_name);
+  if (db_query(con, query) == NULL)
+  {
+    log_text(LOG_FATAL, &quot;failed to create secondary index on table!&quot;);
+    goto error;
+  }
+
+Working with InnoDB plugin on MySQL 5.1.50 community-edition x64, I
+can see that once u created a table InnoDB u cannot add a another
+Index, I still learning InnoDB, must possible but sysbench looks like
+is not doing the right process.
+
+ I have try to fix this but my knowledge in programing are not to updated.
+
+ Someone here have see this behavior? Do I'm doing something wrong?
+Does someone work with sysbench and InnoDB without this issue?
+
+ OS: Centos
+ Kernel: 5.52.6.18-194.11.3.el5xen
+ x64.
+
+ Thanks!!!
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="024514.html">[suggest] JavaHL Subversion Packages?
+</A></li>
+	<LI>Next message: <A HREF="027998.html">[users] sysbench on centos 5.5 issues.
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#27997">[ date ]</a>
+              <a href="thread.html#27997">[ thread ]</a>
+              <a href="subject.html#27997">[ subject ]</a>
+              <a href="author.html#27997">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/users">More information about the users
+mailing list</a><br>
+</body></html>

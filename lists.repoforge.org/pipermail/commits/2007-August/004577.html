@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r5778 - trunk/tools/unoconv
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5778%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070828025759.D1AD3944A95%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="004576.html">
+   <LINK REL="Next"  HREF="004578.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r5778 - trunk/tools/unoconv</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r5778%20-%20trunk/tools/unoconv&In-Reply-To=%3C20070828025759.D1AD3944A95%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r5778 - trunk/tools/unoconv">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Aug 28 04:57:59 CEST 2007</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="004576.html">[svn] r5777 - trunk/tools/dstat/plugins
+</A></li>
+        <LI>Next message: <A HREF="004578.html">[svn] r5779 - in trunk/tools/unoconv: . tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4577">[ date ]</a>
+              <a href="thread.html#4577">[ thread ]</a>
+              <a href="subject.html#4577">[ subject ]</a>
+              <a href="author.html#4577">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2007-08-28 04:57:58 +0200 (Tue, 28 Aug 2007)
+New Revision: 5778
+
+Modified:
+   trunk/tools/unoconv/ChangeLog
+   trunk/tools/unoconv/unoconv
+Log:
+Start and stop OpenOffice automatically when needed (Matthieu Moy)
+
+Modified: trunk/tools/unoconv/ChangeLog
+===================================================================
+--- trunk/tools/unoconv/ChangeLog	2007-08-27 23:59:57 UTC (rev 5777)
++++ trunk/tools/unoconv/ChangeLog	2007-08-28 02:57:58 UTC (rev 5778)
+@@ -1,9 +1,10 @@
+-* 0.2svn - released 22/05/2007
++* 0.2svn - released 28/08/2007
+ - Determine doctype from input filename (if not specified)
+ - Created a seperate class and allow to use as a library (like DocumentConverter.py)
+ - Makefile now adds symlinks for different ODF formats like eg, odt2pdf or odp2pdf
+ - Added MacOSX NeoOffice path '/Applications/NeoOffice.app/Contents/program/' (Peter Stevens)
+ - Added OpenSUSE 10 OpenOffice path '/usr/lib*/ooo*/program/' (Leo Eraly)
++- Start and stop OpenOffice automatically when needed (Matthieu Moy)
+ 
+ * 0.2 - released 20/05/2007
+ - Added support for almost 100 graphics, presentation and spreadsheet documents
+
+Modified: trunk/tools/unoconv/unoconv
+===================================================================
+--- trunk/tools/unoconv/unoconv	2007-08-27 23:59:57 UTC (rev 5777)
++++ trunk/tools/unoconv/unoconv	2007-08-28 02:57:58 UTC (rev 5778)
+@@ -14,7 +14,7 @@
+ ### Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ### Copyright 2007 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt;
+ 
+-import getopt, sys, os, glob
++import getopt, sys, os, glob, time
+ 
+ #extrapaths = ('/usr/lib/openoffice/program/', '/usr/lib/openoffice.org2.0/program/')
+ extrapaths = glob.glob('/usr/lib*/openoffice*/program/') + glob.glob('/usr/lib*/ooo*/program') + [ '/Applications/NeoOffice.app/Contents/program', ]
+@@ -44,6 +44,8 @@
+ 
+ doctypes = ('document', 'graphics', 'presentation', 'spreadsheet')
+ 
++oopid = None
++
+ class Fmt:
+     def __init__(self, doctype, name, extension, summary, filter):
+         self.doctype = doctype
+@@ -250,15 +252,14 @@
+             opts, args = getopt.getopt (args, 'b:c:d:hlp:s:t:v',
+                 ['backend=', 'connection=', 'doctype=', 'help', 'list', 'port=', 'server=', 'stdout', 'verbose', 'version'] )
+         except getopt.error, exc:
+-            print &gt;&gt;sys.stderr, 'unoconv: %s, try unoconv -h for a list of all the options' % str(exc)
+-            sys.exit(255)
++            die(255, 'unoconv: %s, try unoconv -h for a list of all the options' % str(exc))
+ 
+         for opt, arg in opts:
+             if opt in ['-h', '--help']:
+                 self.usage()
+                 print
+                 self.help()
+-                sys.exit(1)
++                die(1)
+             elif opt in ['-b', '--backend']:
+                 self.format = arg
+             elif opt in ['-c', '--connection']:
+@@ -277,8 +278,8 @@
+                 self.verbose = self.verbose + 1
+             elif opt in ['--version']:
+                 self.version()
+-                sys.exit(255)
+-        
++                die(255)
++
+         ### Enable verbosity
+         if self.verbose &gt;= 3:
+             print &gt;&gt;sys.stderr, 'Verbosity set to level %d' % (self.verbose - 1)
+@@ -288,7 +289,7 @@
+         if not self.showlist and self.doctype != 'list' and not self.filenames:
+             print &gt;&gt;sys.stderr, 'unoconv: you have to provide a filename as argument'
+             print &gt;&gt;sys.stderr, 'Try `unoconv -h\' for more information.'
+-            sys.exit(255)
++            die(255)
+ 
+         ### Make it easier for people to use a doctype (first letter is enough)
+         if self.doctype:
+@@ -303,7 +304,7 @@
+             else:
+                 for t in doctypes:
+                     fmts.display(t)
+-            sys.exit(0)
++            die(0)
+ 
+         ### if no format was specified, probe it or provide it
+         if not self.format:
+@@ -341,11 +342,27 @@
+ 
+ class Convertor:
+     def __init__(self):
++        global oopid
++
+         context = uno.getComponentContext()
+         resolver = context.ServiceManager.createInstanceWithContext(&quot;com.sun.star.bridge.UnoUrlResolver&quot;, context)
+-        unocontext = resolver.resolve(&quot;uno:%s&quot; % op.connection)
++
++        try:
++            unocontext = resolver.resolve(&quot;uno:%s&quot; % op.connection)
++        except NoConnectException, e:
++#            print &gt;&gt;sys.stderr, &quot;Warning: failed to connect, trying to launch OpenOffice.&quot;
++            try:
++                oopid = os.spawnvp(os.P_NOWAIT, &quot;ooffice&quot;, [&quot;ooffice&quot;, &quot;-headless&quot;, &quot;-accept=%s&quot; % op.connection]);
++                time.sleep(1)
++                unocontext = resolver.resolve(&quot;uno:%s&quot; % op.connection)
++            except OSError:
++#                print &gt;&gt;sys.stderr, &quot;Warning: failed to connect, trying to launch StarOffice.&quot;
++                oopid = os.spawnvp(os.P_NOWAIT, &quot;soffice&quot;, [&quot;soffice&quot;, &quot;-headless&quot;, &quot;-accept=%s&quot; % op.connection]);
++                time.sleep(1)
++                unocontext = resolver.resolve(&quot;uno:%s&quot; % op.connection)
++
+         unosvcmgr = unocontext.ServiceManager
+-    
++
+         self.desktop = unosvcmgr.createInstanceWithContext(&quot;com.sun.star.frame.Desktop&quot;, unocontext)
+         self.cwd = unohelper.systemPathToFileUrl( os.getcwd() )
+ 
+@@ -357,7 +374,7 @@
+             outputfmt = fmts.bydoctype(op.doctype, op.format)
+         else:
+             outputfmt = fmts.byname(op.format)
+-    
++
+             if not outputfmt:
+                 outputfmt = fmts.byextension('.'+op.format)
+ 
+@@ -384,17 +401,17 @@
+                 print &gt;&gt;sys.stderr, 'unoconv: format [%s/%s] is not known to unoconv.' % (op.format, op.doctype)
+             else:
+                 print &gt;&gt;sys.stderr, 'unoconv: format [%s] is not known to unoconv.' % op.format
+-            sys.exit(1)
++            die(1)
+ 
+         return outputfmt
+-        
++
+     def convert(self, inputfn):
+         doc = None
+         outputfmt = self.getformat(inputfn)
+-    
++
+         if op.verbose &gt; 0:
+             print &gt;&gt;sys.stderr, 'Input file:', inputfn
+-    
++
+         if not os.path.exists(inputfn):
+             print &gt;&gt;sys.stderr, 'unoconv: file `%s\' does not exist.' % inputfn
+             exitcode = 1
+@@ -448,19 +465,27 @@
+             print &gt;&gt;sys.stderr, &quot;unoconv: error during conversion: %s&quot; % e.Message
+             print &gt;&gt;sys.stderr, &quot;The provided document cannot be exported to %s.&quot; % outputfmt
+             exitcode = 1
+-    
++
+         except CannotConvertException, e:
+             print &gt;&gt;sys.stderr, &quot;unoconv: convert error: %s&quot; % e.Message
+             exitcode = 1
+ 
++def die(rc, str=None):
++    global oopid
++    if not op.stdout and str:
++        print &gt;&gt;sys.stderr, &quot;Error: %s&quot; % str
++    if oopid:
++#        print 'Taking down OpenOffice with pid %s' % oopid
++        os.kill(oopid, 15)
++    sys.exit(rc)
++
+ def main():
+     try:
+         convertor = Convertor()
+-        
+-        ### FIXME: outputfmt should be created inside class
++
+         for inputfn in op.filenames:
+             convertor.convert(inputfn)
+-     
++
+     except NoConnectException, e:
+         print &gt;&gt;sys.stderr, &quot;unoconv: could not find an existing connection to Open Office at %s:%s.&quot; % (op.server, op.port)
+         print &gt;&gt;sys.stderr
+@@ -469,7 +494,9 @@
+         else:
+             print &gt;&gt;sys.stderr, &quot;Please start an ooffice instance on server '%s' by doing:\n\n    ooffice -headless -accept=\&quot;socket,host=localhost,port=%s;urp;\&quot;&quot; % (op.server, op.port)
+         exitcode = 1
+-    
++    except OSError:
++        print &gt;&gt;sys.stderr, &quot;Warning: failed to launch OpenOffice. Aborting.&quot;
++
+ ### Main entrance
+ if __name__ == '__main__':
+     exitcode = 0
+@@ -479,4 +506,4 @@
+         main()
+     except KeyboardInterrupt, e:
+         die(6, 'Exiting on user request')
+-    sys.exit(exitcode)
++    die(exitcode)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="004576.html">[svn] r5777 - trunk/tools/dstat/plugins
+</A></li>
+	<LI>Next message: <A HREF="004578.html">[svn] r5779 - in trunk/tools/unoconv: . tests
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#4577">[ date ]</a>
+              <a href="thread.html#4577">[ thread ]</a>
+              <a href="subject.html#4577">[ subject ]</a>
+              <a href="author.html#4577">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

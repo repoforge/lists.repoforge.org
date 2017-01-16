@@ -1,0 +1,344 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2883 - trunk/tools/yam
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2883%20-%20trunk/tools/yam&In-Reply-To=%3C20050218010749.D2CDBF3E95%40web22.meg.us2.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001687.html">
+   <LINK REL="Next"  HREF="001689.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2883 - trunk/tools/yam</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2883%20-%20trunk/tools/yam&In-Reply-To=%3C20050218010749.D2CDBF3E95%40web22.meg.us2.egwn.net%3E"
+       TITLE="[SVN] r2883 - trunk/tools/yam">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Fri Feb 18 02:07:49 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001687.html">[SVN] r2882 - in trunk/web: . dweb
+</A></li>
+        <LI>Next message: <A HREF="001689.html">[SVN] r2888 - trunk/rpms/aget
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1688">[ date ]</a>
+              <a href="thread.html#1688">[ thread ]</a>
+              <a href="subject.html#1688">[ subject ]</a>
+              <a href="author.html#1688">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2005-02-18 02:07:46 +0100 (Fri, 18 Feb 2005)
+New Revision: 2883
+
+Modified:
+   trunk/tools/yam/ChangeLog
+   trunk/tools/yam/TODO
+   trunk/tools/yam/yam
+   trunk/tools/yam/yam-complex.conf
+   trunk/tools/yam/yam-dag.conf
+Log:
+A few updates preparing 0.7.3
+
+Modified: trunk/tools/yam/ChangeLog
+===================================================================
+--- trunk/tools/yam/ChangeLog	2005-02-16 14:25:37 UTC (rev 2882)
++++ trunk/tools/yam/ChangeLog	2005-02-18 01:07:46 UTC (rev 2883)
+@@ -1,6 +1,8 @@
+ * 0.7.3
+ - Added ia64 support (Gareth Armstrong)
+ - Use chkconfig to enable Yam in SPEC file (Bert de Bruijn)
++- Fixed a typo in the CentOS sample in yam-complex.conf (Doug Dionne)
++- Made a distinction between info messages and error messages
+ 
+ * 0.7.2
+ - Enabled createrepo support by default
+
+Modified: trunk/tools/yam/TODO
+===================================================================
+--- trunk/tools/yam/TODO	2005-02-16 14:25:37 UTC (rev 2882)
++++ trunk/tools/yam/TODO	2005-02-18 01:07:46 UTC (rev 2883)
+@@ -14,6 +14,7 @@
+ + Get rid of iso= and allow each repo to include ISOs (eg. <A HREF="file:///mnt/iso/*.iso">file:///mnt/iso/*.iso</A>)
+   This would be very useful to have a separate gfs, lacd, rhaps, rhds2 repo
+ + Add more working distributions to yam-complex.conf
+++ Allow multiple dist sections (of arch is different)
+ 
+ ### Usability
+ + Create information about repository-updates in HEADER.shtml/README.shtml
+@@ -22,6 +23,8 @@
+ + Generate sample yum.conf and apt .list files for people to use
+ + Generate yam-chain.conf for more easily chaining Yam servers
+ + Add a yam and yam.conf manpage
+++ Would like to display only file-transfers, sadly rsync does not allow that
+++ Make 'name=' not mandatory (if missing, make it pretty using nick, release and arch)
+ 
+ ### Web front-end
+ + Improve SHTML output (more condensed and useful information)
+
+Modified: trunk/tools/yam/yam
+===================================================================
+--- trunk/tools/yam/yam	2005-02-16 14:25:37 UTC (rev 2882)
++++ trunk/tools/yam/yam	2005-02-18 01:07:46 UTC (rev 2883)
+@@ -203,9 +203,9 @@
+ 			var = self.cfg.get(section, option)
+ 			info(3, 'Setting option %s in section [%s] to: %s' % (option, section, var))
+ 		except ConfigParser.NoSectionError, e:
+-			info(4, 'Failed to find section [%s] in %s' % (section, op.configfile))
++			error(4, 'Failed to find section [%s] in %s' % (section, op.configfile))
+ 		except ConfigParser.NoOptionError, e:
+-#			info(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
++#			error(4, 'Failed to find option %s in [%s], set to default: %s' % (option, section, var))
+ 			info(4, 'Setting option %s in section [%s] to: %s (default)' % (option, section, var))
+ 		return var
+ 
+@@ -276,7 +276,7 @@
+ 					if os.path.isfile(iso) and iso not in isos:
+ 						isos.append(iso)
+ 		if not isos:
+-			info(1, '%s: No ISO files found !' % self.nick)
++			error(1, '%s: No ISO files found !' % self.nick)
+ 		return isos
+ 
+ 	def mount(self):
+@@ -396,14 +396,19 @@
+ 		info(3, 'Removing %s' % repodir)
+ 		remove(repodir)
+ 
++def error(level, str):
++	&quot;Output error message&quot;
++	if level &lt;= op.verbose:
++		sys.stdout.write('yam: %s\n' % str)
++
+ def info(level, str):
+ 	&quot;Output info message&quot;
+ 	if level &lt;= op.verbose:
+-		print str
++		sys.stdout.write('%s\n' % str)
+ 
+ def die(ret, str):
+ 	&quot;Print error and exit with errorcode&quot;
+-	info(0, str)
++	error(0, str)
+ 	sys.exit(ret)
+ 
+ def run(str):
+@@ -496,12 +501,12 @@
+ 		elif s in ['yam']:
+ 			mirroryam(url, path)
+ 		else:
+-			info(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
++			error(2, 'Scheme %<A HREF="s://">s://</A> not implemented yet (in %s)' % (s, url))
+ 
+ def mirrorrsync(url, path):
+ 	&quot;Mirror everything from an <A HREF="rsync://">rsync://</A> URL&quot;
+ 	if not cf.cmd['rsync']:
+-		info(1, 'rsync was not found, rsync support is therefor disabled.')
++		error(1, 'rsync was not found, rsync support is therefor disabled.')
+ 		return
+ 	mkdir(path)
+ 
+@@ -523,7 +528,7 @@
+ def mirrorlftp(url, path):
+ 	&quot;Mirror everything from a <A HREF="http://,">http://,</A> <A HREF="ftp://,">ftp://,</A> <A HREF="sftp://,">sftp://,</A> <A HREF="fish://">fish://</A> URL&quot;
+ 	if not cf.cmd['lftp']:
+-		info(1, 'lftp was not found, fish, ftp, http and sftp support is therefor disabled.')
++		error(1, 'lftp was not found, fish, ftp, http and sftp support is therefor disabled.')
+ 		return
+ 	mkdir(path)
+ 
+@@ -571,7 +576,7 @@
+ 		if op.verbose: opts = opts + '-' + ('v' * (op.verbose - 2))
+ 		run('%s -c %s %s' % (cf.cmd['hardlink'], opts, os.path.join(srcdir, '')))
+ 	else:
+-		info(1, 'hardlink was not found, hardlink support is therefor disabled.')
++		error(1, 'hardlink was not found, hardlink support is therefor disabled.')
+ 		return
+ 
+ def rpmlink((dist, repo), dirpath, filelist):
+@@ -619,19 +624,19 @@
+ 			cf.cmd[cmd] = which(cmd)
+ 		if cf.cmd[cmd] and not os.path.isfile(cf.cmd[cmd]):
+ 			if cmd in ['createrepo', 'genbasedir', 'yum-arch']:
+-				info(4, '%s command not found as %s, disabling %s' % (cmd, cf.cmd[cmd], cmd))
++				error(4, '%s command not found as %s, disabling %s' % (cmd, cf.cmd[cmd], cmd))
+ 				cf.repo[cmd] = False
+ 			else:
+-				info(4, '%s command not found as %s, support disabled' % (cmd, cf.cmd[cmd]))
++				error(4, '%s command not found as %s, support disabled' % (cmd, cf.cmd[cmd]))
+ 				cf.cmd[cmd] = ''
+ 	if not cf.repo['createrepo'] and not cf.repo['yum'] and not cf.repo['apt']:
+-		info(1, 'No tools found to generate repository metadata. Please install apt, yum or createrepo.')
++		error(1, 'No tools found to generate repository metadata. Please install apt, yum or createrepo.')
+ 		
+ 	### Iterate over the available distributions
+ 	for dist in cf.dists:
+ 		if op.dist:
+ 			if dist.dist not in op.dist and dist.nick not in op.dist:
+-				info(3, '%s: %s ignored, not requested' % (dist.nick, dist.name))
++				error(3, '%s: %s ignored, not requested' % (dist.nick, dist.name))
+ 				continue
+ 
+ 		### Mount ISOs
+@@ -754,8 +759,12 @@
+ 
+ 	if cf.hardlink and not op.dist:
+ 		hardlink(cf.srcdir)
+-		
+ 
++              
++### Unbuffered sys.stdout
++sys.stdout = os.fdopen(1, 'w', 0)
++sys.stderr = os.fdopen(2, 'w', 0)
++
+ ### Workaround for python &lt;= 2.2.1
+ try:
+      True, False
+
+Modified: trunk/tools/yam/yam-complex.conf
+===================================================================
+--- trunk/tools/yam/yam-complex.conf	2005-02-16 14:25:37 UTC (rev 2882)
++++ trunk/tools/yam/yam-complex.conf	2005-02-18 01:07:46 UTC (rev 2883)
+@@ -35,7 +35,7 @@
+ #name = CentOS $release ($arch)
+ #release = 3
+ #arch = i386 ia64 s390 s390x x86_64
+-#iso = CentOS-$version-$arch.disc?.iso
++#iso = CentOS-$version-$arch-disc?.iso
+ #os = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RedHat/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RedHat/RPMS/</A>
+ #updates = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
+ #extras = <A HREF="rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/">rsync://ftp.heanet.ie/pub/cAos/centos/$release/$repo/$arch/RPMS/</A>
+@@ -90,7 +90,7 @@
+ #[sles8]
+ #name = SuSE Linux Enterprise Server $release ($arch)
+ #release = 8
+-#iso = SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD?.iso
++#iso = SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD[1-2].iso UnitedLinux-1.0-SP-3-$arch-RC4-CD1.iso
+ #you = <A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+ 
+ ### Single CD distribution based on Fedora Core 1
+
+Modified: trunk/tools/yam/yam-dag.conf
+===================================================================
+--- trunk/tools/yam/yam-dag.conf	2005-02-16 14:25:37 UTC (rev 2882)
++++ trunk/tools/yam/yam-dag.conf	2005-02-18 01:07:46 UTC (rev 2883)
+@@ -4,6 +4,7 @@
+ srcdir = /mnt/data/yam
+ wwwdir = /var/www/yam
+ arch = i386
++createrepo = no
+ hardlink = yes
+ shareiso = no
+ 
+@@ -12,8 +13,9 @@
+ release = 3
+ arch = i386 x86_64
+ iso = FC3-$arch-disc?.iso
+-updates = <A HREF="rsync://rsync.freshrpms.net/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://rsync.freshrpms.net/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
++updates = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/fedora/$release/en/$arch/RPMS.$repo/</A>
++#dag = <A HREF="rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/">rsync://apt/pub/fedora/$release/en/$arch/RPMS.$repo/</A>
+ dries = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/dries/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ freshrpms = <A HREF="rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/">rsync://ayo.freshrpms.net/pub/freshrpms/pub/freshrpms/ayo/fedora/linux/$release/$arch/RPMS.$repo/</A>
+ 
+@@ -26,28 +28,40 @@
+ kernel-el = <A HREF="rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/">rsync://mirror.stanford.edu/mirrors/taolinux/tao-$release-$arch/RPMS.$repo/</A>
+ #dag = <A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
+ 
+-[rhas3]
++[rhas4]
+ name = Red Hat Advanced Server $release ($arch)
++release = 4
++arch = i386 x86_64
++iso = RHEL$release-$arch-AS-disc?.iso rhas4-$arch/RHEL$release-$arch-disc?.iso
++##updates = <A HREF="rsync://apt/yam/el3a-$arch/$repo/">rsync://apt/yam/el3a-$arch/$repo/</A>
++
++[rhes4]
++name = Red Hat Enterprise Server $release ($arch)
+ release = 3
+ arch = i386 x86_64
+-iso = rhel-$release-U3-$arch-as-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso
+-#updates = <A HREF="rsync://lisse/yam/el3a-$arch/$repo/">rsync://lisse/yam/el3a-$arch/$repo/</A>
+-#dag = <A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
++iso = RHEL$release-$arch-ES-disc?.iso rhas4-$arch/RHEL$release-$arch-disc?.iso
++##updates = <A HREF="rsync://apt/yam/el3a-$arch/$repo/">rsync://apt/yam/el3a-$arch/$repo/</A>
+ 
++[rhas3]
++name = Red Hat Advanced Server $release U4 ($arch)
++release = 3
++arch = i386 x86_64
++iso = rhel-$release-U4-$arch-as-disc?.iso rhes3-$arch/rhel-$release-U4-$arch-disc?.iso
++##updates = <A HREF="rsync://apt/yam/el3a-$arch/$repo/">rsync://apt/yam/el3a-$arch/$repo/</A>
++
+ [rhes3]
+-name = Red Hat Enterprise Server $release ($arch)
++name = Red Hat Enterprise Server $release U4 ($arch)
+ release = 3
+ arch = i386 x86_64
+-iso = rhel-$release-U3-$arch-es-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso *.iso
+-#updates = <A HREF="rsync://lisse/yam/el3i-$arch/$repo/">rsync://lisse/yam/el3i-$arch/$repo/</A>
++iso = rhel-$release-U4-$arch-es-disc?.iso rhes3-$arch/rhel-$release-U4-$arch-disc?.iso *.iso
++##updates = <A HREF="rsync://apt/yam/el3i-$arch/$repo/">rsync://apt/yam/el3i-$arch/$repo/</A>
+ dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ #dag = <A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+ [rhws3]
+-name = Red Hat Workstation $release ($arch)
++name = Red Hat Workstation $release U4 ($arch)
+ release = 3
+-iso = rhel-$release-U3-$arch-ws-disc?.iso rhes3-$arch/rhel-$release-U3-$arch-disc?.iso
+-#dag = <A HREF="yam://rhes3-$arch/$repo/">yam://rhes3-$arch/$repo/</A>
++iso = rhel-$release-U4-$arch-ws-disc?.iso rhes3-$arch/rhel-$release-U4-$arch-disc?.iso
+ 
+ [rh73]
+ name = Red Hat $release ($arch)
+@@ -61,7 +75,7 @@
+ name = Red Hat Advanced Server $release ($arch)
+ release = 2.1
+ iso = RHEL$releaseAS-U5-re0810.RC.0-i386-disc[1-4].iso
+-#updates = <A HREF="rsync://lisse/yam/el2-$arch/$repo/">rsync://lisse/yam/el2-$arch/$repo/</A>
++##updates = <A HREF="rsync://apt/yam/el2-$arch/$repo/">rsync://apt/yam/el2-$arch/$repo/</A>
+ dag = <A HREF="rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt.sw.be/pub/freshrpms/pub/dag/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ #dag = <A HREF="rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/">rsync://apt/pub/redhat/el$release/en/$arch/RPMS.$repo/</A>
+ 
+@@ -71,12 +85,6 @@
+ iso = SLES-$release-$arch-RC5-CD[1-4].iso
+ you = <A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+ 
+-[sles8]
+-name = SuSE Linux Enterprise Server $release ($arch)
+-release = 8
+-iso = SLES-$release-$arch-RC5-CD1.iso UnitedLinux-1.0-$arch-RC5-CD[1-2].iso UnitedLinux-1.0-SP-3-$arch-RC4-CD1.iso
+-you = <A HREF="file:///var/yast2/you/">file:///var/yast2/you/</A>
+-
+ ### Single CD distribution based on Fedora Core 1
+ [blag10000]
+ name = BLAG: Brixton Linux Action Group $release ($arch)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001687.html">[SVN] r2882 - in trunk/web: . dweb
+</A></li>
+	<LI>Next message: <A HREF="001689.html">[SVN] r2888 - trunk/rpms/aget
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1688">[ date ]</a>
+              <a href="thread.html#1688">[ thread ]</a>
+              <a href="subject.html#1688">[ subject ]</a>
+              <a href="author.html#1688">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

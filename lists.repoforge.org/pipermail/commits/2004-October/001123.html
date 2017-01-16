@@ -1,0 +1,185 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2317 - trunk/rpms/flumotion
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2317%20-%20trunk/rpms/flumotion&In-Reply-To=%3C20041026150803.5FCDA18022%40web22.us.megagiga.com%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001122.html">
+   <LINK REL="Next"  HREF="001124.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2317 - trunk/rpms/flumotion</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2317%20-%20trunk/rpms/flumotion&In-Reply-To=%3C20041026150803.5FCDA18022%40web22.us.megagiga.com%3E"
+       TITLE="[SVN] r2317 - trunk/rpms/flumotion">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Tue Oct 26 17:08:03 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001122.html">[SVN] r2316 - trunk/rpms/xmame
+</A></li>
+        <LI>Next message: <A HREF="001124.html">[SVN] r2318 - trunk/tools
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1123">[ date ]</a>
+              <a href="thread.html#1123">[ thread ]</a>
+              <a href="subject.html#1123">[ subject ]</a>
+              <a href="author.html#1123">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2004-10-26 17:08:01 +0200 (Tue, 26 Oct 2004)
+New Revision: 2317
+
+Added:
+   trunk/rpms/flumotion/flumotion-0.1.1-firewire.patch
+   trunk/rpms/flumotion/flumotion-0.1.1-overlay.patch
+Modified:
+   trunk/rpms/flumotion/flumotion.spec
+Log:
+Update.
+
+
+Added: trunk/rpms/flumotion/flumotion-0.1.1-firewire.patch
+===================================================================
+--- trunk/rpms/flumotion/flumotion-0.1.1-firewire.patch	2004-10-25 23:09:36 UTC (rev 2316)
++++ trunk/rpms/flumotion/flumotion-0.1.1-firewire.patch	2004-10-26 15:08:01 UTC (rev 2317)
+@@ -0,0 +1,30 @@
++Index: flumotion/component/producers/firewire/firewire.py
++===================================================================
++--- flumotion/component/producers/firewire/firewire.py	(revision 1054)
+++++ flumotion/component/producers/firewire/firewire.py	(working copy)
++@@ -36,10 +36,14 @@
++ 
++     if 12.5 &lt; framerate &lt;= 25:
++         drop_factor = 1
++-    elif 6.3 &lt; framerate &lt;= 12.5:
+++    elif 8.33 &lt; framerate &lt;= 12.5:
++         drop_factor = 2
++-    elif 3.2 &lt; framerate &lt;= 6.3:
+++    elif 6.25 &lt; framerate &lt;= 8.33:
+++        drop_factor = 3
+++    elif 5.0 &lt; framerate &lt;= 6.25:
++         drop_factor = 4
+++    elif 3.125 &lt; framerate &lt;= 5.0:
+++        drop_factor = 5
++     else:
++         drop_factor = 8
++ 
++@@ -49,7 +53,7 @@
++         interlaced_height = 288
++         
++     template = &quot;&quot;&quot;dv1394src ! dvdec name=dec drop-factor=%(drop_factor)d ! video/x-raw-yuv,format=(fourcc)YUY2 !
++-    videorate ! videoscale ! video/x-raw-yuv,width=%(interlaced_height)s,height=288 !
+++    videorate ! videoscale ! video/x-raw-yuv,width=%(width)s,height=%(interlaced_height)s !
++     videoscale ! video/x-raw-yuv,width=%(width)s,height=%(height)s,framerate=%(framerate)f,format=(fourcc)YUY2 ! @feeder::video@
++     dec. ! audio/x-raw-int ! audiorate !
++     audioscale ! audio/x-raw-int,rate=24000 ! @feeder::audio@&quot;&quot;&quot; % dict(drop_factor=drop_factor,
+
+Added: trunk/rpms/flumotion/flumotion-0.1.1-overlay.patch
+===================================================================
+--- trunk/rpms/flumotion/flumotion-0.1.1-overlay.patch	2004-10-25 23:09:36 UTC (rev 2316)
++++ trunk/rpms/flumotion/flumotion-0.1.1-overlay.patch	2004-10-26 15:08:01 UTC (rev 2317)
+@@ -0,0 +1,24 @@
++Index: flumotion/wizard/save.py
++===================================================================
++--- flumotion/wizard/save.py	(revision 1052)
+++++ flumotion/wizard/save.py	(working copy)
++@@ -117,8 +117,8 @@
++     def getVideoOverlay(self, show_logo):
++         # At this point we already know that we should overlay something
++         step = self.wizard['Overlay']
+++        properties = step.get_component_properties()
++         if show_logo:
++-            properties = step.get_component_properties()
++             properties['fluendo_logo'] = True
++             encoding_options = self.wizard.get_step_options('Encoding')
++             if (encoding_options['format'] == EncodingFormat.Ogg or
++@@ -128,8 +128,6 @@
++             license_options = self.wizard.get_step_options('Content License')
++             if license_options['license'] == LicenseType.CC:
++                 properties['cc_logo'] = True
++-        else:
++-            properties = {}
++             
++         return Component('video-overlay', 'overlay', properties, step.worker)
++         
++
+
+Modified: trunk/rpms/flumotion/flumotion.spec
+===================================================================
+--- trunk/rpms/flumotion/flumotion.spec	2004-10-25 23:09:36 UTC (rev 2316)
++++ trunk/rpms/flumotion/flumotion.spec	2004-10-26 15:08:01 UTC (rev 2317)
+@@ -2,12 +2,14 @@
+ 
+ Summary: Flumotion - the Fluendo Streaming Server
+ Name: flumotion
+-Version: 0.1.0
+-Release: 0
++Version: 0.1.1
++Release: 0.3
+ Group: Applications/Internet
+ License: GPL
+ URL: <A HREF="http://www.fluendo.com/">http://www.fluendo.com/</A>
+ Source: <A HREF="http://www.fluendo.com/downloads/flumotion-%{version">http://www.fluendo.com/downloads/flumotion-%{version</A>}.tar.bz2
++Patch0: flumotion-0.1.1-overlay.patch
++Patch1: flumotion-0.1.1-firewire.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+ Requires(post): openssl
+ Requires: python &gt;= 2.3
+@@ -29,6 +31,8 @@
+ 
+ %prep
+ %setup -q
++%patch0 -p0 -b .overlay
++%patch1 -p0 -b .firewire
+ 
+ 
+ %build
+@@ -122,11 +126,16 @@
+ %{_bindir}/flumotion-tester
+ %{_bindir}/flumotion-worker
+ %{_libdir}/flumotion/
+-%attr(0750, flumotion, flumotion) %{_datadir}/flumotion/
+-%attr(0750, flumotion, flumotion) %{_var}/log/flumotion/
++%{_datadir}/flumotion/
++%dir %attr(0750, flumotion, flumotion) %{_datadir}/flumotion/.flumotion
++%dir %attr(0750, flumotion, flumotion) %{_var}/log/flumotion/
+ 
+ 
+ %changelog
++* Tue Oct 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.1.1-0
++- Update to 0.1.1.
++- Added Johan's quick overlay fix.
++
+ * Thu Oct 21 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 0.1.0-0
+ - Picked up, minor changes.
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001122.html">[SVN] r2316 - trunk/rpms/xmame
+</A></li>
+	<LI>Next message: <A HREF="001124.html">[SVN] r2318 - trunk/tools
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1123">[ date ]</a>
+              <a href="thread.html#1123">[ thread ]</a>
+              <a href="subject.html#1123">[ subject ]</a>
+              <a href="author.html#1123">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,460 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [svn] r4987 - in trunk/tools/dstat: . docs plugins
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4987%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C20061212153632.1FC04944B58%40pooch.vmhosting.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="003786.html">
+   <LINK REL="Next"  HREF="003788.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[svn] r4987 - in trunk/tools/dstat: . docs plugins</H1>
+    <B>packagers at lists.rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bsvn%5D%20r4987%20-%20in%20trunk/tools/dstat%3A%20.%20docs%20plugins&In-Reply-To=%3C20061212153632.1FC04944B58%40pooch.vmhosting.org%3E"
+       TITLE="[svn] r4987 - in trunk/tools/dstat: . docs plugins">packagers at lists.rpmforge.net
+       </A><BR>
+    <I>Tue Dec 12 16:36:32 CET 2006</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="003786.html">[svn] r4986 - in trunk/rpms: avidemux2 clamav ddclient nagios	nagios-nrpe nagios-nsca webmin
+</A></li>
+        <LI>Next message: <A HREF="003788.html">[svn] r4988 - in trunk/tools/dstat: docs examples
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3787">[ date ]</a>
+              <a href="thread.html#3787">[ thread ]</a>
+              <a href="subject.html#3787">[ subject ]</a>
+              <a href="author.html#3787">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dag
+Date: 2006-12-12 16:36:17 +0100 (Tue, 12 Dec 2006)
+New Revision: 4987
+
+Modified:
+   trunk/tools/dstat/ChangeLog
+   trunk/tools/dstat/Makefile
+   trunk/tools/dstat/docs/dstat.1.txt
+   trunk/tools/dstat/dstat
+   trunk/tools/dstat/dstat.spec
+   trunk/tools/dstat/dstat15
+   trunk/tools/dstat/plugins/dstat_clock.py
+Log:
+Ready for release 0.6.4.
+
+Modified: trunk/tools/dstat/ChangeLog
+===================================================================
+--- trunk/tools/dstat/ChangeLog	2006-12-11 23:44:32 UTC (rev 4986)
++++ trunk/tools/dstat/ChangeLog	2006-12-12 15:36:17 UTC (rev 4987)
+@@ -1,9 +1,11 @@
+-* 0.6.3svn - ... - released 14/10/2006
++* 0.6.4 - Ahoy - released 12/12/2006
+ - Fixed dstat_clock to use localtime() instead of gmtime()
+ - Added external plugin dstat_vz for openvz cpu statistics
+ - Removed the underscoring of the counter titles
+ - Added underlining for the counter titles
+ - Do not return md and dm devices during disk discovery
++- Renamed dstat_time plugin to dstat_epoch (-T/--epoch)
++- Moved dstat_clock plugin into main dstat program as dstat_time (-t/--time)
+ 
+ * 0.6.3 - Amsterdam - released 26/06/2006
+ - Changed default (silver) color of delimiter to gray
+
+Modified: trunk/tools/dstat/Makefile
+===================================================================
+--- trunk/tools/dstat/Makefile	2006-12-11 23:44:32 UTC (rev 4986)
++++ trunk/tools/dstat/Makefile	2006-12-12 15:36:17 UTC (rev 4987)
+@@ -41,8 +41,9 @@
+ 
+ #### Imperfect translation to dstat15
+ tr:
+-	@cat dstat | perl -p -e ' \
++	cat dstat | perl -p -e ' \
+ 			next if (s|(\S+)\.center\((.+)\)\.replace\((.+), (.+)\)|string.replace(string.center($$1, $$2), $$3, $$4)|g); \
++			next if (s|(.[-?] .)\.ljust\((\S+)\)|string.ljust\($$1, $$2\)|g); \
+ 			next if (s|(.[-?] .)\.rjust\((\S+)\)|string.rjust\($$1, $$2\)|g); \
+ 			next if (s|(. .)\.join\(l\[cpunr\+2:\]\)\.split\((.,.)\)|string.split(string.join(l[cpunr+2:], $$1), $$2)|g); \
+ 			next if (s|self\.intmap\[(\S+)\.strip\(\)\.lower\(\)\]|self.intmap[string.strip(string.lower($$1))]|g); \
+@@ -50,10 +51,12 @@
+ 			next if (s|(\S+)\.replace\((.:.), (. .)\)\.split\(\)|string.split(string.replace($$1, $$2, $$3))|g); \
+ 			next if (s|ret\[name\.strip\(\)\.lower\(\)\]|name = string.lower(string.strip(name))\n				ret[name]|g); \
+ 			s|(\S+)\.replace\((.+), (.+)\)|string.replace($$1, $$2, $$3)|g; \
++			s|(\S+)\.ljust\((.+)\)|string.ljust($$1, $$2)|g; \
+ 			s|(\S+)\.rjust\((.+)\)|string.rjust($$1, $$2)|g; \
+ 			s|(\S+)\.center\((.+)\)|string.center($$1, $$2)|g; \
+ 			s|(\S+)\.strip\((.+)\)|string.strip($$1, $$2)|g; \
+ 			s|(\S+)\.split\((.+)\)|string.split($$1, $$2)|g; \
++			s|(\S+)\.ljust\(\)|string.ljust($$1)|g; \
+ 			s|(\S+)\.rjust\(\)|string.rjust($$1)|g; \
+ 			s|(\S+)\.center\(\)|string.center($$1)|g; \
+ 			s|(\S+)\.strip\(\)|string.strip($$1)|g; \
+
+Modified: trunk/tools/dstat/docs/dstat.1.txt
+===================================================================
+--- trunk/tools/dstat/docs/dstat.1.txt	2006-12-11 23:44:32 UTC (rev 4986)
++++ trunk/tools/dstat/docs/dstat.1.txt	2006-12-12 15:36:17 UTC (rev 4987)
+@@ -87,8 +87,11 @@
+ 	include swap1 and total
+ 
+ -t, --time::
+-	enable time counter
++	enable time/date output
+ 
++-T, --epoch::
++	enable time counter (seconds since epoch)
++
+ -y, --sys::
+ 	enable system stats
+ 
+@@ -114,7 +117,7 @@
+ 	enable internal stats and external plugin stats
+ 
+ Possible internal stats are::
+-  cpu, cpu24, disk, disk24, disk24old, int, int24, ipc, load, lock, mem,
++  cpu, cpu24, disk, disk24, disk24old, epoch, int, int24, ipc, load, lock, mem,
+   net, page, page24, proc, raw, swap, swapold, sys, tcp, time, udp, unix
+ 
+ Possible external plugin stats can be listed using::
+
+Modified: trunk/tools/dstat/dstat
+===================================================================
+--- trunk/tools/dstat/dstat	2006-12-11 23:44:32 UTC (rev 4986)
++++ trunk/tools/dstat/dstat	2006-12-12 15:36:17 UTC (rev 4987)
+@@ -16,7 +16,7 @@
+ 
+ from __future__ import generators
+ 
+-VERSION = '0.6.3svn'
++VERSION = '0.6.4'
+ 
+ def inspath(path):
+ 	if os.path.isdir(path) and path not in sys.path:
+@@ -98,8 +98,8 @@
+ 
+ 		try:
+ 			import getopt
+-			opts, args = getopt.getopt (args, 'acdfghilmno:pstvyC:D:I:M:N:S:V',
+-				['all', 'cpu', 'disk', 'help', 'int', 'ipc', 'load', 'lock', 'mem', 'net', 'page',
++			opts, args = getopt.getopt (args, 'acdfghilmno:pstTvyC:D:I:M:N:S:V',
++				['all', 'cpu', 'disk', 'epoch', 'help', 'int', 'ipc', 'load', 'lock', 'mem', 'net', 'page',
+ 				'proc', 'raw', 'swap', 'sys', 'tcp', 'time', 'udp', 'unix', 'version', 'vmstat',
+ 				'debug', 'full', 'integer', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate', 'output='])
+ 		except getopt.error, exc:
+@@ -151,6 +151,8 @@
+ 				self.modlist.append('tcp')
+ 			elif opt in ['-t', '--time']:
+ 				self.modlist.append('time')
++			elif opt in ['-T', '--epoch']:
++				self.modlist.append('epoch')
+ 			elif opt in ['--udp']:
+ 				self.modlist.append('udp')
+ 			elif opt in ['--unix']:
+@@ -755,6 +757,22 @@
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
++class dstat_epoch(dstat):
++	def __init__(self):
++		self.name = 'epoch'
++		self.format = ('t', 10, 0)
++		if op.debug:
++			self.format = ('t', 14, 0)
++		self.nick = ('epoch',)
++		self.vars = self.nick
++		self.init(self.vars, 1)
++
++	def extract(self):
++		self.val['epoch'] = time.time()
++
++#	def show(self):
++#		return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
++
+ class dstat_int(dstat):
+ 	def __init__(self):
+ 		self.name = 'interrupts'
+@@ -1241,18 +1259,19 @@
+ class dstat_time(dstat):
+ 	def __init__(self):
+ 		self.name = 'time'
+-		self.format = ('t', 10, 0)
+-		if op.debug:
+-			self.format = ('t', 14, 0)
+-		self.nick = ('epoch',)
++		self.format = ('s', 14, 0)
++		self.nick = ('date/time',)
+ 		self.vars = self.nick
+-		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.val['epoch'] = time.time()
++		pass
+ 
+-#	def show(self):
+-#		return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
++	def show(self):
++		if step == op.delay:
++			color = 'silver'
++		else:
++			color = 'gray'
++		return ansi[color] + time.strftime('%d-%m %H:%M:%S', time.localtime())
+ 
+ class dstat_udp(dstat):
+ 	def __init__(self):
+@@ -1484,10 +1503,10 @@
+ 	else:
+ 		units = (' ', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+ 
+-	if step != op.delay:
++	if step == op.delay:
++		colors = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
++	else:
+ 		colors = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'green')
+-	else:
+-		colors = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
+ 
+ 	if op.integer and type in ('d', 'p', 'f'):
+ 		ret, c = dchg(var, max, base)
+
+Modified: trunk/tools/dstat/dstat.spec
+===================================================================
+--- trunk/tools/dstat/dstat.spec	2006-12-11 23:44:32 UTC (rev 4986)
++++ trunk/tools/dstat/dstat.spec	2006-12-12 15:36:17 UTC (rev 4987)
+@@ -9,7 +9,7 @@
+ 
+ Summary: Versatile resource statistics tool
+ Name: dstat
+-Version: 0.6.3svn
++Version: 0.6.4
+ Release: 1
+ License: GPL
+ Group: System Environment/Base
+@@ -60,8 +60,8 @@
+ %{_datadir}/dstat/
+ 
+ %changelog
+-* Mon Jun 26 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.3svn-1
+-- Updated to release 0.6.3svn.
++* Tue Dec 12 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.4-1
++- Updated to release 0.6.4.
+ 
+ * Mon Jun 26 2006 Dag Wieers &lt;<A HREF="http://lists.repoforge.org/mailman/listinfo/commits">dag at wieers.com</A>&gt; - 0.6.3-1
+ - Updated to release 0.6.3.
+
+Modified: trunk/tools/dstat/dstat15
+===================================================================
+--- trunk/tools/dstat/dstat15	2006-12-11 23:44:32 UTC (rev 4986)
++++ trunk/tools/dstat/dstat15	2006-12-12 15:36:17 UTC (rev 4987)
+@@ -16,7 +16,7 @@
+ 
+ #from __future__ import generators
+ 
+-VERSION = '0.6.3svn'
++VERSION = '0.6.4'
+ 
+ def inspath(path):
+ 	if os.path.isdir(path) and path not in sys.path:
+@@ -90,8 +90,8 @@
+ 
+ 		try:
+ 			import getopt
+-			opts, args = getopt.getopt (args, 'acdfghilmno:pstvyC:D:I:M:N:S:V',
+-				['all', 'cpu', 'disk', 'help', 'int', 'ipc', 'load', 'lock', 'mem', 'net', 'page',
++			opts, args = getopt.getopt (args, 'acdfghilmno:pstTvyC:D:I:M:N:S:V',
++				['all', 'cpu', 'disk', 'epoch', 'help', 'int', 'ipc', 'load', 'lock', 'mem', 'net', 'page',
+ 				'proc', 'raw', 'swap', 'sys', 'tcp', 'time', 'udp', 'unix', 'version', 'vmstat',
+ 				'debug', 'full', 'integer', 'mods', 'modules', 'nocolor', 'noheaders', 'noupdate', 'output='])
+ 		except getopt.error, exc:
+@@ -143,6 +143,8 @@
+ 				self.modlist.append('tcp')
+ 			elif opt in ['-t', '--time']:
+ 				self.modlist.append('time')
++			elif opt in ['-T', '--epoch']:
++				self.modlist.append('epoch')
+ 			elif opt in ['--udp']:
+ 				self.modlist.append('udp')
+ 			elif opt in ['--unix']:
+@@ -298,31 +300,31 @@
+ 			return self.title2()
+ 
+ 	def title1(self):
++		ret = ansi['darkblue']
+ 		if isinstance(self.name, types.StringType):
+ 			max = self.statwidth()
+-			return ansi['darkblue'] + string.replace(string.center(self.name[0:max], max), ' ', '-') + ansi['default']
+-		ret = ''
++			return ret + string.replace(string.center(self.name[0:max], max), ' ', '-') + ansi['default']
+ 		for i, name in enumerate(self.name):
+ 			max = self.width()
+ 			ret = ret + string.replace(string.center(name[0:max], max), ' ', '-')
+ 			if i + 1 != len(self.name): ret = ret + ansi['blue'] + char['dash'] + ansi['darkblue']
+-		return ansi['darkblue'] + ret
++		return ret
+ 
+ 	def title2(self):
+ 		if isinstance(self.name, types.StringType):
+ 			ret = ''
+ 			for i, nick in enumerate(self.nick):
+-				ret = ret + string.replace(string.center(nick, self.format[1]), ' ', '_')
++				ret = ret + ansi['blue'] + ansi['underline'] + string.center(nick, self.format[1]) + ansi['default']
+ 				if i + 1 != len(self.nick): ret = ret + char['space']
+-			return ansi['blue'] + ret
++			return ret
+ 		else:
+ 			ret = ''
+ 			for i, name in enumerate(self.name):
+ 				for j, nick in enumerate(self.nick):
+-					ret = ret + ansi['blue'] + string.replace(string.center(nick, self.format[1]), ' ', '_')
++					ret = ret + ansi['blue'] + ansi['underline'] + string.center(nick, self.format[1]) + ansi['default']
+ 					if j + 1 != len(self.nick): ret = ret + char['space']
+ 				if i + 1 != len(self.name): ret = ret + ansi['gray'] + char['colon']
+-			return ansi['blue'] + ret
++			return ret
+ 
+ 	def titlecsv(self, nr):
+ 		if nr == 1:
+@@ -561,6 +563,7 @@
+ 				if len(l) &lt; 13: continue
+ 				if l[3:] == ['0',] * 11: continue
+ 				name = l[2]
++				if re.match('(md[0-9]+|dm-[0-9]+)', name): continue
+ 				ret.append(name)
+ 		for item in list: ret.append(item)
+ 		return ret
+@@ -627,6 +630,7 @@
+ 			l = string.split(line)
+ 			if len(l) &lt; 15 or l[0] == 'major' or int(l[1]) % 16 != 0: continue
+ 			name = l[3]
++			if re.match('(md[0-9]+|dm-[0-9]+)', name): continue
+ 			ret.append(name)	
+ 		for item in list: ret.append(item)
+ 		return ret
+@@ -750,6 +754,22 @@
+ 		if step == op.delay:
+ 			self.cn1.update(self.cn2)
+ 
++class dstat_epoch(dstat):
++	def __init__(self):
++		self.name = 'epoch'
++		self.format = ('t', 10, 0)
++		if op.debug:
++			self.format = ('t', 14, 0)
++		self.nick = ('epoch',)
++		self.vars = self.nick
++		self.init(self.vars, 1)
++ 
++		def extract(self):
++			self.val['epoch'] = time.time()
++ 
++#		def show(self):
++#			return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
++
+ class dstat_int(dstat):
+ 	def __init__(self):
+ 		self.name = 'interrupts'
+@@ -1242,18 +1262,19 @@
+ class dstat_time(dstat):
+ 	def __init__(self):
+ 		self.name = 'time'
+-		self.format = ('t', 10, 0)
+-		if op.debug:
+-			self.format = ('t', 14, 0)
+-		self.nick = ('epoch',)
++		self.format = ('s', 14, 0)
++		self.nick = ('date/time',)
+ 		self.vars = self.nick
+-		self.init(self.vars, 1)
+ 
+ 	def extract(self):
+-		self.val['epoch'] = time.time()
++		pass
+ 
+-#	def show(self):
+-#		return ansi['reset'] + ( '%10.2f' % self.val['epoch'] )
++	def show(self):
++		if step == op.delay:
++			color = 'silver'
++		else:
++			color = 'gray'
++		return ansi[color] + time.strftime('%d-%m %H:%M:%S', time.localtime())
+ 
+ class dstat_udp(dstat):
+ 	def __init__(self):
+@@ -1485,10 +1506,10 @@
+ 	else:
+ 		units = (' ', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
+ 
+-	if step != op.delay:
++	if step == op.delay:
++		colors = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
++	else:
+ 		colors = ('darkred', 'darkyellow', 'darkgreen', 'darkblue', 'darkmagenta', 'darkcyan', 'silver', 'red', 'green')
+-	else:
+-		colors = ('red', 'yellow', 'green', 'blue', 'magenta', 'cyan', 'white', 'darkred', 'darkgreen')
+ 
+ 	if op.integer and type in ('d', 'p', 'f'):
+ 		ret, c = dchg(var, max, base)
+@@ -1511,7 +1532,7 @@
+ 		color = 'default'
+ 
+ 	if type in ('s',):
+-		ret = ansi['default'] + ret.ljust(max)
++		ret = ansi['default'] + string.ljust(ret, max)
+ 	else:
+ 		ret = ansi[color] + string.rjust(ret, max)
+ 
+@@ -1656,9 +1677,9 @@
+ 	signal.alarm(interval)
+ 
+ def exit(ret):
+-	sys.stdout.write(ansi['reset'])
+ 	if 'signal' in sys.modules.keys():
+ 		signal.signal(signal.SIGALRM, signal.SIG_DFL)
++	sys.stdout.write(ansi['reset'])
+ 	sys.exit(ret)
+ 
+ def listmodules():
+
+Modified: trunk/tools/dstat/plugins/dstat_clock.py
+===================================================================
+--- trunk/tools/dstat/plugins/dstat_clock.py	2006-12-11 23:44:32 UTC (rev 4986)
++++ trunk/tools/dstat/plugins/dstat_clock.py	2006-12-12 15:36:17 UTC (rev 4987)
+@@ -14,6 +14,10 @@
+ 		pass
+ 
+ 	def show(self):
+-		return time.strftime('%d-%m %H:%M:%S', time.localtime())
++		if step == op.delay:
++			color = 'silver'
++		else:
++			color = 'gray'
++		return ansi[color] + time.strftime('%d-%m %H:%M:%S', time.localtime())
+ 
+ # vim:ts=4:sw=4
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="003786.html">[svn] r4986 - in trunk/rpms: avidemux2 clamav ddclient nagios	nagios-nrpe nagios-nsca webmin
+</A></li>
+	<LI>Next message: <A HREF="003788.html">[svn] r4988 - in trunk/tools/dstat: docs examples
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3787">[ date ]</a>
+              <a href="thread.html#3787">[ thread ]</a>
+              <a href="subject.html#3787">[ subject ]</a>
+              <a href="author.html#3787">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>

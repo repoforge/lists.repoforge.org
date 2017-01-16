@@ -1,0 +1,179 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [packagers] builders: please include rpm-macros-rpmforge in your	build environments
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20builders%3A%20please%20include%20rpm-macros-rpmforge%20in%20your%0A%09build%20environments&In-Reply-To=%3CFFB7EDB0-5394-4368-A317-6AEAF710F2D2%40vecna.org%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="002861.html">
+   <LINK REL="Next"  HREF="002865.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[packagers] builders: please include rpm-macros-rpmforge in your	build environments</H1>
+    <B>Steve Huff</B> 
+    <A HREF="mailto:packagers%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5Bpackagers%5D%20builders%3A%20please%20include%20rpm-macros-rpmforge%20in%20your%0A%09build%20environments&In-Reply-To=%3CFFB7EDB0-5394-4368-A317-6AEAF710F2D2%40vecna.org%3E"
+       TITLE="[packagers] builders: please include rpm-macros-rpmforge in your	build environments">shuff at vecna.org
+       </A><BR>
+    <I>Fri Oct 23 20:54:17 CEST 2009</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="002861.html">[packagers] builders: please include rpm-macros-rpmforge in your	build environments
+</A></li>
+        <LI>Next message: <A HREF="002865.html">[packagers] builders: please include rpm-macros-rpmforge in	your	build environments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2864">[ date ]</a>
+              <a href="thread.html#2864">[ thread ]</a>
+              <a href="subject.html#2864">[ subject ]</a>
+              <a href="author.html#2864">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>
+On Oct 23, 2009, at 3:24 AM, Dag Wieers wrote:
+
+&gt;<i> There are distributions and repositories that are much more evolved  
+</I>&gt;<i> in this part and the biggest problem might be that what we do now  
+</I>&gt;<i> will be done differently upstream (or in Fedora) in a conflicting  
+</I>&gt;<i> manner.
+</I>
+certainly!  let's look at a few case studies from recent weeks.   
+everyone, please forgive me if you already know all of this, but i'd  
+like to make sure we're on the same page.
+
+CASE STUDY 1: perl-Image-Info-1.29
+
+the fundamental problem here is Image::Info::SVG, which is coded such  
+that it can use either XML::Simple or XML::LibXML::Reader (it does not  
+require both, but it must have at least one).  how to handle this  
+situation?
+
+* if we do nothing and let autoreq run its course, we end up with an  
+RPM that requires both XML modules; this is bad not only because we  
+shouldn't make end-users install packages needlessly, but also because  
+XML::LibXML::Reader is not included in the version of XML::LibXML in  
+RHEL5.
+
+* we can set Autoreq: 0 and then not specify either XML module as a  
+dependency, which results in a package that will happily install but  
+does not have full functionality out of the box.  i really don't see  
+any advantage to this solution, other than that it lets us be lazy in  
+the short term :)
+
+* we can make the problem not arise by restricting ourselves to  
+version 1.28 or less, which depends only on XML::Simple (this is what  
+EPEL does).  that's the solution that, to my mind, requires the least  
+effort, but i don't love it because end-users (or other modules) may  
+have a legitimate need for a later version of the module.
+
+* we can decide, based on whatever criteria we like, that we're going  
+to choose one of the XML modules and hard-code a dependency on that  
+one, and if a user wants to use a different module, they need to  
+install it by hand.  this solution is not entirely awful, but one  
+consequence is that users won't even know that they have the option of  
+using a different module unless they read the documentation; in  
+addition, in this particular case the user takes a performance hit by  
+using XML::Simple instead of XML::LibXML (i'm sure this doesn't  
+surprise you, but it may not be evident to a novice user).
+
+* we can capture the ambiguous dependency using a virtual provides  
+(this is we're currently doing); under this solution, both perl-XML- 
+Simple and perl-XML-LibXML provide perl-Image-Info-alternative = 1.29,  
+which is required by perl-Image-Info-1.29.  one of the advantages to  
+this solution is that the dependency options are presented via the  
+tools the user is using (e.g. yum or apt); rather than having to delve  
+into the module documentation, they just run `yum provides perl-Image- 
+Info-alternative` and the choice becomes obvious.  the most  
+significant disadvantages to this solution, to my mind, is that it  
+requires a bit more work for the maintainers, since a new version of  
+Image::Info requires a rebuild of three packages instead of one.
+
+ok, so this is a fairly simple example; there are more complex ones,  
+e.g. perl-JSON-Any (which needs at least one of four different JSON  
+modules).  however, it would still be feasible to implement our  
+current solution without using any of the macros in rpm-macros- 
+rpmforge; there are only a handful of requirements and provides for  
+perl-Image-Info, and so while it would be a bit more work to set  
+Autoreq: 0 and enumerate all the requirements either by hand or via a  
+different tool (and this is only a bit more aggressive than what  
+Christoph has recently begun to do), it's not an unreasonable amount  
+of work.  not so much the case with the second case study i have in  
+mind...
+
+CASE STUDY 2: perl-Jifty-0.90701
+
+Jifty has 105 buildrequires, 178 requires, and 193 provides.  that in  
+and of itself is not the issue, however; the issue is that rpmbuild  
+erroneously generates a number of *additional* dependencies when it  
+blunders into the code samples that come with Jifty, which refer to  
+autogenerated modules which will never be captured in any RPM.  what  
+to do about this?
+
+* i'm not going to repeat the various really bad solutions from the  
+first case study.  let us not ship broken packages :)
+
+* we could remove the code samples from the buildroot before they get  
+a chance to be scanned for dependencies.  i don't love this because  
+the code examples really are useful, and i'd like to include them in  
+the package.  maybe split them off into a subpackage (perl-Jifty- 
+examples or something), set Autoreq: 0 and make it only depend on perl- 
+Jifty?  i guess that would be a fix.
+
+* it seems simpler and more elegant to just filter out _docdir using a  
+macro designed for that purpose.  this way we don't throw out the baby  
+with the bathwater (autoreq/prov does save significant effort with big  
+complicated packages like this one).
+
+&gt;<i> The only thing we probably should do different is escalate the fact  
+</I>&gt;<i> that missing macros cannot be enforced by using BuildRequires.
+</I>&gt;<i> In this case I think we need to talk to upstream and make sure it is  
+</I>&gt;<i> improved in future distribution releases.
+</I>
+i agree wholeheartedly.  do you have a point of contact among the rpm  
+developers, or should i just open a bugzilla ticket?
+
+also, i confess that i was surprised by the amount of discussion over  
+this request (i figured it wouldn't be a big deal).  Tom, Robert:  
+could you help me understand where your objections are coming from?   
+if i'm overlooking some significant downside to having our package  
+builders install rpm-macros-rpmforge in their build environments,  
+please tell me; it seems to me to be a big increase in functionality  
+at seemingly very little cost.
+
+-steve
+
+--
+If this were played upon a stage now, I could condemn it as an  
+improbable fiction. - Fabian, Twelfth Night, III,v
+
+-------------- next part --------------
+A non-text attachment was scrubbed...
+Name: PGP.sig
+Type: application/pgp-signature
+Size: 195 bytes
+Desc: This is a digitally signed message part
+URL: &lt;<A HREF="http://lists.repoforge.org/pipermail/packagers/attachments/20091023/c903ce39/attachment.sig">http://lists.repoforge.org/pipermail/packagers/attachments/20091023/c903ce39/attachment.sig</A>&gt;
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="002861.html">[packagers] builders: please include rpm-macros-rpmforge in your	build environments
+</A></li>
+	<LI>Next message: <A HREF="002865.html">[packagers] builders: please include rpm-macros-rpmforge in	your	build environments
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#2864">[ date ]</a>
+              <a href="thread.html#2864">[ thread ]</a>
+              <a href="subject.html#2864">[ subject ]</a>
+              <a href="author.html#2864">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/packagers">More information about the packagers
+mailing list</a><br>
+</body></html>

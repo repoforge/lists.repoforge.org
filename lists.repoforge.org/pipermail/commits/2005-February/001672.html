@@ -1,0 +1,1023 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [SVN] r2866 - in trunk/rpms: asterisk asterisk-sounds zaptel
+   </TITLE>
+   <LINK REL="Index" HREF="index.html" >
+   <LINK REL="made" HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2866%20-%20in%20trunk/rpms%3A%20asterisk%20asterisk-sounds%20zaptel&In-Reply-To=%3C20050202122104.6B08417F72%40web22.meg.us2.egwn.net%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="001670.html">
+   <LINK REL="Next"  HREF="001673.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[SVN] r2866 - in trunk/rpms: asterisk asterisk-sounds zaptel</H1>
+    <B>svn-commits at rpmforge.net</B> 
+    <A HREF="mailto:commits%40lists.repoforge.org?Subject=Re:%20Re%3A%20%5BSVN%5D%20r2866%20-%20in%20trunk/rpms%3A%20asterisk%20asterisk-sounds%20zaptel&In-Reply-To=%3C20050202122104.6B08417F72%40web22.meg.us2.egwn.net%3E"
+       TITLE="[SVN] r2866 - in trunk/rpms: asterisk asterisk-sounds zaptel">svn-commits at rpmforge.net
+       </A><BR>
+    <I>Wed Feb  2 13:21:04 CET 2005</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="001670.html">[SVN] r2865 - trunk/rpms/lzo
+</A></li>
+        <LI>Next message: <A HREF="001673.html">[SVN] r2867 - trunk/rpms/amule
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1672">[ date ]</a>
+              <a href="thread.html#1672">[ thread ]</a>
+              <a href="subject.html#1672">[ subject ]</a>
+              <a href="author.html#1672">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: dude
+Date: 2005-02-02 13:21:02 +0100 (Wed, 02 Feb 2005)
+New Revision: 2866
+
+Added:
+   trunk/rpms/asterisk/get-data-char-escape.patch2
+   trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch
+Removed:
+   trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch
+   trunk/rpms/zaptel/zaptel-nokernelmodule.spec
+Modified:
+   trunk/rpms/asterisk-sounds/asterisk-sounds.spec
+   trunk/rpms/asterisk/asterisk.init
+   trunk/rpms/asterisk/asterisk.spec
+   trunk/rpms/zaptel/zaptel.spec
+Log:
+Update to latest asterisk and zaptel. Completely remove the kernel module version of zaptel for now, as it needs major reworking anyway.
+
+
+Modified: trunk/rpms/asterisk/asterisk.init
+===================================================================
+--- trunk/rpms/asterisk/asterisk.init	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/asterisk/asterisk.init	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -16,9 +16,11 @@
+ 
+ RETVAL=0
+ 
++prog=&quot;asterisk&quot;
++
+ start() {
+ 	# Start daemons.
+-	echo -n $&quot;Starting asterisk: &quot;
++	echo -n $&quot;Starting $prog: &quot;
+ 	daemon --user asterisk /usr/sbin/safe_asterisk
+ 	RETVAL=$?
+ 	[ $RETVAL -eq 0 ] &amp;&amp; touch /var/lock/subsys/asterisk
+@@ -28,7 +30,7 @@
+ 
+ stop() {
+ 	# Stop daemons.
+-	echo -n $&quot;Shutting down asterisk: &quot;
++	echo -n $&quot;Shutting down $prog: &quot;
+ 	killproc asterisk
+ 	RETVAL=$?
+ 	[ $RETVAL -eq 0 ] &amp;&amp; rm -f /var/lock/subsys/asterisk
+
+Modified: trunk/rpms/asterisk/asterisk.spec
+===================================================================
+--- trunk/rpms/asterisk/asterisk.spec	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/asterisk/asterisk.spec	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -5,25 +5,28 @@
+ %define uname asterisk
+ %define gname asterisk
+ 
+-# For pre-versions
++# For pre or post versions
+ #define prever RC2
++#define cvs 20041125
+ 
+ Summary: The Asterisk PBX and telephony application and toolkit
+ Name: asterisk
+-Version: 1.0.1
+-Release: %{?prever:0.%{prever}.}0
++Version: 1.0.5
++Release: %{?prever:0.%{prever}.}%{?cvs:1.%{cvs}.}1
+ License: GPL
+ Group: Applications/Internet
+ URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
+-Source0: <A HREF="ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-%{version">ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-%{version</A>}%{?prever:-%{prever}}.tar.gz
++Source0: <A HREF="ftp://ftp.asterisk.org/pub/asterisk/asterisk-%{version">ftp://ftp.asterisk.org/pub/asterisk/asterisk-%{version</A>}%{?prever:-%{prever}}.tar.gz
+ Source1: asterisk.init
+-Patch: asterisk-1.0-RC2-cdr.patch
++Patch0: asterisk-1.0-RC2-cdr.patch
++Patch1: get-data-char-escape.patch2
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-Requires: openssl, zlib, perl, speex, zaptel
+-Requires: gtk+, mysql, newt, ncurses, postgresql-libs
++Requires: perl, zaptel
+ BuildRequires: openssl-devel, zlib-devel, perl, bison, speex-devel, zaptel
+-BuildRequires: gtk+-devel, mysql-devel, newt-devel, ncurses-devel
+-BuildRequires: postgresql-devel, doxygen
++BuildRequires: gtk+-devel, newt-devel, ncurses-devel, doxygen
++%{!?_without_mysql:BuildRequires: mysql-devel}
++%{!?_without_postgresql:BuildRequires: postgresql-devel}
++%{!?_without_sqlite:BuildRequires: sqlite-devel}
+ 
+ %description
+ Asterisk is an Open Source PBX and telephony development platform that
+@@ -49,47 +52,38 @@
+ 
+ %prep
+ %setup -n asterisk-%{version}%{?prever:-%{prever}}
+-%patch -p1 -b .cdr
++%patch0 -p1 -b .cdr
++%patch1 -p0 -b .datacharescape
+ 
+ 
+ %build
+ # Replace /var/run by /var/run/asterisk since we don't run as root
+-%{__perl} -pi.orig -e 's|/var/run$|%{_localstatedir}/run/asterisk|g' Makefile
++%{__perl} -pi.orig -e 's|/var/run$|%{_var}/run/asterisk|g' Makefile
+ %{__make} PROC=&quot;%{_arch}&quot; OPTIMIZE=&quot;%{optflags}&quot; 
+ %{__make} progdocs
+ 
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__make} install INSTALL_PREFIX=%{buildroot}
++%{__make} install DESTDIR=%{buildroot}
+ # Install all sample config files
+ %{__make} samples DESTDIR=%{buildroot}
+-%{__install} -D -m 0755 %{SOURCE1} %{buildroot}%{_initrddir}/asterisk
++%{__install} -D -m 0755 %{SOURCE1} \
++    %{buildroot}%{_sysconfdir}/rc.d/init.d/asterisk
+ 
+-# Override wrong absolute links
+-%{__rm} -f %{buildroot}%{_localstatedir}/lib/asterisk/sounds/vm &amp;&amp; \
+-    %{__ln_s} -f ../../../spool/asterisk/vm \
+-                 %{buildroot}%{_localstatedir}/lib/asterisk/sounds/vm
+-%{__rm} -f %{buildroot}%{_localstatedir}/lib/asterisk/sounds/voicemail &amp;&amp; \
+-    %{__ln_s} -f ../../../spool/asterisk/voicemail \
+-                 %{buildroot}%{_localstatedir}/lib/asterisk/sounds/voicemail
+-%{__rm} -f %{buildroot}%{_localstatedir}/spool/asterisk/vm &amp;&amp; \
+-    %{__ln_s} -f voicemail/default \
+-                 %{buildroot}%{_localstatedir}/spool/asterisk/vm
+-
+ # We need that directory, see above
+-%{__mkdir_p} %{buildroot}%{_localstatedir}/run/asterisk
++%{__mkdir_p} %{buildroot}%{_var}/run/asterisk
+ 
+ # Fix the safe_asterix script, to be run as non-root
+-%{__perl} -pi.orig -e 's|(asterisk \${CLIARGS})|%{_sbindir}/$1|g' \
++%{__perl} -pi -e 's|(asterisk \${CLIARGS})|%{_sbindir}/$1|g' \
+     %{buildroot}%{_sbindir}/safe_asterisk
+ 
+ # Install demo sounds
+ for file in sounds/demo-*; do
+-    %{__install} -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/sounds/
++    %{__install} -m 0644 $file %{buildroot}%{_var}/lib/asterisk/sounds/
+ done
+ for file in sounds/*.mp3; do
+-    %{__install} -m 644 $file %{buildroot}%{_localstatedir}/lib/asterisk/mohmp3/
++    %{__install} -m 0644 $file %{buildroot}%{_var}/lib/asterisk/mohmp3/
+ done
+ 
+ 
+@@ -100,7 +94,7 @@
+ %pre
+ # Add the &quot;asterisk&quot; user
+ /usr/sbin/useradd -c &quot;Asterisk PBX&quot; -G tty -s /sbin/nologin -r \
+-    -d &quot;%{_localstatedir}/lib/asterisk&quot; %{uname} 2&gt;/dev/null || :
++    -d &quot;%{_var}/lib/asterisk&quot; %{uname} 2&gt;/dev/null || :
+ 
+ %post
+ # Register the asterisk service
+@@ -122,19 +116,19 @@
+ %attr(750, %{uname}, %{gname}) %dir %{_sysconfdir}/asterisk
+ %attr(640, %{uname}, %{gname}) %config(noreplace) %{_sysconfdir}/asterisk/*.conf
+ %attr(640, %{uname}, %{gname}) %config(noreplace) %{_sysconfdir}/asterisk/*.adsi
+-%{_initrddir}/asterisk
++%{_sysconfdir}/rc.d/init.d/asterisk
+ %{_libdir}/asterisk/
+ %{_sbindir}/*
+ %{_mandir}/man8/asterisk.8*
+-%attr(-  , %{uname}, %{gname}) %{_localstatedir}/lib/asterisk/
+-%attr(750, %{uname}, %{gname}) %{_localstatedir}/run/asterisk/
+-%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/log/asterisk/
+-%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/spool/asterisk/
+-                                    %{_localstatedir}/spool/asterisk/vm/
+-%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/spool/asterisk/voicemail/
+-%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/spool/asterisk/voicemail/default/
+-%attr(750, %{uname}, %{gname}) %dir %{_localstatedir}/spool/asterisk/voicemail/default/1234/
+-                                    %{_localstatedir}/spool/asterisk/voicemail/default/1234/*.gsm
++%attr(-  , %{uname}, %{gname}) %{_var}/lib/asterisk/
++%attr(750, %{uname}, %{gname}) %{_var}/run/asterisk/
++%attr(750, %{uname}, %{gname}) %dir %{_var}/log/asterisk/
++%attr(750, %{uname}, %{gname}) %dir %{_var}/spool/asterisk/
++                                    %{_var}/spool/asterisk/vm/
++%attr(750, %{uname}, %{gname}) %dir %{_var}/spool/asterisk/voicemail/
++%attr(750, %{uname}, %{gname}) %dir %{_var}/spool/asterisk/voicemail/default/
++%attr(750, %{uname}, %{gname}) %dir %{_var}/spool/asterisk/voicemail/default/1234/
++                                    %{_var}/spool/asterisk/voicemail/default/1234/*.gsm
+ 
+ 
+ %files devel
+@@ -144,6 +138,15 @@
+ 
+ 
+ %changelog
++* Wed Feb  2 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.5-1
++- Update to 1.0.5.
++- Don't create nor include sbin/safe_asterisk.orig.
++- Remove now unneeded absolute symlink overriding (they point inside now).
++- Replace localstatedir by var for mdk compat and initrddir by full path.
++
++* Fri Nov 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.2-1.20041125.0
++- Update to CVS snapshot.
++
+ * Mon Oct 18 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.1-0
+ - Update to 1.0.1.
+ 
+
+Added: trunk/rpms/asterisk/get-data-char-escape.patch2
+===================================================================
+--- trunk/rpms/asterisk/get-data-char-escape.patch2	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/asterisk/get-data-char-escape.patch2	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -0,0 +1,81 @@
++Index: app.c
++===================================================================
++RCS file: /usr/cvsroot/asterisk/app.c,v
++retrieving revision 1.34
++diff -u -r1.34 app.c
++--- app.c	26 Oct 2004 02:21:43 -0000	1.34
+++++ app.c	22 Nov 2004 17:50:42 -0000
++@@ -58,7 +58,7 @@
++ }
++ 
++ 
++-int ast_app_getdata_full(struct ast_channel *c, char *prompt, char *s, int maxlen, int timeout, int audiofd, int ctrlfd)
+++int ast_app_getdata_full(struct ast_channel *c, char *prompt, char *s, int maxlen, int timeout, int audiofd, int ctrlfd, char *edigits)
++ {
++ 	int res,to,fto;
++ 	if (prompt) {
++@@ -70,7 +70,7 @@
++ 	to = 2000;
++ 	if (timeout &gt; 0) fto = to = timeout;
++ 	if (timeout &lt; 0) fto = to = 1000000000;
++-	res = ast_readstring_full(c, s, maxlen, to, fto, &quot;#&quot;, audiofd, ctrlfd);
+++	res = ast_readstring_full(c, s, maxlen, to, fto, edigits, audiofd, ctrlfd);
++ 	return res;
++ }
++ 
++Index: include/asterisk/app.h
++===================================================================
++RCS file: /usr/cvsroot/asterisk/include/asterisk/app.h,v
++retrieving revision 1.17
++diff -u -r1.17 app.h
++--- include/asterisk/app.h	3 Oct 2004 21:18:27 -0000	1.17
+++++ include/asterisk/app.h	22 Nov 2004 17:51:05 -0000
++@@ -34,7 +34,7 @@
++ extern int ast_app_getdata(struct ast_channel *c, char *prompt, char *s, int maxlen, int timeout);
++ 
++ /* Full version with audiofd and controlfd.  NOTE: returns '2' on ctrlfd available, not '1' like other full functions */
++-extern int ast_app_getdata_full(struct ast_channel *c, char *prompt, char *s, int maxlen, int timeout, int audiofd, int ctrlfd);
+++extern int ast_app_getdata_full(struct ast_channel *c, char *prompt, char *s, int maxlen, int timeout, int audiofd, int ctrlfd, char *edigits);
++ 
++ //! Record voice (after playing prompt if specified), waiting for silence (in ms) up to a given timeout (in s) or '#'
++ int ast_app_getvoice(struct ast_channel *c, char *dest, char *dstfmt, char *prompt, int silence, int maxsec);
++Index: res/res_agi.c
++===================================================================
++RCS file: /usr/cvsroot/asterisk/res/res_agi.c,v
++retrieving revision 1.17
++diff -u -r1.17 res_agi.c
++--- res/res_agi.c	17 Nov 2004 04:36:39 -0000	1.17
+++++ res/res_agi.c	22 Nov 2004 17:51:05 -0000
++@@ -618,12 +618,17 @@
++ 	char data[1024];
++ 	int max;
++ 	int timeout;
+++	char *edigits = &quot;#&quot;;
++ 
++ 	if (argc &lt; 3)
++ 		return RESULT_SHOWUSAGE;
++ 	if (argc &gt;= 4) timeout = atoi(argv[3]); else timeout = 0;
++ 	if (argc &gt;= 5) max = atoi(argv[4]); else max = 1024;
++-	res = ast_app_getdata_full(chan, argv[2], data, max, timeout, agi-&gt;audio, agi-&gt;ctrl);
+++	if (argc &gt;= 6){ 
+++		if (!strncasecmp(argv[5],&quot;*&quot;,1)) edigits = &quot;*&quot;;
+++	}
+++		
+++	res = ast_app_getdata_full(chan, argv[2], data, max, timeout, agi-&gt;audio, agi-&gt;ctrl, edigits);
++ 	if (res == 2)			/* New command */
++ 		return RESULT_SUCCESS;
++ 	else if (res == 1)
++@@ -1318,7 +1323,7 @@
++ &quot; -1 on error/hangup.\n&quot;;
++ 
++ static char usage_getdata[] =
++-&quot; Usage: GET DATA &lt;file to be streamed&gt; [timeout] [max digits]\n&quot;
+++&quot; Usage: GET DATA &lt;file to be streamed&gt; [timeout] [max digits] [escape character (* or #)]\n&quot;
++ &quot;	 Stream the given file, and recieve DTMF data. Returns the digits recieved\n&quot;
++ &quot;from the channel at the other end.\n&quot;;
++ 
++@@ -1889,4 +1894,3 @@
++ {
++ 	return ASTERISK_GPL_KEY;
++ }
++-
+
+Modified: trunk/rpms/asterisk-sounds/asterisk-sounds.spec
+===================================================================
+--- trunk/rpms/asterisk-sounds/asterisk-sounds.spec	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/asterisk-sounds/asterisk-sounds.spec	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -8,14 +8,14 @@
+ Summary: Sound files for the Asterisk PBX and telephony application and toolkit
+ Name: asterisk-sounds
+ Version: 1.0.1
+-Release: %{?prever:0.%{prever}.}0
++Release: %{?prever:0.%{prever}.}1
+ License: BSD
+ Group: Applications/Internet
+ URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
+-Source: <A HREF="ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-sounds-%{version">ftp://ftp.asterisk.org/pub/telephony/asterisk/asterisk-sounds-%{version</A>}%{?prever:-%{prever}}.tar.gz
++Source: <A HREF="ftp://ftp.asterisk.org/pub/asterisk/asterisk-sounds-%{version">ftp://ftp.asterisk.org/pub/asterisk/asterisk-sounds-%{version</A>}%{?prever:-%{prever}}.tar.gz
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
++Requires: asterisk
+ BuildArch: noarch
+-Requires: asterisk
+ 
+ %description
+ Asterisk is an Open Source PBX and telephony development platform that
+@@ -51,10 +51,13 @@
+ %files
+ %defattr(0644, root, root, 0755)
+ %doc README.txt sounds-extra.txt
+-%{_localstatedir}/lib/asterisk/sounds
++%{_var}/lib/asterisk/sounds
+ 
+ 
+ %changelog
++* Wed Feb  2 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.1-1
++- Minor cleanups.
++
+ * Mon Oct 18 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net">http://freshrpms.net</A>&gt; 1.0.1-0
+ - Update to 1.0.1.
+ 
+
+Deleted: trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch
+===================================================================
+--- trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/zaptel/zaptel-1.0-RC1-makefile.patch	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -1,128 +0,0 @@
+-diff -Naupr zaptel-1.0-RC1.orig/Makefile zaptel-1.0-RC1/Makefile
+---- zaptel-1.0-RC1.orig/Makefile	2004-07-17 00:09:07.000000000 +0200
+-+++ zaptel-1.0-RC1/Makefile	2004-07-26 18:30:29.842864224 +0200
+-@@ -3,6 +3,9 @@
+- #
+- BASEADDR=0xd0000
+- 
+-+# Kernel version
+-+KVERSION=$(uname -r)
+-+
+- #
+- # Okay, the people at RedHat have to break everything they can possibly even attempt to.
+- # So, we have to look in /usr/src/linux-2.4/include for header files given their brain dead
+-@@ -12,15 +15,15 @@ BASEADDR=0xd0000
+- # (assuming He's running Linux -- which we all know He must).
+- #
+- HOSTCC=gcc
+--KINCLUDES=$(shell if [ -d /usr/src/linux-2.4/include ]; then echo /usr/src/linux-2.4/include ; else echo /usr/src/linux/include ; fi)
+-+KINCLUDES=/lib/modules/$(KVERSION)/build/include
+- 
+--CFLAGS+=-I. -O4 -g -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
+-+CFLAGS+=-I. -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
+- CFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-fsigned-char&quot;; fi)
+- CFLAGS+=$(shell if uname -m | grep -q x86_64; then echo &quot;-m64&quot;; fi)
+- LCFLAGS=-fPIC $(CFLAGS) -DBUILDING_TONEZONE
+--KFLAGS+=-I/usr/src/linux-2.4/include -O6
+--KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB -I/usr/src/linux/drivers/net \
+--	-Wall -I. -Wstrict-prototypes -fomit-frame-pointer -I/usr/src/linux/drivers/net/wan -I /usr/src/linux/include -I/usr/src/linux/include/net
+-+KFLAGS+=-I. -Wall -I$(KINCLUDES) -I$(KINCLUDES)/net -I$(KINCLUDES)/net/wan
+-+KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB
+-+KFLAGS+=-Wall -Wstrict-prototypes -fomit-frame-pointer
+- KFLAGS+=$(shell [ -f $(KINCLUDES)/linux/modversions.h ] &amp;&amp; echo &quot;-DMODVERSIONS -include $(KINCLUDES)/linux/modversions.h&quot;)
+- KFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-msoft-float -fsigned-char&quot;; fi)
+- #
+-@@ -33,8 +36,9 @@ CFLAGS+=-DSTANDALONE_ZAPATA
+- 
+- INSTALL_PREFIX=
+- 
+--BUILDVER=$(shell if uname -r | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
+--MODCONF=$(shell if [ -d $(INSTALL_PREFIX)/etc/modprobe.d ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(INSTALL_PREFIX)/etc/modutils ]; then echo &quot;$(INSTALL_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(INSTALL_PREFIX)/etc/modprobe.conf ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.conf&quot;; elif [ -f $(INSTALL_PREFIX)/etc/modules.conf ]; then echo &quot;$(INSTALL_PREFIX)/etc/modules.conf&quot;; else echo $(INSTALL_PREFIX)/etc/conf.modules ; fi)
+-+BUILDVER=$(shell if echo $(KVERSION) | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
+-+#MODCONF=$(shell if [ -d $(INSTALL_PREFIX)/etc/modprobe.d ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(INSTALL_PREFIX)/etc/modutils ]; then echo &quot;$(INSTALL_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(INSTALL_PREFIX)/etc/modprobe.conf ]; then echo &quot;$(INSTALL_PREFIX)/etc/modprobe.conf&quot;; else echo &quot;$(INSTALL_PREFIX)/etc/modules.conf&quot;; fi)
+-+MODCONF=$(INSTALL_PREFIX)/etc/modules.conf.zaptel
+- 
+- ifeq (${BUILDVER},linux24)
+- #We only support DEVFS in linux 2.4 kernels, since its considered obsolete post 2.4
+-@@ -228,45 +232,45 @@ ifeq ($(DYNFS),)
+- 	rm -f $(INSTALL_PREFIX)/dev/zap/252
+- 	rm -f $(INSTALL_PREFIX)/dev/zap/251
+- 	rm -f $(INSTALL_PREFIX)/dev/zap/250
+--	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
+--	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
+--	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
+--	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
+--	N=1; \
+--	while [ $$N -lt 250 ]; do \
+--		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
+--		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
+--		N=$$[$$N+1]; \
+--	done
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
+-+#	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
+-+#	N=1; \
+-+#	while [ $$N -lt 250 ]; do \
+-+#		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
+-+#		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
+-+#		N=$$[$$N+1]; \
+-+#	done
+- else
+- 	@echo &quot;**** Dynamic filesystem detected -- not creating device nodes&quot;
+- 	@echo &quot;**** If you are running udev, read README.udev&quot;
+- endif
+- 
+- install:  all devices $(LIBTONEZONE)
+--	mkdir -p $(INSTALL_PREFIX)/sbin
+--	install -m 755 ztcfg $(INSTALL_PREFIX)/sbin
+-+	mkdir -p $(INSTALL_PREFIX)/usr/sbin
+-+	install -m 755 ztcfg $(INSTALL_PREFIX)/usr/sbin
+- 	if [ -f sethdlc-new ]; then \
+--		install -m 755 sethdlc-new $(INSTALL_PREFIX)/sbin/sethdlc; \
+-+		install -m 755 sethdlc-new $(INSTALL_PREFIX)/usr/sbin/sethdlc; \
+- 	elif [ -f sethdlc ]; then \
+--		install -m 755 sethdlc $(INSTALL_PREFIX)/sbin ; \
+-+		install -m 755 sethdlc $(INSTALL_PREFIX)/usr/sbin ; \
+- 	fi
+--	if [ -f zttool ]; then install -m 755 zttool $(INSTALL_PREFIX)/sbin; fi
+--	mkdir -p $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc
+-+	if [ -f zttool ]; then install -m 755 zttool $(INSTALL_PREFIX)/usr/sbin; fi
+-+	mkdir -p $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc
+- 
+- 	if [ -f zaptel.ko ]; then \
+- 		for x in $(MODULESKO) ztdummy.ko; do \
+--			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc ; \
+-+			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc ; \
+- 		done; \
+- 		if ! [ -f wcfxsusb.ko ]; then \
+--			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.o; \
+-+			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.o; \
+- 		fi; \
+- 	else \
+- 		for x in $(MODULESO); do \
+--			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc ; \
+-+			install -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc ; \
+- 		done; \
+- 		if ! [ -f wcfxsusb.o ]; then \
+--			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.ko; \
+-+			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.ko; \
+- 		fi; \
+- 	fi
+- 
+-@@ -278,12 +282,9 @@ install:  all devices $(LIBTONEZONE)
+- 	install -m 644 torisa.h $(INSTALL_PREFIX)/usr/include/linux
+- 	install -m 644 tonezone.h $(INSTALL_PREFIX)/usr/include
+- 	( cd $(INSTALL_PREFIX)/usr/lib ; rm -f libtonezone.so ; ln -sf $(LIBTONEZONE) libtonezone.so )
+--	/sbin/ldconfig
+--	if [ -f $(MODCONF) ]; then mv -f $(MODCONF) $(MODCONF).bak ; fi
+--	cat $(MODCONF).bak | grep -v &quot;alias char-major-250&quot; | \
+--	grep -v &quot;post-install torisa /sbin/ztcfg&quot; | \
+--	grep -v &quot;post-install wcfxsusb /sbin/ztcfg&quot; | \
+--	grep -v &quot;post-install wcfxs /sbin/ztcfg&quot; &gt; $(MODCONF) || true
+-+#	/sbin/ldconfig
+-+	mkdir -p `dirname $(MODCONF)`
+-+	touch $(MODCONF)
+- 	if ! grep &quot;options torisa&quot; $(MODCONF); then \
+- 		echo &quot;options torisa base=$(BASEADDR)&quot; &gt;&gt; $(MODCONF); \
+- 	fi
+
+Added: trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch
+===================================================================
+--- trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/zaptel/zaptel-1.0.4-makefile.patch	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -0,0 +1,156 @@
++diff -Naupr zaptel-1.0.4.orig/Makefile zaptel-1.0.4/Makefile
++--- zaptel-1.0.4.orig/Makefile	2005-01-17 01:57:59.000000000 +0100
+++++ zaptel-1.0.4/Makefile	2005-02-02 12:46:49.046727824 +0100
++@@ -4,6 +4,9 @@
++ #
++ BASEADDR=0xd0000
++ 
+++# Kernel version
+++KVERSION=$(uname -r)
+++
++ #
++ # Okay, the people at RedHat have to break everything they can possibly even attempt to.
++ # So, we have to look in /usr/src/linux-2.4/include for header files given their brain dead
++@@ -13,15 +16,15 @@ BASEADDR=0xd0000
++ # (assuming He's running Linux -- which we all know He must).
++ #
++ HOSTCC=gcc
++-KINCLUDES=$(shell if [ -d /usr/src/linux-2.4/include ]; then echo /usr/src/linux-2.4/include ; else echo /usr/src/linux/include ; fi)
+++KINCLUDES=/lib/modules/$(KVERSION)/build/include
++ 
++-CFLAGS+=-I. -O4 -g -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
+++CFLAGS+=-I. -Wall -DBUILDING_TONEZONE #-DTONEZONE_DRIVER
++ CFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-fsigned-char&quot;; fi)
++ CFLAGS+=$(shell if uname -m | grep -q x86_64; then echo &quot;-m64&quot;; fi)
++ LCFLAGS=-fPIC $(CFLAGS) -DBUILDING_TONEZONE
++-KFLAGS+=-I/usr/src/linux-2.4/include -O6
++-KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB -I/usr/src/linux/drivers/net \
++-	-Wall -I. -Wstrict-prototypes -fomit-frame-pointer -I/usr/src/linux/drivers/net/wan -I /usr/src/linux/include -I/usr/src/linux/include/net
+++KFLAGS+=-DMODULE -D__KERNEL__ -DEXPORT_SYMTAB
+++KFLAGS+=-Wall -Wstrict-prototypes -fomit-frame-pointer
+++KFLAGS+=-I. -Wall -I$(KINCLUDES) -I$(KINCLUDES)/net -I$(KINCLUDES)/net/wan
++ KFLAGS+=$(shell [ -f $(KINCLUDES)/linux/modversions.h ] &amp;&amp; echo &quot;-DMODVERSIONS -include $(KINCLUDES)/linux/modversions.h&quot;)
++ KFLAGS+=$(shell if uname -m | grep -q ppc; then echo &quot;-msoft-float -fsigned-char&quot;; fi)
++ #
++@@ -38,8 +41,8 @@ INSTALL_PREFIX=
++ CONFIG_FILE=$(INSTALL_PREFIX)/etc/zaptel.conf
++ CFLAGS+=-DZAPTEL_CONFIG=\&quot;$(CONFIG_FILE)\&quot;
++ 
++-BUILDVER=$(shell if uname -r | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
++-MODCONF=$(shell if [ -d $(ROOT_PREFIX)/etc/modprobe.d ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(ROOT_PREFIX)/etc/modutils ]; then echo &quot;$(ROOT_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(ROOT_PREFIX)/etc/modprobe.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.conf&quot;; elif [ -f $(ROOT_PREFIX)/etc/modules.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modules.conf&quot;; else echo $(ROOT_PREFIX)/etc/conf.modules ; fi)
+++BUILDVER=$(shell if echo $(KVERSION) | grep -q ^2.6; then echo &quot;linux26&quot;; else echo &quot;linux24&quot;; fi)
+++MODCONF=$(shell if [ -d $(ROOT_PREFIX)/etc/modprobe.d ]; then echo &quot;$(ROOT_PREFIX)/etc/modprobe.d/zaptel&quot;; elif [ -d $(ROOT_PREFIX)/etc/modutils ]; then echo &quot;$(ROOT_PREFIX)/etc/modutils/zaptel&quot;; elif [ -f $(ROOT_PREFIX)/etc/modules.conf ]; then echo &quot;$(ROOT_PREFIX)/etc/modules.conf&quot;; else echo $(ROOT_PREFIX)/etc/modprobe.conf ; fi)
++ 
++ ifeq (${BUILDVER},linux24)
++ #We only support DEVFS in linux 2.4 kernels, since its considered obsolete post 2.4
++@@ -67,7 +70,7 @@ BINS=ztcfg torisatool makefw ztmonitor z
++ PRIMARY=torisa
++ #PRIMARY=wcfxo
++ PWD=$(shell pwd)
++-KERNEL_SOURCE?=/lib/modules/`uname -r`/build
+++KERNEL_SOURCE?=/lib/modules/$(KVERSION)/build
++ 
++ all: $(BUILDVER)
++ 
++@@ -240,43 +243,43 @@ ifeq ($(DYNFS),)
++ 	rm -f $(INSTALL_PREFIX)/dev/zap/252
++ 	rm -f $(INSTALL_PREFIX)/dev/zap/251
++ 	rm -f $(INSTALL_PREFIX)/dev/zap/250
++-	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
++-	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
++-	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
++-	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
++-	N=1; \
++-	while [ $$N -lt 250 ]; do \
++-		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
++-		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
++-		N=$$[$$N+1]; \
++-	done
+++#	mknod $(INSTALL_PREFIX)/dev/zap/ctl c 196 0
+++#	mknod $(INSTALL_PREFIX)/dev/zap/timer c 196 253
+++#	mknod $(INSTALL_PREFIX)/dev/zap/channel c 196 254
+++#	mknod $(INSTALL_PREFIX)/dev/zap/pseudo c 196 255
+++#	N=1; \
+++#	while [ $$N -lt 250 ]; do \
+++#		rm -f $(INSTALL_PREFIX)/dev/zap/$$N; \
+++#		mknod $(INSTALL_PREFIX)/dev/zap/$$N c 196 $$N; \
+++#		N=$$[$$N+1]; \
+++#	done
++ else
++ 	@echo &quot;**** Dynamic filesystem detected -- not creating device nodes&quot;
++ 	@echo &quot;**** If you are running udev, read README.udev&quot;
++ endif
++ 
++ install:  all devices $(LIBTONEZONE)
++-	install -D -m 755 ztcfg $(INSTALL_PREFIX)/sbin/ztcfg
+++	install -D -m 755 ztcfg $(INSTALL_PREFIX)/usr/sbin/ztcfg
++ 	if [ -f sethdlc-new ]; then \
++-		install -D -m 755 sethdlc-new $(INSTALL_PREFIX)/sbin/sethdlc; \
+++		install -D -m 755 sethdlc-new $(INSTALL_PREFIX)/usr/sbin/sethdlc; \
++ 	elif [ -f sethdlc ]; then \
++-		install -D -m 755 sethdlc $(INSTALL_PREFIX)/sbin/sethdlc ; \
+++		install -D -m 755 sethdlc $(INSTALL_PREFIX)/usr/sbin/sethdlc ; \
++ 	fi
++-	if [ -f zttool ]; then install -D -m 755 zttool $(INSTALL_PREFIX)/sbin/zttool; fi
+++	if [ -f zttool ]; then install -D -m 755 zttool $(INSTALL_PREFIX)/usr/sbin/zttool; fi
++ 
++ 	if [ -f zaptel.ko ]; then \
++ 		for x in $(MODULESKO) ztdummy.ko; do \
++-			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/$$x ; \
+++			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/$$x ; \
++ 		done; \
++ 		if ! [ -f wcfxsusb.ko ]; then \
++-			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.o; \
+++			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.o; \
++ 		fi; \
++ 	else \
++ 		for x in $(MODULESO); do \
++-			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/$$x ; \
+++			install -D -m 644 $$x $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/$$x ; \
++ 		done; \
++ 		if ! [ -f wcfxsusb.o ]; then \
++-			rm -f $(INSTALL_PREFIX)/lib/modules/`uname -r`/misc/wcfxsusb.ko; \
+++			rm -f $(INSTALL_PREFIX)/lib/modules/$(KVERSION)/misc/wcfxsusb.ko; \
++ 		fi; \
++ 	fi
++ 
++@@ -287,11 +290,14 @@ install:  all devices $(LIBTONEZONE)
++ 	install -D -m 644 tonezone.h $(INSTALL_PREFIX)/usr/include/tonezone.h
++ 	( cd $(INSTALL_PREFIX)/usr/lib ; rm -f libtonezone.so ; ln -sf $(LIBTONEZONE) libtonezone.so )
++ 	[ `id -u` = 0 ] &amp;&amp; /sbin/ldconfig || :
++-	if [ -f $(MODCONF) ]; then mv -f $(MODCONF) $(MODCONF).bak ; fi
++-	cat $(MODCONF).bak | grep -v &quot;alias char-major-250&quot; | \
++-	grep -v &quot;post-install torisa /sbin/ztcfg&quot; | \
++-	grep -v &quot;post-install wcfxsusb /sbin/ztcfg&quot; | \
++-	grep -v &quot;post-install wcfxs /sbin/ztcfg&quot; &gt; $(MODCONF) || true
+++#	if [ -f $(MODCONF) ]; then mv -f $(MODCONF) $(MODCONF).bak ; fi
+++#	cat $(MODCONF).bak | grep -v &quot;alias char-major-250&quot; | \
+++#
+++	mkdir -p `dirname $(MODCONF)`
+++	touch $(MODCONF)
+++#	grep -v &quot;post-install torisa /sbin/ztcfg&quot; | \
+++#	grep -v &quot;post-install wcfxsusb /sbin/ztcfg&quot; | \
+++#	grep -v &quot;post-install wcfxs /sbin/ztcfg&quot; &gt; $(MODCONF) || true
++ 	if ! grep &quot;options torisa&quot; $(MODCONF); then \
++ 		echo &quot;options torisa base=$(BASEADDR)&quot; &gt;&gt; $(MODCONF); \
++ 	fi
++@@ -303,8 +309,8 @@ install:  all devices $(LIBTONEZONE)
++ 		if ! grep &quot;post-install $$x&quot; $(MODCONF); then \
++ 			if ! grep &quot;install $$x &quot; $(MODCONF); then \
++ 				if [ &quot;$$x&quot; != &quot;zaptel&quot; ] ; then \
++-					if [ -f zaptel.ko ]; then echo &quot;install $$x /sbin/modprobe --ignore-install $$x &amp;&amp; /sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
++-					else echo &quot;post-install $$x /sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
+++					if [ -f zaptel.ko ]; then echo &quot;install $$x /sbin/modprobe --ignore-install $$x &amp;&amp; /usr/sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
+++					else echo &quot;post-install $$x /usr/sbin/ztcfg&quot; &gt;&gt; $(MODCONF); \
++ 					fi; \
++ 				fi; \
++ 			fi; \
++@@ -312,7 +318,7 @@ install:  all devices $(LIBTONEZONE)
++ 	done
++ 
++ 	if [ -d /etc/modutils ]; then \
++-		/sbin/update-modules ; \
+++		[ `id -u` = 0 ] &amp;&amp; /sbin/update-modules ; \
++ 	fi
++ 	[ `id -u` = 0 ] &amp;&amp; /sbin/depmod -a || :
++ 	[ -f $(CONFIG_FILE) ] || install -D -m 644 zaptel.conf.sample $(CONFIG_FILE)
+
+Deleted: trunk/rpms/zaptel/zaptel-nokernelmodule.spec
+===================================================================
+--- trunk/rpms/zaptel/zaptel-nokernelmodule.spec	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/zaptel/zaptel-nokernelmodule.spec	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -1,146 +0,0 @@
+-# $id: zaptel.spec,v 1.2 2003/11/17 12:31:10 dude Exp $
+-
+-# For pre-versions
+-#define prever RC2
+-
+-# &quot;uname -r&quot; output of the kernel to build for, the running one
+-# if none was specified with &quot;--define 'kernel &lt;uname -r&gt;'&quot;
+-#%{!?kernel: %{expand: %%define kernel %(uname -r)}}
+- 
+-#%define kversion %(echo %{kernel} | sed -e s/smp// -)
+-#%define krelver  %(echo %{kversion} | tr -s '-' '_')
+-#%if %(echo %{kernel} | grep -c smp)
+-#        %{expand:%%define ksmp -smp}
+-#%endif
+-
+-Summary: Zaptel telephony interface support
+-Name: zaptel
+-Version: 1.0.1
+-Release: %{?prever:0.%{prever}.}0
+-License: GPL
+-Group: System Environment/Libraries
+-URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
+-Source0: <A HREF="ftp://ftp.asterisk.org/pub/telephony/zaptel/zaptel-%{version">ftp://ftp.asterisk.org/pub/telephony/zaptel/zaptel-%{version</A>}%{?prever:-%{prever}}.tar.gz
+-Source1: zaptel-makedev.d.txt
+-Patch: zaptel-1.0-RC1-makefile.patch
+-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-#Requires: newt, kernel-module-zaptel
+-Requires: newt
+-#BuildRequires: newt-devel, kernel-source = %{kversion}, MAKEDEV
+-BuildRequires: newt-devel, MAKEDEV
+-
+-%description
+-This package contains the libraries, device entries, startup scripts and tools
+-needed to use Digium telephony hardware. This includes the pseudo TDM
+-interfaces.
+-
+-You will also need to install a kernel modules package matching your current
+-kernel for everything to work, and edit /etc/modules.conf.
+-
+-
+-#%package -n kernel%{?ksmp}-module-zaptel
+-#Summary: Kernel modules for the Zaptel devices.
+-#Release: %{release}_%{krelver}
+-#Group: System Environment/Kernel
+-#Requires: kernel%{?ksmp} = %{kversion}, /sbin/depmod
+-#Provides: kernel-modules
+-#%{?ksmp:Provides: kernel-module-zaptel = %{version}-%{release}_%{krelver}}
+-#
+-#%description -n kernel%{?ksmp}-module-zaptel
+-#This package contains the zaptel kernel modules for the Linux kernel package :
+-#%{kversion} (%{_target_cpu}%{?ksmp:, SMP}).
+-
+-
+-%prep
+-%setup -n zaptel-%{version}%{?prever:-%{prever}}
+-%patch -p1 -b .makefile
+-
+-
+-%build
+-# Only build the binaries, not the kernel modules
+-%{__perl} -pi -e 's|^all.*|all: \$(BINS)|g' Makefile
+-export CFLAGS=&quot;%{optflags}&quot;
+-%{__make} %{?_smp_mflags}
+-
+-
+-%install
+-%{__rm} -rf %{buildroot}
+-%{__make} install KVERSION=%{kversion} INSTALL_PREFIX=%{buildroot}
+-
+-# Install and generate all the device stuff
+-%{__install} -m 644 -D %{SOURCE1} %{buildroot}%{_sysconfdir}/makedev.d/zaptel
+- 
+-# Create entry list
+-/dev/MAKEDEV \
+-    -c %{buildroot}%{_sysconfdir}/makedev.d \
+-    -d %{buildroot}/dev -M zaptel | sed 's|%{buildroot}||g' &gt; device.list
+-
+-# Install the init script and sysconfig file
+-%{__install} -m 0644 -D zaptel.sysconfig \
+-    %{buildroot}%{_sysconfdir}/sysconfig/zaptel
+-%{__install} -m 0755 -D zaptel.init \
+-    %{buildroot}%{_initrddir}/zaptel
+-
+-# Move kernel modules in the &quot;kernel&quot; subdirectory, also get smp right
+-%{__mkdir_p} %{buildroot}/lib/modules/%{kernel}/kernel
+-%{__mv} %{buildroot}/lib/modules/%{kversion}/misc \
+-        %{buildroot}/lib/modules/%{kernel}/kernel/
+-
+-# Move the modules config file back in order to put it in docs instead
+-%{__mv} %{buildroot}%{_sysconfdir}/modules.conf.zaptel .
+-
+-
+-%clean
+-%{__rm} -rf %{buildroot}
+-
+-
+-%post
+-/sbin/ldconfig
+-
+-%postun
+-/sbin/ldconfig
+-
+-#%post -n kernel%{?ksmp}-module-zaptel
+-#/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
+-#
+-#%postun -n kernel%{?ksmp}-module-zaptel
+-#/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
+-
+-
+-%files -f device.list
+-%defattr(-, root, root, 0755)
+-%doc ChangeLog README.fxsusb modules.conf.zaptel
+-%doc ifcfg-hdlc0 ifup-hdlc zaptel.conf.sample
+-%config(noreplace) %{_sysconfdir}/sysconfig/zaptel
+-%config(noreplace) %{_sysconfdir}/zaptel.conf
+-%{_sysconfdir}/makedev.d/zaptel
+-%{_initrddir}/zaptel
+-/usr/sbin/ztcfg
+-/usr/sbin/zttool
+-%{_includedir}/*.h
+-%{_includedir}/linux/*.h
+-%{_libdir}/*.so*
+-
+-#%files -n kernel%{?ksmp}-module-zaptel
+-#%defattr(-, root, root, 0755)
+-#/lib/modules/%{kernel}/kernel/misc/*
+-
+-
+-%changelog
+-* Mon Oct 18 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.1-0
+-- Update to 1.0.1.
+-
+-* Mon Aug 30 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.RC2.0
+-- Update to 1.0-RC2.
+-- Disable kernel module building for now, we don't use any.
+-
+-* Mon Jul 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.RC1.1
+-- Update to 1.0-RC1.
+-- Major Makefile patch updates, spec updates to match.
+-
+-* Mon Nov 17 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt;
+-- Uncomment the ztdummy module to have it built.
+-
+-* Wed Nov  5 2003 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt;
+-- Initial RPM release.
+-
+
+Modified: trunk/rpms/zaptel/zaptel.spec
+===================================================================
+--- trunk/rpms/zaptel/zaptel.spec	2005-02-01 12:17:50 UTC (rev 2865)
++++ trunk/rpms/zaptel/zaptel.spec	2005-02-02 12:21:02 UTC (rev 2866)
+@@ -1,31 +1,33 @@
+ # $id: zaptel.spec,v 1.2 2003/11/17 12:31:10 dude Exp $
++# Authority: matthias
+ 
+ # For pre-versions
+-#define prever RC1
++#define prever RC2
+ 
+ # &quot;uname -r&quot; output of the kernel to build for, the running one
+ # if none was specified with &quot;--define 'kernel &lt;uname -r&gt;'&quot;
+-%{!?kernel: %{expand: %%define kernel %(uname -r)}}
++#%{!?kernel: %{expand: %%define kernel %(uname -r)}}
+  
+-%define kversion %(echo %{kernel} | sed -e s/smp// -)
+-%define krelver  %(echo %{kversion} | tr -s '-' '_')
+-%if %(echo %{kernel} | grep -c smp)
+-        %{expand:%%define ksmp -smp}
+-%endif
++#%define kversion %(echo %{kernel} | sed -e s/smp// -)
++#%define krelver  %(echo %{kversion} | tr -s '-' '_')
++#%if %(echo %{kernel} | grep -c smp)
++#        %{expand:%%define ksmp -smp}
++#%endif
+ 
+ Summary: Zaptel telephony interface support
+ Name: zaptel
+-Version: 1.0.1
++Version: 1.0.4
+ Release: %{?prever:0.%{prever}.}0
+ License: GPL
+ Group: System Environment/Libraries
+ URL: <A HREF="http://www.asterisk.org/">http://www.asterisk.org/</A>
+-Source0: <A HREF="ftp://ftp.asterisk.org/pub/telephony/zaptel/zaptel-%{version">ftp://ftp.asterisk.org/pub/telephony/zaptel/zaptel-%{version</A>}%{?prever:-%{prever}}.tar.gz
++Source0: <A HREF="ftp://ftp.asterisk.org/pub/zaptel/zaptel-%{version">ftp://ftp.asterisk.org/pub/zaptel/zaptel-%{version</A>}%{?prever:-%{prever}}.tar.gz
+ Source1: zaptel-makedev.d.txt
+-Patch: zaptel-1.0-RC1-makefile.patch
++Patch: zaptel-1.0.4-makefile.patch
+ BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+-Requires: newt, kernel-module-zaptel
+-BuildRequires: newt-devel, kernel-source = %{kversion}, MAKEDEV
++#Requires: kernel-module-zaptel
++#BuildRequires: newt-devel, kernel-source = %{kversion}, MAKEDEV
++BuildRequires: newt-devel, MAKEDEV
+ 
+ %description
+ This package contains the libraries, device entries, startup scripts and tools
+@@ -36,38 +38,37 @@
+ kernel for everything to work, and edit /etc/modules.conf.
+ 
+ 
+-%package -n kernel%{?ksmp}-module-zaptel
+-Summary: Kernel modules for the Zaptel devices.
+-Release: %{release}_%{krelver}
+-Group: System Environment/Kernel
+-Requires: kernel%{?ksmp} = %{kversion}, /sbin/depmod
+-Provides: kernel-modules
+-%{?ksmp:Provides: kernel-module-zaptel = %{version}-%{release}_%{krelver}}
++#%package -n kernel%{?ksmp}-module-zaptel
++#Summary: Kernel modules for the Zaptel devices.
++#Release: %{release}_%{krelver}
++#Group: System Environment/Kernel
++#Requires: kernel%{?ksmp} = %{kversion}, /sbin/depmod
++#Provides: kernel-modules
++#%{?ksmp:Provides: kernel-module-zaptel = %{version}-%{release}_%{krelver}}
++#
++#%description -n kernel%{?ksmp}-module-zaptel
++#This package contains the zaptel kernel modules for the Linux kernel package :
++#%{kversion} (%{_target_cpu}%{?ksmp:, SMP}).
+ 
+-%description -n kernel%{?ksmp}-module-zaptel
+-This package contains the zaptel kernel modules for the Linux kernel package :
+-%{kversion} (%{_target_cpu}%{?ksmp:, SMP}).
+ 
+-
+ %prep
+ %setup -n zaptel-%{version}%{?prever:-%{prever}}
+ %patch -p1 -b .makefile
+ 
+ 
+ %build
+-# Replace kernel version with the correct one
+-#perl -pi -e 's|`uname -r`|%{kernel}|g' Makefile
+-#perl -pi -e 's|/usr/src/linux-2.4/|/usr/src/linux-%{kversion}/|g' Makefile
+-# Get the ztdummy module compiled too
+-%{__perl} -pi -e 's|# ztdummy.o|ztdummy.o|g' Makefile
++# Only build the binaries, not the kernel modules
++%{__perl} -pi -e 's|^all.*|all: \$(BINS)|g' Makefile
+ export CFLAGS=&quot;%{optflags}&quot;
+-export KFLAGS=&quot;%{optflags} -D__BOOT_KERNEL_H_ -D__MODULE_KERNEL_%{_target_cpu}=1 %{?ksmp:-D__BOOT_KERNEL_SMP=1} %{!?ksmp:-D__BOOT_KERNEL_UP=1}&quot;
+-%{__make} %{?_smp_mflags} KVERSION=%{kversion}
++%{__make} %{?_smp_mflags}
+ 
+ 
+ %install
+ %{__rm} -rf %{buildroot}
+-%{__make} install KVERSION=%{kversion} INSTALL_PREFIX=%{buildroot}
++%{__make} install \
++    KVERSION=%{kversion} \
++    INSTALL_PREFIX=%{buildroot} \
++    ROOT_PREFIX=%{buildroot}
+ 
+ # Install and generate all the device stuff
+ %{__install} -m 644 -D %{SOURCE1} %{buildroot}%{_sysconfdir}/makedev.d/zaptel
+@@ -75,13 +76,14 @@
+ # Create entry list
+ /dev/MAKEDEV \
+     -c %{buildroot}%{_sysconfdir}/makedev.d \
+-    -d %{buildroot}/dev -M zaptel | sed 's|%{buildroot}||g' &gt; device.list
++    -d %{buildroot}/dev -M zaptel | sed 's|%{buildroot}||g' | \
++    grep -v 'dir /dev$' &gt; device.list
+ 
+ # Install the init script and sysconfig file
+ %{__install} -m 0644 -D zaptel.sysconfig \
+     %{buildroot}%{_sysconfdir}/sysconfig/zaptel
+ %{__install} -m 0755 -D zaptel.init \
+-    %{buildroot}%{_initrddir}/zaptel
++    %{buildroot}%{_sysconfdir}/rc.d/init.d/zaptel
+ 
+ # Move kernel modules in the &quot;kernel&quot; subdirectory, also get smp right
+ %{__mkdir_p} %{buildroot}/lib/modules/%{kernel}/kernel
+@@ -89,7 +91,7 @@
+         %{buildroot}/lib/modules/%{kernel}/kernel/
+ 
+ # Move the modules config file back in order to put it in docs instead
+-%{__mv} %{buildroot}%{_sysconfdir}/modules.conf.zaptel .
++%{__mv} %{buildroot}%{_sysconfdir}/{modprobe,modules}.conf . || :
+ 
+ 
+ %clean
+@@ -102,36 +104,45 @@
+ %postun
+ /sbin/ldconfig
+ 
+-%post -n kernel%{?ksmp}-module-zaptel
+-/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
++#%post -n kernel%{?ksmp}-module-zaptel
++#/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
++#
++#%postun -n kernel%{?ksmp}-module-zaptel
++#/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
+ 
+-%postun -n kernel%{?ksmp}-module-zaptel
+-/sbin/depmod -a -F /boot/System.map-%{kernel} %{kernel} &gt;/dev/null 2&gt;&amp;1 || :
+ 
+-
+ %files -f device.list
+ %defattr(-, root, root, 0755)
+-%doc ChangeLog README.fxsusb modules.conf.zaptel
++%doc ChangeLog README.fxsusb mod*.conf
+ %doc ifcfg-hdlc0 ifup-hdlc zaptel.conf.sample
+ %config(noreplace) %{_sysconfdir}/sysconfig/zaptel
+ %config(noreplace) %{_sysconfdir}/zaptel.conf
+ %{_sysconfdir}/makedev.d/zaptel
+-%{_initrddir}/zaptel
+-/usr/sbin/ztcfg
+-/usr/sbin/zttool
++%{_sysconfdir}/rc.d/init.d/zaptel
++%{_sbindir}/ztcfg
++%{_sbindir}/zttool
+ %{_includedir}/*.h
+ %{_includedir}/linux/*.h
+ %{_libdir}/*.so*
+ 
+-%files -n kernel%{?ksmp}-module-zaptel
+-%defattr(-, root, root, 0755)
+-/lib/modules/%{kernel}/kernel/misc/*
++#%files -n kernel%{?ksmp}-module-zaptel
++#%defattr(-, root, root, 0755)
++#/lib/modules/%{kernel}/kernel/misc/*
+ 
+ 
+ %changelog
++* Wed Feb  2 2005 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.4-0
++- Update to 1.0.4.
++- Updated makefile patch.
++- Keep &quot;/dev&quot; from being owned by the package.
++
+ * Mon Oct 18 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0.1-0
+ - Update to 1.0.1.
+ 
++* Mon Aug 30 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.RC2.0
++- Update to 1.0-RC2.
++- Disable kernel module building for now, we don't use any.
++
+ * Mon Jul 26 2004 Matthias Saou &lt;<A HREF="http://freshrpms.net/">http://freshrpms.net/</A>&gt; 1.0-0.RC1.1
+ - Update to 1.0-RC1.
+ - Major Makefile patch updates, spec updates to match.
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="001670.html">[SVN] r2865 - trunk/rpms/lzo
+</A></li>
+	<LI>Next message: <A HREF="001673.html">[SVN] r2867 - trunk/rpms/amule
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#1672">[ date ]</a>
+              <a href="thread.html#1672">[ thread ]</a>
+              <a href="subject.html#1672">[ subject ]</a>
+              <a href="author.html#1672">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="http://lists.repoforge.org/mailman/listinfo/commits">More information about the commits
+mailing list</a><br>
+</body></html>
